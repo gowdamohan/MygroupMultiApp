@@ -1,0 +1,1738 @@
+import { Op } from 'sequelize';
+import jwt from 'jsonwebtoken';
+import {
+  Continent,
+  Country,
+  State,
+  District,
+  Language,
+  Education,
+  Profession,
+  GroupCreate,
+  CreateDetails,
+  Group,
+  AppCategory,
+  User,
+  UserGroup
+} from '../models/index.js';
+
+/**
+ * ============================================
+ * CONTINENT MANAGEMENT
+ * ============================================
+ */
+
+// Get all continents
+export const getContinents = async (req, res) => {
+  try {
+    const continents = await Continent.findAll({
+      order: [['order', 'ASC'], ['continent', 'ASC']]
+    });
+
+    res.json({
+      success: true,
+      data: continents
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch continents',
+      error: error.message
+    });
+  }
+};
+
+// Create continent
+export const createContinent = async (req, res) => {
+  try {
+    const { continent, order, status, code } = req.body;
+
+    const continents = await Continent.create({
+      continent,
+      order: order || 0,
+      status: status !== undefined ? status : 1,
+      code
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Continent created successfully',
+      data: continents
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create continent',
+      error: error.message
+    });
+  }
+};
+
+// Update continent
+export const updateContinent = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { continent, order, status, code } = req.body;
+
+    const continentRecord = await Continent.findByPk(id);
+    if (!continentRecord) {
+      return res.status(404).json({
+        success: false,
+        message: 'Continent not found'
+      });
+    }
+
+    await continentRecord.update({
+      continent,
+      order,
+      status,
+      code
+    });
+
+    res.json({
+      success: true,
+      message: 'Continent updated successfully',
+      data: continentRecord
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update continent',
+      error: error.message
+    });
+  }
+};
+
+// Delete continent
+export const deleteContinent = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const continent = await Continent.findByPk(id);
+    if (!continent) {
+      return res.status(404).json({
+        success: false,
+        message: 'Continent not found'
+      });
+    }
+
+    await continent.destroy();
+
+    res.json({
+      success: true,
+      message: 'Continent deleted successfully'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete continent',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * ============================================
+ * COUNTRY MANAGEMENT
+ * ============================================
+ */
+
+// Get all countries
+export const getCountries = async (req, res) => {
+  try {
+    const { continentId } = req.query;
+    const where = continentId ? { continent_id: continentId } : {};
+
+    const countries = await Country.findAll({
+      where,
+      include: [{ model: Continent, as: 'continent' }],
+      order: [['order', 'ASC'], ['country', 'ASC']]
+    });
+
+    res.json({
+      success: true,
+      data: countries
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch countries',
+      error: error.message
+    });
+  }
+};
+
+// Create country
+export const createCountry = async (req, res) => {
+  try {
+    const { continent_id, country, code, country_flag, currency, phone_code, nationality, order, status } = req.body;
+
+    const newCountry = await Country.create({
+      continent_id,
+      country,
+      code,
+      country_flag,
+      currency,
+      phone_code,
+      nationality,
+      order: order || 0,
+      status: status !== undefined ? status : 1
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Country created successfully',
+      data: newCountry
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create country',
+      error: error.message
+    });
+  }
+};
+
+// Update country
+export const updateCountry = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { continent_id, country, code, country_flag, currency, phone_code, nationality, order, status } = req.body;
+
+    const countryRecord = await Country.findByPk(id);
+    if (!countryRecord) {
+      return res.status(404).json({
+        success: false,
+        message: 'Country not found'
+      });
+    }
+
+    await countryRecord.update({
+      continent_id,
+      country,
+      code,
+      country_flag,
+      currency,
+      phone_code,
+      nationality,
+      order,
+      status
+    });
+
+    res.json({
+      success: true,
+      message: 'Country updated successfully',
+      data: countryRecord
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update country',
+      error: error.message
+    });
+  }
+};
+
+// Delete country
+export const deleteCountry = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const country = await Country.findByPk(id);
+    if (!country) {
+      return res.status(404).json({
+        success: false,
+        message: 'Country not found'
+      });
+    }
+
+    await country.destroy();
+
+    res.json({
+      success: true,
+      message: 'Country deleted successfully'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete country',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * ============================================
+ * STATE MANAGEMENT
+ * ============================================
+ */
+
+// Get all states
+export const getStates = async (req, res) => {
+  try {
+    const { countryId } = req.query;
+    const where = countryId ? { country_id: countryId } : {};
+
+    const states = await State.findAll({
+      where,
+      include: [
+        { model: Country, as: 'country', include: [{ model: Continent, as: 'continent' }] }
+      ],
+      order: [['order', 'ASC'], ['state', 'ASC']]
+    });
+
+    res.json({
+      success: true,
+      data: states
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch states',
+      error: error.message
+    });
+  }
+};
+
+// Create state
+export const createState = async (req, res) => {
+  try {
+    const { country_id, state, code, order, status } = req.body;
+
+    const newState = await State.create({
+      country_id,
+      state,
+      code,
+      order: order || 0,
+      status: status !== undefined ? status : 1
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'State created successfully',
+      data: newState
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create state',
+      error: error.message
+    });
+  }
+};
+
+// Update state
+export const updateState = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { country_id, state, code, order, status } = req.body;
+
+    const stateRecord = await State.findByPk(id);
+    if (!stateRecord) {
+      return res.status(404).json({
+        success: false,
+        message: 'State not found'
+      });
+    }
+
+    await stateRecord.update({
+      country_id,
+      state,
+      code,
+      order,
+      status
+    });
+
+    res.json({
+      success: true,
+      message: 'State updated successfully',
+      data: stateRecord
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update state',
+      error: error.message
+    });
+  }
+};
+
+// Delete state
+export const deleteState = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const state = await State.findByPk(id);
+    if (!state) {
+      return res.status(404).json({
+        success: false,
+        message: 'State not found'
+      });
+    }
+
+    await state.destroy();
+
+    res.json({
+      success: true,
+      message: 'State deleted successfully'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete state',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * ============================================
+ * DISTRICT MANAGEMENT
+ * ============================================
+ */
+
+// Get all districts
+export const getDistricts = async (req, res) => {
+  try {
+    const { stateId } = req.query;
+    const where = stateId ? { state_id: stateId } : {};
+
+    const districts = await District.findAll({
+      where,
+      include: [
+        {
+          model: State,
+          as: 'state',
+          include: [
+            {
+              model: Country,
+              as: 'country',
+              include: [{ model: Continent, as: 'continent' }]
+            }
+          ]
+        }
+      ],
+      order: [['order', 'ASC'], ['district', 'ASC']]
+    });
+
+    res.json({
+      success: true,
+      data: districts
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch districts',
+      error: error.message
+    });
+  }
+};
+
+// Create district
+export const createDistrict = async (req, res) => {
+  try {
+    const { state_id, district, code, order, status } = req.body;
+
+    const newDistrict = await District.create({
+      state_id,
+      district,
+      code,
+      order: order || 0,
+      status: status !== undefined ? status : 1
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'District created successfully',
+      data: newDistrict
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create district',
+      error: error.message
+    });
+  }
+};
+
+// Update district
+export const updateDistrict = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { state_id, district, code, order, status } = req.body;
+
+    const districtRecord = await District.findByPk(id);
+    if (!districtRecord) {
+      return res.status(404).json({
+        success: false,
+        message: 'District not found'
+      });
+    }
+
+    await districtRecord.update({
+      state_id,
+      district,
+      code,
+      order,
+      status
+    });
+
+    res.json({
+      success: true,
+      message: 'District updated successfully',
+      data: districtRecord
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update district',
+      error: error.message
+    });
+  }
+};
+
+// Delete district
+export const deleteDistrict = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const district = await District.findByPk(id);
+    if (!district) {
+      return res.status(404).json({
+        success: false,
+        message: 'District not found'
+      });
+    }
+
+    await district.destroy();
+
+    res.json({
+      success: true,
+      message: 'District deleted successfully'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete district',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * ============================================
+ * LANGUAGE MANAGEMENT
+ * ============================================
+ */
+
+// Get all languages
+export const getLanguages = async (req, res) => {
+  try {
+    const languages = await Language.findAll({
+      order: [['id', 'DESC']]
+    });
+
+    res.json({
+      success: true,
+      data: languages
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch languages',
+      error: error.message
+    });
+  }
+};
+
+// Create language
+export const createLanguage = async (req, res) => {
+  try {
+    const { lang_1, lang_2 } = req.body;
+
+    const language = await Language.create({
+      lang_1,
+      lang_2
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Language created successfully',
+      data: language
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create language',
+      error: error.message
+    });
+  }
+};
+
+// Update language
+export const updateLanguage = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { lang_1, lang_2 } = req.body;
+
+    const language = await Language.findByPk(id);
+    if (!language) {
+      return res.status(404).json({
+        success: false,
+        message: 'Language not found'
+      });
+    }
+
+    await language.update({ lang_1, lang_2 });
+
+    res.json({
+      success: true,
+      message: 'Language updated successfully',
+      data: language
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update language',
+      error: error.message
+    });
+  }
+};
+
+// Delete language
+export const deleteLanguage = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const language = await Language.findByPk(id);
+    if (!language) {
+      return res.status(404).json({
+        success: false,
+        message: 'Language not found'
+      });
+    }
+
+    await language.destroy();
+
+    res.json({
+      success: true,
+      message: 'Language deleted successfully'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete language',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * ============================================
+ * EDUCATION MANAGEMENT
+ * ============================================
+ */
+
+// Get all education
+export const getEducation = async (req, res) => {
+  try {
+    const education = await Education.findAll({
+      order: [['id', 'DESC']]
+    });
+
+    res.json({
+      success: true,
+      data: education
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch education',
+      error: error.message
+    });
+  }
+};
+
+// Create education
+export const createEducation = async (req, res) => {
+  try {
+    const { education, group_id } = req.body;
+
+    const newEducation = await Education.create({
+      education,
+      group_id
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Education created successfully',
+      data: newEducation
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create education',
+      error: error.message
+    });
+  }
+};
+
+// Update education
+export const updateEducation = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { education, group_id } = req.body;
+
+    const educationRecord = await Education.findByPk(id);
+    if (!educationRecord) {
+      return res.status(404).json({
+        success: false,
+        message: 'Education not found'
+      });
+    }
+
+    await educationRecord.update({ education, group_id });
+
+    res.json({
+      success: true,
+      message: 'Education updated successfully',
+      data: educationRecord
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update education',
+      error: error.message
+    });
+  }
+};
+
+// Delete education
+export const deleteEducation = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const education = await Education.findByPk(id);
+    if (!education) {
+      return res.status(404).json({
+        success: false,
+        message: 'Education not found'
+      });
+    }
+
+    await education.destroy();
+
+    res.json({
+      success: true,
+      message: 'Education deleted successfully'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete education',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * ============================================
+ * PROFESSION MANAGEMENT
+ * ============================================
+ */
+
+// Get all professions
+export const getProfessions = async (req, res) => {
+  try {
+    const professions = await Profession.findAll({
+      order: [['id', 'DESC']]
+    });
+
+    res.json({
+      success: true,
+      data: professions
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch professions',
+      error: error.message
+    });
+  }
+};
+
+// Create profession
+export const createProfession = async (req, res) => {
+  try {
+    const { profession, group_id } = req.body;
+
+    const newProfession = await Profession.create({
+      profession,
+      group_id
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Profession created successfully',
+      data: newProfession
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create profession',
+      error: error.message
+    });
+  }
+};
+
+// Update profession
+export const updateProfession = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { profession, group_id } = req.body;
+
+    const professionRecord = await Profession.findByPk(id);
+    if (!professionRecord) {
+      return res.status(404).json({
+        success: false,
+        message: 'Profession not found'
+      });
+    }
+
+    await professionRecord.update({ profession, group_id });
+
+    res.json({
+      success: true,
+      message: 'Profession updated successfully',
+      data: professionRecord
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update profession',
+      error: error.message
+    });
+  }
+};
+
+// Delete profession
+export const deleteProfession = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const profession = await Profession.findByPk(id);
+    if (!profession) {
+      return res.status(404).json({
+        success: false,
+        message: 'Profession not found'
+      });
+    }
+
+    await profession.destroy();
+
+    res.json({
+      success: true,
+      message: 'Profession deleted successfully'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete profession',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * ============================================
+ * CREATE APPS MANAGEMENT
+ * ============================================
+ */
+
+// Get all created apps
+export const getCreatedApps = async (req, res) => {
+  try {
+    const apps = await GroupCreate.findAll({
+      include: [{ model: CreateDetails, as: 'details' }],
+      order: [['order_by', 'ASC'], ['id', 'ASC']]
+    });
+
+    res.json({
+      success: true,
+      data: apps
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch created apps',
+      error: error.message
+    });
+  }
+};
+
+// Create new app
+export const createApp = async (req, res) => {
+  try {
+    const { name, apps_name, order_by, code, background_color, url } = req.body;
+
+    // Get uploaded file paths
+    const icon = req.files?.icon ? `/uploads/apps/${req.files.icon[0].filename}` : null;
+    const logo = req.files?.logo ? `/uploads/apps/${req.files.logo[0].filename}` : null;
+    const name_image = req.files?.name_image ? `/uploads/apps/${req.files.name_image[0].filename}` : null;
+
+    // Create group_create entry
+    const app = await GroupCreate.create({
+      name,
+      apps_name,
+      order_by: order_by || 0,
+      code
+    });
+
+    // Create create_details entry if any details provided
+    if (icon || logo || name_image || background_color || url) {
+      await CreateDetails.create({
+        create_id: app.id,
+        icon,
+        logo,
+        name_image,
+        background_color: background_color || '#ffffff',
+        url
+      });
+    }
+
+    // Fetch the created app with details
+    const createdApp = await GroupCreate.findByPk(app.id, {
+      include: [{ model: CreateDetails, as: 'details' }]
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'App created successfully',
+      data: createdApp
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create app',
+      error: error.message
+    });
+  }
+};
+
+// Update app
+export const updateApp = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, apps_name, order_by, code, background_color, url } = req.body;
+
+    const app = await GroupCreate.findByPk(id);
+    if (!app) {
+      return res.status(404).json({
+        success: false,
+        message: 'App not found'
+      });
+    }
+
+    // Update group_create
+    await app.update({
+      name,
+      apps_name,
+      order_by,
+      code
+    });
+
+    // Get existing details to preserve old file paths if no new files uploaded
+    const existingDetails = await CreateDetails.findOne({ where: { create_id: id } });
+
+    // Get uploaded file paths or keep existing ones
+    const icon = req.files?.icon
+      ? `/uploads/apps/${req.files.icon[0].filename}`
+      : (existingDetails?.icon || null);
+    const logo = req.files?.logo
+      ? `/uploads/apps/${req.files.logo[0].filename}`
+      : (existingDetails?.logo || null);
+    const name_image = req.files?.name_image
+      ? `/uploads/apps/${req.files.name_image[0].filename}`
+      : (existingDetails?.name_image || null);
+
+    // Update or create create_details
+    if (existingDetails) {
+      await existingDetails.update({
+        icon,
+        logo,
+        name_image,
+        background_color: background_color || existingDetails.background_color,
+        url: url || existingDetails.url
+      });
+    } else if (icon || logo || name_image || background_color || url) {
+      await CreateDetails.create({
+        create_id: id,
+        icon,
+        logo,
+        name_image,
+        background_color: background_color || '#ffffff',
+        url
+      });
+    }
+
+    // Fetch updated app with details
+    const updatedApp = await GroupCreate.findByPk(id, {
+      include: [{ model: CreateDetails, as: 'details' }]
+    });
+
+    res.json({
+      success: true,
+      message: 'App updated successfully',
+      data: updatedApp
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update app',
+      error: error.message
+    });
+  }
+};
+
+// Delete app
+export const deleteApp = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const app = await GroupCreate.findByPk(id);
+    if (!app) {
+      return res.status(404).json({
+        success: false,
+        message: 'App not found'
+      });
+    }
+
+    // Delete create_details first (if exists)
+    await CreateDetails.destroy({ where: { create_id: id } });
+
+    // Delete group_create
+    await app.destroy();
+
+    res.json({
+      success: true,
+      message: 'App deleted successfully'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete app',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * ============================================
+ * APP CATEGORIES MANAGEMENT
+ * ============================================
+ */
+
+// Get categories for a specific app (with hierarchy)
+export const getAppCategories = async (req, res) => {
+  try {
+    const { appId } = req.params;
+
+    const categories = await AppCategory.findAll({
+      where: { app_id: appId },
+      include: [
+        { model: AppCategory, as: 'parent' },
+        { model: AppCategory, as: 'children' }
+      ],
+      order: [['sort_order', 'ASC'], ['category_name', 'ASC']]
+    });
+
+    res.json({
+      success: true,
+      data: categories
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch categories',
+      error: error.message
+    });
+  }
+};
+
+// Create new category
+export const createCategory = async (req, res) => {
+  try {
+    const { app_id, parent_id, category_name, category_type, category_image, sort_order, status } = req.body;
+
+    const category = await AppCategory.create({
+      app_id,
+      parent_id: parent_id || null,
+      category_name,
+      category_type,
+      category_image,
+      sort_order: sort_order || 0,
+      status: status !== undefined ? status : 1
+    });
+
+    // Fetch created category with relations
+    const createdCategory = await AppCategory.findByPk(category.id, {
+      include: [
+        { model: AppCategory, as: 'parent' },
+        { model: AppCategory, as: 'children' }
+      ]
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Category created successfully',
+      data: createdCategory
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create category',
+      error: error.message
+    });
+  }
+};
+
+// Update category
+export const updateCategory = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { parent_id, category_name, category_type, category_image, sort_order, status } = req.body;
+
+    const category = await AppCategory.findByPk(id);
+    if (!category) {
+      return res.status(404).json({
+        success: false,
+        message: 'Category not found'
+      });
+    }
+
+    await category.update({
+      parent_id: parent_id || null,
+      category_name,
+      category_type,
+      category_image,
+      sort_order,
+      status
+    });
+
+    // Fetch updated category with relations
+    const updatedCategory = await AppCategory.findByPk(id, {
+      include: [
+        { model: AppCategory, as: 'parent' },
+        { model: AppCategory, as: 'children' }
+      ]
+    });
+
+    res.json({
+      success: true,
+      message: 'Category updated successfully',
+      data: updatedCategory
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update category',
+      error: error.message
+    });
+  }
+};
+
+// Delete category
+export const deleteCategory = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const category = await AppCategory.findByPk(id);
+    if (!category) {
+      return res.status(404).json({
+        success: false,
+        message: 'Category not found'
+      });
+    }
+
+    // Check if category has children
+    const childCount = await AppCategory.count({ where: { parent_id: id } });
+    if (childCount > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot delete category with subcategories. Please delete subcategories first.'
+      });
+    }
+
+    await category.destroy();
+
+    res.json({
+      success: true,
+      message: 'Category deleted successfully'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete category',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * ============================================
+ * CORPORATE LOGIN MANAGEMENT
+ * ============================================
+ */
+
+// Get corporate user (only one should exist)
+export const getCorporateUser = async (req, res) => {
+  try {
+    // First, get or create the 'corporate' group
+    let corporateGroup = await Group.findOne({ where: { name: 'corporate' } });
+
+    if (!corporateGroup) {
+      corporateGroup = await Group.create({
+        name: 'corporate',
+        description: 'Corporate admin group'
+      });
+    }
+
+    // Find user associated with corporate group
+    const userGroup = await UserGroup.findOne({
+      where: { group_id: corporateGroup.id },
+      include: [{
+        model: User,
+        as: 'user'
+      }]
+    });
+
+    res.json({
+      success: true,
+      data: userGroup ? userGroup.user : null,
+      corporateGroupId: corporateGroup.id
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch corporate user',
+      error: error.message
+    });
+  }
+};
+
+// Create corporate user (one-time only)
+export const createCorporateUser = async (req, res) => {
+  try {
+    const { first_name, email, username, password } = req.body;
+
+    // Get or create corporate group
+    let corporateGroup = await Group.findOne({ where: { name: 'corporate' } });
+
+    if (!corporateGroup) {
+      corporateGroup = await Group.create({
+        name: 'corporate',
+        description: 'Corporate admin group'
+      });
+    }
+
+    // Check if corporate user already exists
+    const existingUserGroup = await UserGroup.findOne({
+      where: { group_id: corporateGroup.id }
+    });
+
+    if (existingUserGroup) {
+      return res.status(400).json({
+        success: false,
+        message: 'Corporate user already exists. Use edit or reset password instead.'
+      });
+    }
+
+    // Create user
+    const user = await User.create({
+      first_name,
+      email,
+      username,
+      password,
+      active: 1
+    });
+
+    // Create user-group association
+    await UserGroup.create({
+      user_id: user.id,
+      group_id: corporateGroup.id
+    });
+
+    // Fetch created user without password
+    const createdUser = await User.findByPk(user.id);
+
+    res.status(201).json({
+      success: true,
+      message: 'Corporate user created successfully',
+      data: createdUser
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create corporate user',
+      error: error.message
+    });
+  }
+};
+
+// Update corporate user
+export const updateCorporateUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { first_name, email, username } = req.body;
+
+    const user = await User.findByPk(id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    await user.update({
+      first_name,
+      email,
+      username
+    });
+
+    const updatedUser = await User.findByPk(id);
+
+    res.json({
+      success: true,
+      message: 'Corporate user updated successfully',
+      data: updatedUser
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update corporate user',
+      error: error.message
+    });
+  }
+};
+
+// Reset corporate user password
+export const resetCorporatePassword = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { password } = req.body;
+
+    if (!password || password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters long'
+      });
+    }
+
+    const user = await User.findByPk(id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    await user.update({ password });
+
+    res.json({
+      success: true,
+      message: 'Password reset successfully'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to reset password',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * ============================================
+ * CREATE APP USER (CLIENT)
+ * ============================================
+ */
+export const createAppUser = async (req, res) => {
+  try {
+    const { id } = req.params; // app id (group_create.id)
+
+    // Get app details
+    const app = await GroupCreate.findByPk(id);
+    if (!app) {
+      return res.status(404).json({
+        success: false,
+        message: 'App not found'
+      });
+    }
+
+    // Find 'client' group
+    const clientGroup = await Group.findOne({
+      where: { name: 'client' }
+    });
+
+    if (!clientGroup) {
+      return res.status(500).json({
+        success: false,
+        message: 'Client group not found. Please contact administrator.'
+      });
+    }
+
+    // Generate username from app name (lowercase, no spaces)
+    const username = app.name.toLowerCase().replace(/\s+/g, '');
+
+    // Check if user already exists
+    const existingUser = await User.findOne({
+      where: { username: username }
+    });
+
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: `User with username "${username}" already exists`
+      });
+    }
+
+    // Get client IP address from request
+    const ipAddress = req.ip || req.connection.remoteAddress || '127.0.0.1';
+    // Clean IPv6 prefix if present
+    const cleanIp = ipAddress.replace(/^::ffff:/, '');
+
+    // Create user with password '123456'
+    // users table: id, ip_address, username, password, email, active, group_id
+    const user = await User.create({
+      ip_address: cleanIp,
+      username: username,
+      password: '123456', // Will be hashed by User model hook
+      email: `${username}@client.com`,
+      active: 1,
+      group_id: app.id, // Set group_id to app.id (group_create.id)
+      created_on: Math.floor(Date.now() / 1000)
+    });
+
+    // Create user-group association in users_groups table
+    await UserGroup.create({
+      user_id: user.id,
+      group_id: clientGroup.id // Link to 'client' group
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Client user created successfully',
+      data: {
+        user_id: user.id,
+        ip_address: cleanIp,
+        username: username,
+        password: '123456',
+        email: `${username}@client.com`,
+        active: 1,
+        group_id: app.id,
+        app_name: app.name
+      }
+    });
+
+  } catch (error) {
+    console.error('Error creating app user:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create user',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * ============================================
+ * CUSTOM FORM BUILDER
+ * ============================================
+ */
+export const saveCustomForm = async (req, res) => {
+  try {
+    const { id } = req.params; // app id
+    const { form_name, fields } = req.body;
+
+    // Validate
+    if (!form_name || !fields || fields.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Form name and fields are required'
+      });
+    }
+
+    // Store form configuration as JSON in database
+    // You can create a new table 'app_custom_forms' or store in create_details
+    // For now, let's store in create_details as a JSON field
+
+    const app = await GroupCreate.findByPk(id);
+    if (!app) {
+      return res.status(404).json({
+        success: false,
+        message: 'App not found'
+      });
+    }
+
+    // Get or create create_details
+    let details = await CreateDetails.findOne({ where: { create_id: id } });
+
+    if (!details) {
+      details = await CreateDetails.create({
+        create_id: id,
+        custom_form: JSON.stringify({ form_name, fields })
+      });
+    } else {
+      await details.update({
+        custom_form: JSON.stringify({ form_name, fields })
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Custom form saved successfully',
+      data: {
+        form_name,
+        fields_count: fields.length
+      }
+    });
+
+  } catch (error) {
+    console.error('Error saving custom form:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to save custom form',
+      error: error.message
+    });
+  }
+};
+
+export const getCustomForm = async (req, res) => {
+  try {
+    const { id } = req.params; // app id
+
+    const details = await CreateDetails.findOne({ where: { create_id: id } });
+
+    if (!details || !details.custom_form) {
+      return res.json({
+        success: true,
+        data: null
+      });
+    }
+
+    const formData = JSON.parse(details.custom_form);
+
+    res.json({
+      success: true,
+      data: formData
+    });
+
+  } catch (error) {
+    console.error('Error getting custom form:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get custom form',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * ============================================
+ * APP LOGIN ENDPOINTS
+ * ============================================
+ */
+
+// Get apps for login page (public endpoint)
+export const getAppsForLogin = async (req, res) => {
+  try {
+    // Get all apps with their details
+    const apps = await GroupCreate.findAll({
+      include: [{
+        model: CreateDetails,
+        as: 'details',
+        attributes: ['logo']
+      }],
+      order: [['order_by', 'ASC'], ['name', 'ASC']]
+    });
+
+    const appsData = apps.map(app => ({
+      id: app.id,
+      name: app.name,
+      logo: app.details?.logo || null
+    }));
+
+    res.json({
+      success: true,
+      data: appsData
+    });
+
+  } catch (error) {
+    console.error('Error getting apps for login:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get apps',
+      error: error.message
+    });
+  }
+};
+
+// Get apps for admin login page - only apps that have users (public endpoint)
+export const getAppsForAdminLogin = async (req, res) => {
+  try {
+    // Get all apps with their details and check if they have users
+    const apps = await GroupCreate.findAll({
+      include: [{
+        model: CreateDetails,
+        as: 'details',
+        attributes: ['logo']
+      }],
+      order: [['order_by', 'ASC'], ['name', 'ASC']]
+    });
+
+    // Filter apps that have users (where users.group_id = app.id)
+    const appsWithUsers = [];
+
+    for (const app of apps) {
+      const userCount = await User.count({
+        where: { group_id: app.id }
+      });
+
+      if (userCount > 0) {
+        appsWithUsers.push({
+          id: app.id,
+          name: app.name,
+          logo: app.details?.logo || null,
+          user_count: userCount
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      data: appsWithUsers
+    });
+
+  } catch (error) {
+    console.error('Error getting apps for admin login:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get apps',
+      error: error.message
+    });
+  }
+};
+
+// App login endpoint
+export const appLogin = async (req, res) => {
+  try {
+    const { app_id, username, password } = req.body;
+
+    console.log('App Login Request:', { app_id, username, password_length: password?.length });
+
+    // Validate input
+    if (!app_id || !username || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'App ID, username, and password are required'
+      });
+    }
+
+    // Find user by username
+    const user = await User.findOne({
+      where: { username: username }
+    });
+
+    console.log('User found:', user ? { id: user.id, username: user.username, group_id: user.group_id, active: user.active } : 'No user found');
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid username or password'
+      });
+    }
+
+    // Check if user is active
+    if (user.active !== 1) {
+      console.log('User is inactive:', user.active);
+      return res.status(403).json({
+        success: false,
+        message: 'Your account is inactive. Please contact administrator.'
+      });
+    }
+
+    // Check if user belongs to this app (group_id should match app_id)
+    console.log('Checking group_id:', { user_group_id: user.group_id, app_id: parseInt(app_id), match: user.group_id === parseInt(app_id) });
+    if (user.group_id !== parseInt(app_id)) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have access to this app'
+      });
+    }
+
+    // Verify password
+    console.log('Verifying password...');
+    const isPasswordValid = await user.comparePassword(password);
+    console.log('Password valid:', isPasswordValid);
+
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid username or password'
+      });
+    }
+
+    // Get app details
+    const app = await GroupCreate.findByPk(app_id);
+
+    // Generate JWT tokens
+    const accessToken = jwt.sign(
+      {
+        userId: user.id,
+        username: user.username,
+        appId: app_id,
+        appName: app?.name
+      },
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: '24h' }
+    );
+
+    const refreshToken = jwt.sign(
+      { userId: user.id },
+      process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-key',
+      { expiresIn: '7d' }
+    );
+
+    // Update last login
+    await user.update({
+      last_login: Math.floor(Date.now() / 1000)
+    });
+
+    res.json({
+      success: true,
+      message: 'Login successful',
+      data: {
+        accessToken,
+        refreshToken,
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          first_name: user.first_name,
+          app_id: app_id,
+          app_name: app?.name
+        },
+        dashboardRoute: `/app/${app_id}/dashboard`
+      }
+    });
+
+  } catch (error) {
+    console.error('Error in app login:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Login failed',
+      error: error.message
+    });
+  }
+};
+

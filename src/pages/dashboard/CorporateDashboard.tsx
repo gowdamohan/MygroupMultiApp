@@ -1,0 +1,560 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { HeadOfficeLogin } from '../corporate/HeadOfficeLogin';
+import { FooterPageManager } from '../corporate/FooterPageManager';
+import { SocialMediaLinks } from '../corporate/SocialMediaLinks';
+import { Gallery } from '../corporate/Gallery';
+import {
+  LayoutDashboard, Users, Building2, MapPin, Globe, FileText,
+  LogOut, ChevronDown, ChevronRight, Menu, X, Search, Bell,
+  Settings, Shield, Award, Newspaper, Calendar, Briefcase,
+  UserCheck, MessageSquare, Mail, FileCheck, Lock, Copyright,
+  Clock, TrendingUp, BarChart3, DollarSign, Image, Megaphone,
+  Database, HelpCircle, Key, User, FileImage, Link2, BookOpen,
+  Smile, Building, Milestone, Phone, Share2, Scale, ShieldCheck,
+  FileQuestion, Headphones
+} from 'lucide-react';
+
+interface MenuItem {
+  id: string;
+  label: string;
+  icon: any;
+  path?: string;
+  children?: MenuItem[];
+}
+
+interface DashboardStats {
+  headOfficeUsers: number;
+  regionalOfficeUsers: number;
+  branchOfficeUsers: number;
+  headOfficeAds: any[];
+  regionalOfficeAds: any[];
+  branchOfficeAds: any[];
+}
+
+export const CorporateDashboard: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [expandedMenus, setExpandedMenus] = useState<string[]>(['dashboard']);
+  const [activeMenu, setActiveMenu] = useState('dashboard');
+  const [user, setUser] = useState<any>(null);
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [stats, setStats] = useState<DashboardStats>({
+    headOfficeUsers: 0,
+    regionalOfficeUsers: 37,
+    branchOfficeUsers: 735,
+    headOfficeAds: [],
+    regionalOfficeAds: [],
+    branchOfficeAds: []
+  });
+
+  useEffect(() => {
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      setUser(JSON.parse(userData));
+    } else {
+      navigate('/auth/login');
+    }
+
+    // Update clock every second
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [navigate]);
+
+  const menuItems: MenuItem[] = [
+    {
+      id: 'dashboard',
+      label: 'Dashboard',
+      icon: LayoutDashboard,
+      path: '/dashboard/corporate'
+    },
+    {
+      id: 'head-office-login',
+      label: 'Head Office Login',
+      icon: Building2,
+      path: '/corporate/head-office-login'
+    },
+    {
+      id: 'advertisement',
+      label: 'Advertisement',
+      icon: Megaphone,
+      children: [
+        { id: 'header-ads', label: 'Header Ads', icon: Image, path: '/corporate/header-ads' },
+        { id: 'popup-ads', label: 'Popup Add', icon: MessageSquare, path: '/corporate/popup-ads' },
+        { id: 'company-header-ads', label: 'My Company Header Ads', icon: Building, path: '/corporate/company-header-ads' },
+        { id: 'main-page-ads', label: 'Main Page Ads', icon: FileImage, path: '/corporate/main-page-ads' }
+      ]
+    },
+    {
+      id: 'profile',
+      label: 'Profile',
+      icon: User,
+      path: '/corporate/profile'
+    },
+    {
+      id: 'application-details',
+      label: 'Application Details',
+      icon: FileText,
+      path: '/corporate/application-details'
+    },
+    {
+      id: 'terms-conditions',
+      label: 'Terms and Conditions',
+      icon: FileCheck,
+      path: '/corporate/terms-conditions'
+    },
+    {
+      id: 'footer',
+      label: 'Footer',
+      icon: Settings,
+      children: [
+        { id: 'about-us', label: 'About Us', icon: BookOpen, path: '/corporate/footer/about-us' },
+        { id: 'awards', label: 'Awards', icon: Award, path: '/corporate/footer/awards' },
+        { id: 'newsroom', label: 'Newsroom', icon: Newspaper, path: '/corporate/footer/newsroom' },
+        { id: 'events', label: 'Events', icon: Calendar, path: '/corporate/footer/events' },
+        { id: 'careers', label: 'Careers', icon: Briefcase, path: '/corporate/footer/careers' },
+        { id: 'clients', label: 'Clients', icon: Users, path: '/corporate/footer/clients' },
+        { id: 'milestones', label: 'Milestones', icon: Milestone, path: '/corporate/footer/milestones' },
+        { id: 'testimonials', label: 'Testimonials', icon: Smile, path: '/corporate/footer/testimonials' },
+        { id: 'gallery', label: 'Gallery', icon: Image, path: '/corporate/footer/gallery' },
+        { id: 'contact-us', label: 'Contact Us', icon: Phone, path: '/corporate/footer/contact-us' },
+        { id: 'social-media', label: 'Social Media Link', icon: Share2, path: '/corporate/footer/social-media' },
+        { id: 'footer-terms', label: 'Terms And Conditions', icon: Scale, path: '/corporate/footer/terms' },
+        { id: 'privacy-policy', label: 'Privacy and Policy', icon: ShieldCheck, path: '/corporate/footer/privacy' }
+      ]
+    },
+    {
+      id: 'database',
+      label: 'Database',
+      icon: Database,
+      children: [
+        { id: 'public-database', label: 'Public Database', icon: Database, path: '/corporate/public-database' },
+        { id: 'client-database', label: 'Client Database', icon: Database, path: '/corporate/client-database' }
+      ]
+    },
+    {
+      id: 'applications',
+      label: 'Applications',
+      icon: FileQuestion,
+      children: [
+        { id: 'franchise-application', label: 'Franchise Application', icon: Building2, path: '/corporate/franchise-application' },
+        { id: 'job-application', label: 'Job Application', icon: Briefcase, path: '/corporate/job-application' },
+        { id: 'enquiry-form', label: 'Enquiry Form', icon: Mail, path: '/corporate/enquiry-form' }
+      ]
+    },
+    {
+      id: 'supports',
+      label: 'Supports',
+      icon: Headphones,
+      children: [
+        { id: 'feedback', label: 'Feedback and Suggestions', icon: MessageSquare, path: '/corporate/feedback' },
+        { id: 'chat', label: 'Chat with Us', icon: MessageSquare, path: '/corporate/chat' }
+      ]
+    },
+    {
+      id: 'change-password',
+      label: 'Change Password',
+      icon: Key,
+      path: '/corporate/change-password'
+    }
+  ];
+
+  const toggleMenu = (menuId: string) => {
+    setExpandedMenus(prev =>
+      prev.includes(menuId)
+        ? prev.filter(id => id !== menuId)
+        : [...prev, menuId]
+    );
+  };
+
+  const handleMenuClick = (item: MenuItem) => {
+    if (item.children) {
+      toggleMenu(item.id);
+    } else if (item.path) {
+      setActiveMenu(item.id);
+      navigate(item.path);
+      setMobileSidebarOpen(false);
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('user');
+    navigate('/auth/login');
+  };
+
+  const renderContent = () => {
+    const path = location.pathname;
+    console.log('Current path:', path);
+
+    // Route matching
+    switch (path) {
+      case '/dashboard/corporate':
+        return renderDashboard();
+      case '/corporate/head-office-login':
+        return <HeadOfficeLogin />;
+      case '/corporate/header-ads':
+        return <div className="p-6"><h2 className="text-2xl font-bold">Header Ads Management</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
+      case '/corporate/popup-ads':
+        return <div className="p-6"><h2 className="text-2xl font-bold">Popup Ads Management</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
+      case '/corporate/company-header-ads':
+        return <div className="p-6"><h2 className="text-2xl font-bold">Company Header Ads Management</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
+      case '/corporate/main-page-ads':
+        return <div className="p-6"><h2 className="text-2xl font-bold">Main Page Ads Management</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
+      case '/corporate/profile':
+        return <div className="p-6"><h2 className="text-2xl font-bold">Profile</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
+      case '/corporate/application-details':
+        return <div className="p-6"><h2 className="text-2xl font-bold">Application Details</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
+      case '/corporate/terms-conditions':
+        return <div className="p-6"><h2 className="text-2xl font-bold">Terms and Conditions</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
+      case '/corporate/footer/about-us':
+        return <FooterPageManager pageType="about_us" pageTitle="About Us" />;
+      case '/corporate/footer/awards':
+        return <FooterPageManager pageType="awards" pageTitle="Awards" />;
+      case '/corporate/footer/newsroom':
+        return <FooterPageManager pageType="newsroom" pageTitle="Newsroom" />;
+      case '/corporate/footer/events':
+        return <FooterPageManager pageType="events" pageTitle="Events" />;
+      case '/corporate/footer/careers':
+        return <FooterPageManager pageType="careers" pageTitle="Careers" />;
+      case '/corporate/footer/clients':
+        return <FooterPageManager pageType="clients" pageTitle="Clients" />;
+      case '/corporate/footer/milestones':
+        return <FooterPageManager pageType="milestones" pageTitle="Milestones" />;
+      case '/corporate/footer/testimonials':
+        return <FooterPageManager pageType="testimonials" pageTitle="Testimonials" />;
+      case '/corporate/footer/gallery':
+        return <Gallery />;
+      case '/corporate/footer/contact-us':
+        return <FooterPageManager pageType="contact_us" pageTitle="Contact Us" />;
+      case '/corporate/footer/social-media':
+        return <SocialMediaLinks />;
+      case '/corporate/footer/terms':
+        return <FooterPageManager pageType="terms_conditions" pageTitle="Terms and Conditions" />;
+      case '/corporate/footer/privacy':
+        return <FooterPageManager pageType="privacy_policy" pageTitle="Privacy Policy" />;
+      case '/corporate/public-database':
+        return <div className="p-6"><h2 className="text-2xl font-bold">Public Database</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
+      case '/corporate/client-database':
+        return <div className="p-6"><h2 className="text-2xl font-bold">Client Database</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
+      case '/corporate/franchise-application':
+        return <div className="p-6"><h2 className="text-2xl font-bold">Franchise Applications</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
+      case '/corporate/job-application':
+        return <div className="p-6"><h2 className="text-2xl font-bold">Job Applications</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
+      case '/corporate/enquiry-form':
+        return <div className="p-6"><h2 className="text-2xl font-bold">Enquiry Forms</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
+      case '/corporate/feedback':
+        return <div className="p-6"><h2 className="text-2xl font-bold">Feedback and Suggestions</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
+      case '/corporate/chat':
+        return <div className="p-6"><h2 className="text-2xl font-bold">Chat with Us</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
+      case '/corporate/change-password':
+        return <div className="p-6"><h2 className="text-2xl font-bold">Change Password</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
+      default:
+        return renderDashboard();
+    }
+  };
+
+  const renderDashboard = () => {
+    return (
+      <div className="max-w-7xl mx-auto">
+        {/* Dashboard Overview */}
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">Dashboard Overview</h2>
+
+          {/* Stats Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            {/* Clock Widget */}
+            <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 shadow-lg text-white">
+              <div className="flex items-center justify-center mb-2">
+                <Clock size={32} />
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold mb-1">
+                  {currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                </div>
+                <div className="text-sm opacity-90">
+                  {currentTime.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+                </div>
+              </div>
+            </div>
+
+            {/* Head Office Users */}
+            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 rounded-lg bg-purple-100 flex items-center justify-center">
+                  <Building2 className="text-purple-600" size={24} />
+                </div>
+                <TrendingUp className="text-green-500" size={20} />
+              </div>
+              <div className="text-3xl font-bold text-gray-900 mb-1">{stats.headOfficeUsers}</div>
+              <div className="text-sm text-gray-600">Head Office Users</div>
+              <div className="text-xs text-green-600 mt-2">By Country</div>
+            </div>
+
+            {/* Regional Office Users */}
+            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center">
+                  <MapPin className="text-blue-600" size={24} />
+                </div>
+                <TrendingUp className="text-green-500" size={20} />
+              </div>
+              <div className="text-3xl font-bold text-gray-900 mb-1">{stats.regionalOfficeUsers}</div>
+              <div className="text-sm text-gray-600">Regional Office Users</div>
+              <div className="text-xs text-green-600 mt-2">By State</div>
+            </div>
+
+            {/* Branch Office Users */}
+            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center">
+                  <Globe className="text-green-600" size={24} />
+                </div>
+                <TrendingUp className="text-green-500" size={20} />
+              </div>
+              <div className="text-3xl font-bold text-gray-900 mb-1">{stats.branchOfficeUsers}</div>
+              <div className="text-sm text-gray-600">Branch Office Users</div>
+              <div className="text-xs text-green-600 mt-2">By District</div>
+            </div>
+          </div>
+
+          {/* Ads Statistics */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            {/* Head Office Ads */}
+            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Head Office Ads</h3>
+                <Building2 className="text-purple-600" size={20} />
+              </div>
+              <div className="text-sm text-gray-600 mb-3">By Country</div>
+              <div className="text-2xl font-bold text-gray-900">0</div>
+              <div className="text-xs text-gray-500 mt-2">Total advertisements</div>
+            </div>
+
+            {/* Regional Office Ads */}
+            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Regional Office Ads</h3>
+                <MapPin className="text-green-600" size={20} />
+              </div>
+              <div className="text-sm text-gray-600 mb-3">By State</div>
+              <div className="text-2xl font-bold text-gray-900">0</div>
+              <div className="text-xs text-gray-500 mt-2">Total advertisements</div>
+            </div>
+
+            {/* Branch Office Ads */}
+            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Branch Office Ads</h3>
+                <Globe className="text-blue-600" size={20} />
+              </div>
+              <div className="text-sm text-gray-600 mb-3">By District</div>
+              <div className="text-2xl font-bold text-gray-900">0</div>
+              <div className="text-xs text-gray-500 mt-2">Total advertisements</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderMenuItem = (item: MenuItem, level: number = 0) => {
+    const isExpanded = expandedMenus.includes(item.id);
+    const isActive = activeMenu === item.id;
+    const Icon = item.icon;
+    const hasChildren = item.children && item.children.length > 0;
+
+    return (
+      <div key={item.id}>
+        <button
+          onClick={() => handleMenuClick(item)}
+          className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
+            isActive
+              ? 'bg-primary-50 text-primary-700 border-r-3 border-primary-700'
+              : 'text-gray-700 hover:bg-gray-100'
+          } ${level > 0 ? 'pl-' + (4 + level * 4) : ''}`}
+        >
+          <Icon size={18} />
+          <span className="flex-1 text-left">{item.label}</span>
+          {hasChildren && (
+            isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />
+          )}
+        </button>
+        {hasChildren && isExpanded && (
+          <div className="bg-gray-50">
+            {item.children!.map(child => renderMenuItem(child, level + 1))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="flex h-screen bg-gray-50 overflow-hidden">
+      {/* Sidebar */}
+      <aside
+        className={`${
+          sidebarOpen ? 'w-64' : 'w-0'
+        } hidden lg:block bg-white border-r border-gray-200 transition-all duration-300 overflow-hidden`}
+      >
+        <div className="h-full flex flex-col">
+          {/* Logo */}
+          <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center">
+                <Building2 className="text-white" size={18} />
+              </div>
+              <span className="font-bold text-gray-900">Corporate</span>
+            </div>
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          {/* Menu Items */}
+          <div className="flex-1 overflow-y-auto py-4">
+            {menuItems.map(item => renderMenuItem(item))}
+          </div>
+
+          {/* Logout */}
+          <div className="border-t border-gray-200 p-4">
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+            >
+              <LogOut size={18} />
+              <span>Logout</span>
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      {/* Mobile Sidebar */}
+      <AnimatePresence>
+        {mobileSidebarOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setMobileSidebarOpen(false)}
+              className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+            />
+            <motion.aside
+              initial={{ x: -280 }}
+              animate={{ x: 0 }}
+              exit={{ x: -280 }}
+              className="fixed left-0 top-0 bottom-0 w-64 bg-white z-50 lg:hidden shadow-xl"
+            >
+              <div className="h-full flex flex-col">
+                {/* Logo */}
+                <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center">
+                      <Building2 className="text-white" size={18} />
+                    </div>
+                    <span className="font-bold text-gray-900">Corporate</span>
+                  </div>
+                  <button
+                    onClick={() => setMobileSidebarOpen(false)}
+                    className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                {/* Menu Items */}
+                <div className="flex-1 overflow-y-auto py-4">
+                  {menuItems.map(item => renderMenuItem(item))}
+                </div>
+
+                {/* Logout */}
+                <div className="border-t border-gray-200 p-4">
+                  <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  >
+                    <LogOut size={18} />
+                    <span>Logout</span>
+                  </button>
+                </div>
+              </div>
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Header */}
+        <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6">
+          <div className="flex items-center gap-4">
+            {!sidebarOpen && (
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors hidden lg:block"
+              >
+                <Menu size={20} />
+              </button>
+            )}
+            <button
+              onClick={() => setMobileSidebarOpen(true)}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors lg:hidden"
+            >
+              <Menu size={20} />
+            </button>
+            <h1 className="text-xl font-bold text-gray-900">Corporate Dashboard</h1>
+          </div>
+
+          <div className="flex items-center gap-4">
+            {/* Search */}
+            <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-lg">
+              <Search size={18} className="text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search..."
+                className="bg-transparent border-none outline-none text-sm w-64"
+              />
+            </div>
+
+            {/* Notifications */}
+            <button className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors">
+              <Bell size={20} className="text-gray-600" />
+              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+            </button>
+
+            {/* User Menu */}
+            <div className="flex items-center gap-3 pl-4 border-l border-gray-200">
+              <div className="text-right hidden sm:block">
+                <div className="text-sm font-medium text-gray-900">
+                  {user?.first_name} {user?.last_name}
+                </div>
+                <div className="text-xs text-gray-500">Corporate Admin</div>
+              </div>
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center text-white font-medium">
+                {user?.first_name?.[0]}{user?.last_name?.[0]}
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* Content Area */}
+        <main className="flex-1 overflow-auto p-6">
+          {renderContent()}
+        </main>
+      </div>
+    </div>
+  );
+};
+
+
