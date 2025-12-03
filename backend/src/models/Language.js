@@ -14,7 +14,15 @@ const Language = sequelize.define('language', {
   lang_2: {
     type: DataTypes.STRING(255),
     allowNull: true
-  }
+  },
+ country_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'country_tbl',
+      key: 'id'
+    }
+  },
 }, {
   timestamps: false,
   tableName: 'language'

@@ -5,6 +5,9 @@ import { HeadOfficeLogin } from '../corporate/HeadOfficeLogin';
 import { FooterPageManager } from '../corporate/FooterPageManager';
 import { SocialMediaLinks } from '../corporate/SocialMediaLinks';
 import { Gallery } from '../corporate/Gallery';
+import { HeaderAds } from '../corporate/HeaderAds';
+import { CompanyHeaderAds } from '../corporate/CompanyHeaderAds';
+import { ApplicationDetails } from '../corporate/ApplicationDetails';
 import {
   LayoutDashboard, Users, Building2, MapPin, Globe, FileText,
   LogOut, ChevronDown, ChevronRight, Menu, X, Search, Bell,
@@ -201,17 +204,17 @@ export const CorporateDashboard: React.FC = () => {
       case '/corporate/head-office-login':
         return <HeadOfficeLogin />;
       case '/corporate/header-ads':
-        return <div className="p-6"><h2 className="text-2xl font-bold">Header Ads Management</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
+        return <HeaderAds />;
       case '/corporate/popup-ads':
         return <div className="p-6"><h2 className="text-2xl font-bold">Popup Ads Management</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
       case '/corporate/company-header-ads':
-        return <div className="p-6"><h2 className="text-2xl font-bold">Company Header Ads Management</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
+        return <CompanyHeaderAds />;
       case '/corporate/main-page-ads':
         return <div className="p-6"><h2 className="text-2xl font-bold">Main Page Ads Management</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
       case '/corporate/profile':
         return <div className="p-6"><h2 className="text-2xl font-bold">Profile</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
       case '/corporate/application-details':
-        return <div className="p-6"><h2 className="text-2xl font-bold">Application Details</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
+        return <ApplicationDetails />;
       case '/corporate/terms-conditions':
         return <div className="p-6"><h2 className="text-2xl font-bold">Terms and Conditions</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
       case '/corporate/footer/about-us':

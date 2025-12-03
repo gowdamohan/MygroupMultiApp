@@ -529,12 +529,26 @@ export const deleteDistrict = async (req, res) => {
 export const getLanguages = async (req, res) => {
   try {
     const languages = await Language.findAll({
+      include: [{
+        model: Country,
+        as: 'country',
+        attributes: ['country']
+      }],
       order: [['id', 'DESC']]
     });
 
+    // Format response to include country name
+    const formattedLanguages = languages.map(lang => ({
+      id: lang.id,
+      country_id: lang.country_id,
+      country: lang.country?.country || null,
+      lang_1: lang.lang_1,
+      lang_2: lang.lang_2
+    }));
+
     res.json({
       success: true,
-      data: languages
+      data: formattedLanguages
     });
   } catch (error) {
     res.status(500).json({
@@ -548,11 +562,12 @@ export const getLanguages = async (req, res) => {
 // Create language
 export const createLanguage = async (req, res) => {
   try {
-    const { lang_1, lang_2 } = req.body;
+    const { country_id, lang_1, lang_2 } = req.body;
 
     const language = await Language.create({
       lang_1,
-      lang_2
+      lang_2,
+      country_id
     });
 
     res.status(201).json({
@@ -573,7 +588,7 @@ export const createLanguage = async (req, res) => {
 export const updateLanguage = async (req, res) => {
   try {
     const { id } = req.params;
-    const { lang_1, lang_2 } = req.body;
+    const { country_id, lang_1, lang_2 } = req.body;
 
     const language = await Language.findByPk(id);
     if (!language) {
@@ -583,7 +598,7 @@ export const updateLanguage = async (req, res) => {
       });
     }
 
-    await language.update({ lang_1, lang_2 });
+    await language.update({country_id, lang_1, lang_2 });
 
     res.json({
       success: true,

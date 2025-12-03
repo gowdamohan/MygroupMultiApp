@@ -17,6 +17,9 @@ import franchiseRoutes from './routes/franchise.routes.js';
 import footerRoutes from './routes/footer.routes.js';
 import homeRoutes from './routes/home.routes.js';
 import memberRoutes from './routes/member.routes.js';
+import headerAdsRoutes from './routes/headerAds.routes.js';
+import companyAdsRoutes from './routes/companyAds.routes.js';
+import applicationsRoutes from './routes/applications.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -69,6 +72,9 @@ app.use(`${API_PREFIX}/franchise`, franchiseRoutes);
 app.use(`${API_PREFIX}/footer`, footerRoutes);
 app.use(`${API_PREFIX}/home`, homeRoutes);
 app.use(`${API_PREFIX}/member`, memberRoutes);
+app.use(`${API_PREFIX}/header-ads`, headerAdsRoutes);
+app.use(`${API_PREFIX}/company-ads`, companyAdsRoutes);
+app.use(`${API_PREFIX}/applications`, applicationsRoutes);
 
 // Member login route (direct access)
 import { memberLogin } from './controllers/memberController.js';

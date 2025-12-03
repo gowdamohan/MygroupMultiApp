@@ -141,13 +141,13 @@ export const ProfessionList: React.FC = () => {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Enter profession name" required />
           </div>
-          <div>
+          {/* <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Group ID</label>
             <input type="number" value={formData.group_id}
               onChange={(e) => setFormData({ ...formData, group_id: e.target.value })}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Enter group ID (optional)" />
-          </div>
+          </div> */}
           <div className="flex gap-3">
             <button type="submit"
               className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
@@ -171,18 +171,19 @@ export const ProfessionList: React.FC = () => {
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-200">
-                <th className="text-left py-3 px-4 font-semibold text-gray-700">ID</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-700">#</th>
                 <th className="text-left py-3 px-4 font-semibold text-gray-700">Profession Name</th>
-                <th className="text-left py-3 px-4 font-semibold text-gray-700">Group ID</th>
+                {/* <th className="text-left py-3 px-4 font-semibold text-gray-700">Group ID</th> */}
                 <th className="text-right py-3 px-4 font-semibold text-gray-700">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {professions.map((profession) => (
+              
+              {professions.map((profession, index) => (
                 <tr key={profession.id} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="py-3 px-4 text-gray-900">{profession.id}</td>
+                  <td className="py-3 px-4 text-gray-900">{index+1}</td>
                   <td className="py-3 px-4 text-gray-900">{profession.profession}</td>
-                  <td className="py-3 px-4 text-gray-600">{profession.group_id || '-'}</td>
+                  {/* <td className="py-3 px-4 text-gray-600">{profession.group_id || '-'}</td> */}
                   <td className="py-3 px-4">
                     <div className="flex justify-end gap-2">
                       <button onClick={() => handleEdit(profession)}

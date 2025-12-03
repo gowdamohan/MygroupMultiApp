@@ -16,6 +16,9 @@ import FranchiseHolder from './FranchiseHolder.js';
 import FooterPage from './FooterPage.js';
 import GalleryList from './GalleryList.js';
 import GalleryImagesMaster from './GalleryImagesMaster.js';
+import HeaderAdsManagement from './HeaderAdsManagement.js';
+import CompanyAdsManagement from './CompanyAdsManagement.js';
+import ApplicationsManagement from './ApplicationsManagement.js';
 
 // ============================================
 // USER ASSOCIATIONS
@@ -96,6 +99,16 @@ State.hasMany(District, {
 District.belongsTo(State, {
   foreignKey: 'state_id',
   as: 'state'
+});
+
+// Country has many Languages
+Country.hasMany(Language, {
+  foreignKey: 'country_id',
+  as: 'languages'
+});
+Language.belongsTo(Country, {
+  foreignKey: 'country_id',
+  as: 'country'
 });
 
 // ============================================
@@ -224,6 +237,68 @@ GalleryImagesMaster.belongsTo(GalleryList, {
   as: 'gallery'
 });
 
+// ============================================
+// HEADER ADS ASSOCIATIONS
+// ============================================
+
+// HeaderAdsManagement belongs to GroupCreate (app)
+HeaderAdsManagement.belongsTo(GroupCreate, {
+  foreignKey: 'app_id',
+  as: 'app'
+});
+GroupCreate.hasMany(HeaderAdsManagement, {
+  foreignKey: 'app_id',
+  as: 'headerAds'
+});
+
+// HeaderAdsManagement belongs to AppCategory
+HeaderAdsManagement.belongsTo(AppCategory, {
+  foreignKey: 'app_category_id',
+  as: 'category'
+});
+AppCategory.hasMany(HeaderAdsManagement, {
+  foreignKey: 'app_category_id',
+  as: 'headerAds'
+});
+
+// ============================================
+// COMPANY ADS ASSOCIATIONS
+// ============================================
+
+// CompanyAdsManagement belongs to GroupCreate (app)
+CompanyAdsManagement.belongsTo(GroupCreate, {
+  foreignKey: 'app_id',
+  as: 'app'
+});
+GroupCreate.hasMany(CompanyAdsManagement, {
+  foreignKey: 'app_id',
+  as: 'companyAds'
+});
+
+// CompanyAdsManagement belongs to AppCategory
+CompanyAdsManagement.belongsTo(AppCategory, {
+  foreignKey: 'app_category_id',
+  as: 'category'
+});
+AppCategory.hasMany(CompanyAdsManagement, {
+  foreignKey: 'app_category_id',
+  as: 'companyAds'
+});
+
+// ============================================
+// APPLICATIONS MANAGEMENT ASSOCIATIONS
+// ============================================
+
+// ApplicationsManagement belongs to GroupCreate (app)
+ApplicationsManagement.belongsTo(GroupCreate, {
+  foreignKey: 'app_id',
+  as: 'app'
+});
+GroupCreate.hasMany(ApplicationsManagement, {
+  foreignKey: 'app_id',
+  as: 'applications'
+});
+
 // Export all models
 export {
   User,
@@ -243,6 +318,9 @@ export {
   FranchiseHolder,
   FooterPage,
   GalleryList,
-  GalleryImagesMaster
+  GalleryImagesMaster,
+  HeaderAdsManagement,
+  CompanyAdsManagement,
+  ApplicationsManagement
 };
 
