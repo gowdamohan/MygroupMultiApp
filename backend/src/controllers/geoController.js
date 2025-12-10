@@ -6,8 +6,8 @@ import { Country, State, District, Education, Profession } from '../models/index
 export const getCountries = async (req, res) => {
   try {
     const countries = await Country.findAll({
-      attributes: ['id', 'name', 'code', 'flag'],
-      order: [['name', 'ASC']]
+      attributes: ['id', 'country', 'code', 'country_flag', 'phone_code'],
+      order: [['country', 'ASC']]
     });
 
     res.json({
@@ -33,8 +33,8 @@ export const getStatesByCountry = async (req, res) => {
 
     const states = await State.findAll({
       where: { country_id: countryId },
-      attributes: ['id', 'name'],
-      order: [['name', 'ASC']]
+      attributes: ['id', 'state', 'code'],
+      order: [['state', 'ASC']]
     });
 
     res.json({
@@ -60,8 +60,8 @@ export const getDistrictsByState = async (req, res) => {
 
     const districts = await District.findAll({
       where: { state_id: stateId },
-      attributes: ['id', 'name'],
-      order: [['name', 'ASC']]
+      attributes: ['id', 'district', 'code'],
+      order: [['district', 'ASC']]
     });
 
     res.json({
@@ -84,8 +84,8 @@ export const getDistrictsByState = async (req, res) => {
 export const getEducation = async (req, res) => {
   try {
     const education = await Education.findAll({
-      attributes: ['id', 'name'],
-      order: [['name', 'ASC']]
+      attributes: ['id', 'education'],
+      order: [['education', 'ASC']]
     });
 
     res.json({
@@ -108,8 +108,8 @@ export const getEducation = async (req, res) => {
 export const getProfessions = async (req, res) => {
   try {
     const professions = await Profession.findAll({
-      attributes: ['id', 'name'],
-      order: [['name', 'ASC']]
+      attributes: ['id', 'profession'],
+      order: [['profession', 'ASC']]
     });
 
     res.json({

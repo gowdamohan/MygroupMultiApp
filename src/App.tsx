@@ -6,6 +6,8 @@ import { AdminLogin } from './pages/auth/AdminLogin';
 import { ClientLogin } from './pages/auth/ClientLogin';
 import { GroupAdminLogin } from './pages/auth/GroupAdminLogin';
 import { GodLogin } from './pages/auth/GodLogin';
+import { PartnerLogin } from './pages/auth/PartnerLogin';
+import { PartnerRegister } from './pages/auth/PartnerRegister';
 import { RegistrationForm } from './pages/auth/RegistrationForm';
 import { AdminDashboard } from './pages/dashboard/AdminDashboard';
 import { AdminDashboardNew } from './pages/dashboard/AdminDashboardNew';
@@ -158,7 +160,8 @@ function App() {
           <Route path="/god-login/:groupName/:subGroup" element={<GodLogin />} />
           <Route path="/client-login/:groupName" element={<ClientLogin />} />
           <Route path="/media-login/:groupName" element={<ClientLogin />} />
-          <Route path="/partner/login" element={<AdminLogin />} />
+          <Route path="/partner" element={<PartnerLogin />} />
+          <Route path="/partner/register" element={<PartnerRegister />} />
           <Route path="/reporter/login" element={<AdminLogin />} />
           <Route path="/register-form/:groupName" element={<RegistrationForm />} />
 

@@ -19,6 +19,9 @@ import GalleryImagesMaster from './GalleryImagesMaster.js';
 import HeaderAdsManagement from './HeaderAdsManagement.js';
 import CompanyAdsManagement from './CompanyAdsManagement.js';
 import ApplicationsManagement from './ApplicationsManagement.js';
+import FranchiseTermsConditions from './FranchiseTermsConditions.js';
+import TncDetails from './TncDetails.js';
+import ClientRegisterOtp from './ClientRegisterOtp.js';
 
 // ============================================
 // USER ASSOCIATIONS
@@ -299,6 +302,16 @@ GroupCreate.hasMany(ApplicationsManagement, {
   as: 'applications'
 });
 
+// TncDetails belongs to GroupCreate (group)
+TncDetails.belongsTo(GroupCreate, {
+  foreignKey: 'group_id',
+  as: 'group'
+});
+GroupCreate.hasMany(TncDetails, {
+  foreignKey: 'group_id',
+  as: 'tncDetails'
+});
+
 // Export all models
 export {
   User,
@@ -321,6 +334,9 @@ export {
   GalleryImagesMaster,
   HeaderAdsManagement,
   CompanyAdsManagement,
-  ApplicationsManagement
+  ApplicationsManagement,
+  FranchiseTermsConditions,
+  TncDetails,
+  ClientRegisterOtp
 };
 

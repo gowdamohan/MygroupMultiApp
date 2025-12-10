@@ -4,9 +4,12 @@ import {
   UserGroup,
   Group,
   Country,
+  State,
+  District,
   Education,
   Profession
 } from '../models/index.js';
+import { Op } from 'sequelize';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 
@@ -270,6 +273,9 @@ export const registerMemberStep1 = async (req, res) => {
 // Update member profile - Step 2
 export const updateMemberProfile = async (req, res) => {
   try {
+    console.log('=== Update Member Profile Request ===');
+    console.log('Request body:', JSON.stringify(req.body, null, 2));
+
     const {
       user_id,
       display_name,
@@ -293,23 +299,82 @@ export const updateMemberProfile = async (req, res) => {
 
     // Validate user_id
     if (!user_id) {
+      console.log('ERROR: User ID is missing');
       return res.status(400).json({
         success: false,
         message: 'User ID is required'
       });
     }
 
-    // Update user table with display_name, last_name, alter_number
-    await User.update(
+    console.log('User ID:', user_id);
+    console.log('Country:', country, 'State:', state, 'District:', district);
+
+    // Generate identification code
+    let identification_code = null;
+    if (country && state && district) {
+      console.log('Generating identification code...');
+
+      // Fetch country, state, district codes
+      const [countryData, stateData, districtData] = await Promise.all([
+        Country.findByPk(country, { attributes: ['code'] }),
+        State.findByPk(state, { attributes: ['code'] }),
+        District.findByPk(district, { attributes: ['code'] })
+      ]);
+
+      console.log('Country data:', countryData?.toJSON());
+      console.log('State data:', stateData?.toJSON());
+      console.log('District data:', districtData?.toJSON());
+
+      if (countryData && stateData && districtData) {
+        const countryCode = (countryData.code || '').toUpperCase();
+        const stateCode = (stateData.code || '').toUpperCase();
+        const districtCode = (districtData.code || '').toUpperCase();
+
+        console.log('Codes:', { countryCode, stateCode, districtCode });
+
+        // Get the next sequence number for this district
+        const lastUser = await User.findOne({
+          where: {
+            identification_code: {
+              [Op.like]: `${countryCode}${stateCode}-${districtCode}%`
+            }
+          },
+          order: [['id', 'DESC']]
+        });
+
+        console.log('Last user with this pattern:', lastUser?.identification_code);
+
+        let sequenceNumber = 1;
+        if (lastUser && lastUser.identification_code) {
+          // Extract the last 7 digits
+          const lastSequence = lastUser.identification_code.slice(-7);
+          sequenceNumber = parseInt(lastSequence, 10) + 1;
+        }
+
+        // Format: INDKA-BENG0000001
+        identification_code = `${countryCode}${stateCode}-${districtCode}${String(sequenceNumber).padStart(7, '0')}`;
+        console.log('Generated identification code:', identification_code);
+      } else {
+        console.log('ERROR: Could not fetch country/state/district data');
+      }
+    } else {
+      console.log('Skipping identification code generation - missing country/state/district');
+    }
+
+    // Update user table with display_name, last_name, alter_number, identification_code
+    console.log('Updating user table...');
+    const userUpdateResult = await User.update(
       {
         display_name: display_name || null,
         last_name: last_name || null,
-        alter_number: alter_number || null
+        alter_number: alter_number || null,
+        identification_code: identification_code
       },
       {
         where: { id: user_id }
       }
     );
+    console.log('User update result:', userUpdateResult);
 
     // Create DOB if all parts provided
     let dob = null;
@@ -318,9 +383,11 @@ export const updateMemberProfile = async (req, res) => {
     }
 
     // Create or update user_registration_form
+    console.log('Checking for existing profile...');
     const existingProfile = await UserRegistration.findOne({
       where: { user_id: user_id }
     });
+    console.log('Existing profile:', existingProfile ? 'Found' : 'Not found');
 
     const profileData = {
       user_id: user_id,
@@ -340,17 +407,28 @@ export const updateMemberProfile = async (req, res) => {
       work_others: work_others || null,
       country_code_alter: alter_country_code || null
     };
+
+    console.log('Profile data to save:', JSON.stringify(profileData, null, 2));
+
     if (existingProfile) {
+      console.log('Updating existing profile...');
       await UserRegistration.update(profileData, {
         where: { user_id: user_id }
       });
+      console.log('Profile updated successfully');
     } else {
+      console.log('Creating new profile...');
       await UserRegistration.create(profileData);
+      console.log('Profile created successfully');
     }
 
+    console.log('=== Update Member Profile Complete ===');
     res.status(200).json({
       success: true,
-      message: 'Registration completed successfully! Please login to continue.'
+      message: 'Registration completed successfully! Please login to continue.',
+      data: {
+        identification_code: identification_code
+      }
     });
 
   } catch (error) {

@@ -24,11 +24,25 @@ router.get('/countries', getCountries);
 router.get('/countries/:countryId/states', getStatesByCountry);
 
 /**
+ * @route   GET /api/v1/geo/states/:countryId (Alternative route for backward compatibility)
+ * @desc    Get states by country
+ * @access  Public
+ */
+router.get('/states/:countryId', getStatesByCountry);
+
+/**
  * @route   GET /api/v1/geo/states/:stateId/districts
  * @desc    Get districts by state
  * @access  Public
  */
 router.get('/states/:stateId/districts', getDistrictsByState);
+
+/**
+ * @route   GET /api/v1/geo/districts/:stateId (Alternative route for backward compatibility)
+ * @desc    Get districts by state
+ * @access  Public
+ */
+router.get('/districts/:stateId', getDistrictsByState);
 
 /**
  * @route   GET /api/v1/geo/education

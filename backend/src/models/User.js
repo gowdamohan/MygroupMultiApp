@@ -62,6 +62,14 @@ const User = sequelize.define('users', {
     type: DataTypes.STRING(20),
     allowNull: true
   },
+  identification_code: {
+    type: DataTypes.STRING(100),
+    allowNull: true
+  },
+  address: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
   created_on: {
     type: DataTypes.INTEGER,
     allowNull: false,

@@ -13,6 +13,7 @@ import {
 } from '../controllers/authController.js';
 import { forgotPassword, resetPassword, changePassword } from '../controllers/passwordController.js';
 import { getActiveSessions, revokeSession, revokeAllSessions, updateProfile, logout } from '../controllers/sessionController.js';
+import { sendPartnerOtp, verifyPartnerOtp, registerPartner } from '../controllers/partnerController.js';
 import { authenticate } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 
@@ -158,6 +159,70 @@ router.post(
   ],
   validate,
   partnerLogin
+);
+
+/**
+ * @route   POST /api/v1/auth/partner/send-otp
+ * @desc    Send OTP for partner registration
+ * @access  Public
+ */
+router.post(
+  '/partner/send-otp',
+  [
+    body('email')
+      .trim()
+      .isEmail()
+      .withMessage('Please provide a valid email')
+      .normalizeEmail()
+  ],
+  validate,
+  sendPartnerOtp
+);
+
+/**
+ * @route   POST /api/v1/auth/partner/verify-otp
+ * @desc    Verify OTP for partner registration
+ * @access  Public
+ */
+router.post(
+  '/partner/verify-otp',
+  [
+    body('email')
+      .trim()
+      .isEmail()
+      .withMessage('Please provide a valid email')
+      .normalizeEmail(),
+    body('otp')
+      .trim()
+      .notEmpty()
+      .withMessage('OTP is required')
+  ],
+  validate,
+  verifyPartnerOtp
+);
+
+/**
+ * @route   POST /api/v1/auth/partner/register
+ * @desc    Register new partner
+ * @access  Public
+ */
+router.post(
+  '/partner/register',
+  [
+    body('email')
+      .trim()
+      .isEmail()
+      .withMessage('Please provide a valid email')
+      .normalizeEmail(),
+    body('password')
+      .isLength({ min: 6 })
+      .withMessage('Password must be at least 6 characters long'),
+    body('app_id')
+      .notEmpty()
+      .withMessage('App ID is required')
+  ],
+  validate,
+  registerPartner
 );
 
 /**

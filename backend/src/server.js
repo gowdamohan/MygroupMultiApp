@@ -20,6 +20,8 @@ import memberRoutes from './routes/member.routes.js';
 import headerAdsRoutes from './routes/headerAds.routes.js';
 import companyAdsRoutes from './routes/companyAds.routes.js';
 import applicationsRoutes from './routes/applications.routes.js';
+import franchiseTermsRoutes from './routes/franchiseTerms.routes.js';
+import tncDetailsRoutes from './routes/tncDetails.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -75,6 +77,8 @@ app.use(`${API_PREFIX}/member`, memberRoutes);
 app.use(`${API_PREFIX}/header-ads`, headerAdsRoutes);
 app.use(`${API_PREFIX}/company-ads`, companyAdsRoutes);
 app.use(`${API_PREFIX}/applications`, applicationsRoutes);
+app.use(`${API_PREFIX}/franchise-terms`, franchiseTermsRoutes);
+app.use(`${API_PREFIX}/tnc-details`, tncDetailsRoutes);
 
 // Member login route (direct access)
 import { memberLogin } from './controllers/memberController.js';
