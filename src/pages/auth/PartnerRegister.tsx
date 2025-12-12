@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mail, Lock, User, Phone, MapPin, Building, Calendar } from 'lucide-react';
+import { Mail, Lock } from 'lucide-react';
 import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5002/api/v1';
@@ -19,12 +19,14 @@ interface AppDetails {
 
 interface CustomFormField {
   id: string;
-  type: string;
+  field_type: string;
   label: string;
   placeholder?: string;
   required?: boolean;
+  enabled?: boolean;
+  order?: number;
   options?: string[];
-  dataSource?: string; // For dropdown mapping (country, state, district)
+  mapping?: string; // For dropdown mapping (country, state, district)
 }
 
 interface Country {
@@ -47,11 +49,23 @@ interface District {
   state_id: number;
 }
 
+// Step 1: Email → Send OTP
+// Step 2: OTP Verification
+// Step 3: Password + Confirm Password
+// Step 4: Custom Form
 type RegistrationStep = 'email' | 'otp' | 'password' | 'customForm';
 
 export const PartnerRegister: React.FC = () => {
   const navigate = useNavigate();
-  
+
+  // Get app name from URL
+  const getAppNameFromUrl = () => {
+    return window.location.search.substring(1) || '';
+  };
+
+  // LocalStorage keys for persisting registration state
+  const STORAGE_KEY = `partner_register_${getAppNameFromUrl()}`;
+
   // State
   const [app, setApp] = useState<AppDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -60,24 +74,49 @@ export const PartnerRegister: React.FC = () => {
   const [otp, setOtp] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [userId, setUserId] = useState<number | null>(null);
+  const [timer, setTimer] = useState(0);
   const [customFormData, setCustomFormData] = useState<Record<string, any>>({});
   const [customFormFields, setCustomFormFields] = useState<CustomFormField[]>([]);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [timer, setTimer] = useState(0);
-  
+
   // Dropdown data
   const [countries, setCountries] = useState<Country[]>([]);
   const [states, setStates] = useState<State[]>([]);
   const [districts, setDistricts] = useState<District[]>([]);
 
+  // Load saved state from localStorage on mount
   useEffect(() => {
+    const savedState = localStorage.getItem(STORAGE_KEY);
+    if (savedState) {
+      try {
+        const parsed = JSON.parse(savedState);
+        // Only restore password and customForm steps (not email/otp)
+        if (parsed.step === 'password' || parsed.step === 'customForm') {
+          setStep(parsed.step);
+          if (parsed.email) setEmail(parsed.email);
+          if (parsed.userId) setUserId(parsed.userId);
+          if (parsed.customFormData) setCustomFormData(parsed.customFormData);
+        }
+      } catch (e) {
+        console.error('Error loading saved state:', e);
+      }
+    }
     fetchAppData();
     fetchCountries();
   }, []);
 
-  // Timer for resend OTP
+  // Save state to localStorage when it changes (only for password and customForm steps)
+  useEffect(() => {
+    if (step === 'password' || step === 'customForm') {
+      const stateToSave = { step, email, userId, customFormData };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
+    }
+  }, [step, email, userId, customFormData]);
+
+  // Timer countdown for OTP resend
   useEffect(() => {
     if (timer > 0) {
       const interval = setInterval(() => {
@@ -101,11 +140,16 @@ export const PartnerRegister: React.FC = () => {
         const foundApp = response.data.data.find((a: AppDetails) => a.name === queryString);
         if (foundApp) {
           setApp(foundApp);
-          
+
+          // Parse custom_form from create_details
           if (foundApp.details?.custom_form) {
             try {
               const parsedForm = JSON.parse(foundApp.details.custom_form);
-              setCustomFormFields(parsedForm.fields || []);
+              // Filter enabled fields and sort by order
+              const fields = (parsedForm.fields || [])
+                .filter((f: CustomFormField) => f.enabled !== false)
+                .sort((a: CustomFormField, b: CustomFormField) => (a.order || 0) - (b.order || 0));
+              setCustomFormFields(fields);
             } catch (e) {
               console.error('Error parsing custom form:', e);
             }
@@ -156,8 +200,9 @@ export const PartnerRegister: React.FC = () => {
     }
   };
 
-  const handleSendOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Step 1: Send OTP to email
+  const handleSendOtp = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     setError('');
     setSuccess('');
 
@@ -180,17 +225,36 @@ export const PartnerRegister: React.FC = () => {
       });
 
       if (response.data.success) {
-        setSuccess('OTP sent to your email! Please check your inbox.');
-        setStep('otp');
-        setTimer(60); // 60 seconds timer
+        // Check response code for redirect cases
+        if (response.data.code === 'REGISTRATION_INCOMPLETE') {
+          // User exists but registration not complete - redirect to custom form
+          setUserId(response.data.data.user_id);
+          setEmail(response.data.data.email);
+          setSuccess('Continue your registration');
+          setStep('customForm');
+        } else {
+          // Normal case - OTP sent
+          setSuccess('OTP sent to your email! Please check your inbox.');
+          setStep('otp');
+          setTimer(60); // 60 seconds timer
+        }
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to send OTP');
+      // Handle redirect to login
+      if (err.response?.data?.code === 'ALREADY_REGISTERED') {
+        setError(err.response?.data?.message || 'Email already registered');
+        setTimeout(() => {
+          navigate(`/partner?${app?.name}`);
+        }, 2000);
+      } else {
+        setError(err.response?.data?.message || 'Failed to send OTP');
+      }
     } finally {
       setSubmitting(false);
     }
   };
 
+  // Step 2: Verify OTP
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -220,9 +284,11 @@ export const PartnerRegister: React.FC = () => {
     }
   };
 
+  // Step 3: Set password (creates user with active=0)
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
 
     if (!password || password.length < 6) {
       setError('Password must be at least 6 characters');
@@ -233,30 +299,53 @@ export const PartnerRegister: React.FC = () => {
       return;
     }
 
-    // If there are custom form fields, go to custom form step
-    if (customFormFields.length > 0) {
-      setStep('customForm');
-    } else {
-      // Register directly if no custom form
-      await handleRegister();
+    setSubmitting(true);
+
+    try {
+      // Call API to create user with password (active = 0)
+      const response = await axios.post(`${API_BASE_URL}/auth/partner/set-password`, {
+        email,
+        password,
+        app_id: app?.id
+      });
+
+      if (response.data.success) {
+        setUserId(response.data.data.user_id);
+
+        // If there are custom form fields, go to custom form step
+        if (customFormFields.length > 0) {
+          setSuccess('Password set successfully! Please complete your profile.');
+          setStep('customForm');
+        } else {
+          // Register directly if no custom form
+          await handleRegister(undefined, response.data.data.user_id);
+        }
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to set password');
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const handleRegister = async (e?: React.FormEvent) => {
+  // Step 4: Complete registration with custom form
+  const handleRegister = async (e?: React.FormEvent, overrideUserId?: number) => {
     if (e) e.preventDefault();
     setError('');
     setSubmitting(true);
 
+    const userIdToUse = overrideUserId || userId;
+
     try {
       const response = await axios.post(`${API_BASE_URL}/auth/partner/register`, {
-        email,
-        password,
+        user_id: userIdToUse,
         app_id: app?.id,
-        app_name: app?.name,
         custom_form_data: customFormData
       });
 
       if (response.data.success) {
+        // Clear localStorage on successful registration
+        localStorage.removeItem(STORAGE_KEY);
         setSuccess('Registration successful!');
         setTimeout(() => {
           navigate(`/partner?${app?.name}`);
@@ -269,21 +358,27 @@ export const PartnerRegister: React.FC = () => {
     }
   };
 
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
   const handleCustomFormChange = (fieldId: string, value: any) => {
     setCustomFormData(prev => ({
       ...prev,
       [fieldId]: value
     }));
 
-    // Handle cascading dropdowns
+    // Handle cascading dropdowns based on mapping field
     const field = customFormFields.find(f => f.id === fieldId);
-    if (field?.dataSource === 'country') {
+    if (field?.mapping === 'country') {
       // Clear dependent dropdowns first, then fetch new data
       setStates([]);
       setDistricts([]);
       // Clear dependent form values
-      const stateField = customFormFields.find(f => f.dataSource === 'state');
-      const districtField = customFormFields.find(f => f.dataSource === 'district');
+      const stateField = customFormFields.find(f => f.mapping === 'state');
+      const districtField = customFormFields.find(f => f.mapping === 'district');
       setCustomFormData(prev => {
         const updated = { ...prev, [fieldId]: value };
         if (stateField) updated[stateField.id] = '';
@@ -293,11 +388,11 @@ export const PartnerRegister: React.FC = () => {
       if (value) {
         fetchStates(parseInt(value));
       }
-    } else if (field?.dataSource === 'state') {
+    } else if (field?.mapping === 'state') {
       // Clear dependent dropdown first, then fetch new data
       setDistricts([]);
       // Clear dependent form value
-      const districtField = customFormFields.find(f => f.dataSource === 'district');
+      const districtField = customFormFields.find(f => f.mapping === 'district');
       setCustomFormData(prev => {
         const updated = { ...prev, [fieldId]: value };
         if (districtField) updated[districtField.id] = '';
@@ -307,12 +402,6 @@ export const PartnerRegister: React.FC = () => {
         fetchDistricts(parseInt(value));
       }
     }
-  };
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
   if (loading) {
@@ -385,7 +474,7 @@ export const PartnerRegister: React.FC = () => {
                 disabled={submitting}
                 className="w-full bg-gradient-to-r from-[#057284] to-[#0a9fb5] text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {submitting ? 'Sending...' : 'OTP Send to Email'}
+                {submitting ? 'Sending...' : 'Send OTP'}
               </button>
 
               <button
@@ -401,23 +490,7 @@ export const PartnerRegister: React.FC = () => {
           {/* Step 2: OTP Verification */}
           {step === 'otp' && (
             <form onSubmit={handleVerifyOtp}>
-              <p className="text-center text-gray-600 mb-2">Enter your Email ID</p>
-
-              <div className="mb-4">
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none bg-gray-100 rounded-l-xl">
-                    <Mail className="h-5 w-5 text-gray-500" />
-                  </div>
-                  <input
-                    type="email"
-                    value={email}
-                    readOnly
-                    className="w-full pl-14 pr-4 py-4 border border-gray-300 rounded-xl bg-gray-50 text-gray-600 cursor-not-allowed"
-                  />
-                </div>
-              </div>
-
-              <p className="text-center text-sm text-gray-500 mb-2">OTP Send to Email</p>
+              <p className="text-center text-gray-600 mb-2">OTP sent to</p>
               <p className="text-center text-sm text-[#057284] font-medium mb-4">{email}</p>
 
               <div className="mb-6">
@@ -451,7 +524,7 @@ export const PartnerRegister: React.FC = () => {
                 ) : (
                   <button
                     type="button"
-                    onClick={handleSendOtp}
+                    onClick={() => handleSendOtp()}
                     className="text-[#057284] font-medium hover:underline"
                   >
                     Resend Code
@@ -461,10 +534,13 @@ export const PartnerRegister: React.FC = () => {
 
               <button
                 type="button"
-                onClick={() => navigate(`/partner?${app?.name}`)}
-                className="w-full mt-4 text-[#057284] font-medium hover:underline"
+                onClick={() => {
+                  setStep('email');
+                  setOtp('');
+                }}
+                className="w-full mt-4 text-gray-600 font-medium hover:underline"
               >
-                Cancel
+                Back
               </button>
             </form>
           )}
@@ -472,12 +548,20 @@ export const PartnerRegister: React.FC = () => {
           {/* Step 3: Password Setup */}
           {step === 'password' && (
             <form onSubmit={handlePasswordSubmit}>
-              <p className="text-center text-gray-600 mb-6">Create your password</p>
-
+              {/* Email Display (Label) */}
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  New Password <span className="text-red-500">*</span>
-                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none bg-gray-100 rounded-l-xl">
+                    <Mail className="h-5 w-5 text-gray-500" />
+                  </div>
+                  <div className="w-full pl-14 pr-4 py-4 border border-gray-200 rounded-xl bg-gray-50 text-gray-700">
+                    {email}
+                  </div>
+                </div>
+              </div>
+
+              {/* New Password */}
+              <div className="mb-4">
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none bg-gray-100 rounded-l-xl">
                     <Lock className="h-5 w-5 text-gray-500" />
@@ -486,17 +570,15 @@ export const PartnerRegister: React.FC = () => {
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter new password"
+                    placeholder="New Password"
                     className="w-full pl-14 pr-4 py-4 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#057284] focus:border-transparent"
                     required
                   />
                 </div>
               </div>
 
+              {/* Confirm Password */}
               <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Confirm Password <span className="text-red-500">*</span>
-                </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none bg-gray-100 rounded-l-xl">
                     <Lock className="h-5 w-5 text-gray-500" />
@@ -505,7 +587,7 @@ export const PartnerRegister: React.FC = () => {
                     type="password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Re-enter password"
+                    placeholder="Confirm Password"
                     className="w-full pl-14 pr-4 py-4 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#057284] focus:border-transparent"
                     required
                   />
@@ -517,12 +599,19 @@ export const PartnerRegister: React.FC = () => {
                 disabled={submitting}
                 className="w-full bg-gradient-to-r from-[#057284] to-[#0a9fb5] text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {customFormFields.length > 0 ? 'Continue' : 'Register'}
+                {submitting ? 'Setting Password...' : (customFormFields.length > 0 ? 'Continue' : 'Register')}
               </button>
 
               <button
                 type="button"
-                onClick={() => setStep('otp')}
+                onClick={() => {
+                  // Clear localStorage and go back to Step 1
+                  localStorage.removeItem(STORAGE_KEY);
+                  setStep('email');
+                  setOtp('');
+                  setPassword('');
+                  setConfirmPassword('');
+                }}
                 className="w-full mt-4 text-gray-600 font-medium hover:underline"
               >
                 Back
@@ -538,91 +627,35 @@ export const PartnerRegister: React.FC = () => {
               <div className="max-h-96 overflow-y-auto space-y-4 mb-6">
                 {customFormFields.map((field) => (
                   <div key={field.id}>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      {field.label}
-                      {field.required && <span className="text-red-500 ml-1">*</span>}
-                    </label>
+                    {/* Show label if provided */}
+                    {field.label && (
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        {field.label}
+                        {field.required && <span className="text-red-500 ml-1">*</span>}
+                      </label>
+                    )}
 
                     {/* Text Input */}
-                    {field.type === 'text' && (
+                    {field.field_type === 'text' && (
                       <input
                         type="text"
                         value={customFormData[field.id] || ''}
                         onChange={(e) => handleCustomFormChange(field.id, e.target.value)}
-                        placeholder={field.placeholder}
+                        placeholder={field.placeholder || ''}
                         required={field.required}
                         className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#057284] focus:border-transparent"
                       />
                     )}
 
-                    {/* Email Input */}
-                    {field.type === 'email' && (
-                      <input
-                        type="email"
-                        value={customFormData[field.id] || ''}
-                        onChange={(e) => handleCustomFormChange(field.id, e.target.value)}
-                        placeholder={field.placeholder}
-                        required={field.required}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#057284] focus:border-transparent"
-                      />
-                    )}
-
-                    {/* Phone Input */}
-                    {field.type === 'phone' && (
-                      <input
-                        type="tel"
-                        value={customFormData[field.id] || ''}
-                        onChange={(e) => handleCustomFormChange(field.id, e.target.value)}
-                        placeholder={field.placeholder}
-                        required={field.required}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#057284] focus:border-transparent"
-                      />
-                    )}
-
-                    {/* Number Input */}
-                    {field.type === 'number' && (
-                      <input
-                        type="number"
-                        value={customFormData[field.id] || ''}
-                        onChange={(e) => handleCustomFormChange(field.id, e.target.value)}
-                        placeholder={field.placeholder}
-                        required={field.required}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#057284] focus:border-transparent"
-                      />
-                    )}
-
-                    {/* Date Input */}
-                    {field.type === 'date' && (
-                      <input
-                        type="date"
-                        value={customFormData[field.id] || ''}
-                        onChange={(e) => handleCustomFormChange(field.id, e.target.value)}
-                        required={field.required}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#057284] focus:border-transparent"
-                      />
-                    )}
-
-                    {/* Textarea */}
-                    {field.type === 'textarea' && (
-                      <textarea
-                        value={customFormData[field.id] || ''}
-                        onChange={(e) => handleCustomFormChange(field.id, e.target.value)}
-                        placeholder={field.placeholder}
-                        required={field.required}
-                        rows={3}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#057284] focus:border-transparent resize-none"
-                      />
-                    )}
-
-                    {/* Select/Dropdown */}
-                    {field.type === 'select' && !field.dataSource && (
+                    {/* Dropdown without mapping - use options array */}
+                    {field.field_type === 'dropdown' && !field.mapping && (
                       <select
                         value={customFormData[field.id] || ''}
                         onChange={(e) => handleCustomFormChange(field.id, e.target.value)}
                         required={field.required}
                         className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#057284] focus:border-transparent bg-white"
                       >
-                        <option value="">Select {field.label}</option>
+                        <option value="">{field.placeholder || `Select ${field.label || 'Option'}`}</option>
                         {field.options?.map((option, idx) => (
                           <option key={idx} value={option}>
                             {option}
@@ -631,8 +664,8 @@ export const PartnerRegister: React.FC = () => {
                       </select>
                     )}
 
-                    {/* Country Dropdown */}
-                    {field.type === 'select' && field.dataSource === 'country' && (
+                    {/* Country Dropdown (mapping: country) */}
+                    {field.field_type === 'dropdown' && field.mapping === 'country' && (
                       <select
                         value={customFormData[field.id] || ''}
                         onChange={(e) => handleCustomFormChange(field.id, e.target.value)}
@@ -648,8 +681,8 @@ export const PartnerRegister: React.FC = () => {
                       </select>
                     )}
 
-                    {/* State Dropdown */}
-                    {field.type === 'select' && field.dataSource === 'state' && (
+                    {/* State Dropdown (mapping: state) */}
+                    {field.field_type === 'dropdown' && field.mapping === 'state' && (
                       <select
                         value={customFormData[field.id] || ''}
                         onChange={(e) => handleCustomFormChange(field.id, e.target.value)}
@@ -666,8 +699,8 @@ export const PartnerRegister: React.FC = () => {
                       </select>
                     )}
 
-                    {/* District Dropdown */}
-                    {field.type === 'select' && field.dataSource === 'district' && (
+                    {/* District Dropdown (mapping: district) */}
+                    {field.field_type === 'dropdown' && field.mapping === 'district' && (
                       <select
                         value={customFormData[field.id] || ''}
                         onChange={(e) => handleCustomFormChange(field.id, e.target.value)}

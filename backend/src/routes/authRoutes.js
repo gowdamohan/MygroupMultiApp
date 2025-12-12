@@ -13,7 +13,7 @@ import {
 } from '../controllers/authController.js';
 import { forgotPassword, resetPassword, changePassword } from '../controllers/passwordController.js';
 import { getActiveSessions, revokeSession, revokeAllSessions, updateProfile, logout } from '../controllers/sessionController.js';
-import { sendPartnerOtp, verifyPartnerOtp, registerPartner } from '../controllers/partnerController.js';
+import { sendPartnerOtp, verifyPartnerOtp, registerPartner, setPartnerPassword, createPartnerAccount, completePartnerProfile } from '../controllers/partnerController.js';
 import { authenticate } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 
@@ -202,12 +202,12 @@ router.post(
 );
 
 /**
- * @route   POST /api/v1/auth/partner/register
- * @desc    Register new partner
+ * @route   POST /api/v1/auth/partner/set-password
+ * @desc    Step 3: Set password (creates user with active=0)
  * @access  Public
  */
 router.post(
-  '/partner/register',
+  '/partner/set-password',
   [
     body('email')
       .trim()
@@ -222,7 +222,66 @@ router.post(
       .withMessage('App ID is required')
   ],
   validate,
+  setPartnerPassword
+);
+
+/**
+ * @route   POST /api/v1/auth/partner/register
+ * @desc    Step 4: Complete registration with custom form
+ * @access  Public
+ */
+router.post(
+  '/partner/register',
+  [
+    body('user_id')
+      .notEmpty()
+      .withMessage('User ID is required'),
+    body('app_id')
+      .notEmpty()
+      .withMessage('App ID is required')
+  ],
+  validate,
   registerPartner
+);
+
+/**
+ * @route   POST /api/v1/auth/partner/create-account
+ * @desc    Create partner account (Step 1 of two-step registration)
+ * @access  Public
+ */
+router.post(
+  '/partner/create-account',
+  [
+    body('email')
+      .trim()
+      .isEmail()
+      .withMessage('Please provide a valid email')
+      .normalizeEmail(),
+    body('password')
+      .isLength({ min: 6 })
+      .withMessage('Password must be at least 6 characters long'),
+    body('app_id')
+      .notEmpty()
+      .withMessage('App ID is required')
+  ],
+  validate,
+  createPartnerAccount
+);
+
+/**
+ * @route   POST /api/v1/auth/partner/complete-profile
+ * @desc    Complete partner profile (Step 2 of two-step registration)
+ * @access  Public
+ */
+router.post(
+  '/partner/complete-profile',
+  [
+    body('user_id')
+      .notEmpty()
+      .withMessage('User ID is required')
+  ],
+  validate,
+  completePartnerProfile
 );
 
 /**

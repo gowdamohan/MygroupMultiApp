@@ -22,6 +22,7 @@ import ApplicationsManagement from './ApplicationsManagement.js';
 import FranchiseTermsConditions from './FranchiseTermsConditions.js';
 import TncDetails from './TncDetails.js';
 import ClientRegisterOtp from './ClientRegisterOtp.js';
+import ClientRegistration from './ClientRegistration.js';
 
 // ============================================
 // USER ASSOCIATIONS
@@ -312,6 +313,30 @@ GroupCreate.hasMany(TncDetails, {
   as: 'tncDetails'
 });
 
+// ============================================
+// CLIENT REGISTRATION ASSOCIATIONS
+// ============================================
+
+// ClientRegistration belongs to User
+ClientRegistration.belongsTo(User, {
+  foreignKey: 'user_id',
+  as: 'user'
+});
+User.hasOne(ClientRegistration, {
+  foreignKey: 'user_id',
+  as: 'clientRegistration'
+});
+
+// ClientRegistration belongs to GroupCreate (app)
+ClientRegistration.belongsTo(GroupCreate, {
+  foreignKey: 'group_id',
+  as: 'app'
+});
+GroupCreate.hasMany(ClientRegistration, {
+  foreignKey: 'group_id',
+  as: 'clientRegistrations'
+});
+
 // Export all models
 export {
   User,
@@ -337,6 +362,7 @@ export {
   ApplicationsManagement,
   FranchiseTermsConditions,
   TncDetails,
-  ClientRegisterOtp
+  ClientRegisterOtp,
+  ClientRegistration
 };
 

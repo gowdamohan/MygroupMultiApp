@@ -4,7 +4,8 @@ import {
   UserGroup,
   GroupCreate,
   CreateDetails,
-  ClientRegisterOtp
+  ClientRegisterOtp,
+  ClientRegistration
 } from '../models/index.js';
 import { generateTokens } from '../utils/jwt.js';
 import { sendOtpEmail, sendWelcomeEmail } from '../services/emailService.js';
@@ -32,6 +33,13 @@ export const sendPartnerOtp = async (req, res) => {
       });
     }
 
+    if (!app_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'App ID is required'
+      });
+    }
+
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
@@ -41,25 +49,87 @@ export const sendPartnerOtp = async (req, res) => {
       });
     }
 
-    // Check if email already exists
+    // Check if email already exists in users table
     const existingUser = await User.findOne({
       where: { email }
     });
 
     if (existingUser) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email already registered'
-      });
+      // Check if user is registering for this specific app (group_id = app_id)
+      if (existingUser.group_id === parseInt(app_id)) {
+        // Check client_registration table for this user and app
+        const clientReg = await ClientRegistration.findOne({
+          where: {
+            user_id: existingUser.id,
+            group_id: app_id
+          }
+        });
+
+        if (clientReg) {
+          // Registration record exists
+          if (clientReg.status === 'active') {
+            // Registration completed - redirect to login
+            return res.status(400).json({
+              success: false,
+              message: 'Email already registered. Please login.',
+              code: 'ALREADY_REGISTERED',
+              redirect: 'login'
+            });
+          } else {
+            // Registration not completed - redirect to Step 4 (custom form)
+            return res.json({
+              success: true,
+              message: 'Continue your registration',
+              code: 'REGISTRATION_INCOMPLETE',
+              redirect: 'customForm',
+              data: {
+                user_id: existingUser.id,
+                email: existingUser.email,
+                step: 'customForm'
+              }
+            });
+          }
+        } else {
+          // User exists but no client_registration record
+          // Check if user.active = 0 (password step completed, needs custom form)
+          if (existingUser.active === 0) {
+            return res.json({
+              success: true,
+              message: 'Continue your registration',
+              code: 'REGISTRATION_INCOMPLETE',
+              redirect: 'customForm',
+              data: {
+                user_id: existingUser.id,
+                email: existingUser.email,
+                step: 'customForm'
+              }
+            });
+          } else {
+            // User is active - fully registered
+            return res.status(400).json({
+              success: false,
+              message: 'Email already registered. Please login.',
+              code: 'ALREADY_REGISTERED',
+              redirect: 'login'
+            });
+          }
+        }
+      } else {
+        // User exists but for a different app - allow registration for this app
+        // But we can't create duplicate email, so reject
+        return res.status(400).json({
+          success: false,
+          message: 'Email already registered with another application.',
+          code: 'EMAIL_EXISTS_OTHER_APP'
+        });
+      }
     }
 
     // Get app name for email template
     let appName = 'My Group';
-    if (app_id) {
-      const app = await GroupCreate.findByPk(app_id);
-      if (app) {
-        appName = app.name;
-      }
+    const app = await GroupCreate.findByPk(app_id);
+    if (app) {
+      appName = app.name;
     }
 
     // Generate OTP
@@ -84,6 +154,7 @@ export const sendPartnerOtp = async (req, res) => {
       res.json({
         success: true,
         message: 'OTP sent to your email successfully. Please check your inbox.',
+        code: 'OTP_SENT',
         // Remove this in production - only for development
         ...(process.env.NODE_ENV === 'development' && { otp })
       });
@@ -94,6 +165,7 @@ export const sendPartnerOtp = async (req, res) => {
       res.json({
         success: true,
         message: 'OTP generated. Check console for OTP (email service may be unavailable).',
+        code: 'OTP_SENT',
         ...(process.env.NODE_ENV === 'development' && { otp })
       });
     }
@@ -152,12 +224,12 @@ export const verifyPartnerOtp = async (req, res) => {
 };
 
 /**
- * Register partner
- * POST /api/v1/auth/partner/register
+ * Step 3: Create user with password (active = 0)
+ * POST /api/v1/auth/partner/set-password
  */
-export const registerPartner = async (req, res) => {
+export const setPartnerPassword = async (req, res) => {
   try {
-    const { email, password, app_id, app_name, custom_form_data } = req.body;
+    const { email, password, app_id } = req.body;
 
     if (!email || !password || !app_id) {
       return res.status(400).json({
@@ -175,6 +247,216 @@ export const registerPartner = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Please verify your email first'
+      });
+    }
+
+    // Check if user already exists
+    let user = await User.findOne({
+      where: { email }
+    });
+
+    if (user) {
+      // User exists - check if password step already completed
+      if (user.active === 0) {
+        // Password already set, return user_id for next step
+        return res.json({
+          success: true,
+          message: 'Password already set. Continue to next step.',
+          data: {
+            user_id: user.id,
+            email: user.email
+          }
+        });
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: 'Email already registered'
+        });
+      }
+    }
+
+    // Get partner group
+    const partnerGroup = await Group.findOne({
+      where: { name: 'partner' }
+    });
+
+    if (!partnerGroup) {
+      return res.status(500).json({
+        success: false,
+        message: 'Partner group not found. Please contact administrator.'
+      });
+    }
+
+    // Create username from email
+    const username = email.split('@')[0];
+
+    // Create user with active = 0 (password step completed, custom form pending)
+    user = await User.create({
+      username: username,
+      email: email,
+      password: password,
+      first_name: username,
+      group_id: app_id, // Store app_id in group_id field
+      created_on: Math.floor(Date.now() / 1000),
+      active: 0 // Not active until custom form is completed
+    });
+
+    // Create user-group association (partner role)
+    await UserGroup.create({
+      user_id: user.id,
+      group_id: partnerGroup.id
+    });
+
+    // Create client_registration record with status = 'pending'
+    await ClientRegistration.create({
+      user_id: user.id,
+      group_id: app_id,
+      status: 'pending'
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Password set successfully. Please complete your profile.',
+      data: {
+        user_id: user.id,
+        email: user.email
+      }
+    });
+  } catch (error) {
+    console.error('Set partner password error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error setting password',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Step 4: Complete registration with custom form
+ * POST /api/v1/auth/partner/register
+ */
+export const registerPartner = async (req, res) => {
+  try {
+    const { email, user_id, app_id, custom_form_data } = req.body;
+
+    if (!user_id || !app_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID and App ID are required'
+      });
+    }
+
+    // Find user
+    const user = await User.findByPk(user_id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Update user with custom form data
+    const updateData = { active: 1 }; // Activate user
+
+    if (custom_form_data) {
+      // Look for name/first_name in custom form data
+      for (const [key, value] of Object.entries(custom_form_data)) {
+        const lowerKey = key.toLowerCase();
+        if (lowerKey.includes('name') && !lowerKey.includes('last')) {
+          updateData.first_name = value;
+        }
+        if (lowerKey.includes('last') && lowerKey.includes('name')) {
+          updateData.last_name = value;
+        }
+        if (lowerKey.includes('phone') || lowerKey.includes('mobile')) {
+          updateData.phone = value;
+        }
+      }
+    }
+
+    await user.update(updateData);
+
+    // Update client_registration to active
+    await ClientRegistration.update(
+      {
+        status: 'active',
+        custom_form_data: custom_form_data || {}
+      },
+      {
+        where: {
+          user_id: user_id,
+          group_id: app_id
+        }
+      }
+    );
+
+    // Delete OTP record after successful registration
+    await ClientRegisterOtp.destroy({
+      where: { email_id: user.email }
+    });
+
+    // Get app name for welcome email
+    let appName = 'My Group';
+    const app = await GroupCreate.findByPk(app_id);
+    if (app) {
+      appName = app.name;
+    }
+
+    // Send welcome email (non-blocking)
+    sendWelcomeEmail(user.email, user.first_name, appName).catch(err => {
+      console.error('Failed to send welcome email:', err);
+    });
+
+    // Generate tokens
+    const tokens = generateTokens(user);
+
+    res.status(201).json({
+      success: true,
+      message: 'Registration successful! Welcome email sent.',
+      data: {
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          first_name: user.first_name
+        },
+        ...tokens,
+        dashboardRoute: '/dashboard/partner'
+      }
+    });
+  } catch (error) {
+    console.error('Register partner error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error registering partner',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Create partner account (Step 1 of two-step registration)
+ * POST /api/v1/auth/partner/create-account
+ */
+export const createPartnerAccount = async (req, res) => {
+  try {
+    const { email, password, app_id } = req.body;
+
+    if (!email || !password || !app_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email, password, and app_id are required'
+      });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a valid email address'
       });
     }
 
@@ -205,17 +487,12 @@ export const registerPartner = async (req, res) => {
     // Create username from email
     const username = email.split('@')[0];
 
-    // Extract first_name from custom_form_data or use email prefix
-    const first_name = custom_form_data?.first_name || custom_form_data?.name || username;
-
-    // Create user
+    // Create user with basic info
     const user = await User.create({
       username: username,
       email: email,
       password: password,
-      first_name: first_name,
-      last_name: custom_form_data?.last_name || '',
-      phone: custom_form_data?.phone || '',
+      first_name: username,
       group_id: app_id, // Store app_id in group_id field
       created_on: Math.floor(Date.now() / 1000),
       active: 1
@@ -227,10 +504,71 @@ export const registerPartner = async (req, res) => {
       group_id: partnerGroup.id
     });
 
-    // Delete OTP record after successful registration
-    await ClientRegisterOtp.destroy({
-      where: { email_id: email }
+    res.status(201).json({
+      success: true,
+      message: 'Account created successfully',
+      data: {
+        user_id: user.id,
+        email: user.email
+      }
     });
+  } catch (error) {
+    console.error('Create partner account error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error creating account',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Complete partner profile (Step 2 of two-step registration)
+ * POST /api/v1/auth/partner/complete-profile
+ */
+export const completePartnerProfile = async (req, res) => {
+  try {
+    const { user_id, app_id, custom_form_data } = req.body;
+
+    if (!user_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID is required'
+      });
+    }
+
+    // Find user
+    const user = await User.findByPk(user_id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Update user with custom form data
+    // Extract common fields from custom_form_data
+    const updateData = {};
+
+    if (custom_form_data) {
+      // Look for name/first_name in custom form data
+      for (const [key, value] of Object.entries(custom_form_data)) {
+        const lowerKey = key.toLowerCase();
+        if (lowerKey.includes('name') && !lowerKey.includes('last')) {
+          updateData.first_name = value;
+        }
+        if (lowerKey.includes('last') && lowerKey.includes('name')) {
+          updateData.last_name = value;
+        }
+        if (lowerKey.includes('phone') || lowerKey.includes('mobile')) {
+          updateData.phone = value;
+        }
+      }
+    }
+
+    // Update user
+    await user.update(updateData);
 
     // Get app name for welcome email
     let appName = 'My Group';
@@ -242,16 +580,16 @@ export const registerPartner = async (req, res) => {
     }
 
     // Send welcome email (non-blocking)
-    sendWelcomeEmail(email, first_name, appName).catch(err => {
+    sendWelcomeEmail(user.email, user.first_name, appName).catch(err => {
       console.error('Failed to send welcome email:', err);
     });
 
     // Generate tokens
     const tokens = generateTokens(user);
 
-    res.status(201).json({
+    res.json({
       success: true,
-      message: 'Registration successful! Welcome email sent.',
+      message: 'Registration completed successfully!',
       data: {
         user: {
           id: user.id,
@@ -264,10 +602,10 @@ export const registerPartner = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Register partner error:', error);
+    console.error('Complete partner profile error:', error);
     res.status(500).json({
       success: false,
-      message: 'Error registering partner',
+      message: 'Error completing profile',
       error: error.message
     });
   }
