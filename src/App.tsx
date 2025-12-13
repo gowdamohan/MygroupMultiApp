@@ -16,6 +16,7 @@ import { CorporateDashboard } from './pages/dashboard/CorporateDashboard';
 import { FranchiseDashboard } from './pages/dashboard/FranchiseDashboard';
 import { LaborDashboard } from './pages/dashboard/LaborDashboard';
 import { MediaChannelDashboard } from './pages/dashboard/MediaChannelDashboard';
+import { PartnerDashboard } from './pages/dashboard/PartnerDashboard';
 import { AppDashboard } from './pages/app/AppDashboard';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -142,7 +143,14 @@ function App() {
           {/* Partner Dashboard - Protected */}
           <Route path="/dashboard/partner" element={
             <ProtectedRoute allowedRoles={['partner']}>
-              <div className="p-6">Partner Dashboard (Coming Soon)</div>
+              <PartnerDashboard />
+            </ProtectedRoute>
+          } />
+
+          {/* Partner Sub-Routes */}
+          <Route path="/partner/*" element={
+            <ProtectedRoute allowedRoles={['partner']}>
+              <PartnerDashboard />
             </ProtectedRoute>
           } />
 
