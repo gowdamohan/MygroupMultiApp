@@ -13,7 +13,7 @@ import {
 } from '../controllers/authController.js';
 import { forgotPassword, resetPassword, changePassword } from '../controllers/passwordController.js';
 import { getActiveSessions, revokeSession, revokeAllSessions, updateProfile, logout } from '../controllers/sessionController.js';
-import { sendPartnerOtp, verifyPartnerOtp, registerPartner, setPartnerPassword, createPartnerAccount, completePartnerProfile } from '../controllers/partnerController.js';
+import { sendPartnerOtp, verifyPartnerOtp, registerPartner, setPartnerPassword, createPartnerAccount, completePartnerProfile, sendPartnerForgotPasswordOtp, verifyPartnerForgotPasswordOtp, resetPartnerPassword } from '../controllers/partnerController.js';
 import { authenticate } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 
@@ -282,6 +282,71 @@ router.post(
   ],
   validate,
   completePartnerProfile
+);
+
+/**
+ * @route   POST /api/v1/auth/partner/forgot-password/send-otp
+ * @desc    Send OTP for partner forgot password
+ * @access  Public
+ */
+router.post(
+  '/partner/forgot-password/send-otp',
+  [
+    body('email')
+      .trim()
+      .isEmail()
+      .withMessage('Please provide a valid email')
+      .normalizeEmail(),
+    body('app_id')
+      .notEmpty()
+      .withMessage('App ID is required')
+  ],
+  validate,
+  sendPartnerForgotPasswordOtp
+);
+
+/**
+ * @route   POST /api/v1/auth/partner/forgot-password/verify-otp
+ * @desc    Verify OTP for partner forgot password
+ * @access  Public
+ */
+router.post(
+  '/partner/forgot-password/verify-otp',
+  [
+    body('email')
+      .trim()
+      .isEmail()
+      .withMessage('Please provide a valid email'),
+    body('otp')
+      .trim()
+      .notEmpty()
+      .withMessage('OTP is required')
+  ],
+  validate,
+  verifyPartnerForgotPasswordOtp
+);
+
+/**
+ * @route   POST /api/v1/auth/partner/forgot-password/reset
+ * @desc    Reset partner password
+ * @access  Public
+ */
+router.post(
+  '/partner/forgot-password/reset',
+  [
+    body('email')
+      .trim()
+      .isEmail()
+      .withMessage('Please provide a valid email'),
+    body('password')
+      .isLength({ min: 6 })
+      .withMessage('Password must be at least 6 characters'),
+    body('app_id')
+      .notEmpty()
+      .withMessage('App ID is required')
+  ],
+  validate,
+  resetPartnerPassword
 );
 
 /**

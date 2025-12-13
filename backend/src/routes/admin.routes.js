@@ -45,7 +45,10 @@ import {
   getCustomForm,
   getAppsForLogin,
   getAppsForAdminLogin,
-  appLogin
+  appLogin,
+  getAppById,
+  getAppPartners,
+  updatePartnerStatus
 } from '../controllers/adminController.js';
 import { authenticate } from '../middleware/auth.js';
 import { uploadAppImages } from '../middleware/upload.js';
@@ -181,5 +184,13 @@ router.post('/corporate-user', createCorporateUser);
 router.put('/corporate-user/:id', updateCorporateUser);
 router.post('/corporate-user/:id/reset-password', resetCorporatePassword);
 
-export default router;
+/**
+ * ============================================
+ * PARTNERS ROUTES
+ * ============================================
+ */
+router.get('/apps/:appId', getAppById);
+router.get('/apps/:appId/partners', getAppPartners);
+router.patch('/apps/:appId/partners/:partnerId/status', updatePartnerStatus);
 
+export default router;

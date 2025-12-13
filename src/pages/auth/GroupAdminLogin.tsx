@@ -273,16 +273,6 @@ export const GroupAdminLogin: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="text-right">
-                  <button
-                    type="button"
-                    onClick={handleForgotPassword}
-                    className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-                  >
-                    Forgot your password?
-                  </button>
-                </div>
-
                 <button
                   type="submit"
                   disabled={loginLoading}
@@ -301,15 +291,6 @@ export const GroupAdminLogin: React.FC = () => {
                   )}
                 </button>
               </form>
-
-              <div className="mt-6 pt-6 border-t border-gray-200">
-                <button
-                  onClick={handleRegister}
-                  className="w-full py-2.5 bg-white border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all font-medium"
-                >
-                  Register
-                </button>
-              </div>
             </motion.div>
           )}
         </AnimatePresence>

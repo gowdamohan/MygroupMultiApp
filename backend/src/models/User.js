@@ -18,8 +18,8 @@ const User = sequelize.define('users', {
     allowNull: false,
     unique: true,
     validate: {
-      len: [3, 100],
-      isAlphanumeric: true
+      len: [3, 100]
+      // Removed isAlphanumeric to allow email format in username
     }
   },
   email: {

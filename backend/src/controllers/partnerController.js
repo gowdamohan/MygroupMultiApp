@@ -5,7 +5,9 @@ import {
   GroupCreate,
   CreateDetails,
   ClientRegisterOtp,
-  ClientRegistration
+  ClientRegistration,
+  Country,
+  State
 } from '../models/index.js';
 import { generateTokens } from '../utils/jwt.js';
 import { sendOtpEmail, sendWelcomeEmail } from '../services/emailService.js';
@@ -287,15 +289,13 @@ export const setPartnerPassword = async (req, res) => {
       });
     }
 
-    // Create username from email
-    const username = email.split('@')[0];
-
+    // Store email as username (allowing all email characters)
     // Create user with active = 0 (password step completed, custom form pending)
     user = await User.create({
-      username: username,
+      username: email, // Store full email as username
       email: email,
       password: password,
-      first_name: username,
+      first_name: email.split('@')[0], // Use email prefix as first_name
       group_id: app_id, // Store app_id in group_id field
       created_on: Math.floor(Date.now() / 1000),
       active: 0 // Not active until custom form is completed
@@ -333,12 +333,56 @@ export const setPartnerPassword = async (req, res) => {
 };
 
 /**
+ * Generate partner identification code
+ * Format: CountryCode + StateCode + - + GroupCreateCode + 5 digits
+ * Example: INKA-MM00001
+ */
+const generatePartnerIdentificationCode = async (countryId, stateId, appId) => {
+  // Get country code
+  let countryCode = '';
+  if (countryId) {
+    const country = await Country.findByPk(countryId);
+    if (country && country.code) {
+      countryCode = country.code.toUpperCase();
+    }
+  }
+
+  // Get state code
+  let stateCode = '';
+  if (stateId) {
+    const state = await State.findByPk(stateId);
+    if (state && state.code) {
+      stateCode = state.code.toUpperCase();
+    }
+  }
+
+  // Get app code from group_create
+  let appCode = '';
+  const app = await GroupCreate.findByPk(appId);
+  if (app && app.code) {
+    appCode = app.code.toUpperCase();
+  }
+
+  // Get the next sequential number for this app
+  // Count existing partners for this app and add 1
+  const partnerCount = await User.count({
+    where: { group_id: appId }
+  });
+  const sequentialNumber = String(partnerCount + 1).padStart(5, '0');
+
+  // Build identification code: CountryCode + StateCode + - + AppCode + 5digits
+  const identificationCode = `${countryCode}${stateCode}-${appCode}${sequentialNumber}`;
+
+  return identificationCode;
+};
+
+/**
  * Step 4: Complete registration with custom form
  * POST /api/v1/auth/partner/register
  */
 export const registerPartner = async (req, res) => {
   try {
-    const { email, user_id, app_id, custom_form_data } = req.body;
+    const { user_id, app_id, custom_form_data } = req.body;
 
     if (!user_id || !app_id) {
       return res.status(400).json({
@@ -357,8 +401,31 @@ export const registerPartner = async (req, res) => {
       });
     }
 
-    // Update user with custom form data
-    const updateData = { active: 1 }; // Activate user
+    // Extract country_id and state_id from custom_form_data
+    let countryId = null;
+    let stateId = null;
+
+    if (custom_form_data) {
+      // Check for country and state in custom form data
+      for (const [key, value] of Object.entries(custom_form_data)) {
+        const lowerKey = key.toLowerCase();
+        if (lowerKey.includes('country') && value) {
+          countryId = parseInt(value) || null;
+        }
+        if (lowerKey.includes('state') && value) {
+          stateId = parseInt(value) || null;
+        }
+      }
+    }
+
+    // Generate identification code
+    const identificationCode = await generatePartnerIdentificationCode(countryId, stateId, app_id);
+
+    // Update user with custom form data and identification code
+    const updateData = {
+      active: 1,
+      identification_code: identificationCode
+    };
 
     if (custom_form_data) {
       // Look for name/first_name in custom form data
@@ -420,7 +487,8 @@ export const registerPartner = async (req, res) => {
           id: user.id,
           username: user.username,
           email: user.email,
-          first_name: user.first_name
+          first_name: user.first_name,
+          identification_code: identificationCode
         },
         ...tokens,
         dashboardRoute: '/dashboard/partner'
@@ -606,6 +674,181 @@ export const completePartnerProfile = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error completing profile',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * ============================================
+ * PARTNER FORGOT PASSWORD
+ * ============================================
+ */
+
+/**
+ * Send OTP for partner forgot password
+ * POST /api/v1/auth/partner/forgot-password/send-otp
+ */
+export const sendPartnerForgotPasswordOtp = async (req, res) => {
+  try {
+    const { email, app_id } = req.body;
+
+    if (!email || !app_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email and app_id are required'
+      });
+    }
+
+    // Check if user exists with this email and app_id
+    const user = await User.findOne({
+      where: { email, group_id: app_id }
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'No account found with this email'
+      });
+    }
+
+    // Get app name for email template
+    let appName = 'My Group';
+    const app = await GroupCreate.findByPk(app_id);
+    if (app) {
+      appName = app.name;
+    }
+
+    // Generate OTP
+    const otp = generateOTP();
+
+    // Delete any existing OTP for this email
+    await ClientRegisterOtp.destroy({
+      where: { email_id: email }
+    });
+
+    // Store OTP in database
+    await ClientRegisterOtp.create({
+      email_id: email,
+      otp: otp
+    });
+
+    // Send OTP via email
+    await sendOtpEmail(email, otp, appName);
+    console.log(`Forgot Password OTP sent to ${email}: ${otp}`);
+
+    res.json({
+      success: true,
+      message: 'OTP sent to your email'
+    });
+  } catch (error) {
+    console.error('Send forgot password OTP error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error sending OTP',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Verify OTP for partner forgot password
+ * POST /api/v1/auth/partner/forgot-password/verify-otp
+ */
+export const verifyPartnerForgotPasswordOtp = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email and OTP are required'
+      });
+    }
+
+    // Find OTP record
+    const otpRecord = await ClientRegisterOtp.findOne({
+      where: { email_id: email, otp: otp }
+    });
+
+    if (!otpRecord) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid OTP'
+      });
+    }
+
+    // OTP is valid - keep it for password reset step
+    res.json({
+      success: true,
+      message: 'OTP verified successfully'
+    });
+  } catch (error) {
+    console.error('Verify forgot password OTP error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error verifying OTP',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Reset partner password
+ * POST /api/v1/auth/partner/forgot-password/reset
+ */
+export const resetPartnerPassword = async (req, res) => {
+  try {
+    const { email, password, app_id } = req.body;
+
+    if (!email || !password || !app_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email, password, and app_id are required'
+      });
+    }
+
+    // Verify OTP was validated (check if OTP exists for this email)
+    const otpRecord = await ClientRegisterOtp.findOne({
+      where: { email_id: email }
+    });
+
+    if (!otpRecord) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please verify OTP first'
+      });
+    }
+
+    // Find user
+    const user = await User.findOne({
+      where: { email, group_id: app_id }
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Update password
+    await user.update({ password });
+
+    // Delete OTP record
+    await ClientRegisterOtp.destroy({
+      where: { email_id: email }
+    });
+
+    res.json({
+      success: true,
+      message: 'Password reset successfully'
+    });
+  } catch (error) {
+    console.error('Reset partner password error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error resetting password',
       error: error.message
     });
   }

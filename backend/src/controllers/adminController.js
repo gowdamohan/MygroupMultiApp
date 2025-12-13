@@ -13,7 +13,8 @@ import {
   Group,
   AppCategory,
   User,
-  UserGroup
+  UserGroup,
+  ClientRegistration
 } from '../models/index.js';
 
 /**
@@ -1746,6 +1747,156 @@ export const appLogin = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Login failed',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * ============================================
+ * PARTNERS MANAGEMENT
+ * ============================================
+ */
+
+// Get app info by ID
+export const getAppById = async (req, res) => {
+  try {
+    const { appId } = req.params;
+
+    const app = await GroupCreate.findByPk(appId, {
+      include: [{ model: CreateDetails, as: 'details' }]
+    });
+
+    if (!app) {
+      return res.status(404).json({
+        success: false,
+        message: 'App not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        id: app.id,
+        name: app.name,
+        logo: app.details?.logo || null
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching app:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch app',
+      error: error.message
+    });
+  }
+};
+
+// Get partners for an app
+export const getAppPartners = async (req, res) => {
+  try {
+    const { appId } = req.params;
+
+    // Get partner group
+    const partnerGroup = await Group.findOne({
+      where: { name: 'partner' }
+    });
+
+    if (!partnerGroup) {
+      return res.status(404).json({
+        success: false,
+        message: 'Partner group not found'
+      });
+    }
+
+    // Get users with partner role for this app
+    const partners = await User.findAll({
+      where: { group_id: appId },
+      include: [
+        {
+          model: UserGroup,
+          as: 'userGroups',
+          where: { group_id: partnerGroup.id },
+          required: true
+        },
+        {
+          model: ClientRegistration,
+          as: 'clientRegistration',
+          where: { group_id: appId },
+          required: false
+        }
+      ],
+      order: [['created_on', 'DESC']]
+    });
+
+    const partnersData = partners.map(partner => ({
+      id: partner.id,
+      identification_code: partner.identification_code,
+      email: partner.email,
+      active: partner.active,
+      created_on: partner.created_on,
+      client_registration: partner.clientRegistration ? {
+        id: partner.clientRegistration.id,
+        status: partner.clientRegistration.status,
+        custom_form_data: partner.clientRegistration.custom_form_data || {}
+      } : null
+    }));
+
+    res.json({
+      success: true,
+      data: partnersData
+    });
+  } catch (error) {
+    console.error('Error fetching partners:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch partners',
+      error: error.message
+    });
+  }
+};
+
+// Update partner status
+export const updatePartnerStatus = async (req, res) => {
+  try {
+    const { appId, partnerId } = req.params;
+    const { active } = req.body;
+
+    // Find the partner
+    const partner = await User.findOne({
+      where: { id: partnerId, group_id: appId }
+    });
+
+    if (!partner) {
+      return res.status(404).json({
+        success: false,
+        message: 'Partner not found'
+      });
+    }
+
+    // Update user active status
+    await partner.update({ active });
+
+    // Update client_registration status
+    const newStatus = active === 1 ? 'active' : 'inactive';
+    await ClientRegistration.update(
+      { status: newStatus },
+      { where: { user_id: partnerId, group_id: appId } }
+    );
+
+    res.json({
+      success: true,
+      message: `Partner ${active === 1 ? 'activated' : 'deactivated'} successfully`,
+      data: {
+        id: partner.id,
+        active: active
+      }
+    });
+  } catch (error) {
+    console.error('Error updating partner status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update partner status',
       error: error.message
     });
   }
