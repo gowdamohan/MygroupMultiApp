@@ -23,6 +23,7 @@ import applicationsRoutes from './routes/applications.routes.js';
 import franchiseTermsRoutes from './routes/franchiseTerms.routes.js';
 import tncDetailsRoutes from './routes/tncDetails.routes.js';
 import testimonialRoutes from './routes/testimonialRoutes.js';
+import mediaChannelRoutes from './routes/mediaChannel.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -51,7 +52,7 @@ app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
 // Rate limiting
 const limiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100, // limit each IP to 100 requests per windowMs
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 1000, // limit each IP to 1000 requests per windowMs
   message: 'Too many requests from this IP, please try again later.'
 });
 app.use(limiter);
@@ -81,6 +82,7 @@ app.use(`${API_PREFIX}/applications`, applicationsRoutes);
 app.use(`${API_PREFIX}/franchise-terms`, franchiseTermsRoutes);
 app.use(`${API_PREFIX}/tnc-details`, tncDetailsRoutes);
 app.use(`${API_PREFIX}`, testimonialRoutes);
+app.use(`${API_PREFIX}/partner`, mediaChannelRoutes);
 
 // Member login route (direct access)
 import { memberLogin } from './controllers/memberController.js';

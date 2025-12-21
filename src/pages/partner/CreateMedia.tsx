@@ -1,291 +1,179 @@
-import React, { useState } from 'react';
-import { Upload, Video, Image as ImageIcon, FileText, Save, X } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Tv, Radio, Newspaper, BookOpen, Globe, Youtube, ArrowLeft } from 'lucide-react';
 import axios from 'axios';
+import { MediaRegistrationForm } from './MediaRegistrationForm';
 
 const API_BASE_URL = 'http://localhost:5002/api/v1';
 
+interface Category {
+  id: number;
+  category_name: string;
+  category_type: string;
+  category_image: string | null;
+  registration_count: number;
+  current_registrations: number;
+  is_disabled: boolean;
+}
+
+const categoryIcons: Record<string, any> = {
+  'TV': Tv,
+  'Radio': Radio,
+  'E Paper': Newspaper,
+  'Magazine': BookOpen,
+  'Web': Globe,
+  'Youtube': Youtube
+};
+
 export const CreateMedia: React.FC = () => {
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState('');
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [mediaType, setMediaType] = useState<'video' | 'image' | 'document'>('video');
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    category: '',
-    tags: '',
-    file: null as File | null
-  });
-  const [preview, setPreview] = useState<string | null>(null);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
-  };
+  useEffect(() => {
+    fetchCategories();
+  }, []);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setFormData({
-        ...formData,
-        file
-      });
-
-      // Create preview for images
-      if (file.type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          setPreview(reader.result as string);
-        };
-        reader.readAsDataURL(file);
-      } else {
-        setPreview(null);
-      }
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-    setSuccess('');
-
+  const fetchCategories = async () => {
     try {
+      setLoading(true);
       const token = localStorage.getItem('accessToken');
-      const formDataToSend = new FormData();
-      formDataToSend.append('title', formData.title);
-      formDataToSend.append('description', formData.description);
-      formDataToSend.append('category', formData.category);
-      formDataToSend.append('tags', formData.tags);
-      formDataToSend.append('mediaType', mediaType);
-      if (formData.file) {
-        formDataToSend.append('file', formData.file);
-      }
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      const appId = user.group_id; // app_id is stored in group_id field
 
-      const response = await axios.post(`${API_BASE_URL}/partner/media`, formDataToSend, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data'
+      const response = await axios.get(
+        `${API_BASE_URL}/partner/media-categories/${appId}`,
+        {
+          headers: { Authorization: `Bearer ${token}` }
         }
-      });
+      );
 
       if (response.data.success) {
-        setSuccess('Media uploaded successfully!');
-        setFormData({
-          title: '',
-          description: '',
-          category: '',
-          tags: '',
-          file: null
-        });
-        setPreview(null);
+        setCategories(response.data.data);
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to upload media');
+      console.error('Error fetching categories:', err);
+      setError(err.response?.data?.message || 'Failed to load categories');
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <div>
-      <h2 className="text-2xl font-bold text-gray-900 mb-6">Create Media</h2>
+  const handleCategoryClick = (category: Category) => {
+    if (!category.is_disabled) {
+      setSelectedCategory(category);
+    }
+  };
 
-      {success && (
-        <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg text-green-700">
-          {success}
-        </div>
-      )}
+  const handleBack = () => {
+    setSelectedCategory(null);
+  };
+
+  const handleFormSuccess = () => {
+    setSelectedCategory(null);
+    fetchCategories(); // Refresh categories to update counts
+  };
+
+  if (selectedCategory) {
+    return (
+      <MediaRegistrationForm
+        category={selectedCategory}
+        onBack={handleBack}
+        onSuccess={handleFormSuccess}
+      />
+    );
+  }
+
+  return (
+    <div className="max-w-7xl mx-auto">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Create Media Channel</h1>
+        <p className="text-gray-600">Select a media category to register your channel</p>
+      </div>
 
       {error && (
-        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+        <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
           {error}
         </div>
       )}
+      {loading ? (
+        <div className="flex justify-center items-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {categories.map((category) => {
+            const Icon = categoryIcons[category.category_name] || Globe;
+            const isDisabled = category.is_disabled;
 
-      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Media Type Selection */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              Media Type
-            </label>
-            <div className="flex gap-4">
+            return (
               <button
-                type="button"
-                onClick={() => setMediaType('video')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-colors ${
-                  mediaType === 'video'
-                    ? 'border-primary-600 bg-primary-50 text-primary-700'
-                    : 'border-gray-300 hover:border-gray-400'
-                }`}
+                key={category.id}
+                onClick={() => handleCategoryClick(category)}
+                disabled={isDisabled}
+                className={`
+                  relative p-6 rounded-xl border-2 transition-all duration-200
+                  ${isDisabled
+                    ? 'bg-gray-100 border-gray-300 cursor-not-allowed opacity-60'
+                    : 'bg-white border-gray-200 hover:border-primary-500 hover:shadow-lg cursor-pointer'
+                  }
+                `}
               >
-                <Video size={20} />
-                Video
+                {/* Disabled Overlay */}
+                {isDisabled && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-gray-900 bg-opacity-10 rounded-xl">
+                    <span className="bg-red-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">
+                      Limit Reached
+                    </span>
+                  </div>
+                )}
+
+                <div className="flex flex-col items-center text-center">
+                  {/* Icon */}
+                  <div className={`
+                    w-16 h-16 rounded-full flex items-center justify-center mb-4
+                    ${isDisabled ? 'bg-gray-200' : 'bg-primary-100'}
+                  `}>
+                    <Icon className={isDisabled ? 'text-gray-400' : 'text-primary-600'} size={32} />
+                  </div>
+
+                  {/* Category Name */}
+                  <h3 className={`text-xl font-semibold mb-2 ${isDisabled ? 'text-gray-500' : 'text-gray-900'}`}>
+                    {category.category_name}
+                  </h3>
+
+                  {/* Registration Count */}
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className={isDisabled ? 'text-gray-500' : 'text-gray-600'}>
+                      {category.current_registrations} / {category.registration_count}
+                    </span>
+                    <span className={isDisabled ? 'text-gray-500' : 'text-gray-500'}>
+                      registered
+                    </span>
+                  </div>
+
+                  {/* Category Image (if available) */}
+                  {category.category_image && !isDisabled && (
+                    <div className="mt-4 w-full h-32 rounded-lg overflow-hidden">
+                      <img
+                        src={category.category_image}
+                        alt={category.category_name}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  )}
+                </div>
               </button>
-              <button
-                type="button"
-                onClick={() => setMediaType('image')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-colors ${
-                  mediaType === 'image'
-                    ? 'border-primary-600 bg-primary-50 text-primary-700'
-                    : 'border-gray-300 hover:border-gray-400'
-                }`}
-              >
-                <ImageIcon size={20} />
-                Image
-              </button>
-              <button
-                type="button"
-                onClick={() => setMediaType('document')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-colors ${
-                  mediaType === 'document'
-                    ? 'border-primary-600 bg-primary-50 text-primary-700'
-                    : 'border-gray-300 hover:border-gray-400'
-                }`}
-              >
-                <FileText size={20} />
-                Document
-              </button>
-            </div>
-          </div>
+            );
+          })}
+        </div>
+      )}
 
-          {/* Title */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Title
-            </label>
-            <input
-              type="text"
-              name="title"
-              value={formData.title}
-              onChange={handleChange}
-              required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              placeholder="Enter media title"
-            />
-          </div>
-
-          {/* Description */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Description
-            </label>
-            <textarea
-              name="description"
-              value={formData.description}
-              onChange={handleChange}
-              rows={4}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              placeholder="Enter media description"
-            />
-          </div>
-
-          {/* Category */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Category
-            </label>
-            <select
-              name="category"
-              value={formData.category}
-              onChange={handleChange}
-              required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            >
-              <option value="">Select a category</option>
-              <option value="entertainment">Entertainment</option>
-              <option value="education">Education</option>
-              <option value="news">News</option>
-              <option value="sports">Sports</option>
-              <option value="music">Music</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-
-          {/* Tags */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Tags (comma separated)
-            </label>
-            <input
-              type="text"
-              name="tags"
-              value={formData.tags}
-              onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              placeholder="e.g., tutorial, beginner, programming"
-            />
-          </div>
-
-          {/* File Upload */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Upload File
-            </label>
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-              <input
-                type="file"
-                onChange={handleFileChange}
-                accept={
-                  mediaType === 'video'
-                    ? 'video/*'
-                    : mediaType === 'image'
-                    ? 'image/*'
-                    : '.pdf,.doc,.docx'
-                }
-                className="hidden"
-                id="file-upload"
-              />
-              <label
-                htmlFor="file-upload"
-                className="cursor-pointer flex flex-col items-center"
-              >
-                <Upload className="text-gray-400 mb-2" size={40} />
-                <span className="text-sm text-gray-600">
-                  {formData.file ? formData.file.name : 'Click to upload or drag and drop'}
-                </span>
-                <span className="text-xs text-gray-500 mt-1">
-                  {mediaType === 'video' && 'MP4, AVI, MOV up to 500MB'}
-                  {mediaType === 'image' && 'PNG, JPG, GIF up to 10MB'}
-                  {mediaType === 'document' && 'PDF, DOC, DOCX up to 10MB'}
-                </span>
-              </label>
-            </div>
-
-            {/* Preview */}
-            {preview && (
-              <div className="mt-4 relative">
-                <img src={preview} alt="Preview" className="max-w-xs rounded-lg" />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPreview(null);
-                    setFormData({ ...formData, file: null });
-                  }}
-                  className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Submit Button */}
-          <div className="flex justify-end">
-            <button
-              type="submit"
-              disabled={loading || !formData.file}
-              className="flex items-center gap-2 px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              <Save size={20} />
-              {loading ? 'Uploading...' : 'Upload Media'}
-            </button>
-          </div>
-        </form>
-      </div>
+      {!loading && categories.length === 0 && (
+        <div className="text-center py-12">
+          <p className="text-gray-500 text-lg">No media categories available</p>
+        </div>
+      )}
     </div>
   );
 };

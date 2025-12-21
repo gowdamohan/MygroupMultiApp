@@ -24,6 +24,7 @@ import TncDetails from './TncDetails.js';
 import ClientRegisterOtp from './ClientRegisterOtp.js';
 import ClientRegistration from './ClientRegistration.js';
 import Testimonial from './Testimonial.js';
+import MediaChannel from './MediaChannel.js';
 
 // ============================================
 // USER ASSOCIATIONS
@@ -354,6 +355,70 @@ GroupCreate.hasMany(ClientRegistration, {
   as: 'clientRegistrations'
 });
 
+// ============================================
+// MEDIA CHANNEL ASSOCIATIONS
+// ============================================
+
+// MediaChannel belongs to User
+MediaChannel.belongsTo(User, {
+  foreignKey: 'user_id',
+  as: 'user'
+});
+User.hasMany(MediaChannel, {
+  foreignKey: 'user_id',
+  as: 'mediaChannels'
+});
+
+// MediaChannel belongs to GroupCreate (app)
+MediaChannel.belongsTo(GroupCreate, {
+  foreignKey: 'app_id',
+  as: 'app'
+});
+GroupCreate.hasMany(MediaChannel, {
+  foreignKey: 'app_id',
+  as: 'mediaChannels'
+});
+
+// MediaChannel belongs to AppCategory
+MediaChannel.belongsTo(AppCategory, {
+  foreignKey: 'category_id',
+  as: 'category'
+});
+AppCategory.hasMany(MediaChannel, {
+  foreignKey: 'category_id',
+  as: 'mediaChannels'
+});
+
+// MediaChannel belongs to parent AppCategory
+MediaChannel.belongsTo(AppCategory, {
+  foreignKey: 'parent_category_id',
+  as: 'parentCategory'
+});
+
+// MediaChannel belongs to Country
+MediaChannel.belongsTo(Country, {
+  foreignKey: 'country_id',
+  as: 'country'
+});
+
+// MediaChannel belongs to State
+MediaChannel.belongsTo(State, {
+  foreignKey: 'state_id',
+  as: 'state'
+});
+
+// MediaChannel belongs to District
+MediaChannel.belongsTo(District, {
+  foreignKey: 'district_id',
+  as: 'district'
+});
+
+// MediaChannel belongs to Language
+MediaChannel.belongsTo(Language, {
+  foreignKey: 'language_id',
+  as: 'language'
+});
+
 // Export all models
 export {
   User,
@@ -381,6 +446,7 @@ export {
   TncDetails,
   ClientRegisterOtp,
   ClientRegistration,
-  Testimonial
+  Testimonial,
+  MediaChannel
 };
 
