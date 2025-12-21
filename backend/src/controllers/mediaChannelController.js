@@ -11,7 +11,8 @@ import {
   State,
   District,
   Language,
-  PartnerHeaderAds
+  PartnerHeaderAds,
+  MediaSchedule
 } from '../models/index.js';
 
 /**
@@ -902,6 +903,364 @@ export const forgotPasscode = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error processing forgot passcode request'
+    });
+  }
+};
+
+// ===========================
+// SCHEDULE MANAGEMENT
+// ===========================
+
+/**
+ * Get schedules for a channel (week view)
+ * GET /api/v1/partner/channel/:id/schedules
+ */
+export const getSchedules = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { weekStart } = req.query; // YYYY-MM-DD format
+    const userId = req.user.id;
+
+    // Verify channel ownership
+    const channel = await MediaChannel.findOne({
+      where: { id, user_id: userId }
+    });
+
+    if (!channel) {
+      return res.status(404).json({
+        success: false,
+        message: 'Channel not found'
+      });
+    }
+
+    // Calculate week range
+    const startDate = weekStart ? new Date(weekStart) : new Date();
+    startDate.setHours(0, 0, 0, 0);
+    // Get to Monday
+    const day = startDate.getDay();
+    const diff = startDate.getDate() - day + (day === 0 ? -6 : 1);
+    startDate.setDate(diff);
+
+    const endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + 6);
+
+    const weekStartStr = startDate.toISOString().split('T')[0];
+    const weekEndStr = endDate.toISOString().split('T')[0];
+
+    // Get all recurring master schedules for this channel
+    const recurringSchedules = await MediaSchedule.findAll({
+      where: {
+        media_channel_id: id,
+        is_recurring: 1,
+        original_schedule_id: null // Only master recurring schedules
+      }
+    });
+
+    // Get specific schedules for this week (edited or overridden)
+    const weekSpecificSchedules = await MediaSchedule.findAll({
+      where: {
+        media_channel_id: id,
+        schedule_date: {
+          [Op.between]: [weekStartStr, weekEndStr]
+        }
+      },
+      order: [['schedule_date', 'ASC'], ['start_time', 'ASC']]
+    });
+
+    // Build week schedule by combining recurring + specific overrides
+    const schedulesMap = new Map();
+
+    // First, add recurring schedules projected to this week
+    for (const recurring of recurringSchedules) {
+      const dayOfWeek = recurring.day_of_week; // 0=Sunday, 1=Monday, etc.
+      // Calculate the date for this day in the current week
+      const dayDiff = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Adjust for Monday start
+      const scheduleDate = new Date(startDate);
+      scheduleDate.setDate(scheduleDate.getDate() + dayDiff);
+      const scheduleDateStr = scheduleDate.toISOString().split('T')[0];
+
+      const key = `${scheduleDateStr}_${recurring.start_time}`;
+      schedulesMap.set(key, {
+        id: recurring.id,
+        title: recurring.title,
+        media_file: recurring.media_file,
+        schedule_date: scheduleDateStr,
+        day_of_week: recurring.day_of_week,
+        start_time: recurring.start_time,
+        end_time: recurring.end_time,
+        status: recurring.status,
+        is_recurring: recurring.is_recurring,
+        original_schedule_id: null,
+        is_edited: 0,
+        is_master: true, // Flag to identify master recurring
+        created_at: recurring.created_at,
+        updated_at: recurring.updated_at
+      });
+    }
+
+    // Override with week-specific schedules (edited versions take priority)
+    for (const schedule of weekSpecificSchedules) {
+      const key = `${schedule.schedule_date}_${schedule.start_time}`;
+      schedulesMap.set(key, {
+        id: schedule.id,
+        title: schedule.title,
+        media_file: schedule.media_file,
+        schedule_date: schedule.schedule_date,
+        day_of_week: schedule.day_of_week,
+        start_time: schedule.start_time,
+        end_time: schedule.end_time,
+        status: schedule.status,
+        is_recurring: schedule.is_recurring,
+        original_schedule_id: schedule.original_schedule_id,
+        is_edited: schedule.is_edited,
+        is_master: false,
+        created_at: schedule.created_at,
+        updated_at: schedule.updated_at
+      });
+    }
+
+    // Convert to array and sort
+    const schedules = Array.from(schedulesMap.values()).sort((a, b) => {
+      if (a.schedule_date !== b.schedule_date) return a.schedule_date.localeCompare(b.schedule_date);
+      return a.start_time.localeCompare(b.start_time);
+    });
+
+    res.json({
+      success: true,
+      data: schedules,
+      weekStart: weekStartStr,
+      weekEnd: weekEndStr
+    });
+  } catch (error) {
+    console.error('Get schedules error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching schedules'
+    });
+  }
+};
+
+/**
+ * Create a new schedule
+ * POST /api/v1/partner/channel/:id/schedules
+ */
+export const createSchedule = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, schedule_date, start_time, end_time, is_recurring = 1 } = req.body;
+    const userId = req.user.id;
+
+    // Verify channel ownership
+    const channel = await MediaChannel.findOne({
+      where: { id, user_id: userId }
+    });
+
+    if (!channel) {
+      return res.status(404).json({
+        success: false,
+        message: 'Channel not found'
+      });
+    }
+
+    // Get day of week from date
+    const dateObj = new Date(schedule_date);
+    const day_of_week = dateObj.getDay();
+
+    // For recurring schedules, check if same day_of_week + start_time already exists
+    if (is_recurring == 1) {
+      const existingRecurring = await MediaSchedule.findOne({
+        where: {
+          media_channel_id: id,
+          day_of_week,
+          start_time,
+          is_recurring: 1,
+          original_schedule_id: null
+        }
+      });
+
+      if (existingRecurring) {
+        return res.status(400).json({
+          success: false,
+          message: 'This time slot is already scheduled for this day of week'
+        });
+      }
+    }
+
+    // Handle file upload if present
+    let media_file = null;
+    if (req.file) {
+      media_file = `/uploads/schedules/${req.file.filename}`;
+    }
+
+    const schedule = await MediaSchedule.create({
+      media_channel_id: id,
+      title,
+      media_file,
+      schedule_date,
+      day_of_week,
+      start_time,
+      end_time,
+      is_recurring: is_recurring ? 1 : 0
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Schedule created successfully',
+      data: schedule
+    });
+  } catch (error) {
+    console.error('Create schedule error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error creating schedule'
+    });
+  }
+};
+
+/**
+ * Update a schedule (edit for future dates only)
+ * PUT /api/v1/partner/channel/:channelId/schedules/:scheduleId
+ */
+export const updateSchedule = async (req, res) => {
+  try {
+    const { channelId, scheduleId } = req.params;
+    const { title, schedule_date, start_time, end_time, is_recurring } = req.body;
+    const userId = req.user.id;
+
+    // Verify channel ownership
+    const channel = await MediaChannel.findOne({
+      where: { id: channelId, user_id: userId }
+    });
+
+    if (!channel) {
+      return res.status(404).json({
+        success: false,
+        message: 'Channel not found'
+      });
+    }
+
+    const schedule = await MediaSchedule.findOne({
+      where: { id: scheduleId, media_channel_id: channelId }
+    });
+
+    if (!schedule) {
+      return res.status(404).json({
+        success: false,
+        message: 'Schedule not found'
+      });
+    }
+
+    // Check if trying to edit past schedule
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const scheduleDate = new Date(schedule.schedule_date);
+
+    if (scheduleDate < today) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot edit past schedules'
+      });
+    }
+
+    // Handle file upload if present
+    let media_file = schedule.media_file;
+    if (req.file) {
+      media_file = `/uploads/schedules/${req.file.filename}`;
+    }
+
+    // If editing a master recurring schedule for a specific week, create a new override record
+    if (schedule.is_recurring == 1 && schedule.original_schedule_id === null && schedule_date && schedule_date !== schedule.schedule_date) {
+      const dateObj = new Date(schedule_date);
+      const day_of_week = dateObj.getDay();
+
+      const overrideSchedule = await MediaSchedule.create({
+        media_channel_id: channelId,
+        title: title || schedule.title,
+        media_file,
+        schedule_date,
+        day_of_week,
+        start_time: start_time || schedule.start_time,
+        end_time: end_time || schedule.end_time,
+        is_recurring: 0,
+        original_schedule_id: schedule.id,
+        is_edited: 1
+      });
+
+      return res.json({
+        success: true,
+        message: 'Schedule override created for this week',
+        data: overrideSchedule
+      });
+    }
+
+    // Update the schedule directly
+    const updateData = {};
+    if (title) updateData.title = title;
+    if (start_time) updateData.start_time = start_time;
+    if (end_time) updateData.end_time = end_time;
+    if (media_file !== schedule.media_file) updateData.media_file = media_file;
+    if (is_recurring !== undefined) updateData.is_recurring = is_recurring ? 1 : 0;
+    updateData.updated_at = new Date();
+
+    await schedule.update(updateData);
+
+    res.json({
+      success: true,
+      message: 'Schedule updated successfully',
+      data: schedule
+    });
+  } catch (error) {
+    console.error('Update schedule error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating schedule'
+    });
+  }
+};
+
+/**
+ * Delete a schedule
+ * DELETE /api/v1/partner/channel/:channelId/schedules/:scheduleId
+ */
+export const deleteSchedule = async (req, res) => {
+  try {
+    const { channelId, scheduleId } = req.params;
+    const userId = req.user.id;
+
+    // Verify channel ownership
+    const channel = await MediaChannel.findOne({
+      where: { id: channelId, user_id: userId }
+    });
+
+    if (!channel) {
+      return res.status(404).json({
+        success: false,
+        message: 'Channel not found'
+      });
+    }
+
+    const schedule = await MediaSchedule.findOne({
+      where: { id: scheduleId, media_channel_id: channelId }
+    });
+
+    if (!schedule) {
+      return res.status(404).json({
+        success: false,
+        message: 'Schedule not found'
+      });
+    }
+
+    await schedule.destroy();
+
+    res.json({
+      success: true,
+      message: 'Schedule deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete schedule error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting schedule'
     });
   }
 };

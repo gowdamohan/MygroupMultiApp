@@ -26,6 +26,7 @@ import ClientRegistration from './ClientRegistration.js';
 import Testimonial from './Testimonial.js';
 import MediaChannel from './MediaChannel.js';
 import PartnerHeaderAds from './PartnerHeaderAds.js';
+import MediaSchedule from './MediaSchedule.js';
 
 // ============================================
 // USER ASSOCIATIONS
@@ -449,6 +450,7 @@ export {
   ClientRegistration,
   Testimonial,
   MediaChannel,
-  PartnerHeaderAds
+  PartnerHeaderAds,
+  MediaSchedule
 };
 

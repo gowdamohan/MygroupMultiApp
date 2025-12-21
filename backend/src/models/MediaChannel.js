@@ -116,6 +116,14 @@ const MediaChannel = sequelize.define('media_channel', {
     type: DataTypes.DATE,
     allowNull: false,
     defaultValue: DataTypes.NOW
+  },
+  passcode: {
+    type: DataTypes.STRING(100),
+    allowNull: true
+  },
+  passcode_status: {
+    type: DataTypes.TINYINT,
+    defaultValue: 0
   }
 }, {
   timestamps: false,

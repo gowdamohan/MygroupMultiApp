@@ -23,7 +23,11 @@ import {
   togglePasscodeStatus,
   toggleChannelStatus,
   sendChangePasscodeOtp,
-  verifyOtpChangePasscode
+  verifyOtpChangePasscode,
+  getSchedules,
+  createSchedule,
+  updateSchedule,
+  deleteSchedule
 } from '../controllers/mediaChannelController.js';
 import { authenticate } from '../middleware/auth.js';
 
@@ -198,5 +202,67 @@ router.post('/channel/:id/send-change-otp', authenticate, sendChangePasscodeOtp)
  * @access  Private (Partner)
  */
 router.post('/channel/:id/verify-otp-change-passcode', authenticate, verifyOtpChangePasscode);
+
+// ===========================
+// SCHEDULE ROUTES
+// ===========================
+
+// Configure multer for schedule media uploads
+const scheduleUploadDir = path.join(__dirname, '../../public/uploads/schedules');
+if (!fs.existsSync(scheduleUploadDir)) {
+  fs.mkdirSync(scheduleUploadDir, { recursive: true });
+}
+
+const scheduleStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, scheduleUploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'schedule-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const scheduleUpload = multer({
+  storage: scheduleStorage,
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit for media
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png|gif|mp4|mp3|wav|webm/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    if (extname && mimetype) {
+      return cb(null, true);
+    }
+    cb(new Error('Only image, video, and audio files are allowed'));
+  }
+});
+
+/**
+ * @route   GET /api/v1/partner/channel/:id/schedules
+ * @desc    Get schedules for a channel (week view)
+ * @access  Private (Partner)
+ */
+router.get('/channel/:id/schedules', authenticate, getSchedules);
+
+/**
+ * @route   POST /api/v1/partner/channel/:id/schedules
+ * @desc    Create a new schedule
+ * @access  Private (Partner)
+ */
+router.post('/channel/:id/schedules', authenticate, scheduleUpload.single('media_file'), createSchedule);
+
+/**
+ * @route   PUT /api/v1/partner/channel/:channelId/schedules/:scheduleId
+ * @desc    Update a schedule (future dates only)
+ * @access  Private (Partner)
+ */
+router.put('/channel/:channelId/schedules/:scheduleId', authenticate, scheduleUpload.single('media_file'), updateSchedule);
+
+/**
+ * @route   DELETE /api/v1/partner/channel/:channelId/schedules/:scheduleId
+ * @desc    Delete a schedule
+ * @access  Private (Partner)
+ */
+router.delete('/channel/:channelId/schedules/:scheduleId', authenticate, deleteSchedule);
 
 export default router;

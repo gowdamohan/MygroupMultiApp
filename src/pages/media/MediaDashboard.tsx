@@ -4,8 +4,9 @@ import axios from 'axios';
 import {
   ArrowLeft, User, MapPin, Share2, Eye, RefreshCw, WifiOff,
   DollarSign, Megaphone, FileText, Award, Newspaper, Image, Users,
-  ChevronDown, ChevronRight, Menu, X, LogOut, Wifi
+  ChevronDown, ChevronRight, Menu, X, LogOut, Wifi, Calendar
 } from 'lucide-react';
+import { TimeTable } from './TimeTable';
 
 const API_BASE_URL = 'http://localhost:5002/api/v1';
 
@@ -68,7 +69,8 @@ export const MediaDashboard: React.FC = () => {
     { id: 'awards', label: 'Awards', icon: Award, path: `/media/dashboard/${channelId}/awards` },
     { id: 'newsletter', label: 'Newsletter', icon: Newspaper, path: `/media/dashboard/${channelId}/newsletter` },
     { id: 'gallery', label: 'Gallery', icon: Image, path: `/media/dashboard/${channelId}/gallery` },
-    { id: 'team', label: 'Team', icon: Users, path: `/media/dashboard/${channelId}/team` }
+    { id: 'team', label: 'Team', icon: Users, path: `/media/dashboard/${channelId}/team` },
+    { id: 'timetable', label: 'Time Table', icon: Calendar, path: `/media/dashboard/${channelId}/timetable` }
   ];
 
   const toggleMenu = (menuId: string) => {
@@ -103,37 +105,47 @@ export const MediaDashboard: React.FC = () => {
     );
   };
 
-  const renderContent = () => (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-gray-800">Media Dashboard</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-200">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-teal-100 rounded-lg flex items-center justify-center"><Eye className="text-teal-600" size={24} /></div>
-            <div><p className="text-sm text-gray-500">Total Views</p><p className="text-2xl font-bold text-gray-900">0</p></div>
+  const renderContent = () => {
+    const path = location.pathname;
+
+    // Time Table page
+    if (path.includes('/timetable')) {
+      return <TimeTable />;
+    }
+
+    // Default dashboard content
+    return (
+      <div className="space-y-6">
+        <h2 className="text-2xl font-bold text-gray-800">Media Dashboard</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-200">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-teal-100 rounded-lg flex items-center justify-center"><Eye className="text-teal-600" size={24} /></div>
+              <div><p className="text-sm text-gray-500">Total Views</p><p className="text-2xl font-bold text-gray-900">0</p></div>
+            </div>
           </div>
-        </div>
-        <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-200">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center"><Users className="text-blue-600" size={24} /></div>
-            <div><p className="text-sm text-gray-500">Followers</p><p className="text-2xl font-bold text-gray-900">0</p></div>
+          <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-200">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center"><Users className="text-blue-600" size={24} /></div>
+              <div><p className="text-sm text-gray-500">Followers</p><p className="text-2xl font-bold text-gray-900">0</p></div>
+            </div>
           </div>
-        </div>
-        <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-200">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center"><Award className="text-yellow-600" size={24} /></div>
-            <div><p className="text-sm text-gray-500">Awards</p><p className="text-2xl font-bold text-gray-900">0</p></div>
+          <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-200">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center"><Award className="text-yellow-600" size={24} /></div>
+              <div><p className="text-sm text-gray-500">Awards</p><p className="text-2xl font-bold text-gray-900">0</p></div>
+            </div>
           </div>
-        </div>
-        <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-200">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center"><DollarSign className="text-green-600" size={24} /></div>
-            <div><p className="text-sm text-gray-500">Earnings</p><p className="text-2xl font-bold text-gray-900">₹0</p></div>
+          <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-200">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center"><DollarSign className="text-green-600" size={24} /></div>
+              <div><p className="text-sm text-gray-500">Earnings</p><p className="text-2xl font-bold text-gray-900">₹0</p></div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="flex h-screen bg-gradient-to-br from-teal-50 to-cyan-50 overflow-hidden">
@@ -143,7 +155,7 @@ export const MediaDashboard: React.FC = () => {
             <div className="flex flex-col items-center">
               <div className="w-16 h-16 rounded-full overflow-hidden border-3 border-teal-400 shadow-lg mb-3 bg-white">
                 {channelInfo?.media_logo ? (
-                  <img src={`http://localhost:5002${channelInfo.media_logo}`} alt="Channel" className="w-full h-full object-cover" />
+                  <img src={`${channelInfo.media_logo}`} alt="Channel" className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full bg-gradient-to-br from-teal-400 to-cyan-500 flex items-center justify-center"><Wifi className="text-white" size={28} /></div>
                 )}

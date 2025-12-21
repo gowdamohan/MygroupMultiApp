@@ -49,11 +49,13 @@ app.use(morgan('dev')); // Logging
 // Serve static files from uploads directory
 app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
 
-// Rate limiting
+// Rate limiting - skip in development or use very high limit
+const isDevelopment = process.env.NODE_ENV !== 'production';
 const limiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 1000, // limit each IP to 1000 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.'
+  max: isDevelopment ? 100000 : (parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 1000), // very high limit in dev
+  message: 'Too many requests from this IP, please try again later.',
+  skip: () => isDevelopment // Skip rate limiting entirely in development
 });
 app.use(limiter);
 
