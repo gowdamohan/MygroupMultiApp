@@ -98,6 +98,30 @@ const UserRegistration = sequelize.define('user_registration_form', {
   dob_year: {
     type: DataTypes.INTEGER,
     allowNull: true
+  },
+  set_country: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'country_tbl',
+      key: 'id'
+    }
+  },
+  set_state: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'state_tbl',
+      key: 'id'
+    }
+  },
+  set_district: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'district_tbl',
+      key: 'id'
+    }
   }
 }, {
   timestamps: false,

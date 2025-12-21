@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { HomeData } from '../../types/home.types';
 import { AuthModal } from '../../components/AuthModal';
+import { authAPI } from '../../services/api';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5002/api/v1';
 const BACKEND_URL = 'http://localhost:5002';
@@ -50,6 +51,17 @@ export const MobileHomePage: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [profileTab, setProfileTab] = useState<'profile' | 'personal' | 'address'>('profile');
   const [profileImage, setProfileImage] = useState<File | null>(null);
+  const [countries, setCountries] = useState<any[]>([]);
+  const [states, setStates] = useState<any[]>([]);
+  const [districts, setDistricts] = useState<any[]>([]);
+  const [selectedCountry, setSelectedCountry] = useState('');
+  const [selectedState, setSelectedState] = useState('');
+  const [selectedDistrict, setSelectedDistrict] = useState('');
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [userLocation, setUserLocation] = useState<any>(null);
+  const [testimonials, setTestimonials] = useState<any[]>([]);
+  const [currentTestimonial, setCurrentTestimonial] = useState(0);
 
   // Check if user is logged in
   useEffect(() => {
@@ -69,6 +81,7 @@ export const MobileHomePage: React.FC = () => {
 
   useEffect(() => {
     fetchHomeData();
+    fetchTestimonials();
     if (isLoggedIn) {
       fetchAllApps();
     }
@@ -98,20 +111,39 @@ export const MobileHomePage: React.FC = () => {
     }
   };
 
+  const fetchTestimonials = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/testimonials`);
+      if (response.data.success) {
+        setTestimonials(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching testimonials:', error);
+    }
+  };
+
   const fetchUserProfile = async () => {
     try {
-      const token = localStorage.getItem('accessToken');
-      const userId = userProfile?.id || JSON.parse(localStorage.getItem('user') || '{}').id;
-
-      if (!userId) return;
-
-      const response = await axios.get(`${API_BASE_URL}/users/${userId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
+      const response = await authAPI.getProfile();
+      console.log('User profile:', response.data.data);
       if (response.data.success) {
-        setUserProfile(response.data.data);
-        localStorage.setItem('user', JSON.stringify(response.data.data));
+        const userData = response.data.data;
+        setUserProfile(userData);
+        localStorage.setItem('user', JSON.stringify(userData));
+        
+        // Set user location if available
+        if (userData.profile) {
+          setUserLocation(userData.profile);
+          if (userData.profile.set_country) {
+            setSelectedCountry(userData.profile.set_country.toString());
+          }
+          if (userData.profile.set_state) {
+            setSelectedState(userData.profile.set_state.toString());
+          }
+          if (userData.profile.set_district) {
+            setSelectedDistrict(userData.profile.set_district.toString());
+          }
+        }
       }
     } catch (error) {
       console.error('Error fetching user profile:', error);
@@ -123,14 +155,32 @@ export const MobileHomePage: React.FC = () => {
     document.body.classList.toggle('dark-mode');
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('user');
-    setIsLoggedIn(false);
-    setUserProfile(null);
-    setShowProfileModal(false);
-    setShowAuthModal(true);
+  const handleLogout = async () => {
+    try {
+      // Call logout API if available
+      await authAPI.logout();
+    } catch (error) {
+      console.error('Logout API error:', error);
+    } finally {
+      // Clear local storage and state regardless of API call result
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('user');
+      setIsLoggedIn(false);
+      setUserProfile(null);
+      setUserLocation(null);
+      setShowProfileModal(false);
+      setShowLocationModal(false);
+      setShowAuthModal(true);
+      
+      // Reset location state
+      setSelectedCountry('');
+      setSelectedState('');
+      setSelectedDistrict('');
+      setCountries([]);
+      setStates([]);
+      setDistricts([]);
+    }
   };
 
   const handleProfileImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -139,6 +189,119 @@ export const MobileHomePage: React.FC = () => {
       // TODO: Upload to server
     }
   };
+
+  const fetchCountries = async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const response = await axios.get(`${API_BASE_URL}/admin/countries`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.success) {
+        setCountries(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching countries:', error);
+    }
+  };
+
+  const fetchStates = async (countryId: string) => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const response = await axios.get(`${API_BASE_URL}/admin/states?countryId=${countryId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.success) {
+        setStates(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching states:', error);
+    }
+  };
+
+  const fetchDistricts = async (stateId: string) => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const response = await axios.get(`${API_BASE_URL}/admin/districts?stateId=${stateId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.success) {
+        setDistricts(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching districts:', error);
+    }
+  };
+
+  const handleLocationUpdate = async () => {
+    if (!selectedCountry || !selectedState || !selectedDistrict) {
+      alert('Please select all location fields');
+      return;
+    }
+
+    setLocationLoading(true);
+    try {
+      const response = await authAPI.updateLocation({
+        set_country: parseInt(selectedCountry),
+        set_state: parseInt(selectedState),
+        set_district: parseInt(selectedDistrict)
+      });
+
+      if (response.data.success) {
+        alert('Location updated successfully!');
+        setUserLocation(response.data.data);
+        setShowLocationModal(false);
+        // Refresh profile to get updated location data with associations
+        await fetchUserProfile();
+      }
+    } catch (error) {
+      console.error('Error updating location:', error);
+      if (error.response?.status === 429) {
+        alert('Too many requests. Please wait a moment and try again.');
+      } else {
+        alert('Failed to update location');
+      }
+    } finally {
+      setLocationLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (profileTab === 'profile' && showProfileModal) {
+        fetchCountries();
+      }
+  }, [profileTab, showProfileModal]);
+
+  useEffect(() => {
+    if (showLocationModal) {
+      fetchCountries();
+    }
+  }, [showLocationModal]);
+
+  useEffect(() => {
+    if (selectedCountry) {
+      fetchStates(selectedCountry);
+      setSelectedState('');
+      setSelectedDistrict('');
+      setDistricts([]);
+    }
+  }, [selectedCountry]);
+
+  useEffect(() => {
+    if (selectedState) {
+      fetchDistricts(selectedState);
+      setSelectedDistrict('');
+    }
+  }, [selectedState]);
+
+  // Auto-rotate testimonials
+  useEffect(() => {
+    if (testimonials.length > 1) {
+      const interval = setInterval(() => {
+        setCurrentTestimonial((prev) => (prev + 1) % testimonials.length);
+      }, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [testimonials.length]);
 
   if (loading) {
     return (
@@ -261,7 +424,124 @@ export const MobileHomePage: React.FC = () => {
           </div>
         </section>
 
-        {/* More sections will be added here */}
+        {/* Testimonials Section */}
+        <section className="py-16 bg-gray-50">
+          <div className="px-4">
+            <h2 className="text-3xl font-bold text-center text-gray-900 mb-12">What Our Clients Say</h2>
+            {testimonials.length > 0 && (
+              <div className="relative max-w-4xl mx-auto">
+                <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
+                  <div className="flex justify-center mb-6">
+                    <div className="flex text-yellow-400">
+                      {[...Array(5)].map((_, i) => (
+                        <Star key={i} size={24} fill="currentColor" />
+                      ))}
+                    </div>
+                  </div>
+                  <blockquote className="text-lg text-gray-700 mb-6 italic">
+                    "{testimonials[currentTestimonial]?.message || 'Great service and amazing platform!'}"
+                  </blockquote>
+                  <div className="flex items-center justify-center gap-4">
+                    <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-blue-500 rounded-full flex items-center justify-center text-white font-bold text-xl">
+                      {testimonials[currentTestimonial]?.name?.charAt(0) || 'U'}
+                    </div>
+                    <div className="text-left">
+                      <p className="font-semibold text-gray-900">{testimonials[currentTestimonial]?.name || 'Anonymous'}</p>
+                      <p className="text-gray-600 text-sm">{testimonials[currentTestimonial]?.designation || 'Client'}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex justify-center mt-8 gap-2">
+                  {testimonials.map((_, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setCurrentTestimonial(index)}
+                      className={`w-3 h-3 rounded-full transition-colors ${
+                        index === currentTestimonial ? 'bg-purple-600' : 'bg-gray-300'
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* Footer */}
+        <footer className="bg-gray-900 text-white py-12">
+          <div className="px-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8">
+              {/* Know Us */}
+              <div>
+                <h3 className="font-bold text-lg mb-4">Know Us</h3>
+                <ul className="space-y-2 text-sm">
+                  <li><Link to="/" className="hover:text-purple-400 transition-colors">Home</Link></li>
+                  <li><Link to="/about" className="hover:text-purple-400 transition-colors">About Us</Link></li>
+                  <li><Link to="/clients" className="hover:text-purple-400 transition-colors">Clients</Link></li>
+                  <li><Link to="/milestones" className="hover:text-purple-400 transition-colors">Milestones</Link></li>
+                  <li><Link to="/testimonials" className="hover:text-purple-400 transition-colors">Testimonials</Link></li>
+                  <li><Link to="/sitemap" className="hover:text-purple-400 transition-colors">Sitemap</Link></li>
+                </ul>
+              </div>
+
+              {/* Media */}
+              <div>
+                <h3 className="font-bold text-lg mb-4">Media</h3>
+                <ul className="space-y-2 text-sm">
+                  <li><Link to="/newsroom" className="hover:text-purple-400 transition-colors">Newsroom</Link></li>
+                  <li><Link to="/gallery" className="hover:text-purple-400 transition-colors">Gallery</Link></li>
+                  <li><Link to="/awards" className="hover:text-purple-400 transition-colors">Awards</Link></li>
+                  <li><Link to="/events" className="hover:text-purple-400 transition-colors">Events</Link></li>
+                </ul>
+              </div>
+
+              {/* Opportunity */}
+              <div>
+                <h3 className="font-bold text-lg mb-4">Opportunity</h3>
+                <ul className="space-y-2 text-sm">
+                  <li><Link to="/careers" className="hover:text-purple-400 transition-colors">Careers</Link></li>
+                  <li><Link to="/jobs" className="hover:text-purple-400 transition-colors">My Jobs</Link></li>
+                  <li><Link to="/franchise" className="hover:text-purple-400 transition-colors">Apply for Franchise</Link></li>
+                  <li><Link to="/employers" className="hover:text-purple-400 transition-colors">Employers Words</Link></li>
+                  <li><Link to="/advertise" className="hover:text-purple-400 transition-colors">Advertise With Us</Link></li>
+                </ul>
+              </div>
+
+              {/* Our Policy */}
+              <div>
+                <h3 className="font-bold text-lg mb-4">Our Policy</h3>
+                <ul className="space-y-2 text-sm">
+                  <li><Link to="/privacy" className="hover:text-purple-400 transition-colors">Privacy Policy</Link></li>
+                  <li><Link to="/terms" className="hover:text-purple-400 transition-colors">Terms and Conditions</Link></li>
+                  <li><Link to="/faq" className="hover:text-purple-400 transition-colors">FAQ's</Link></li>
+                </ul>
+              </div>
+
+              {/* Support & Logins */}
+              <div>
+                <h3 className="font-bold text-lg mb-4">Support</h3>
+                <ul className="space-y-2 text-sm">
+                  <li><Link to="/contact" className="hover:text-purple-400 transition-colors">Contact Us</Link></li>
+                  <li><Link to="/enquiry" className="hover:text-purple-400 transition-colors">Enquiry Now</Link></li>
+                  <li><Link to="/support" className="hover:text-purple-400 transition-colors">Technical Support</Link></li>
+                  <li><Link to="/chat" className="hover:text-purple-400 transition-colors">Chat with Us</Link></li>
+                  <li><Link to="/feedback" className="hover:text-purple-400 transition-colors">Feedback</Link></li>
+                </ul>
+                <h3 className="font-bold text-lg mb-4 mt-6">Logins</h3>
+                <ul className="space-y-2 text-sm">
+                  <li><Link to="/client-login" className="hover:text-purple-400 transition-colors">Client Login</Link></li>
+                  <li><Link to="/franchise-login" className="hover:text-purple-400 transition-colors">Franchise Login</Link></li>
+                  <li><Link to="/reporter-login" className="hover:text-purple-400 transition-colors">Reporters Login</Link></li>
+                  <li><Link to="/labor-login" className="hover:text-purple-400 transition-colors">My Labor</Link></li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="border-t border-gray-700 mt-8 pt-8 text-center text-sm text-gray-400">
+              <p>&copy; 2024 Multi-Tenant Platform. All rights reserved.</p>
+            </div>
+          </div>
+        </footer>
         </div>
 
         {/* More Apps Modal */}
@@ -476,6 +756,29 @@ export const MobileHomePage: React.FC = () => {
                           </div>
                         </div>
 
+                        {/* Location Setting */}
+                        <div>
+                          <h3 className="text-sm font-semibold text-gray-500 uppercase mb-3">Location</h3>
+                          <button
+                            onClick={() => setShowLocationModal(true)}
+                            className="w-full bg-blue-50 p-4 rounded-lg mb-4 hover:bg-blue-100 transition-colors"
+                          >
+                            <div className="flex items-center gap-2 mb-2">
+                              <MapPin size={16} className="text-blue-600" />
+                              <span className="text-sm font-medium text-blue-700">Set Your Location</span>
+                            </div>
+                            {userLocation && userLocation.setCountryData ? (
+                              <p className="text-xs text-blue-600 text-left">
+                                {userLocation.setCountryData?.country}, {userLocation.setStateData?.state}, {userLocation.setDistrictData?.district}
+                              </p>
+                            ) : (
+                              <p className="text-xs text-blue-600 text-left">Select your country, state, and district</p>
+                            )}
+                          </button>
+                        </div>
+
+
+
                         {/* Legal Section */}
                         <div>
                           <h3 className="text-sm font-semibold text-gray-500 uppercase mb-3">Legal</h3>
@@ -607,6 +910,108 @@ export const MobileHomePage: React.FC = () => {
                   </div>
                 </motion.div>
               </>
+          )}
+        </AnimatePresence>
+
+        {/* Location Modal */}
+        <AnimatePresence>
+          {showLocationModal && (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-black/50 z-[110]"
+                onClick={() => setShowLocationModal(false)}
+              />
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="fixed inset-4 bg-white rounded-lg z-[111] overflow-y-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-xl font-bold text-gray-900">Set Your Location</h2>
+                    <button
+                      onClick={() => setShowLocationModal(false)}
+                      className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                    >
+                      <X size={20} className="text-gray-600" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Country</label>
+                      <select
+                        value={selectedCountry}
+                        onChange={(e) => setSelectedCountry(e.target.value)}
+                        className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Select Country</option>
+                        {countries.map((country) => (
+                          <option key={country.id} value={country.id}>
+                            {country.country}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">State</label>
+                      <select
+                        value={selectedState}
+                        onChange={(e) => setSelectedState(e.target.value)}
+                        className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        disabled={!selectedCountry}
+                      >
+                        <option value="">Select State</option>
+                        {states.map((state) => (
+                          <option key={state.id} value={state.id}>
+                            {state.state}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">District</label>
+                      <select
+                        value={selectedDistrict}
+                        onChange={(e) => setSelectedDistrict(e.target.value)}
+                        className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        disabled={!selectedState}
+                      >
+                        <option value="">Select District</option>
+                        {districts.map((district) => (
+                          <option key={district.id} value={district.id}>
+                            {district.district}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="flex gap-3 pt-4">
+                      <button
+                        onClick={() => setShowLocationModal(false)}
+                        className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleLocationUpdate}
+                        disabled={locationLoading || !selectedCountry || !selectedState || !selectedDistrict}
+                        className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                      >
+                        {locationLoading ? 'Updating...' : 'Update Location'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            </>
           )}
         </AnimatePresence>
       </div>

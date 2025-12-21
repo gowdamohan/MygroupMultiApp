@@ -7,7 +7,7 @@ import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import sequelize, { testConnection } from './config/database.js';
+import sequelize, { testConnection, analyzeSchema, tableExists } from './config/database.js';
 import authRoutes from './routes/authRoutes.js';
 import geoRoutes from './routes/geoRoutes.js';
 import groupRoutes from './routes/groupRoutes.js';
@@ -22,6 +22,7 @@ import companyAdsRoutes from './routes/companyAds.routes.js';
 import applicationsRoutes from './routes/applications.routes.js';
 import franchiseTermsRoutes from './routes/franchiseTerms.routes.js';
 import tncDetailsRoutes from './routes/tncDetails.routes.js';
+import testimonialRoutes from './routes/testimonialRoutes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -79,6 +80,7 @@ app.use(`${API_PREFIX}/company-ads`, companyAdsRoutes);
 app.use(`${API_PREFIX}/applications`, applicationsRoutes);
 app.use(`${API_PREFIX}/franchise-terms`, franchiseTermsRoutes);
 app.use(`${API_PREFIX}/tnc-details`, tncDetailsRoutes);
+app.use(`${API_PREFIX}`, testimonialRoutes);
 
 // Member login route (direct access)
 import { memberLogin } from './controllers/memberController.js';
@@ -111,6 +113,11 @@ const startServer = async () => {
     if (!dbConnected) {
       console.error('❌ Failed to connect to database. Please check your configuration.');
       process.exit(1);
+    }
+
+    // Analyze database schema
+    if (process.env.NODE_ENV === 'development') {
+      await analyzeSchema();
     }
 
     // Sync database (only in development)

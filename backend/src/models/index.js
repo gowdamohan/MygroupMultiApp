@@ -23,6 +23,7 @@ import FranchiseTermsConditions from './FranchiseTermsConditions.js';
 import TncDetails from './TncDetails.js';
 import ClientRegisterOtp from './ClientRegisterOtp.js';
 import ClientRegistration from './ClientRegistration.js';
+import Testimonial from './Testimonial.js';
 
 // ============================================
 // USER ASSOCIATIONS
@@ -147,6 +148,22 @@ UserRegistration.belongsTo(Education, {
 UserRegistration.belongsTo(Profession, {
   foreignKey: 'profession',
   as: 'professionData'
+});
+
+// UserRegistration location associations
+UserRegistration.belongsTo(Country, {
+  foreignKey: 'set_country',
+  as: 'setCountryData'
+});
+
+UserRegistration.belongsTo(State, {
+  foreignKey: 'set_state',
+  as: 'setStateData'
+});
+
+UserRegistration.belongsTo(District, {
+  foreignKey: 'set_district',
+  as: 'setDistrictData'
 });
 
 // ============================================
@@ -363,6 +380,7 @@ export {
   FranchiseTermsConditions,
   TncDetails,
   ClientRegisterOtp,
-  ClientRegistration
+  ClientRegistration,
+  Testimonial
 };
 

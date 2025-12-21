@@ -9,7 +9,8 @@ import {
   groupAdminLogin,
   clientLogin,
   partnerLogin,
-  reporterLogin
+  reporterLogin,
+  updateUserLocation
 } from '../controllers/authController.js';
 import { forgotPassword, resetPassword, changePassword } from '../controllers/passwordController.js';
 import { getActiveSessions, revokeSession, revokeAllSessions, updateProfile, logout } from '../controllers/sessionController.js';
@@ -505,6 +506,29 @@ router.delete('/sessions/:sessionId', authenticate, revokeSession);
  * @access  Private
  */
 router.delete('/sessions', authenticate, revokeAllSessions);
+
+/**
+ * @route   PUT /api/v1/auth/location
+ * @desc    Update user location
+ * @access  Private
+ */
+router.put(
+  '/location',
+  authenticate,
+  [
+    body('set_country')
+      .notEmpty()
+      .withMessage('Country is required'),
+    body('set_state')
+      .notEmpty()
+      .withMessage('State is required'),
+    body('set_district')
+      .notEmpty()
+      .withMessage('District is required')
+  ],
+  validate,
+  updateUserLocation
+);
 
 export default router;
 

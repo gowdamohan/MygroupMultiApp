@@ -196,6 +196,9 @@ export const getProfile = async (req, res) => {
             { model: Country, as: 'countryData' },
             { model: State, as: 'stateData' },
             { model: District, as: 'districtData' },
+            { model: Country, as: 'setCountryData', foreignKey: 'set_country' },
+            { model: State, as: 'setStateData', foreignKey: 'set_state' },
+            { model: District, as: 'setDistrictData', foreignKey: 'set_district' },
             { model: Education, as: 'educationData' },
             { model: Profession, as: 'professionData' }
           ]
@@ -662,4 +665,57 @@ function getDashboardRoute(role, groupType = null) {
 
   return dashboardMap[role] || '/dashboard';
 }
+
+/**
+ * Update user location
+ */
+export const updateUserLocation = async (req, res) => {
+  try {
+    const { set_country, set_state, set_district } = req.body;
+    const userId = req.user.id;
+
+    // Find or create user registration record
+    let userRegistration = await UserRegistration.findOne({
+      where: { user_id: userId }
+    });
+
+    if (!userRegistration) {
+      userRegistration = await UserRegistration.create({
+        user_id: userId,
+        set_country,
+        set_state,
+        set_district
+      });
+    } else {
+      await userRegistration.update({
+        set_country,
+        set_state,
+        set_district
+      });
+    }
+
+    // Fetch updated data with location details
+    const updatedRegistration = await UserRegistration.findOne({
+      where: { user_id: userId },
+      include: [
+        { model: Country, as: 'setCountryData', foreignKey: 'set_country' },
+        { model: State, as: 'setStateData', foreignKey: 'set_state' },
+        { model: District, as: 'setDistrictData', foreignKey: 'set_district' }
+      ]
+    });
+
+    res.json({
+      success: true,
+      message: 'Location updated successfully',
+      data: updatedRegistration
+    });
+  } catch (error) {
+    console.error('Update location error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating location',
+      error: error.message
+    });
+  }
+};
 

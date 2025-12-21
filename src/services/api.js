@@ -79,6 +79,9 @@ export const authAPI = {
   getSessions: () => api.get('/auth/sessions'),
   revokeSession: (sessionId) => api.delete(`/auth/sessions/${sessionId}`),
   revokeAllSessions: () => api.delete('/auth/sessions'),
+
+  // Location Management
+  updateLocation: (data) => api.put('/auth/location', data),
 };
 
 export default api;
