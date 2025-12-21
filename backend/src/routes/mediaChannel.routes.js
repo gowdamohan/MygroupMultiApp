@@ -11,7 +11,19 @@ import {
   getLanguages,
   createMediaChannel,
   getMyChannels,
-  deleteMyChannel
+  deleteMyChannel,
+  getPartnerHeaderAds,
+  getUserProfile,
+  checkPasscode,
+  generatePasscode,
+  setPasscode,
+  verifyPasscode,
+  changePasscode,
+  forgotPasscode,
+  togglePasscodeStatus,
+  toggleChannelStatus,
+  sendChangePasscodeOtp,
+  verifyOtpChangePasscode
 } from '../controllers/mediaChannelController.js';
 import { authenticate } from '../middleware/auth.js';
 
@@ -102,5 +114,89 @@ router.get('/my-channels', authenticate, getMyChannels);
  * @access  Private (Partner)
  */
 router.delete('/my-channels/:id', authenticate, deleteMyChannel);
+
+/**
+ * @route   GET /api/v1/partner/header-ads
+ * @desc    Get partner header ads for carousel
+ * @access  Private (Partner)
+ */
+router.get('/header-ads', authenticate, getPartnerHeaderAds);
+
+/**
+ * @route   GET /api/v1/partner/user-profile
+ * @desc    Get user profile for sidebar
+ * @access  Private (Partner)
+ */
+router.get('/user-profile', authenticate, getUserProfile);
+
+/**
+ * @route   GET /api/v1/partner/channel/:id/check-passcode
+ * @desc    Check if passcode is set for a channel
+ * @access  Private (Partner)
+ */
+router.get('/channel/:id/check-passcode', authenticate, checkPasscode);
+
+/**
+ * @route   POST /api/v1/partner/channel/:id/generate-passcode
+ * @desc    Generate new passcode for a channel
+ * @access  Private (Partner)
+ */
+router.post('/channel/:id/generate-passcode', authenticate, generatePasscode);
+
+/**
+ * @route   POST /api/v1/partner/channel/:id/verify-passcode
+ * @desc    Verify passcode for a channel
+ * @access  Private (Partner)
+ */
+router.post('/channel/:id/verify-passcode', authenticate, verifyPasscode);
+
+/**
+ * @route   POST /api/v1/partner/channel/:id/change-passcode
+ * @desc    Change passcode for a channel
+ * @access  Private (Partner)
+ */
+router.post('/channel/:id/change-passcode', authenticate, changePasscode);
+
+/**
+ * @route   POST /api/v1/partner/channel/:id/forgot-passcode
+ * @desc    Forgot passcode - send email with new passcode
+ * @access  Private (Partner)
+ */
+router.post('/channel/:id/forgot-passcode', authenticate, forgotPasscode);
+
+/**
+ * @route   POST /api/v1/partner/channel/:id/set-passcode
+ * @desc    Set passcode for a channel (first time)
+ * @access  Private (Partner)
+ */
+router.post('/channel/:id/set-passcode', authenticate, setPasscode);
+
+/**
+ * @route   POST /api/v1/partner/channel/:id/toggle-passcode-status
+ * @desc    Toggle passcode status for a channel
+ * @access  Private (Partner)
+ */
+router.post('/channel/:id/toggle-passcode-status', authenticate, togglePasscodeStatus);
+
+/**
+ * @route   POST /api/v1/partner/channel/:id/toggle-status
+ * @desc    Toggle channel active status
+ * @access  Private (Partner)
+ */
+router.post('/channel/:id/toggle-status', authenticate, toggleChannelStatus);
+
+/**
+ * @route   POST /api/v1/partner/channel/:id/send-change-otp
+ * @desc    Send OTP for passcode change
+ * @access  Private (Partner)
+ */
+router.post('/channel/:id/send-change-otp', authenticate, sendChangePasscodeOtp);
+
+/**
+ * @route   POST /api/v1/partner/channel/:id/verify-otp-change-passcode
+ * @desc    Verify OTP and change passcode
+ * @access  Private (Partner)
+ */
+router.post('/channel/:id/verify-otp-change-passcode', authenticate, verifyOtpChangePasscode);
 
 export default router;

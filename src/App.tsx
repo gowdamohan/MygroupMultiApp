@@ -17,6 +17,7 @@ import { FranchiseDashboard } from './pages/dashboard/FranchiseDashboard';
 import { LaborDashboard } from './pages/dashboard/LaborDashboard';
 import { MediaChannelDashboard } from './pages/dashboard/MediaChannelDashboard';
 import { PartnerDashboard } from './pages/dashboard/PartnerDashboard';
+import { MediaDashboard } from './pages/media/MediaDashboard';
 import { AppDashboard } from './pages/app/AppDashboard';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -137,6 +138,13 @@ function App() {
           <Route path="/media/*" element={
             <ProtectedRoute allowedRoles={['client', 'client_god', 'media']}>
               <MediaChannelDashboard />
+            </ProtectedRoute>
+          } />
+
+          {/* Media Dashboard for individual channel - Protected */}
+          <Route path="/media/dashboard/:channelId/*" element={
+            <ProtectedRoute allowedRoles={['partner', 'client', 'client_god', 'media']}>
+              <MediaDashboard />
             </ProtectedRoute>
           } />
 
