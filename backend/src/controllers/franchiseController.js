@@ -54,7 +54,7 @@ export const getHeadOfficeUsers = async (req, res) => {
         phone: user.phone,
         email: user.email,
         username: user.username,
-        status: user.status,
+        status: user.active,
         country_id: franchiseHolder?.country,
         country_name: franchiseHolder?.countryData?.country || '',
         franchise_holder_id: franchiseHolder?.id
@@ -102,7 +102,7 @@ export const createHeadOfficeUser = async (req, res) => {
       email,
       username,
       password: '123456', // Will be hashed by User model hook
-      status: 1 // Active by default
+      active: 1 // Active by default
     });
 
     // Create user-group association
@@ -128,7 +128,7 @@ export const createHeadOfficeUser = async (req, res) => {
         phone: user.phone,
         email: user.email,
         username: user.username,
-        status: user.status,
+        status: user.active,
         country_id: country,
         country_name: countryData?.country || '',
         franchise_holder_id: franchiseHolder.id
@@ -205,7 +205,7 @@ export const updateHeadOfficeUser = async (req, res) => {
         phone: user.phone,
         email: user.email,
         username: user.username,
-        status: user.status,
+        status: user.active,
         country_id: franchiseHolder?.country,
         country_name: franchiseHolder?.countryData?.country || '',
         franchise_holder_id: franchiseHolder?.id
@@ -255,8 +255,8 @@ export const toggleHeadOfficeStatus = async (req, res) => {
     }
 
     // Toggle status (1 = active, 0 = inactive)
-    const newStatus = user.status === 1 ? 0 : 1;
-    await user.update({ status: newStatus });
+    const newStatus = user.active === 1 ? 0 : 1;
+    await user.update({ active: newStatus });
 
     res.json({
       message: 'Status updated successfully',
@@ -333,7 +333,7 @@ export const getRegionalOfficeUsers = async (req, res) => {
         phone: user.phone,
         email: user.email,
         username: user.username,
-        status: user.status,
+        status: user.active,
         country_id: franchiseHolder?.country,
         country_name: franchiseHolder?.countryData?.country || '',
         state_id: franchiseHolder?.state,
@@ -383,7 +383,7 @@ export const createRegionalOfficeUser = async (req, res) => {
       email,
       username,
       password: '123456', // Will be hashed by User model hook
-      status: 1 // Active by default
+      active: 1 // Active by default
     });
 
     // Create user-group association
@@ -411,7 +411,7 @@ export const createRegionalOfficeUser = async (req, res) => {
         phone: user.phone,
         email: user.email,
         username: user.username,
-        status: user.status,
+        status: user.active,
         country_id: country,
         country_name: countryData?.country || '',
         state_id: state,
@@ -498,7 +498,7 @@ export const updateRegionalOfficeUser = async (req, res) => {
         phone: user.phone,
         email: user.email,
         username: user.username,
-        status: user.status,
+        status: user.active,
         country_id: franchiseHolder?.country,
         country_name: franchiseHolder?.countryData?.country || '',
         state_id: franchiseHolder?.state,
@@ -550,8 +550,8 @@ export const toggleRegionalOfficeStatus = async (req, res) => {
     }
 
     // Toggle status (1 = active, 0 = inactive)
-    const newStatus = user.status === 1 ? 0 : 1;
-    await user.update({ status: newStatus });
+    const newStatus = user.active === 1 ? 0 : 1;
+    await user.update({ active: newStatus });
 
     res.json({
       message: 'Status updated successfully',
@@ -627,14 +627,13 @@ export const getBranchOfficeUsers = async (req, res) => {
     const users = userGroups.map(ug => {
       const user = ug.user;
       const franchiseHolder = user.franchiseHolder;
-
       return {
         id: user.id,
         first_name: user.first_name,
         phone: user.phone,
         email: user.email,
         username: user.username,
-        status: user.status,
+        status: user.active,
         district_id: franchiseHolder?.district || null,
         district_name: franchiseHolder?.districtData?.district || null,
         state_id: franchiseHolder?.state || null,
@@ -680,7 +679,7 @@ export const createBranchOfficeUser = async (req, res) => {
       email,
       username,
       password: '123456', // Default password
-      status: 1
+      active: 1
     });
 
     // Create user-group association
@@ -781,8 +780,8 @@ export const toggleBranchOfficeStatus = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    const newStatus = user.status === 1 ? 0 : 1;
-    await user.update({ status: newStatus });
+    const newStatus = user.active === 1 ? 0 : 1;
+    await user.update({ active: newStatus });
 
     res.json({ message: 'Status updated successfully', status: newStatus });
   } catch (error) {

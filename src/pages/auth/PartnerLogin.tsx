@@ -7,6 +7,8 @@ import axios from 'axios';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5002/api/v1';
 const BACKEND_URL = 'http://localhost:5002';
 
+
+
 type ViewMode = 'login' | 'forgot-email' | 'forgot-otp' | 'forgot-password';
 
 interface AppDetails {
@@ -291,7 +293,7 @@ export const PartnerLogin: React.FC = () => {
                   >
                     {app.details?.logo ? (
                       <img
-                        src={`${BACKEND_URL}${app.details.logo}`}
+                        src={`${app.details.logo}`}
                         alt={app.name}
                         className="w-16 h-16 object-contain"
                       />
@@ -332,7 +334,7 @@ export const PartnerLogin: React.FC = () => {
                 <div className="flex items-center gap-4">
                   {selectedApp.details?.logo ? (
                     <img
-                      src={`${BACKEND_URL}${selectedApp.details.logo}`}
+                      src={`${selectedApp.details.logo}`}
                       alt={selectedApp.name}
                       className="w-16 h-16 object-contain bg-white rounded-lg p-2"
                     />

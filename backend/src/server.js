@@ -116,15 +116,15 @@ const startServer = async () => {
     }
 
     // Analyze database schema
-    if (process.env.NODE_ENV === 'development') {
-      await analyzeSchema();
-    }
+    // if (process.env.NODE_ENV === 'development') {
+    //   await analyzeSchema();
+    // }
 
     // Sync database (only in development)
-    if (process.env.NODE_ENV === 'development') {
-      await sequelize.sync({ alter: false });
-      console.log('✅ Database synchronized');
-    }
+    // if (process.env.NODE_ENV === 'development') {
+    //   await sequelize.sync({ alter: false });
+    //   console.log('✅ Database synchronized');
+    // }
 
     // Start listening
     app.listen(PORT, () => {
@@ -153,4 +153,3 @@ process.on('unhandledRejection', (err) => {
 
 // Start the server
 startServer();
-

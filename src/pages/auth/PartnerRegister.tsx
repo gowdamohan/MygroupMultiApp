@@ -424,7 +424,7 @@ export const PartnerRegister: React.FC = () => {
           {app?.details?.logo && (
             <div className="flex justify-center mb-6">
               <img
-                src={`${BACKEND_URL}${app.details.logo}`}
+                src={`${app.details.logo}`}
                 alt={app.name}
                 className="h-32 w-32 object-contain"
               />
