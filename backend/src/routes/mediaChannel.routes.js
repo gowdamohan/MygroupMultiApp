@@ -9,7 +9,9 @@ import {
   getMediaSubCategories,
   getParentCategory,
   getLanguages,
-  createMediaChannel
+  createMediaChannel,
+  getMyChannels,
+  deleteMyChannel
 } from '../controllers/mediaChannelController.js';
 import { authenticate } from '../middleware/auth.js';
 
@@ -87,5 +89,18 @@ router.get('/languages', authenticate, getLanguages);
  */
 router.post('/media-channel', authenticate, upload.single('media_logo'), createMediaChannel);
 
-export default router;
+/**
+ * @route   GET /api/v1/partner/my-channels
+ * @desc    Get all media channels for logged-in user
+ * @access  Private (Partner)
+ */
+router.get('/my-channels', authenticate, getMyChannels);
 
+/**
+ * @route   DELETE /api/v1/partner/my-channels/:id
+ * @desc    Delete a media channel
+ * @access  Private (Partner)
+ */
+router.delete('/my-channels/:id', authenticate, deleteMyChannel);
+
+export default router;

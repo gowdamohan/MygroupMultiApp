@@ -339,3 +339,86 @@ export const createMediaChannel = async (req, res) => {
   }
 };
 
+/**
+ * Get all media channels for the logged-in user
+ * GET /api/v1/partner/my-channels
+ */
+export const getMyChannels = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const channels = await MediaChannel.findAll({
+      where: {
+        user_id: userId
+      },
+      attributes: [
+        'id',
+        'media_logo',
+        'media_name_english',
+        'media_name_regional',
+        'status',
+        'created_at'
+      ],
+      order: [['created_at', 'DESC']]
+    });
+
+    // Add placeholder values for followers, ratings, earnings (can be implemented later)
+    const channelsWithStats = channels.map(channel => ({
+      ...channel.toJSON(),
+      followers: 0,
+      ratings: 0,
+      earnings: 0
+    }));
+
+    res.json({
+      success: true,
+      data: channelsWithStats
+    });
+  } catch (error) {
+    console.error('Get my channels error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching channels',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Delete a media channel
+ * DELETE /api/v1/partner/my-channels/:id
+ */
+export const deleteMyChannel = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { id } = req.params;
+
+    const channel = await MediaChannel.findOne({
+      where: {
+        id: id,
+        user_id: userId
+      }
+    });
+
+    if (!channel) {
+      return res.status(404).json({
+        success: false,
+        message: 'Channel not found'
+      });
+    }
+
+    await channel.destroy();
+
+    res.json({
+      success: true,
+      message: 'Channel deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete channel error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting channel',
+      error: error.message
+    });
+  }
+};
