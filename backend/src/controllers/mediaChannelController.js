@@ -12,7 +12,8 @@ import {
   District,
   Language,
   PartnerHeaderAds,
-  MediaSchedule
+  MediaSchedule,
+  MediaScheduleSlot
 } from '../models/index.js';
 
 /**
@@ -933,10 +934,9 @@ export const getSchedules = async (req, res) => {
       });
     }
 
-    // Calculate week range
+    // Calculate week range (Monday to Sunday)
     const startDate = weekStart ? new Date(weekStart) : new Date();
     startDate.setHours(0, 0, 0, 0);
-    // Get to Monday
     const day = startDate.getDay();
     const diff = startDate.getDate() - day + (day === 0 ? -6 : 1);
     startDate.setDate(diff);
@@ -947,87 +947,91 @@ export const getSchedules = async (req, res) => {
     const weekStartStr = startDate.toISOString().split('T')[0];
     const weekEndStr = endDate.toISOString().split('T')[0];
 
-    // Get all recurring master schedules for this channel
-    const recurringSchedules = await MediaSchedule.findAll({
+    // Get all schedules for this channel with their slots
+    // Fetch recurring schedules (original_schedule_id is null) and week-specific overrides
+    const schedules = await MediaSchedule.findAll({
       where: {
         media_channel_id: id,
-        is_recurring: 1,
-        original_schedule_id: null // Only master recurring schedules
-      }
-    });
-
-    // Get specific schedules for this week (edited or overridden)
-    const weekSpecificSchedules = await MediaSchedule.findAll({
-      where: {
-        media_channel_id: id,
-        schedule_date: {
-          [Op.between]: [weekStartStr, weekEndStr]
-        }
+        [Op.or]: [
+          { original_schedule_id: null }, // Master schedules
+          { schedule_date: { [Op.between]: [weekStartStr, weekEndStr] } } // Week-specific
+        ]
       },
-      order: [['schedule_date', 'ASC'], ['start_time', 'ASC']]
+      include: [{
+        model: MediaScheduleSlot,
+        as: 'slots',
+        required: false
+      }],
+      order: [['schedule_date', 'ASC']]
     });
 
-    // Build week schedule by combining recurring + specific overrides
-    const schedulesMap = new Map();
+    // Build schedule data for this week
+    const result = [];
+    const processedKeys = new Set();
 
-    // First, add recurring schedules projected to this week
-    for (const recurring of recurringSchedules) {
-      const dayOfWeek = recurring.day_of_week; // 0=Sunday, 1=Monday, etc.
-      // Calculate the date for this day in the current week
-      const dayDiff = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Adjust for Monday start
-      const scheduleDate = new Date(startDate);
-      scheduleDate.setDate(scheduleDate.getDate() + dayDiff);
-      const scheduleDateStr = scheduleDate.toISOString().split('T')[0];
+    for (const schedule of schedules) {
+      const slots = schedule.slots || [];
 
-      const key = `${scheduleDateStr}_${recurring.start_time}`;
-      schedulesMap.set(key, {
-        id: recurring.id,
-        title: recurring.title,
-        media_file: recurring.media_file,
-        schedule_date: scheduleDateStr,
-        day_of_week: recurring.day_of_week,
-        start_time: recurring.start_time,
-        end_time: recurring.end_time,
-        status: recurring.status,
-        is_recurring: recurring.is_recurring,
-        original_schedule_id: null,
-        is_edited: 0,
-        is_master: true, // Flag to identify master recurring
-        created_at: recurring.created_at,
-        updated_at: recurring.updated_at
-      });
+      // Check if this is a master recurring schedule or week-specific
+      const isMaster = schedule.original_schedule_id === null;
+
+      // For master schedules, project them to this week's date
+      let targetDate;
+      if (isMaster) {
+        const dayOfWeek = schedule.day_of_week;
+        const dayDiff = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+        targetDate = new Date(startDate);
+        targetDate.setDate(targetDate.getDate() + dayDiff);
+      } else {
+        targetDate = new Date(schedule.schedule_date);
+      }
+      const targetDateStr = targetDate.toISOString().split('T')[0];
+
+      // Skip if date is outside this week
+      if (targetDateStr < weekStartStr || targetDateStr > weekEndStr) continue;
+
+      // Check if there's an override for this schedule in this week
+      if (isMaster) {
+        const hasOverride = schedules.some(s =>
+          s.original_schedule_id === schedule.id &&
+          s.schedule_date === targetDateStr
+        );
+        if (hasOverride) continue; // Skip master, use override instead
+      }
+
+      // Process each slot
+      for (const slot of slots) {
+        const key = `${targetDateStr}_${slot.start_time}`;
+        if (processedKeys.has(key)) continue;
+        processedKeys.add(key);
+
+        result.push({
+          schedule_id: schedule.id,
+          slot_id: slot.id,
+          title: schedule.title,
+          media_file: schedule.media_file,
+          schedule_date: targetDateStr,
+          day_of_week: schedule.day_of_week,
+          start_time: slot.start_time,
+          end_time: slot.end_time,
+          is_recurring: slot.is_recurring,
+          status: slot.status,
+          original_schedule_id: schedule.original_schedule_id,
+          is_edited: schedule.is_edited,
+          is_master: isMaster
+        });
+      }
     }
 
-    // Override with week-specific schedules (edited versions take priority)
-    for (const schedule of weekSpecificSchedules) {
-      const key = `${schedule.schedule_date}_${schedule.start_time}`;
-      schedulesMap.set(key, {
-        id: schedule.id,
-        title: schedule.title,
-        media_file: schedule.media_file,
-        schedule_date: schedule.schedule_date,
-        day_of_week: schedule.day_of_week,
-        start_time: schedule.start_time,
-        end_time: schedule.end_time,
-        status: schedule.status,
-        is_recurring: schedule.is_recurring,
-        original_schedule_id: schedule.original_schedule_id,
-        is_edited: schedule.is_edited,
-        is_master: false,
-        created_at: schedule.created_at,
-        updated_at: schedule.updated_at
-      });
-    }
-
-    // Convert to array and sort
-    const schedules = Array.from(schedulesMap.values()).sort((a, b) => {
+    // Sort by date then time
+    result.sort((a, b) => {
       if (a.schedule_date !== b.schedule_date) return a.schedule_date.localeCompare(b.schedule_date);
       return a.start_time.localeCompare(b.start_time);
     });
 
     res.json({
       success: true,
-      data: schedules,
+      data: result,
       weekStart: weekStartStr,
       weekEnd: weekEndStr
     });
@@ -1041,14 +1045,28 @@ export const getSchedules = async (req, res) => {
 };
 
 /**
- * Create a new schedule
+ * Create a new schedule with slots
  * POST /api/v1/partner/channel/:id/schedules
+ * Body: { title, schedule_date, slots: [{ start_time, end_time, is_recurring }] }
  */
 export const createSchedule = async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, schedule_date, start_time, end_time, is_recurring = 1 } = req.body;
+    const { title, schedule_date } = req.body;
     const userId = req.user.id;
+
+    // Parse slots - can be JSON string from FormData or array
+    let slots = req.body.slots;
+    if (typeof slots === 'string') {
+      try {
+        slots = JSON.parse(slots);
+      } catch (e) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid slots format'
+        });
+      }
+    }
 
     // Verify channel ownership
     const channel = await MediaChannel.findOne({
@@ -1062,27 +1080,40 @@ export const createSchedule = async (req, res) => {
       });
     }
 
+    if (!slots || !Array.isArray(slots) || slots.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'At least one time slot is required'
+      });
+    }
+
     // Get day of week from date
     const dateObj = new Date(schedule_date);
     const day_of_week = dateObj.getDay();
 
-    // For recurring schedules, check if same day_of_week + start_time already exists
-    if (is_recurring == 1) {
-      const existingRecurring = await MediaSchedule.findOne({
-        where: {
-          media_channel_id: id,
-          day_of_week,
-          start_time,
-          is_recurring: 1,
-          original_schedule_id: null
-        }
-      });
-
-      if (existingRecurring) {
-        return res.status(400).json({
-          success: false,
-          message: 'This time slot is already scheduled for this day of week'
+    // Check for existing recurring slots on same day_of_week + start_time
+    for (const slot of slots) {
+      if (slot.is_recurring == 1 || slot.is_recurring === undefined) {
+        const existingSchedule = await MediaSchedule.findOne({
+          where: {
+            media_channel_id: id,
+            day_of_week,
+            original_schedule_id: null
+          },
+          include: [{
+            model: MediaScheduleSlot,
+            as: 'slots',
+            where: { start_time: slot.start_time, is_recurring: 1 },
+            required: true
+          }]
         });
+
+        if (existingSchedule) {
+          return res.status(400).json({
+            success: false,
+            message: `Time slot ${slot.start_time} is already scheduled for this day`
+          });
+        }
       }
     }
 
@@ -1092,21 +1123,35 @@ export const createSchedule = async (req, res) => {
       media_file = `/uploads/schedules/${req.file.filename}`;
     }
 
+    // Create the schedule record
     const schedule = await MediaSchedule.create({
       media_channel_id: id,
       title,
       media_file,
       schedule_date,
-      day_of_week,
-      start_time,
-      end_time,
-      is_recurring: is_recurring ? 1 : 0
+      day_of_week
     });
+
+    // Create the slot records
+    const slotRecords = [];
+    for (const slot of slots) {
+      const slotRecord = await MediaScheduleSlot.create({
+        media_schedules_id: schedule.id,
+        start_time: slot.start_time,
+        end_time: slot.end_time,
+        is_recurring: slot.is_recurring !== undefined ? slot.is_recurring : 1,
+        status: 'scheduled'
+      });
+      slotRecords.push(slotRecord);
+    }
 
     res.status(201).json({
       success: true,
       message: 'Schedule created successfully',
-      data: schedule
+      data: {
+        ...schedule.toJSON(),
+        slots: slotRecords
+      }
     });
   } catch (error) {
     console.error('Create schedule error:', error);
@@ -1120,11 +1165,12 @@ export const createSchedule = async (req, res) => {
 /**
  * Update a schedule (edit for future dates only)
  * PUT /api/v1/partner/channel/:channelId/schedules/:scheduleId
+ * Body: { title, target_date (for override) }
  */
 export const updateSchedule = async (req, res) => {
   try {
     const { channelId, scheduleId } = req.params;
-    const { title, schedule_date, start_time, end_time, is_recurring } = req.body;
+    const { title, target_date } = req.body;
     const userId = req.user.id;
 
     // Verify channel ownership
@@ -1140,7 +1186,8 @@ export const updateSchedule = async (req, res) => {
     }
 
     const schedule = await MediaSchedule.findOne({
-      where: { id: scheduleId, media_channel_id: channelId }
+      where: { id: scheduleId, media_channel_id: channelId },
+      include: [{ model: MediaScheduleSlot, as: 'slots' }]
     });
 
     if (!schedule) {
@@ -1153,9 +1200,10 @@ export const updateSchedule = async (req, res) => {
     // Check if trying to edit past schedule
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const scheduleDate = new Date(schedule.schedule_date);
 
-    if (scheduleDate < today) {
+    // Use target_date if provided (for editing recurring in specific week)
+    const checkDate = target_date ? new Date(target_date) : new Date(schedule.schedule_date);
+    if (checkDate < today) {
       return res.status(400).json({
         success: false,
         message: 'Cannot edit past schedules'
@@ -1168,23 +1216,33 @@ export const updateSchedule = async (req, res) => {
       media_file = `/uploads/schedules/${req.file.filename}`;
     }
 
-    // If editing a master recurring schedule for a specific week, create a new override record
-    if (schedule.is_recurring == 1 && schedule.original_schedule_id === null && schedule_date && schedule_date !== schedule.schedule_date) {
-      const dateObj = new Date(schedule_date);
+    // If editing a master recurring schedule for a specific week, create override
+    const isMaster = schedule.original_schedule_id === null;
+    if (isMaster && target_date && target_date !== schedule.schedule_date) {
+      const dateObj = new Date(target_date);
       const day_of_week = dateObj.getDay();
 
+      // Create override schedule with same slots
       const overrideSchedule = await MediaSchedule.create({
         media_channel_id: channelId,
         title: title || schedule.title,
         media_file,
-        schedule_date,
+        schedule_date: target_date,
         day_of_week,
-        start_time: start_time || schedule.start_time,
-        end_time: end_time || schedule.end_time,
-        is_recurring: 0,
         original_schedule_id: schedule.id,
         is_edited: 1
       });
+
+      // Copy slots to override
+      for (const slot of schedule.slots) {
+        await MediaScheduleSlot.create({
+          media_schedules_id: overrideSchedule.id,
+          start_time: slot.start_time,
+          end_time: slot.end_time,
+          is_recurring: 0, // Override is not recurring
+          status: slot.status
+        });
+      }
 
       return res.json({
         success: true,
@@ -1194,13 +1252,9 @@ export const updateSchedule = async (req, res) => {
     }
 
     // Update the schedule directly
-    const updateData = {};
+    const updateData = { updated_at: new Date() };
     if (title) updateData.title = title;
-    if (start_time) updateData.start_time = start_time;
-    if (end_time) updateData.end_time = end_time;
     if (media_file !== schedule.media_file) updateData.media_file = media_file;
-    if (is_recurring !== undefined) updateData.is_recurring = is_recurring ? 1 : 0;
-    updateData.updated_at = new Date();
 
     await schedule.update(updateData);
 

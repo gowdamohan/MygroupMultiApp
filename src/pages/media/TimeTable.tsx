@@ -1,20 +1,22 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import { ChevronLeft, ChevronRight, X, Upload, Trash2, Edit2 } from 'lucide-react';
 
 const API_BASE_URL = 'http://localhost:5002/api/v1';
 
-interface Schedule {
-  id: number;
+interface ScheduleSlot {
+  schedule_id: number;
+  slot_id: number;
   title: string;
   media_file: string | null;
   schedule_date: string;
   day_of_week: number;
   start_time: string;
   end_time: string;
-  status: string;
   is_recurring?: number;
+  status: string;
+  original_schedule_id?: number | null;
   is_edited?: number;
   is_master?: boolean;
 }
@@ -25,9 +27,8 @@ interface TimeSlot {
   endTime: string;
 }
 
-// Days: 0=Monday to 6=Sunday (displayed as rows on left side)
+// Days of week names
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const DAY_MAP: { [key: number]: number } = { 1: 0, 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 0: 6 }; // JS day to our index
 
 // Generate 30-minute time slots from 00:00 to 23:30 (displayed as columns on top)
 const generateTimeSlots = (): TimeSlot[] => {
@@ -56,22 +57,27 @@ export const TimeTable: React.FC = () => {
     monday.setHours(0, 0, 0, 0);
     return monday;
   });
-  const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [schedules, setSchedules] = useState<ScheduleSlot[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedSlots, setSelectedSlots] = useState<{date: string, time: string}[]>([]);
+  const [currentDragDate, setCurrentDragDate] = useState<string | null>(null); // For horizontal-only selection
   const [isDragging, setIsDragging] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
-  const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
+  const [editingSchedule, setEditingSchedule] = useState<ScheduleSlot | null>(null);
   const [modalData, setModalData] = useState({ title: '', file: null as File | null });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  // Get today's date for highlighting
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // Get today's date for highlighting and reordering
+  const today = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
   const todayStr = today.toISOString().split('T')[0];
 
+  // Get week dates and reorder so today is at top
   const getWeekDates = useCallback(() => {
     const dates: Date[] = [];
     for (let i = 0; i < 7; i++) {
@@ -81,6 +87,30 @@ export const TimeTable: React.FC = () => {
     }
     return dates;
   }, [currentWeekStart]);
+
+  // Reorder days so today is at top, then remaining days
+  const getReorderedDays = useCallback(() => {
+    const weekDates = getWeekDates();
+    const todayIndex = weekDates.findIndex(d => d.toISOString().split('T')[0] === todayStr);
+
+    if (todayIndex === -1) {
+      // Today is not in current week, use normal order
+      return weekDates.map((date, idx) => ({ date, dayName: DAYS[idx], isToday: false }));
+    }
+
+    // Reorder: today first, then remaining days in order
+    const reordered = [];
+    for (let i = 0; i < 7; i++) {
+      const idx = (todayIndex + i) % 7;
+      const date = weekDates[idx];
+      reordered.push({
+        date,
+        dayName: DAYS[idx],
+        isToday: idx === todayIndex
+      });
+    }
+    return reordered;
+  }, [getWeekDates, todayStr]);
 
   const fetchSchedules = useCallback(async () => {
     try {
@@ -128,23 +158,33 @@ export const TimeTable: React.FC = () => {
     return date < today;
   };
 
+  // Horizontal-only selection: only allow selecting slots in the same row (same date)
   const handleSlotClick = (date: string, time: string) => {
     if (isSlotBooked(date, time)) return;
     if (isSlotSelected(date, time)) {
       setSelectedSlots(selectedSlots.filter(s => !(s.date === date && s.time === time)));
     } else {
-      setSelectedSlots([...selectedSlots, { date, time }]);
+      // Only allow selection for the same date (horizontal only)
+      if (selectedSlots.length > 0 && selectedSlots[0].date !== date) {
+        // Different date, start new selection
+        setSelectedSlots([{ date, time }]);
+      } else {
+        setSelectedSlots([...selectedSlots, { date, time }]);
+      }
     }
   };
 
   const handleMouseDown = (date: string, time: string) => {
     if (isSlotBooked(date, time)) return;
     setIsDragging(true);
+    setCurrentDragDate(date); // Store the date for horizontal-only drag
     setSelectedSlots([{ date, time }]);
   };
 
   const handleMouseEnter = (date: string, time: string) => {
     if (!isDragging || isSlotBooked(date, time)) return;
+    // Horizontal only: only allow if same date as drag start
+    if (currentDragDate && date !== currentDragDate) return;
     if (!isSlotSelected(date, time)) {
       setSelectedSlots([...selectedSlots, { date, time }]);
     }
@@ -152,6 +192,7 @@ export const TimeTable: React.FC = () => {
 
   const handleMouseUp = () => {
     setIsDragging(false);
+    setCurrentDragDate(null);
     if (selectedSlots.length > 0) {
       setModalMode('create');
       setEditingSchedule(null);
@@ -166,7 +207,7 @@ export const TimeTable: React.FC = () => {
     return `${endH.toString().padStart(2, '0')}:${endM.toString().padStart(2, '0')}`;
   };
 
-  const handleEdit = (schedule: Schedule) => {
+  const handleEdit = (schedule: ScheduleSlot) => {
     if (isPastDate(schedule.schedule_date)) return; // Can't edit past schedules
     setModalMode('edit');
     setEditingSchedule(schedule);
@@ -185,19 +226,33 @@ export const TimeTable: React.FC = () => {
         // Update existing schedule
         const formData = new FormData();
         formData.append('title', modalData.title);
+        formData.append('target_date', editingSchedule.schedule_date);
         if (modalData.file) formData.append('media_file', modalData.file);
-        await axios.put(`${API_BASE_URL}/partner/channel/${channelId}/schedules/${editingSchedule.id}`, formData, {
+        await axios.put(`${API_BASE_URL}/partner/channel/${channelId}/schedules/${editingSchedule.schedule_id}`, formData, {
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
         });
       } else {
-        // Create new schedules
+        // Create new schedule with multiple slots (horizontal selection = same date, multiple times)
+        // Group all selected slots by date (should be same date for horizontal selection)
+        const groupedByDate: { [date: string]: { start_time: string; end_time: string; is_recurring: number }[] } = {};
+
         for (const slot of selectedSlots) {
+          if (!groupedByDate[slot.date]) {
+            groupedByDate[slot.date] = [];
+          }
+          groupedByDate[slot.date].push({
+            start_time: slot.time + ':00',
+            end_time: getEndTime(slot.time) + ':00',
+            is_recurring: 1
+          });
+        }
+
+        // Create one schedule per date with all its slots
+        for (const [date, slots] of Object.entries(groupedByDate)) {
           const formData = new FormData();
           formData.append('title', modalData.title);
-          formData.append('schedule_date', slot.date);
-          formData.append('start_time', slot.time + ':00');
-          formData.append('end_time', getEndTime(slot.time) + ':00');
-          formData.append('is_recurring', '1');
+          formData.append('schedule_date', date);
+          formData.append('slots', JSON.stringify(slots));
           if (modalData.file) formData.append('media_file', modalData.file);
           await axios.post(`${API_BASE_URL}/partner/channel/${channelId}/schedules`, formData, {
             headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
@@ -230,7 +285,8 @@ export const TimeTable: React.FC = () => {
     }
   };
 
-  const weekDates = getWeekDates();
+  // Get reordered days (today at top)
+  const reorderedDays = getReorderedDays();
   const selectedTimeRange = selectedSlots.length > 0
     ? `${selectedSlots[0].date} ${selectedSlots[0].time} - ${getEndTime(selectedSlots[selectedSlots.length - 1].time)}`
     : '';
@@ -279,16 +335,16 @@ export const TimeTable: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {weekDates.map((date, dayIdx) => {
-                  const dateStr = formatDate(date);
-                  const isToday = dateStr === todayStr;
+                {reorderedDays.map((dayInfo, dayIdx) => {
+                  const dateStr = formatDate(dayInfo.date);
+                  const isToday = dayInfo.isToday;
                   const isPast = isPastDate(dateStr);
                   return (
                     <tr key={dayIdx} className={`h-10 ${isToday ? 'bg-amber-50' : ''}`}>
                       <td className={`border px-3 py-2 font-medium sticky left-0 z-10 ${isToday ? 'bg-amber-100 text-amber-800' : 'bg-white text-gray-700'}`}>
-                        <div className="text-sm">{DAYS[dayIdx]}</div>
+                        <div className="text-sm">{dayInfo.dayName}</div>
                         <div className={`text-xs ${isToday ? 'text-amber-600' : 'text-gray-500'}`}>
-                          {date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          {dayInfo.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                           {isToday && <span className="ml-1 font-bold">(Today)</span>}
                         </div>
                       </td>
@@ -325,7 +381,7 @@ export const TimeTable: React.FC = () => {
                                       className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-green-600 rounded" title="Edit">
                                       <Edit2 size={10} />
                                     </button>
-                                    <button onClick={(e) => { e.stopPropagation(); handleDeleteSchedule(schedule.id, dateStr); }}
+                                    <button onClick={(e) => { e.stopPropagation(); handleDeleteSchedule(schedule.schedule_id, dateStr); }}
                                       className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-red-600 rounded" title="Delete">
                                       <Trash2 size={10} />
                                     </button>

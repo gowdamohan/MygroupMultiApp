@@ -27,6 +27,7 @@ import Testimonial from './Testimonial.js';
 import MediaChannel from './MediaChannel.js';
 import PartnerHeaderAds from './PartnerHeaderAds.js';
 import MediaSchedule from './MediaSchedule.js';
+import MediaScheduleSlot from './MediaScheduleSlot.js';
 
 // ============================================
 // USER ASSOCIATIONS
@@ -421,6 +422,30 @@ MediaChannel.belongsTo(Language, {
   as: 'language'
 });
 
+// ============================================
+// MEDIA SCHEDULE ASSOCIATIONS
+// ============================================
+
+// MediaSchedule belongs to MediaChannel
+MediaSchedule.belongsTo(MediaChannel, {
+  foreignKey: 'media_channel_id',
+  as: 'channel'
+});
+MediaChannel.hasMany(MediaSchedule, {
+  foreignKey: 'media_channel_id',
+  as: 'schedules'
+});
+
+// MediaSchedule has many MediaScheduleSlot
+MediaSchedule.hasMany(MediaScheduleSlot, {
+  foreignKey: 'media_schedules_id',
+  as: 'slots'
+});
+MediaScheduleSlot.belongsTo(MediaSchedule, {
+  foreignKey: 'media_schedules_id',
+  as: 'schedule'
+});
+
 // Export all models
 export {
   User,
@@ -451,6 +476,7 @@ export {
   Testimonial,
   MediaChannel,
   PartnerHeaderAds,
-  MediaSchedule
+  MediaSchedule,
+  MediaScheduleSlot
 };
 

@@ -28,23 +28,6 @@ const MediaSchedule = sequelize.define('MediaSchedule', {
     allowNull: false,
     comment: '0=Sunday, 1=Monday, ... 6=Saturday'
   },
-  start_time: {
-    type: DataTypes.TIME,
-    allowNull: false
-  },
-  end_time: {
-    type: DataTypes.TIME,
-    allowNull: false
-  },
-  status: {
-    type: DataTypes.ENUM('scheduled', 'completed', 'cancelled'),
-    defaultValue: 'scheduled'
-  },
-  is_recurring: {
-    type: DataTypes.TINYINT,
-    defaultValue: 1,
-    comment: '1=recurring weekly, 0=one-time'
-  },
   original_schedule_id: {
     type: DataTypes.INTEGER,
     allowNull: true,
