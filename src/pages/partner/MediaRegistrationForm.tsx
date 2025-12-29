@@ -108,15 +108,24 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
     fetchCountries();
   }, []);
 
+  // Fetch states based on select type and country
   useEffect(() => {
-    if (formData.countryId) {
+    if (selectType === 'National' && formData.countryId) {
+      // For National: fetch states for selected country
       fetchStates(parseInt(formData.countryId));
+    } else if (selectType === 'Regional' || selectType === 'Local') {
+      // For Regional/Local: fetch all states (default country ID 1 - India)
+      fetchStates(1);
+    } else {
+      setStates([]);
     }
-  }, [formData.countryId]);
+  }, [selectType, formData.countryId]);
 
   useEffect(() => {
     if (formData.stateId) {
       fetchDistricts(parseInt(formData.stateId));
+    } else {
+      setDistricts([]);
     }
   }, [formData.stateId]);
 
@@ -277,8 +286,8 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
         submitData.append('media_logo', formData.mediaLogo);
       }
 
-      // Add periodical data for Magazine category
-      if (category.category_name.toLowerCase() === 'magazine' && formData.periodicalType) {
+      // Add periodical data for Magazine category_type
+      if ((category.category_type === 'magazine' || category.category_name.toLowerCase() === 'magazine') && formData.periodicalType) {
         submitData.append('periodical_type', formData.periodicalType);
         submitData.append('periodical_schedule', JSON.stringify(formData.periodicalSchedule));
       }
@@ -567,16 +576,16 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
             </select>
           </div>
 
-          {/* Country */}
+          {/* Country - enabled only for National */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Country {selectType !== 'International' && <span className="text-red-500">*</span>}
+              Country {selectType === 'National' && <span className="text-red-500">*</span>}
             </label>
             <select
               value={formData.countryId}
               onChange={(e) => setFormData({ ...formData, countryId: e.target.value, stateId: '', districtId: '' })}
-              disabled={selectType === 'International'}
-              required={selectType !== 'International'}
+              disabled={selectType !== 'National'}
+              required={selectType === 'National'}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
             >
               <option value="">Select a country</option>
@@ -586,16 +595,16 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
             </select>
           </div>
 
-          {/* State */}
+          {/* State - enabled for National, Regional */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              State {(selectType === 'Regional' || selectType === 'Local') && <span className="text-red-500">*</span>}
+              State {(selectType === 'National' || selectType === 'Regional') && <span className="text-red-500">*</span>}
             </label>
             <select
               value={formData.stateId}
               onChange={(e) => setFormData({ ...formData, stateId: e.target.value, districtId: '' })}
-              disabled={selectType === 'International' || selectType === 'National'}
-              required={selectType === 'Regional' || selectType === 'Local'}
+              disabled={selectType !== 'National' && selectType !== 'Regional'}
+              required={selectType === 'National' || selectType === 'Regional'}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
             >
               <option value="">Select a state</option>
@@ -605,16 +614,16 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
             </select>
           </div>
 
-          {/* District */}
+          {/* District - enabled for National, Regional, Local */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              District {selectType === 'Local' && <span className="text-red-500">*</span>}
+              District {(selectType === 'National' || selectType === 'Regional' || selectType === 'Local') && <span className="text-red-500">*</span>}
             </label>
             <select
               value={formData.districtId}
               onChange={(e) => setFormData({ ...formData, districtId: e.target.value })}
-              disabled={selectType === 'International' || selectType === 'National' || selectType === 'Regional'}
-              required={selectType === 'Local'}
+              disabled={selectType === 'International'}
+              required={selectType === 'National' || selectType === 'Regional' || selectType === 'Local'}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
             >
               <option value="">Select a district</option>
@@ -721,8 +730,8 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
             </div>
           </div>
 
-          {/* Periodicals (for Magazine category) */}
-          {category.category_name.toLowerCase() === 'magazine' && (
+          {/* Periodicals (for Magazine category_type) */}
+          {(category.category_type === 'magazine' || category.category_name.toLowerCase() === 'magazine') && (
             <>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">

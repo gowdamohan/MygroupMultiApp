@@ -24,6 +24,7 @@ import franchiseTermsRoutes from './routes/franchiseTerms.routes.js';
 import tncDetailsRoutes from './routes/tncDetails.routes.js';
 import testimonialRoutes from './routes/testimonialRoutes.js';
 import mediaChannelRoutes from './routes/mediaChannel.routes.js';
+import mediaDocumentRoutes from './routes/mediaDocument.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -38,7 +39,7 @@ const API_PREFIX = process.env.API_PREFIX || '/api/v1';
 // Middleware
 app.use(helmet()); // Security headers
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['http://localhost:3000'],
   credentials: true
 }));
 app.use(compression()); // Compress responses
@@ -85,6 +86,7 @@ app.use(`${API_PREFIX}/franchise-terms`, franchiseTermsRoutes);
 app.use(`${API_PREFIX}/tnc-details`, tncDetailsRoutes);
 app.use(`${API_PREFIX}`, testimonialRoutes);
 app.use(`${API_PREFIX}/partner`, mediaChannelRoutes);
+app.use(`${API_PREFIX}/media-document`, mediaDocumentRoutes);
 
 // Member login route (direct access)
 import { memberLogin } from './controllers/memberController.js';

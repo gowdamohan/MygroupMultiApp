@@ -28,6 +28,7 @@ import MediaChannel from './MediaChannel.js';
 import PartnerHeaderAds from './PartnerHeaderAds.js';
 import MediaSchedule from './MediaSchedule.js';
 import MediaScheduleSlot from './MediaScheduleSlot.js';
+import MediaChannelDocument from './MediaChannelDocument.js';
 
 // ============================================
 // USER ASSOCIATIONS
@@ -446,6 +447,36 @@ MediaScheduleSlot.belongsTo(MediaSchedule, {
   as: 'schedule'
 });
 
+// ============================================
+// MEDIA CHANNEL DOCUMENT ASSOCIATIONS
+// ============================================
+
+// MediaChannelDocument belongs to MediaChannel
+MediaChannelDocument.belongsTo(MediaChannel, {
+  foreignKey: 'media_channel_id',
+  as: 'channel'
+});
+MediaChannel.hasMany(MediaChannelDocument, {
+  foreignKey: 'media_channel_id',
+  as: 'documents'
+});
+
+// MediaChannelDocument belongs to AppCategory
+MediaChannelDocument.belongsTo(AppCategory, {
+  foreignKey: 'category_id',
+  as: 'category'
+});
+AppCategory.hasMany(MediaChannelDocument, {
+  foreignKey: 'category_id',
+  as: 'documents'
+});
+
+// MediaChannelDocument belongs to User (uploader)
+MediaChannelDocument.belongsTo(User, {
+  foreignKey: 'uploaded_by',
+  as: 'uploader'
+});
+
 // Export all models
 export {
   User,
@@ -477,6 +508,7 @@ export {
   MediaChannel,
   PartnerHeaderAds,
   MediaSchedule,
-  MediaScheduleSlot
+  MediaScheduleSlot,
+  MediaChannelDocument
 };
 

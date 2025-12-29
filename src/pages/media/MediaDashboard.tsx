@@ -4,9 +4,9 @@ import axios from 'axios';
 import {
   ArrowLeft, User, MapPin, Share2, Eye, RefreshCw, WifiOff,
   DollarSign, Megaphone, FileText, Award, Newspaper, Image, Users,
-  ChevronDown, ChevronRight, Menu, X, LogOut, Wifi, Calendar
+  ChevronDown, ChevronRight, Menu, X, LogOut, Wifi, Calendar, Upload
 } from 'lucide-react';
-import { TimeTable } from './TimeTable';
+import { DocumentUpload } from './DocumentUpload';
 
 const API_BASE_URL = 'http://localhost:5002/api/v1';
 
@@ -16,6 +16,13 @@ interface MenuItem {
   icon: any;
   path?: string;
   children?: MenuItem[];
+  categoryId?: number;
+}
+
+interface UploadCategory {
+  id: number;
+  category_name: string;
+  category_type: string;
 }
 
 interface ChannelInfo {
@@ -34,9 +41,14 @@ export const MediaDashboard: React.FC = () => {
   const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
   const [activeMenu, setActiveMenu] = useState('dashboard');
   const [channelInfo, setChannelInfo] = useState<ChannelInfo | null>(null);
+  const [uploadCategories, setUploadCategories] = useState<UploadCategory[]>([]);
+  const [selectedUploadCategory, setSelectedUploadCategory] = useState<UploadCategory | null>(null);
 
   useEffect(() => {
-    if (channelId) fetchChannelInfo();
+    if (channelId) {
+      fetchChannelInfo();
+      fetchUploadCategories();
+    }
   }, [channelId]);
 
   const fetchChannelInfo = async () => {
@@ -54,6 +66,28 @@ export const MediaDashboard: React.FC = () => {
     }
   };
 
+  const fetchUploadCategories = async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const response = await axios.get(`${API_BASE_URL}/media-document/upload-categories/${channelId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.success) {
+        setUploadCategories(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching upload categories:', error);
+    }
+  };
+
+  // Build upload menu items from dynamic categories
+  const uploadMenuItems: MenuItem[] = uploadCategories.map(cat => ({
+    id: `upload-${cat.id}`,
+    label: cat.category_name,
+    icon: Upload,
+    categoryId: cat.id
+  }));
+
   const menuItems: MenuItem[] = [
     { id: 'back', label: 'Back to Channel List', icon: ArrowLeft, path: '/partner/my-channel-list' },
     { id: 'profile', label: 'Profile', icon: User, children: [
@@ -70,7 +104,14 @@ export const MediaDashboard: React.FC = () => {
     { id: 'newsletter', label: 'Newsletter', icon: Newspaper, path: `/media/dashboard/${channelId}/newsletter` },
     { id: 'gallery', label: 'Gallery', icon: Image, path: `/media/dashboard/${channelId}/gallery` },
     { id: 'team', label: 'Team', icon: Users, path: `/media/dashboard/${channelId}/team` },
-    { id: 'timetable', label: 'Time Table', icon: Calendar, path: `/media/dashboard/${channelId}/timetable` }
+    { id: 'timetable', label: 'Time Table', icon: Calendar, path: `/media/dashboard/${channelId}/timetable` },
+    // Dynamic upload categories
+    ...(uploadMenuItems.length > 0 ? [{
+      id: 'upload-section',
+      label: 'Upload Documents',
+      icon: Upload,
+      children: uploadMenuItems
+    }] : [])
   ];
 
   const toggleMenu = (menuId: string) => {
@@ -78,8 +119,20 @@ export const MediaDashboard: React.FC = () => {
   };
 
   const handleMenuClick = (item: MenuItem) => {
-    if (item.children) toggleMenu(item.id);
-    else if (item.path) { setActiveMenu(item.id); navigate(item.path); }
+    if (item.children) {
+      toggleMenu(item.id);
+    } else if (item.categoryId) {
+      // Handle upload category click
+      const category = uploadCategories.find(c => c.id === item.categoryId);
+      if (category) {
+        setSelectedUploadCategory(category);
+        setActiveMenu(item.id);
+      }
+    } else if (item.path) {
+      setActiveMenu(item.id);
+      setSelectedUploadCategory(null);
+      navigate(item.path);
+    }
   };
 
   const renderMenuItem = (item: MenuItem, depth: number = 0) => {
@@ -106,11 +159,15 @@ export const MediaDashboard: React.FC = () => {
   };
 
   const renderContent = () => {
-    const path = location.pathname;
-
-    // Time Table page
-    if (path.includes('/timetable')) {
-      return <TimeTable />;
+    // If a document upload category is selected, show the upload component
+    if (selectedUploadCategory && channelId) {
+      return (
+        <DocumentUpload
+          channelId={parseInt(channelId)}
+          category={selectedUploadCategory}
+          onBack={() => setSelectedUploadCategory(null)}
+        />
+      );
     }
 
     // Default dashboard content
@@ -155,7 +212,7 @@ export const MediaDashboard: React.FC = () => {
             <div className="flex flex-col items-center">
               <div className="w-16 h-16 rounded-full overflow-hidden border-3 border-teal-400 shadow-lg mb-3 bg-white">
                 {channelInfo?.media_logo ? (
-                  <img src={`${channelInfo.media_logo}`} alt="Channel" className="w-full h-full object-cover" />
+                  <img src={`http://localhost:5002${channelInfo.media_logo}`} alt="Channel" className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full bg-gradient-to-br from-teal-400 to-cyan-500 flex items-center justify-center"><Wifi className="text-white" size={28} /></div>
                 )}

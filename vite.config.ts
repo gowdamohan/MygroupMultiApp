@@ -55,7 +55,8 @@
     },
     server: {
       port: 3000,
-      open: true,
+      host: '0.0.0.0',
+      allowedHosts: ['0015d80a24a0.ngrok-free.app', 'localhost'],
       proxy: {
         '/uploads': {
           target: 'http://localhost:5002',

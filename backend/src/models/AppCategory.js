@@ -38,6 +38,12 @@ const AppCategory = sequelize.define('app_categories', {
     allowNull: true,
     defaultValue: 1
   },
+  registration_count: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    defaultValue: 1,
+    comment: 'Maximum number of registrations allowed for this category'
+  },
   created_at: {
     type: DataTypes.DATE,
     allowNull: false,
