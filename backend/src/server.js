@@ -25,6 +25,7 @@ import tncDetailsRoutes from './routes/tncDetails.routes.js';
 import testimonialRoutes from './routes/testimonialRoutes.js';
 import mediaChannelRoutes from './routes/mediaChannel.routes.js';
 import mediaDocumentRoutes from './routes/mediaDocument.routes.js';
+import mediaDashboardRoutes from './routes/mediaDashboard.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -87,6 +88,7 @@ app.use(`${API_PREFIX}/tnc-details`, tncDetailsRoutes);
 app.use(`${API_PREFIX}`, testimonialRoutes);
 app.use(`${API_PREFIX}/partner`, mediaChannelRoutes);
 app.use(`${API_PREFIX}/media-document`, mediaDocumentRoutes);
+app.use(`${API_PREFIX}/media-dashboard`, mediaDashboardRoutes);
 
 // Member login route (direct access)
 import { memberLogin } from './controllers/memberController.js';

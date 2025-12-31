@@ -50,6 +50,8 @@ export const authenticate = async (req, res, next) => {
   }
 };
 
+export const authenticateToken = authenticate;
+
 /**
  * Check if user has specific role
  */

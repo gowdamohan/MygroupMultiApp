@@ -29,6 +29,17 @@ import PartnerHeaderAds from './PartnerHeaderAds.js';
 import MediaSchedule from './MediaSchedule.js';
 import MediaScheduleSlot from './MediaScheduleSlot.js';
 import MediaChannelDocument from './MediaChannelDocument.js';
+import MediaSocialLinks from './MediaSocialLinks.js';
+import MediaInteractions from './MediaInteractions.js';
+import MediaLinks from './MediaLinks.js';
+import MediaSwitcher from './MediaSwitcher.js';
+import MediaOfflineMedia from './MediaOfflineMedia.js';
+import MediaDocuments from './MediaDocuments.js';
+import MediaAwards from './MediaAwards.js';
+import MediaNewsletters from './MediaNewsletters.js';
+import MediaGalleryAlbums from './MediaGalleryAlbums.js';
+import MediaGalleryImages from './MediaGalleryImages.js';
+import MediaTeam from './MediaTeam.js';
 
 // ============================================
 // USER ASSOCIATIONS
@@ -477,6 +488,57 @@ MediaChannelDocument.belongsTo(User, {
   as: 'uploader'
 });
 
+// ============================================
+// MEDIA DASHBOARD ASSOCIATIONS
+// ============================================
+
+// MediaSocialLinks belongs to MediaChannel
+MediaSocialLinks.belongsTo(MediaChannel, { foreignKey: 'media_channel_id', as: 'channel' });
+MediaChannel.hasMany(MediaSocialLinks, { foreignKey: 'media_channel_id', as: 'socialLinks' });
+
+// MediaInteractions belongs to MediaChannel
+MediaInteractions.belongsTo(MediaChannel, { foreignKey: 'media_channel_id', as: 'channel' });
+MediaChannel.hasOne(MediaInteractions, { foreignKey: 'media_channel_id', as: 'interactions' });
+
+// MediaLinks belongs to MediaChannel
+MediaLinks.belongsTo(MediaChannel, { foreignKey: 'media_channel_id', as: 'channel' });
+MediaChannel.hasMany(MediaLinks, { foreignKey: 'media_channel_id', as: 'mediaLinks' });
+
+// MediaSwitcher belongs to MediaChannel
+MediaSwitcher.belongsTo(MediaChannel, { foreignKey: 'media_channel_id', as: 'channel' });
+MediaChannel.hasOne(MediaSwitcher, { foreignKey: 'media_channel_id', as: 'switcher' });
+
+// MediaSwitcher belongs to MediaOfflineMedia
+MediaSwitcher.belongsTo(MediaOfflineMedia, { foreignKey: 'offline_media_id', as: 'offlineMedia' });
+
+// MediaOfflineMedia belongs to MediaChannel
+MediaOfflineMedia.belongsTo(MediaChannel, { foreignKey: 'media_channel_id', as: 'channel' });
+MediaChannel.hasMany(MediaOfflineMedia, { foreignKey: 'media_channel_id', as: 'offlineMediaList' });
+
+// MediaDocuments belongs to MediaChannel
+MediaDocuments.belongsTo(MediaChannel, { foreignKey: 'media_channel_id', as: 'channel' });
+MediaChannel.hasMany(MediaDocuments, { foreignKey: 'media_channel_id', as: 'mediaDocuments' });
+
+// MediaAwards belongs to MediaChannel
+MediaAwards.belongsTo(MediaChannel, { foreignKey: 'media_channel_id', as: 'channel' });
+MediaChannel.hasMany(MediaAwards, { foreignKey: 'media_channel_id', as: 'awards' });
+
+// MediaNewsletters belongs to MediaChannel
+MediaNewsletters.belongsTo(MediaChannel, { foreignKey: 'media_channel_id', as: 'channel' });
+MediaChannel.hasMany(MediaNewsletters, { foreignKey: 'media_channel_id', as: 'newsletters' });
+
+// MediaGalleryAlbums belongs to MediaChannel
+MediaGalleryAlbums.belongsTo(MediaChannel, { foreignKey: 'media_channel_id', as: 'channel' });
+MediaChannel.hasMany(MediaGalleryAlbums, { foreignKey: 'media_channel_id', as: 'galleryAlbums' });
+
+// MediaGalleryImages belongs to MediaGalleryAlbums
+MediaGalleryImages.belongsTo(MediaGalleryAlbums, { foreignKey: 'album_id', as: 'album' });
+MediaGalleryAlbums.hasMany(MediaGalleryImages, { foreignKey: 'album_id', as: 'images' });
+
+// MediaTeam belongs to MediaChannel
+MediaTeam.belongsTo(MediaChannel, { foreignKey: 'media_channel_id', as: 'channel' });
+MediaChannel.hasMany(MediaTeam, { foreignKey: 'media_channel_id', as: 'teamMembers' });
+
 // Export all models
 export {
   User,
@@ -509,6 +571,17 @@ export {
   PartnerHeaderAds,
   MediaSchedule,
   MediaScheduleSlot,
-  MediaChannelDocument
+  MediaChannelDocument,
+  MediaSocialLinks,
+  MediaInteractions,
+  MediaLinks,
+  MediaSwitcher,
+  MediaOfflineMedia,
+  MediaDocuments,
+  MediaAwards,
+  MediaNewsletters,
+  MediaGalleryAlbums,
+  MediaGalleryImages,
+  MediaTeam
 };
 

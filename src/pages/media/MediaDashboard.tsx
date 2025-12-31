@@ -7,6 +7,18 @@ import {
   ChevronDown, ChevronRight, Menu, X, LogOut, Wifi, Calendar, Upload
 } from 'lucide-react';
 import { DocumentUpload } from './DocumentUpload';
+import { TimeTable } from './TimeTable';
+import {
+  SocialMediaSection,
+  ViewSection,
+  SwitcherSection,
+  OfflineMediaSection,
+  DocumentsSection,
+  AwardsSection,
+  NewsletterSection,
+  GallerySection,
+  TeamSection
+} from './MediaDashboardPages';
 
 const API_BASE_URL = 'http://localhost:5002/api/v1';
 
@@ -169,6 +181,19 @@ export const MediaDashboard: React.FC = () => {
         />
       );
     }
+
+    // Route based on current path
+    const path = location.pathname;
+    if (path.includes('/social-media')) return <SocialMediaSection />;
+    if (path.includes('/view')) return <ViewSection />;
+    if (path.includes('/switcher')) return <SwitcherSection />;
+    if (path.includes('/offline-media')) return <OfflineMediaSection />;
+    if (path.includes('/documents')) return <DocumentsSection />;
+    if (path.includes('/awards')) return <AwardsSection />;
+    if (path.includes('/newsletter')) return <NewsletterSection />;
+    if (path.includes('/gallery')) return <GallerySection />;
+    if (path.includes('/team')) return <TeamSection />;
+    if (path.includes('/timetable')) return <TimeTable />;
 
     // Default dashboard content
     return (
