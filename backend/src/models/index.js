@@ -40,6 +40,8 @@ import MediaNewsletters from './MediaNewsletters.js';
 import MediaGalleryAlbums from './MediaGalleryAlbums.js';
 import MediaGalleryImages from './MediaGalleryImages.js';
 import MediaTeam from './MediaTeam.js';
+import MediaHeaderAds from './MediaHeaderAds.js';
+import MediaComments from './MediaComments.js';
 
 // ============================================
 // USER ASSOCIATIONS
@@ -539,6 +541,19 @@ MediaGalleryAlbums.hasMany(MediaGalleryImages, { foreignKey: 'album_id', as: 'im
 MediaTeam.belongsTo(MediaChannel, { foreignKey: 'media_channel_id', as: 'channel' });
 MediaChannel.hasMany(MediaTeam, { foreignKey: 'media_channel_id', as: 'teamMembers' });
 
+// MediaHeaderAds belongs to MediaChannel
+MediaHeaderAds.belongsTo(MediaChannel, { foreignKey: 'media_channel_id', as: 'channel' });
+MediaChannel.hasMany(MediaHeaderAds, { foreignKey: 'media_channel_id', as: 'headerAds' });
+
+// MediaComments belongs to MediaChannel and User
+MediaComments.belongsTo(MediaChannel, { foreignKey: 'media_channel_id', as: 'channel' });
+MediaChannel.hasMany(MediaComments, { foreignKey: 'media_channel_id', as: 'comments' });
+MediaComments.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
+User.hasMany(MediaComments, { foreignKey: 'user_id', as: 'mediaComments' });
+// Self-referencing for replies
+MediaComments.belongsTo(MediaComments, { foreignKey: 'parent_id', as: 'parent' });
+MediaComments.hasMany(MediaComments, { foreignKey: 'parent_id', as: 'replies' });
+
 // Export all models
 export {
   User,
@@ -582,6 +597,8 @@ export {
   MediaNewsletters,
   MediaGalleryAlbums,
   MediaGalleryImages,
-  MediaTeam
+  MediaTeam,
+  MediaHeaderAds,
+  MediaComments
 };
 

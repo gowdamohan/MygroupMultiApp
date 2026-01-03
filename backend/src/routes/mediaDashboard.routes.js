@@ -79,5 +79,17 @@ router.post('/team/:channelId', authenticate, upload.single('photo'), controller
 router.put('/team/:id', authenticate, upload.single('photo'), controller.updateTeamMember);
 router.delete('/team/:id', authenticate, controller.deleteTeamMember);
 
+// ============================================
+// HEADER ADS
+// ============================================
+router.get('/header-ads/:channelId', authenticate, controller.getHeaderAds);
+
+// ============================================
+// COMMENTS
+// ============================================
+router.get('/comments/:channelId', authenticate, controller.getComments);
+router.post('/comments/:channelId', authenticate, controller.addComment);
+router.delete('/comments/:commentId', authenticate, controller.deleteComment);
+
 export default router;
 

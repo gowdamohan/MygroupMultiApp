@@ -10,9 +10,13 @@ import {
   MediaNewsletters,
   MediaGalleryAlbums,
   MediaGalleryImages,
-  MediaTeam
+  MediaTeam,
+  MediaHeaderAds,
+  MediaComments,
+  User,
+  UserRegistration
 } from '../models/index.js';
-import { uploadFile, deleteFile } from '../services/wasabiService.js';
+import { uploadFile, deleteFile, getSignedReadUrl } from '../services/wasabiService.js';
 
 // ============================================
 // SOCIAL LINKS
@@ -787,5 +791,194 @@ export const deleteTeamMember = async (req, res) => {
   } catch (error) {
     console.error('Error deleting team member:', error);
     res.status(500).json({ success: false, message: 'Failed to delete team member' });
+  }
+};
+
+// ============================================
+// HEADER ADS
+// ============================================
+
+/**
+ * Get header ads for a channel
+ */
+export const getHeaderAds = async (req, res) => {
+  try {
+    const { channelId } = req.params;
+
+    // Fetch all active header ads for the channel
+    const ads = await MediaHeaderAds.findAll({
+      where: { media_channel_id: channelId, is_active: 1 },
+      order: [['id', 'ASC']]
+    });
+
+    // Get signed URLs for each ad
+    const header1Ads = [];
+    const header2Ads = [];
+
+    for (const ad of ads) {
+      let signedUrl = null;
+      if (ad.file_path) {
+        try {
+          const result = await getSignedReadUrl(ad.file_path);
+          signedUrl = result.signedUrl;
+        } catch (e) {
+          console.error('Error getting signed URL:', e);
+          signedUrl = null;
+        }
+      }
+
+      const adData = {
+        id: ad.id,
+        file_path: ad.file_path,
+        signed_url: signedUrl,
+        url: ad.url,
+        file_type: ad.file_type
+      };
+
+      if (ad.type === 'header1') {
+        header1Ads.push(adData);
+      } else if (ad.type === 'header2') {
+        header2Ads.push(adData);
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        header1: header1Ads,
+        header2: header2Ads
+      }
+    });
+  } catch (error) {
+    console.error('Error getting header ads:', error);
+    res.status(500).json({ success: false, message: 'Failed to get header ads' });
+  }
+};
+
+// ============================================
+// MEDIA COMMENTS
+// ============================================
+
+/**
+ * Get all comments for a channel with replies
+ */
+export const getComments = async (req, res) => {
+  try {
+    const { channelId } = req.params;
+
+    // Get top-level comments (no parent_id)
+    const comments = await MediaComments.findAll({
+      where: {
+        media_channel_id: channelId,
+        parent_id: null,
+        is_active: 1
+      },
+      include: [
+        {
+          model: User,
+          as: 'user',
+          attributes: ['id', 'full_name', 'email'],
+          include: [{
+            model: UserRegistration,
+            as: 'profile',
+            attributes: ['profile_photo']
+          }]
+        },
+        {
+          model: MediaComments,
+          as: 'replies',
+          where: { is_active: 1 },
+          required: false,
+          include: [{
+            model: User,
+            as: 'user',
+            attributes: ['id', 'full_name', 'email'],
+            include: [{
+              model: UserRegistration,
+              as: 'profile',
+              attributes: ['profile_photo']
+            }]
+          }]
+        }
+      ],
+      order: [['created_at', 'DESC'], [{ model: MediaComments, as: 'replies' }, 'created_at', 'ASC']]
+    });
+
+    res.json({ success: true, data: comments });
+  } catch (error) {
+    console.error('Error getting comments:', error);
+    res.status(500).json({ success: false, message: 'Failed to get comments' });
+  }
+};
+
+/**
+ * Add a new comment
+ */
+export const addComment = async (req, res) => {
+  try {
+    const { channelId } = req.params;
+    const { comment_text, parent_id } = req.body;
+    const userId = req.user.id;
+
+    const comment = await MediaComments.create({
+      media_channel_id: channelId,
+      user_id: userId,
+      parent_id: parent_id || null,
+      comment_text
+    });
+
+    // Increment comments count in interactions
+    await MediaInteractions.increment('comments_count', {
+      where: { media_channel_id: channelId }
+    });
+
+    // Fetch the created comment with user info
+    const createdComment = await MediaComments.findByPk(comment.id, {
+      include: [{
+        model: User,
+        as: 'user',
+        attributes: ['id', 'full_name', 'email'],
+        include: [{
+          model: UserRegistration,
+          as: 'profile',
+          attributes: ['profile_photo']
+        }]
+      }]
+    });
+
+    res.json({ success: true, data: createdComment });
+  } catch (error) {
+    console.error('Error adding comment:', error);
+    res.status(500).json({ success: false, message: 'Failed to add comment' });
+  }
+};
+
+/**
+ * Delete a comment
+ */
+export const deleteComment = async (req, res) => {
+  try {
+    const { commentId } = req.params;
+    const userId = req.user.id;
+
+    const comment = await MediaComments.findOne({
+      where: { id: commentId, user_id: userId }
+    });
+
+    if (!comment) {
+      return res.status(404).json({ success: false, message: 'Comment not found' });
+    }
+
+    await comment.update({ is_active: 0 });
+
+    // Decrement comments count
+    await MediaInteractions.decrement('comments_count', {
+      where: { media_channel_id: comment.media_channel_id }
+    });
+
+    res.json({ success: true, message: 'Comment deleted' });
+  } catch (error) {
+    console.error('Error deleting comment:', error);
+    res.status(500).json({ success: false, message: 'Failed to delete comment' });
   }
 };
