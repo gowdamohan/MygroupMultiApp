@@ -26,6 +26,7 @@ import testimonialRoutes from './routes/testimonialRoutes.js';
 import mediaChannelRoutes from './routes/mediaChannel.routes.js';
 import mediaDocumentRoutes from './routes/mediaDocument.routes.js';
 import mediaDashboardRoutes from './routes/mediaDashboard.routes.js';
+import mymediaRoutes from './routes/mymedia.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -89,6 +90,7 @@ app.use(`${API_PREFIX}`, testimonialRoutes);
 app.use(`${API_PREFIX}/partner`, mediaChannelRoutes);
 app.use(`${API_PREFIX}/media-document`, mediaDocumentRoutes);
 app.use(`${API_PREFIX}/media-dashboard`, mediaDashboardRoutes);
+app.use(`${API_PREFIX}/mymedia`, mymediaRoutes);
 
 // Member login route (direct access)
 import { memberLogin } from './controllers/memberController.js';

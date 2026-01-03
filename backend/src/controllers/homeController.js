@@ -24,6 +24,7 @@ export const getMobileHomeData = async (req, res) => {
     // 2. Get top navigation icon list (My Apps, My Company, Online, Offline)
     const myApps = await GroupCreate.findAll({
       where: { apps_name: 'My Apps' },
+      attributes: ['id', 'name', 'api_dashboard_url', 'order_by'],
       include: [{
         model: CreateDetails,
         as: 'details',

@@ -22,6 +22,7 @@ import { AppDashboard } from './pages/app/AppDashboard';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
+import { MobileMyMediaPage } from './pages/mobile/MobileMyMediaPage';
 
 // New Layout Components
 import AdminDashboardLayout from './layouts/AdminDashboardLayout';
@@ -187,6 +188,9 @@ function App() {
           <Route path="/app/:appId/content" element={<AppDashboard />} />
           <Route path="/app/:appId/analytics" element={<AppDashboard />} />
           <Route path="/app/:appId/settings" element={<AppDashboard />} />
+
+          {/* Mobile Routes */}
+          <Route path="/mobile/mymedia" element={<MobileMyMediaPage />} />
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
