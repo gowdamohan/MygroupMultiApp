@@ -111,17 +111,14 @@ jobs:
     steps:
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.0.3
-        env:
-          DOCKER_IMAGE: ${{ needs.build.outputs.image_name }}:latest
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
           port: 22
-          envs: DOCKER_IMAGE
           script: |
             # Set variables
-            IMAGE_NAME="${DOCKER_IMAGE}"
+            IMAGE_NAME="mygroup2025/multi-tenant-platform:latest"
             CONTAINER_NAME="multi-tenant-app"
 
             # Pull the latest image
