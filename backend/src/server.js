@@ -96,7 +96,24 @@ app.use(`${API_PREFIX}/mymedia`, mymediaRoutes);
 import { memberLogin } from './controllers/memberController.js';
 app.post(`${API_PREFIX}/login`, memberLogin);
 
-// 404 handler
+// Serve React frontend in production
+if (process.env.NODE_ENV === 'production') {
+  const frontendPath = path.join(__dirname, '../public/static');
+
+  // Serve static files from the React build
+  app.use(express.static(frontendPath));
+
+  // Handle React routing - serve index.html for all non-API routes
+  app.get('*', (req, res, next) => {
+    // Skip API routes
+    if (req.path.startsWith('/api') || req.path.startsWith('/uploads') || req.path === '/health' || req.path === '/ready') {
+      return next();
+    }
+    res.sendFile(path.join(frontendPath, 'index.html'));
+  });
+}
+
+// 404 handler (for API routes that don't exist)
 app.use((req, res) => {
   res.status(404).json({
     success: false,
