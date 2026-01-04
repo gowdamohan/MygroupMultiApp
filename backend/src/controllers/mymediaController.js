@@ -183,13 +183,28 @@ export const getMyMediaChannels = async (req, res) => {
       });
     }
 
-    // Build where clause - filter by media_type = 'Tv'
+    // Find the 'Tv' category in app_categories for this app
+    const tvCategory = await AppCategory.findOne({
+      where: {
+        app_id: app.id,
+        category_name: { [Op.like]: '%Tv%' },
+        status: 1
+      }
+    });
+
+    // Build where clause
     const whereClause = {
       app_id: app.id,
       is_active: 1,
-      status: 'approved',
-      media_type: 'Tv'
+      status: 'approved'
     };
+
+    // Filter by Tv category if found, otherwise fallback to media_type
+    if (tvCategory) {
+      whereClause.parent_category_id = tvCategory.id;
+    } else {
+      whereClause.media_type = 'Tv';
+    }
 
     if (type) whereClause.select_type = type;
     if (country_id) whereClause.country_id = country_id;

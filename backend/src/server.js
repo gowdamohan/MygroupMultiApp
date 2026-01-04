@@ -114,46 +114,52 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start server
+// Start server (listen immediately so HTTP health checks succeed even if DB is down)
 const startServer = async () => {
   try {
-    // Test database connection
-    const dbConnected = await testConnection();
-    
-    if (!dbConnected) {
-      console.error('❌ Failed to connect to database. Please check your configuration.');
-      process.exit(1);
-    }
-
-    // Analyze database schema
-    // if (process.env.NODE_ENV === 'development') {
-    //   await analyzeSchema();
-    // }
-
-    // Sync database (only in development)
-    // if (process.env.NODE_ENV === 'development') {
-    //   await sequelize.sync({ alter: false });
-    //   console.log('✅ Database synchronized');
-    // }
-
-    // Start listening
+    // Start listening immediately
     app.listen(PORT, () => {
       console.log('');
       console.log('🚀 ========================================');
       console.log(`🚀 Multi-Tenant Backend API Server`);
       console.log('🚀 ========================================');
       console.log(`🚀 Environment: ${process.env.NODE_ENV}`);
-      console.log(`🚀 Server running on: http://localhost:${PORT}`);
-      console.log(`🚀 API Base URL: http://localhost:${PORT}${API_PREFIX}`);
-      console.log(`🚀 Health Check: http://localhost:${PORT}/health`);
+      console.log(`🚀 Server running on: http://0.0.0.0:${PORT}`);
+      console.log(`🚀 API Base URL: http://0.0.0.0:${PORT}${API_PREFIX}`);
+      console.log(`🚀 Health Check: http://0.0.0.0:${PORT}/health`);
       console.log('🚀 ========================================');
       console.log('');
     });
+
+    // Test database connection in background; do not exit the process on failure
+    (async () => {
+      try {
+        const dbConnected = await testConnection();
+        if (!dbConnected) {
+          console.error('❌ Failed to connect to database. Please check your configuration.');
+        } else {
+          console.log('✅ Database connected');
+        }
+      } catch (err) {
+        console.error('❌ Error while testing DB connection:', err.message || err);
+      }
+    })();
   } catch (error) {
     console.error('❌ Failed to start server:', error);
     process.exit(1);
   }
 };
+
+// Readiness endpoint checks DB connectivity (returns 200 when DB reachable)
+app.get('/ready', async (req, res) => {
+  try {
+    const ok = await testConnection();
+    if (ok) return res.status(200).json({ success: true, db: true });
+    return res.status(503).json({ success: false, db: false });
+  } catch (err) {
+    return res.status(503).json({ success: false, db: false, error: err.message });
+  }
+});
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
