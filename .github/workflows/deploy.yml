@@ -122,6 +122,10 @@ jobs:
             CONTAINER_NAME="multi-tenant-app"
 
             # Pull the latest image
+            echo "📦 Ensuring host uploads directory exists and has correct ownership..."
+            sudo mkdir -p /var/app/uploads
+            sudo chown -R 1001:1001 /var/app/uploads
+            sudo chmod -R 755 /var/app/uploads
             echo "📦 Pulling latest Docker image..."
             docker pull $IMAGE_NAME
 
