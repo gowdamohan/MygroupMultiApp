@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Save, X, Image as ImageIcon } from 'lucide-react';
 import { FileUpload } from '../../components/form/FileUpload';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5002/api/v1';
+import { API_BASE_URL } from '../../config/api.config';
 
 interface FooterPageManagerProps {
   pageType: string;

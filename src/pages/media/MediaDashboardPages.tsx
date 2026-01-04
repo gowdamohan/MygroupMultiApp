@@ -7,8 +7,7 @@ import {
   Globe, Youtube, Facebook, Instagram, Twitter, Linkedin, BookOpen,
   Video, Music, Check, FolderPlus, Eye
 } from 'lucide-react';
-
-const API_BASE_URL = 'http://localhost:5002/api/v1';
+import { API_BASE_URL } from '../../config/api.config';
 
 // ============================================
 // SOCIAL MEDIA SECTION

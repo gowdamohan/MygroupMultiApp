@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import { X, User, Lock, Phone, Eye, EyeOff } from 'lucide-react';
 import axios from 'axios';
 import { RegisterStep2Form } from './RegisterStep2Form';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5002/api/v1';
+import { API_BASE_URL } from '../config/api.config';
 
 interface AuthModalProps {
   isOpen: boolean;

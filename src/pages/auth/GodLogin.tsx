@@ -3,8 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Crown, Mail, Lock, Shield, Zap, Star, ArrowLeft } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5002/api/v1';
+import { API_BASE_URL } from '../../config/api.config';
 
 export const GodLogin: React.FC = () => {
   const navigate = useNavigate();

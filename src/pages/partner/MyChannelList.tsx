@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Search, Tv, X, Eye, EyeOff, Key, Mail, Lock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-
-const API_BASE_URL = 'http://localhost:5002/api/v1';
+import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
 
 interface MediaChannel {
   id: number;
@@ -443,7 +442,7 @@ export const MyChannelList: React.FC = () => {
                       <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center">
                         {channel.media_logo ? (
                           <img
-                            src={`http://localhost:5002${channel.media_logo}`}
+                            src={`${BACKEND_URL}${channel.media_logo}`}
                             alt={channel.media_name_english}
                             className="w-full h-full object-cover"
                           />

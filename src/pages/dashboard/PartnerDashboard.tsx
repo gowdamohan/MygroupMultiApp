@@ -14,8 +14,7 @@ import { MyChannelList } from '../partner/MyChannelList';
 import { Enquiry } from '../partner/Enquiry';
 import { Feedback } from '../partner/Feedback';
 import { LiveChat } from '../partner/LiveChat';
-
-const API_BASE_URL = 'http://localhost:5002/api/v1';
+import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
 
 interface MenuItem {
   id: string;
@@ -228,7 +227,7 @@ export const PartnerDashboard: React.FC = () => {
       <div className="relative rounded-xl overflow-hidden h-32 md:h-40 bg-gray-100">
         {currentAd.file_type === 'video' ? (
           <video
-            src={`http://localhost:5002${currentAd.header_ads_file_path}`}
+            src={`${BACKEND_URL}${currentAd.header_ads_file_path}`}
             className="w-full h-full object-cover"
             autoPlay
             muted
@@ -236,7 +235,7 @@ export const PartnerDashboard: React.FC = () => {
           />
         ) : (
           <img
-            src={`http://localhost:5002${currentAd.header_ads_file_path}`}
+            src={`${BACKEND_URL}${currentAd.header_ads_file_path}`}
             alt="Header Ad"
             className="w-full h-full object-cover"
           />
@@ -417,7 +416,7 @@ export const PartnerDashboard: React.FC = () => {
               <div className="w-16 h-16 rounded-full overflow-hidden border-3 border-primary-500 shadow-lg mb-3">
                 {userProfile?.profile_img ? (
                   <img
-                    src={`http://localhost:5002${userProfile.profile_img}`}
+                    src={`${BACKEND_URL}${userProfile.profile_img}`}
                     alt="Profile"
                     className="w-full h-full object-cover"
                   />
@@ -519,7 +518,7 @@ export const PartnerDashboard: React.FC = () => {
                   <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-primary-500">
                     {userProfile?.profile_img ? (
                       <img
-                        src={`http://localhost:5002${userProfile.profile_img}`}
+                        src={`${BACKEND_URL}${userProfile.profile_img}`}
                         alt="Profile"
                         className="w-full h-full object-cover"
                       />
@@ -591,7 +590,7 @@ export const PartnerDashboard: React.FC = () => {
             <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-gray-200">
               {userProfile?.profile_img ? (
                 <img
-                  src={`http://localhost:5002${userProfile.profile_img}`}
+                  src={`${BACKEND_URL}${userProfile.profile_img}`}
                   alt="Profile"
                   className="w-full h-full object-cover"
                 />

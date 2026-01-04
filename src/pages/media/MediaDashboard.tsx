@@ -19,8 +19,7 @@ import {
   GallerySection,
   TeamSection
 } from './MediaDashboardPages';
-
-const API_BASE_URL = 'http://localhost:5002/api/v1';
+import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
 
 interface MenuItem {
   id: string;
@@ -890,7 +889,7 @@ export const MediaDashboard: React.FC = () => {
             <div className="flex flex-col items-center">
               <div className="w-16 h-16 rounded-full overflow-hidden border-3 border-teal-400 shadow-lg mb-3 bg-white">
                 {channelInfo?.media_logo ? (
-                  <img src={`http://localhost:5002${channelInfo.media_logo}`} alt="Channel" className="w-full h-full object-cover" />
+                  <img src={`${BACKEND_URL}${channelInfo.media_logo}`} alt="Channel" className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full bg-gradient-to-br from-teal-400 to-cyan-500 flex items-center justify-center"><Wifi className="text-white" size={28} /></div>
                 )}
@@ -921,7 +920,7 @@ export const MediaDashboard: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-teal-400 bg-white">
                     {channelInfo?.media_logo ? (
-                      <img src={`http://localhost:5002${channelInfo.media_logo}`} alt="Channel" className="w-full h-full object-cover" />
+                      <img src={`${BACKEND_URL}${channelInfo.media_logo}`} alt="Channel" className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full bg-gradient-to-br from-teal-400 to-cyan-500 flex items-center justify-center"><Wifi className="text-white" size={16} /></div>
                     )}
@@ -953,7 +952,7 @@ export const MediaDashboard: React.FC = () => {
                 <span className="text-sm font-medium text-gray-700">{channelInfo?.media_name_english}</span>
                 <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-teal-200 bg-white">
                   {channelInfo?.media_logo ? (
-                    <img src={`http://localhost:5002${channelInfo.media_logo}`} alt="Channel" className="w-full h-full object-cover" />
+                    <img src={`${BACKEND_URL}${channelInfo.media_logo}`} alt="Channel" className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full bg-gradient-to-br from-teal-400 to-cyan-500 flex items-center justify-center"><Wifi className="text-white" size={16} /></div>
                   )}

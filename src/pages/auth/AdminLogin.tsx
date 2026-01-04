@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Mail, Lock, Shield, ArrowLeft } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
+import { API_BASE_URL } from '../../config/api.config';
 
 export const AdminLogin: React.FC = () => {
   const navigate = useNavigate();

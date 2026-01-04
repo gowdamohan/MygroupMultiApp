@@ -10,9 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { authAPI } from '../services/api';
 import { AuthModal } from '../components/AuthModal';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5002/api/v1';
-const BACKEND_URL = 'http://localhost:5002';
+import { API_BASE_URL, BACKEND_URL } from '../config/api.config';
 
 interface AppItem {
   id: number;

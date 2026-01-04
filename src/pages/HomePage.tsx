@@ -11,8 +11,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { MobileHomePage } from './mobile/MobileHomePage';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5002/api/v1';
+import { API_BASE_URL } from '../config/api.config';
 
 type CategoryFilter = 'all' | 'admin' | 'company' | 'media';
 

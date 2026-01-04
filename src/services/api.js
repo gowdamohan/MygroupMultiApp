@@ -1,6 +1,5 @@
 import axios from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://18.61.71.16/api/v1';
+import { API_BASE_URL } from '../config/api.config';
 
 const api = axios.create({
   baseURL: API_BASE_URL,

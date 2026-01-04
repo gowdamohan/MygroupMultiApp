@@ -4,9 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
 import { CategoryModal } from './CategoryModal';
 import { CustomFormBuilder } from './CustomFormBuilder';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5002/api/v1';
-const BACKEND_URL = 'http://localhost:5002';
+import { API_BASE_URL, BACKEND_URL } from '../../../config/api.config';
 
 interface CreateDetails {
   id: number;

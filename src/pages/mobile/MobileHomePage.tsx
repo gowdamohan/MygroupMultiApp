@@ -11,9 +11,7 @@ import axios from 'axios';
 import { HomeData } from '../../types/home.types';
 import { AuthModal } from '../../components/AuthModal';
 import { authAPI } from '../../services/api';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5002/api/v1';
-const BACKEND_URL = 'http://localhost:5002';
+import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
 
 interface App {
   id: number;
