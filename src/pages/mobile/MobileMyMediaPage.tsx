@@ -113,18 +113,36 @@ export const MobileMyMediaPage: React.FC = () => {
   useEffect(() => {
     fetchCategories();
     fetchLanguages();
-    fetchCountries();
+    fetchCountriesAndSetDefault();
   }, []);
 
-  // Fetch states based on select type - same as MediaRegistrationForm
+  // Fetch countries and set default country
+  const fetchCountriesAndSetDefault = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/geo/countries`);
+      if (response.data.success) {
+        const countriesData = response.data.data;
+        setCountries(countriesData);
+        // Set first country as default if available
+        if (countriesData.length > 0) {
+          setSelectedCountry(countriesData[0].id.toString());
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching countries:', error);
+    }
+  };
+
+  // Fetch states based on select type and selected country
   useEffect(() => {
-    if (selectedType === 'National' && selectedCountry) {
-      fetchStates(parseInt(selectedCountry));
-    } else if (selectedType === 'Regional' || selectedType === 'Local') {
-      // Default to India (country ID 1)
-      fetchStates(1);
-    } else {
+    if (selectedType === 'International') {
       setStates([]);
+      setSelectedState('');
+      setDistricts([]);
+      setSelectedDistrict('');
+    } else if (selectedCountry) {
+      // For National, Regional, Local - use selectedCountry
+      fetchStates(parseInt(selectedCountry));
     }
   }, [selectedType, selectedCountry]);
 
@@ -206,18 +224,6 @@ export const MobileMyMediaPage: React.FC = () => {
       console.error('Error fetching languages:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  // Fetch countries - use public geo endpoint
-  const fetchCountries = async () => {
-    try {
-      const response = await axios.get(`${API_BASE_URL}/geo/countries`);
-      if (response.data.success) {
-        setCountries(response.data.data);
-      }
-    } catch (error) {
-      console.error('Error fetching countries:', error);
     }
   };
 

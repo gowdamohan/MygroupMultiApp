@@ -1,0 +1,134 @@
+# =============================================================================
+# Multi-Tenant Platform - Docker Compose Configuration
+# For local development environment
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # ===========================================================================
+  # Frontend Service (React with Vite - Development Mode)
+  # ===========================================================================
+  frontend:
+    image: node:20-alpine
+    container_name: multitenant-frontend
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    ports:
+      - "3000:5173"
+    volumes:
+      - ./:/app
+      - frontend_node_modules:/app/node_modules
+    environment:
+      - NODE_ENV=development
+      - VITE_API_URL=http://localhost:5000/api/v1
+    depends_on:
+      - backend
+    networks:
+      - multitenant-network
+
+  # ===========================================================================
+  # Backend Service (Node.js Express API)
+  # ===========================================================================
+  backend:
+    image: node:20-alpine
+    container_name: multitenant-backend
+    working_dir: /app
+    command: sh -c "npm install && npm run dev"
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./backend:/app
+      - backend_node_modules:/app/node_modules
+      - ./backend/public/uploads:/app/public/uploads
+    environment:
+      - NODE_ENV=development
+      - PORT=5000
+      - API_PREFIX=/api/v1
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_NAME=${DB_NAME:-my_group}
+      - DB_USER=${DB_USER:-root}
+      - DB_PASSWORD=${DB_PASSWORD:-rootpassword}
+      - DB_DIALECT=mysql
+      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-for-development-only}
+      - JWT_ACCESS_EXPIRY=15m
+      - JWT_REFRESH_EXPIRY=7d
+      - CORS_ORIGIN=http://localhost:3000,http://localhost:5173
+      - RATE_LIMIT_WINDOW_MS=900000
+      - RATE_LIMIT_MAX_REQUESTS=100000
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - multitenant-network
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # ===========================================================================
+  # MySQL Database Service
+  # ===========================================================================
+  mysql:
+    image: mysql:8.0
+    container_name: multitenant-mysql
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/schema:/docker-entrypoint-initdb.d:ro
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_PASSWORD:-rootpassword}
+      - MYSQL_DATABASE=${DB_NAME:-my_group}
+      - MYSQL_USER=${DB_USER_NON_ROOT:-appuser}
+      - MYSQL_PASSWORD=${DB_USER_PASSWORD:-apppassword}
+    networks:
+      - multitenant-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD:-rootpassword}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ===========================================================================
+  # phpMyAdmin (Database Management UI - Optional)
+  # ===========================================================================
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: multitenant-phpmyadmin
+    ports:
+      - "8080:80"
+    environment:
+      - PMA_HOST=mysql
+      - PMA_PORT=3306
+      - PMA_USER=root
+      - PMA_PASSWORD=${DB_PASSWORD:-rootpassword}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - multitenant-network
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  multitenant-network:
+    driver: bridge
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  mysql_data:
+    driver: local
+  frontend_node_modules:
+    driver: local
+  backend_node_modules:
+    driver: local
+

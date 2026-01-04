@@ -1,0 +1,119 @@
+# =============================================================================
+# Docker Ignore File for Multi-Tenant Platform
+# =============================================================================
+
+# Version Control
+.git
+.gitignore
+.gitattributes
+
+# Dependencies (will be installed fresh in container)
+node_modules
+backend/node_modules
+**/node_modules
+
+# Environment Files (sensitive - should be passed as env vars)
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+
+# Build Artifacts & Cache
+build
+dist
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.cache
+.temp
+
+# IDE & Editor Files
+.idea
+.vscode
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Documentation
+*.md
+!README.md
+docs
+documentation
+
+# Test Files & Coverage
+coverage
+.nyc_output
+*.test.js
+*.spec.js
+__tests__
+test
+tests
+
+# Development Scripts (Windows)
+*.bat
+*.cmd
+*.ps1
+
+# Database Files & Dumps
+*.sql
+database/*.sql
+*.dump
+*.bak
+
+# Logs
+logs
+*.log
+
+# Uploads (should be volume mounted)
+uploads
+backend/public/uploads/*
+!backend/public/uploads/.gitkeep
+
+# CI/CD Configuration (not needed in container)
+.github
+.gitlab-ci.yml
+.travis.yml
+Jenkinsfile
+
+# Docker Files (not needed inside the image)
+docker-compose*.yml
+docker-compose*.yaml
+Dockerfile*
+.dockerignore
+
+# Amazon Q / AI Assistant
+.amazonq
+
+# TypeScript Build Info
+*.tsbuildinfo
+
+# Temporary Files
+tmp
+temp
+*.tmp
+*.temp
+
+# OS Generated Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# SSL Certificates (should be mounted or managed separately)
+*.pem
+*.key
+*.crt
+*.cert
+
+# Miscellaneous
+*.zip
+*.tar.gz
+*.rar
+
