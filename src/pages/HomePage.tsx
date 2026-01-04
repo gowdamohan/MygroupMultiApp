@@ -425,11 +425,11 @@ export const HomePage: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-3">
                   <Phone size={20} />
-                  <span>+1 (555) 123-4567</span>
+                  <span>+91-9141247365</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <MapPin size={20} />
-                  <span>123 Business St, Suite 100, City, State 12345</span>
+                  <span>kengeri, bangalore-560098</span>
                 </div>
               </div>
               <div className="flex gap-4 mt-8">
