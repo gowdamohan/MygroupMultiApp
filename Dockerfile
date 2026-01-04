@@ -6,6 +6,15 @@
 # =============================================================================
 FROM node:20-alpine AS frontend-builder
 
+# Build arguments for API configuration
+# These should be passed during docker build: --build-arg VITE_API_BASE_URL=...
+ARG VITE_API_BASE_URL=/api/v1
+ARG VITE_BACKEND_URL=
+
+# Set environment variables for the build
+ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
+ENV VITE_BACKEND_URL=${VITE_BACKEND_URL}
+
 WORKDIR /app/frontend
 
 # Copy package files for frontend

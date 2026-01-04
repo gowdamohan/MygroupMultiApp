@@ -39,9 +39,39 @@ const PORT = process.env.PORT || 5000;
 const API_PREFIX = process.env.API_PREFIX || '/api/v1';
 
 // Middleware
-app.use(helmet()); // Security headers
+// Configure helmet with CSP that allows API connections
+const allowedOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
+  : ['http://localhost:3000'];
+
+// Add self (same origin) and any API backend URLs for CSP
+const cspConnectSrc = ["'self'", ...allowedOrigins];
+
+// In production, allow connections to same origin (API is served from same server)
+// In development, allow localhost connections
+if (process.env.NODE_ENV !== 'production') {
+  cspConnectSrc.push('http://localhost:5000', 'http://localhost:5002', 'ws://localhost:*');
+}
+
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      connectSrc: cspConnectSrc,
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+      imgSrc: ["'self'", "data:", "blob:", "*"],
+      mediaSrc: ["'self'", "data:", "blob:", "*"],
+      frameSrc: ["'self'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+}));
+
 app.use(cors({
-  origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['http://localhost:3000'],
+  origin: allowedOrigins,
   credentials: true
 }));
 app.use(compression()); // Compress responses
