@@ -22,9 +22,9 @@ export const CreateCategoryPage: React.FC = () => {
 
   // Tab configuration
   const tabs: { id: TabType; label: string; appsNameFilter: string }[] = [
-    { id: 'myapps', label: 'MY Apps', appsNameFilter: 'My Apps' },
+    { id: 'myapps', label: 'My Apps', appsNameFilter: 'My Apps' },
     { id: 'mycompany', label: 'My Company', appsNameFilter: 'My Company' },
-    { id: 'onlineapps', label: 'Online Apps', appsNameFilter: 'My Onine Apps' } // Note: typo in DB
+    { id: 'onlineapps', label: 'Online Apps', appsNameFilter: 'Online Apps' } // Note: typo in DB
   ];
 
   useEffect(() => {

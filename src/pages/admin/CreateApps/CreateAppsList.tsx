@@ -235,10 +235,15 @@ export const CreateAppsList: React.FC = () => {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Apps Name *</label>
-              <input type="text" value={formData.apps_name}
+              <select value={formData.apps_name}
                 onChange={(e) => setFormData({ ...formData, apps_name: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter apps name" required />
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required>
+                <option value="">Select Apps Name</option>
+                <option value="My Apps">My Apps</option>
+                <option value="My Company">My Company</option>
+                <option value="Online Apps">Online Apps</option>
+                <option value="Offline Apps">Offline Apps</option>
+              </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Order By</label>
@@ -392,12 +397,12 @@ export const CreateAppsList: React.FC = () => {
                   </td>
                   <td className="py-3 px-4">
                     <div className="flex justify-end gap-2">
-                      <button
+                      {/* <button
                         onClick={() => handleOpenCategoryModal(app.id)}
                         className="p-2 text-green-600 hover:bg-green-50 rounded-lg"
                         title="Add Category">
                         <FolderTree size={18} />
-                      </button>
+                      </button> */}
                       <button
                         onClick={() => handleCreateAppUser(app)}
                         className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg"
@@ -413,9 +418,9 @@ export const CreateAppsList: React.FC = () => {
                       <button onClick={() => handleEdit(app)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg">
                         <Edit2 size={18} />
                       </button>
-                      <button onClick={() => handleDelete(app.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg">
+                      {/* <button onClick={() => handleDelete(app.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg">
                         <Trash2 size={18} />
-                      </button>
+                      </button> */}
                     </div>
                   </td>
                 </tr>
