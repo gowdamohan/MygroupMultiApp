@@ -7,7 +7,7 @@ import {
   LogOut, ChevronDown, ChevronRight, Menu, X, Bell, Search, User,
   Settings, Shield, Package, MapPin, Award, Newspaper, Calendar,
   Briefcase as Career, UserCheck, Milestone, MessageSquare, Mail,
-  FileCheck, Scale, Lock, Copyright
+  FileCheck, Scale, Lock, Copyright, FolderTree
 } from 'lucide-react';
 
 // Import admin pages
@@ -20,6 +20,7 @@ import { StateList } from '../admin/Content/Country/StateList';
 import { DistrictList } from '../admin/Content/Country/DistrictList';
 import { CreateAppsList } from '../admin/CreateApps/CreateAppsList';
 import { CorporateLogin } from '../admin/CorporateLogin';
+import { CreateCategoryPage } from '../admin/CreateCategory';
 
 interface MenuItem {
   id: string;
@@ -82,6 +83,9 @@ export const AdminDashboardNew: React.FC = () => {
       case '/admin/corporate-login':
         console.log('Rendering CorporateLogin');
         return <CorporateLogin />;
+      case '/admin/create-category':
+        console.log('Rendering CreateCategoryPage');
+        return <CreateCategoryPage />;
       default:
         return (
           <div className="p-6">
@@ -128,6 +132,7 @@ export const AdminDashboardNew: React.FC = () => {
         // { id: 'group', label: 'Group', icon: Package, path: '/admin/group' },
         // { id: 'created', label: 'Created', icon: FileCheck, path: '/admin/create' },
         { id: 'create-apps', label: 'Create Apps', icon: Package, path: '/admin/create-apps' },
+        { id: 'create-category', label: 'Create Category', icon: FolderTree, path: '/admin/create-category' },
         // { id: 'advertise', label: 'Advertise', icon: Newspaper, path: '/admin/advertise' },
         // { id: 'group-account', label: 'Group Account', icon: UserCheck, path: '/admin/user-group-creation' },
         // { id: 'popup-add', label: 'Popup Add', icon: MessageSquare, path: '/admin/popup-add' }
