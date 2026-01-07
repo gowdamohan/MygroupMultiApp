@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { API_BASE_URL } from '../../../config/api.config';
-import { CategoryManager } from './CategoryManager';
+import { CategoryManagerInline } from './CategoryManagerInline';
 
 interface App {
   id: number;
@@ -58,21 +58,8 @@ export const CreateCategoryPage: React.FC = () => {
     setSelectedApp(app);
   };
 
-  const handleBackToList = () => {
-    setSelectedApp(null);
-  };
-
-  if (selectedApp) {
-    return (
-      <CategoryManager
-        app={selectedApp}
-        onBack={handleBackToList}
-      />
-    );
-  }
-
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Create Category</h1>
       </div>
@@ -86,7 +73,7 @@ export const CreateCategoryPage: React.FC = () => {
               setActiveTab(tab.id);
               setSelectedApp(null);
             }}
-            className={`px-6 py-3 font-semibold text-sm transition-all ${
+            className={`px-6 py-3 font-semibold text-sm transition-all rounded-t-lg ${
               activeTab === tab.id
                 ? 'bg-green-500 text-black'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -111,40 +98,44 @@ export const CreateCategoryPage: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Apps List */}
-      <div className="flex gap-6">
-        {/* Left Panel - Apps List */}
-        <div className="w-64 bg-gray-800 rounded-lg p-4">
-          <h3 className="text-white font-semibold mb-4 text-center">
+      {/* Multi-Panel Layout: Panel 1 (Apps) + Panels 2-5 (Categories) */}
+      <div className="flex gap-3 overflow-x-auto pb-4">
+        {/* Panel 1: Apps List */}
+        <div className="w-48 min-w-[192px] bg-gray-800 rounded-lg overflow-hidden flex flex-col">
+          <div className="bg-gray-700 text-white text-center py-2 font-semibold text-sm">
             {tabs.find(t => t.id === activeTab)?.label}
-          </h3>
-          {loading ? (
-            <div className="flex justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-            </div>
-          ) : apps.length === 0 ? (
-            <p className="text-gray-400 text-center text-sm">No apps found</p>
-          ) : (
-            <div className="space-y-1">
-              {apps.map((app) => (
+          </div>
+          <div className="flex-1 p-2 space-y-1 overflow-y-auto max-h-[500px]">
+            {loading ? (
+              <div className="flex justify-center py-8">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+              </div>
+            ) : apps.length === 0 ? (
+              <p className="text-gray-400 text-center text-xs py-4">No apps found</p>
+            ) : (
+              apps.map((app) => (
                 <button
                   key={app.id}
                   onClick={() => handleAppClick(app)}
-                  className={`w-full text-left px-3 py-2 text-white hover:bg-gray-700 rounded transition-colors ${
-                    selectedApp?.id === app.id ? 'bg-gray-700' : ''
+                  className={`w-full text-left px-3 py-2 text-white text-sm rounded transition-colors ${
+                    selectedApp?.id === app.id ? 'bg-green-600' : 'hover:bg-gray-700'
                   }`}
                 >
                   {app.name}
                 </button>
-              ))}
-            </div>
-          )}
+              ))
+            )}
+          </div>
         </div>
 
-        {/* Right Panel - Instructions */}
-        <div className="flex-1 bg-gray-100 rounded-lg p-8 flex items-center justify-center">
-          <p className="text-gray-500 text-lg">Select an app from the list to manage its categories</p>
-        </div>
+        {/* Panels 2-5: Category Management (inline) */}
+        {selectedApp ? (
+          <CategoryManagerInline app={selectedApp} />
+        ) : (
+          <div className="flex-1 bg-gray-100 rounded-lg p-8 flex items-center justify-center min-h-[400px]">
+            <p className="text-gray-500 text-lg">Select an app from the list to manage its categories</p>
+          </div>
+        )}
       </div>
     </div>
   );

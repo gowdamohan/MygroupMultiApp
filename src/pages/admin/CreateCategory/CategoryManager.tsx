@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Plus, Edit2, Trash2, Save, X, ChevronRight, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Plus, Edit2, Trash2, Save, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { API_BASE_URL } from '../../../config/api.config';
@@ -34,10 +34,15 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ app, onBack })
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [selectedMainCategory, setSelectedMainCategory] = useState<Category | null>(null);
-  const [expandedCategories, setExpandedCategories] = useState<Set<number>>(new Set());
+
+  // Multi-panel selection state
+  const [selectedSubApp, setSelectedSubApp] = useState<Category | null>(null);      // Panel 2 selection
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);   // Panel 3 selection
+  const [selectedSubCategory, setSelectedSubCategory] = useState<Category | null>(null); // Panel 4 selection
+
   const [showAddForm, setShowAddForm] = useState(false);
   const [addFormParentId, setAddFormParentId] = useState<number | null>(null);
+  const [addFormLevel, setAddFormLevel] = useState<string>(''); // To track which panel we're adding to
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [formData, setFormData] = useState({
     category_name: '',
@@ -83,18 +88,6 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ app, onBack })
   const regularMainCategories = mainCategories.filter(c => c.category_type !== 'addon');
   const addonCategories = mainCategories.filter(c => c.category_type === 'addon');
   const canAddMainCategory = regularMainCategories.length < MAX_MAIN_CATEGORIES;
-
-  const handleAddCategory = (parentId: number | null = null) => {
-    if (parentId === null && !canAddMainCategory) {
-      setError(`Maximum ${MAX_MAIN_CATEGORIES} main categories allowed`);
-      setTimeout(() => setError(''), 3000);
-      return;
-    }
-    setAddFormParentId(parentId);
-    setFormData({ category_name: '', category_type: '', category_image: '', sort_order: 0, status: 1 });
-    setShowAddForm(true);
-    setEditingCategory(null);
-  };
 
   const handleEditCategory = (category: Category) => {
     setEditingCategory(category);
@@ -154,6 +147,19 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ app, onBack })
         headers: { Authorization: `Bearer ${token}` }
       });
       setSuccess('Category deleted successfully');
+
+      // Reset selections if deleted category was selected
+      if (selectedSubApp?.id === id) {
+        setSelectedSubApp(null);
+        setSelectedCategory(null);
+        setSelectedSubCategory(null);
+      } else if (selectedCategory?.id === id) {
+        setSelectedCategory(null);
+        setSelectedSubCategory(null);
+      } else if (selectedSubCategory?.id === id) {
+        setSelectedSubCategory(null);
+      }
+
       fetchCategories();
       setTimeout(() => setSuccess(''), 3000);
     } catch (err: any) {
@@ -161,77 +167,94 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ app, onBack })
     }
   };
 
-  const toggleExpand = (categoryId: number) => {
-    setExpandedCategories(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(categoryId)) {
-        newSet.delete(categoryId);
-      } else {
-        newSet.add(categoryId);
-      }
-      return newSet;
-    });
+  // Handle selection functions for multi-panel navigation
+  const handleSelectSubApp = (cat: Category) => {
+    setSelectedSubApp(cat);
+    setSelectedCategory(null);
+    setSelectedSubCategory(null);
   };
 
-  // Render subcategory tree recursively
-  const renderSubcategoryTree = (cats: Category[], level: number = 0): JSX.Element => {
-    return (
-      <div className={`${level > 0 ? 'ml-4 border-l-2 border-gray-200 pl-4' : ''}`}>
-        {cats.map((cat) => {
-          const isExpanded = expandedCategories.has(cat.id);
-          const hasChildren = cat.children && cat.children.length > 0;
-
-          return (
-            <div key={cat.id} className="py-2">
-              <div className="flex items-center justify-between bg-white rounded-lg p-3 hover:bg-gray-50 border border-gray-200">
-                <div className="flex items-center gap-2">
-                  {hasChildren && (
-                    <button onClick={() => toggleExpand(cat.id)} className="p-1 hover:bg-gray-200 rounded">
-                      {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                    </button>
-                  )}
-                  {!hasChildren && <div className="w-6" />}
-                  <span className="font-medium">{cat.category_name}</span>
-                  {cat.category_type && (
-                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">{cat.category_type}</span>
-                  )}
-                </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => handleAddCategory(cat.id)}
-                    className="p-1.5 text-green-600 hover:bg-green-50 rounded"
-                    title="Add Subcategory"
-                  >
-                    <Plus size={16} />
-                  </button>
-                  <button
-                    onClick={() => handleEditCategory(cat)}
-                    className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
-                    title="Edit"
-                  >
-                    <Edit2 size={16} />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(cat.id)}
-                    className="p-1.5 text-red-600 hover:bg-red-50 rounded"
-                    title="Delete"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              </div>
-              {hasChildren && isExpanded && renderSubcategoryTree(cat.children!, level + 1)}
-            </div>
-          );
-        })}
-      </div>
-    );
+  const handleSelectCategory = (cat: Category) => {
+    setSelectedCategory(cat);
+    setSelectedSubCategory(null);
   };
 
+  const handleSelectSubCategory = (cat: Category) => {
+    setSelectedSubCategory(cat);
+  };
+
+  // Get categories for each panel level
   const treeData = buildTree(categories);
-  const selectedCategoryTree = selectedMainCategory
-    ? treeData.find(c => c.id === selectedMainCategory.id)
-    : null;
+
+  // Panel 3: Categories (children of selected SubApp)
+  const categoryList = selectedSubApp
+    ? treeData.find(c => c.id === selectedSubApp.id)?.children || []
+    : [];
+
+  // Panel 4: SubCategories (children of selected Category)
+  const subCategoryList = selectedCategory
+    ? categoryList.find(c => c.id === selectedCategory.id)?.children || []
+    : [];
+
+  // Panel 5: Child Categories (children of selected SubCategory, and deeper levels)
+  const childCategoryList = selectedSubCategory
+    ? subCategoryList.find(c => c.id === selectedSubCategory.id)?.children || []
+    : [];
+
+  // Helper function to render all deep children recursively for Panel 5
+  const renderDeepChildren = (cats: Category[], level: number = 0): React.ReactNode => {
+    return cats.map((cat) => (
+      <div key={cat.id} className={`${level > 0 ? 'ml-4' : ''}`}>
+        <div className="flex items-center justify-between py-2 px-3 hover:bg-purple-50 rounded transition-colors border-b border-gray-100">
+          <span className="font-medium text-gray-800">{cat.category_name}</span>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => openAddForm(cat.id, 'child')}
+              className="p-1 text-green-600 hover:bg-green-100 rounded"
+              title="Add Child"
+            >
+              <Plus size={14} />
+            </button>
+            <button
+              onClick={() => handleEditCategory(cat)}
+              className="p-1 text-blue-600 hover:bg-blue-100 rounded"
+              title="Edit"
+            >
+              <Edit2 size={14} />
+            </button>
+            <button
+              onClick={() => handleDelete(cat.id)}
+              className="p-1 text-red-600 hover:bg-red-100 rounded"
+              title="Delete"
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        </div>
+        {cat.children && cat.children.length > 0 && renderDeepChildren(cat.children, level + 1)}
+      </div>
+    ));
+  };
+
+  // Open add form with level tracking
+  const openAddForm = (parentId: number | null, level: string) => {
+    if (parentId === null && !canAddMainCategory && level !== 'addon') {
+      setError(`Maximum ${MAX_MAIN_CATEGORIES} main categories allowed`);
+      setTimeout(() => setError(''), 3000);
+      return;
+    }
+    setAddFormParentId(parentId);
+    setAddFormLevel(level);
+    setFormData({
+      category_name: '',
+      category_type: level === 'addon' ? 'addon' : '',
+      category_image: '',
+      sort_order: 0,
+      status: 1
+    });
+    setShowAddForm(true);
+    setEditingCategory(null);
+  };
 
   if (loading) {
     return (
@@ -241,8 +264,37 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ app, onBack })
     );
   }
 
+  // Panel component for consistent styling
+  const Panel: React.FC<{
+    title: string;
+    headerColor: string;
+    bgColor: string;
+    children: React.ReactNode;
+    onAdd?: () => void;
+    addLabel?: string;
+  }> = ({ title, headerColor, bgColor, children, onAdd, addLabel }) => (
+    <div className={`w-48 min-w-[192px] ${bgColor} rounded-lg overflow-hidden flex flex-col h-full`}>
+      <div className={`${headerColor} text-center py-2 font-semibold text-sm`}>
+        {title}
+      </div>
+      <div className="flex-1 p-2 space-y-1 overflow-y-auto max-h-[400px]">
+        {children}
+      </div>
+      {onAdd && (
+        <div className="p-2 border-t border-gray-200">
+          <button
+            onClick={onAdd}
+            className="w-full text-left px-3 py-2 text-blue-600 hover:bg-opacity-50 rounded flex items-center gap-2 text-sm"
+          >
+            <Plus size={14} /> {addLabel || 'Add'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 space-y-4">
       {/* Header */}
       <div className="flex items-center gap-4">
         <button
@@ -269,114 +321,179 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ app, onBack })
         )}
       </AnimatePresence>
 
-      {/* Main Content */}
-      <div className="flex gap-6">
-        {/* Left Panel - Main Categories */}
-        <div className="w-72 space-y-4">
-          {/* Sub Apps Section */}
-          <div className="bg-yellow-300 rounded-lg overflow-hidden">
-            <div className="bg-blue-600 text-white text-center py-2 font-semibold">
-              Sub Apps ({regularMainCategories.length}/{MAX_MAIN_CATEGORIES})
-            </div>
-            <div className="p-2 space-y-1">
-              {regularMainCategories.map((cat) => (
-                <button
-                  key={cat.id}
-                  onClick={() => setSelectedMainCategory(cat)}
-                  className={`w-full text-left px-3 py-2 font-medium rounded transition-colors ${
-                    selectedMainCategory?.id === cat.id ? 'bg-yellow-400' : 'hover:bg-yellow-200'
-                  }`}
-                >
-                  {cat.category_name}
-                </button>
-              ))}
-              {canAddMainCategory && (
-                <button
-                  onClick={() => handleAddCategory(null)}
-                  className="w-full text-left px-3 py-2 text-blue-600 hover:bg-yellow-200 rounded flex items-center gap-2"
-                >
-                  <Plus size={16} /> Add Category
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Add-ons Section */}
-          <div className="bg-yellow-300 rounded-lg overflow-hidden">
-            <div className="bg-green-500 text-black text-center py-2 font-semibold">
-              Add ons
-            </div>
-            <div className="p-2 space-y-1">
-              {addonCategories.map((cat) => (
-                <button
-                  key={cat.id}
-                  onClick={() => setSelectedMainCategory(cat)}
-                  className={`w-full text-left px-3 py-2 font-medium rounded transition-colors ${
-                    selectedMainCategory?.id === cat.id ? 'bg-yellow-400' : 'hover:bg-yellow-200'
-                  }`}
-                >
-                  {cat.category_name}
-                </button>
-              ))}
-              <button
-                onClick={() => {
-                  setAddFormParentId(null);
-                  setFormData({ category_name: '', category_type: 'addon', category_image: '', sort_order: 0, status: 1 });
-                  setShowAddForm(true);
-                  setEditingCategory(null);
-                }}
-                className="w-full text-left px-3 py-2 text-blue-600 hover:bg-yellow-200 rounded flex items-center gap-2"
+      {/* Multi-Panel Layout */}
+      <div className="flex gap-3 overflow-x-auto pb-4">
+        {/* Panel 2: Sub Apps (Main Categories) */}
+        <div className="flex flex-col gap-3">
+          {/* Regular Sub Apps */}
+          <Panel
+            title={`Sub Apps (${regularMainCategories.length}/${MAX_MAIN_CATEGORIES})`}
+            headerColor="bg-blue-600 text-white"
+            bgColor="bg-yellow-300"
+            onAdd={canAddMainCategory ? () => openAddForm(null, 'subapp') : undefined}
+            addLabel="Add Sub App"
+          >
+            {regularMainCategories.map((cat) => (
+              <div
+                key={cat.id}
+                className={`flex items-center justify-between px-2 py-1.5 rounded cursor-pointer transition-colors ${
+                  selectedSubApp?.id === cat.id ? 'bg-yellow-400' : 'hover:bg-yellow-200'
+                }`}
               >
-                <Plus size={16} /> Add Add-on
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Panel - Subcategories */}
-        <div className="flex-1 bg-white rounded-lg border border-gray-200 p-6">
-          {selectedMainCategory ? (
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="bg-blue-600 text-white px-4 py-2 rounded font-semibold">
-                    Category
-                  </div>
-                  <h2 className="text-xl font-bold">{selectedMainCategory.category_name}</h2>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleAddCategory(selectedMainCategory.id)}
-                    className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center gap-2"
-                  >
-                    <Plus size={18} /> Add Subcategory
+                <button
+                  onClick={() => handleSelectSubApp(cat)}
+                  className="flex-1 text-left font-medium text-sm"
+                >
+                  {cat.category_name}
+                </button>
+                <div className="flex items-center gap-0.5">
+                  <button onClick={() => handleEditCategory(cat)} className="p-1 text-blue-600 hover:bg-blue-100 rounded" title="Edit">
+                    <Edit2 size={12} />
                   </button>
-                  <button
-                    onClick={() => handleEditCategory(selectedMainCategory)}
-                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
-                  >
-                    <Edit2 size={18} />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(selectedMainCategory.id)}
-                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-                  >
-                    <Trash2 size={18} />
+                  <button onClick={() => handleDelete(cat.id)} className="p-1 text-red-600 hover:bg-red-100 rounded" title="Delete">
+                    <Trash2 size={12} />
                   </button>
                 </div>
               </div>
-              {selectedCategoryTree?.children && selectedCategoryTree.children.length > 0 ? (
-                renderSubcategoryTree(selectedCategoryTree.children)
-              ) : (
-                <p className="text-gray-500 text-center py-8">No subcategories. Click "Add Subcategory" to create one.</p>
-              )}
-            </div>
-          ) : (
-            <div className="flex items-center justify-center h-64 text-gray-500">
-              Select a category from the left panel to manage its subcategories
-            </div>
-          )}
+            ))}
+          </Panel>
+
+          {/* Add-ons Section */}
+          <Panel
+            title="Add-ons"
+            headerColor="bg-green-500 text-black"
+            bgColor="bg-yellow-300"
+            onAdd={() => openAddForm(null, 'addon')}
+            addLabel="Add Add-on"
+          >
+            {addonCategories.map((cat) => (
+              <div
+                key={cat.id}
+                className={`flex items-center justify-between px-2 py-1.5 rounded cursor-pointer transition-colors ${
+                  selectedSubApp?.id === cat.id ? 'bg-yellow-400' : 'hover:bg-yellow-200'
+                }`}
+              >
+                <button
+                  onClick={() => handleSelectSubApp(cat)}
+                  className="flex-1 text-left font-medium text-sm"
+                >
+                  {cat.category_name}
+                </button>
+                <div className="flex items-center gap-0.5">
+                  <button onClick={() => handleEditCategory(cat)} className="p-1 text-blue-600 hover:bg-blue-100 rounded" title="Edit">
+                    <Edit2 size={12} />
+                  </button>
+                  <button onClick={() => handleDelete(cat.id)} className="p-1 text-red-600 hover:bg-red-100 rounded" title="Delete">
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </Panel>
         </div>
+
+        {/* Panel 3: Categories (first-level children of selected Sub App) */}
+        <Panel
+          title="Category"
+          headerColor="bg-orange-500 text-white"
+          bgColor="bg-orange-100"
+          onAdd={selectedSubApp ? () => openAddForm(selectedSubApp.id, 'category') : undefined}
+          addLabel="Add Category"
+        >
+          {selectedSubApp ? (
+            categoryList.length > 0 ? (
+              categoryList.map((cat) => (
+                <div
+                  key={cat.id}
+                  className={`flex items-center justify-between px-2 py-1.5 rounded cursor-pointer transition-colors ${
+                    selectedCategory?.id === cat.id ? 'bg-orange-300' : 'hover:bg-orange-200'
+                  }`}
+                >
+                  <button
+                    onClick={() => handleSelectCategory(cat)}
+                    className="flex-1 text-left font-medium text-sm"
+                  >
+                    {cat.category_name}
+                  </button>
+                  <div className="flex items-center gap-0.5">
+                    <button onClick={() => handleEditCategory(cat)} className="p-1 text-blue-600 hover:bg-blue-100 rounded" title="Edit">
+                      <Edit2 size={12} />
+                    </button>
+                    <button onClick={() => handleDelete(cat.id)} className="p-1 text-red-600 hover:bg-red-100 rounded" title="Delete">
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-gray-500 text-xs text-center py-4">No categories</p>
+            )
+          ) : (
+            <p className="text-gray-500 text-xs text-center py-4">Select a Sub App</p>
+          )}
+        </Panel>
+
+        {/* Panel 4: Sub Categories (second-level children) */}
+        <Panel
+          title="Sub Category"
+          headerColor="bg-teal-500 text-white"
+          bgColor="bg-teal-100"
+          onAdd={selectedCategory ? () => openAddForm(selectedCategory.id, 'subcategory') : undefined}
+          addLabel="Add Sub Category"
+        >
+          {selectedCategory ? (
+            subCategoryList.length > 0 ? (
+              subCategoryList.map((cat) => (
+                <div
+                  key={cat.id}
+                  className={`flex items-center justify-between px-2 py-1.5 rounded cursor-pointer transition-colors ${
+                    selectedSubCategory?.id === cat.id ? 'bg-teal-300' : 'hover:bg-teal-200'
+                  }`}
+                >
+                  <button
+                    onClick={() => handleSelectSubCategory(cat)}
+                    className="flex-1 text-left font-medium text-sm"
+                  >
+                    {cat.category_name}
+                  </button>
+                  <div className="flex items-center gap-0.5">
+                    <button onClick={() => handleEditCategory(cat)} className="p-1 text-blue-600 hover:bg-blue-100 rounded" title="Edit">
+                      <Edit2 size={12} />
+                    </button>
+                    <button onClick={() => handleDelete(cat.id)} className="p-1 text-red-600 hover:bg-red-100 rounded" title="Delete">
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-gray-500 text-xs text-center py-4">No sub categories</p>
+            )
+          ) : (
+            <p className="text-gray-500 text-xs text-center py-4">Select a Category</p>
+          )}
+        </Panel>
+
+        {/* Panel 5: Child Categories (third-level and deeper) */}
+        <Panel
+          title="Child Category"
+          headerColor="bg-purple-500 text-white"
+          bgColor="bg-purple-100"
+          onAdd={selectedSubCategory ? () => openAddForm(selectedSubCategory.id, 'child') : undefined}
+          addLabel="Add Child"
+        >
+          {selectedSubCategory ? (
+            childCategoryList.length > 0 ? (
+              <div className="space-y-1">
+                {renderDeepChildren(childCategoryList)}
+              </div>
+            ) : (
+              <p className="text-gray-500 text-xs text-center py-4">No child categories</p>
+            )
+          ) : (
+            <p className="text-gray-500 text-xs text-center py-4">Select a Sub Category</p>
+          )}
+        </Panel>
       </div>
 
       {/* Add/Edit Form Modal */}
