@@ -48,7 +48,8 @@ import {
   appLogin,
   getAppById,
   getAppPartners,
-  updatePartnerStatus
+  updatePartnerStatus,
+  updatePartnerDetails
 } from '../controllers/adminController.js';
 import { authenticate } from '../middleware/auth.js';
 import { uploadAppImages } from '../middleware/upload.js';
@@ -192,5 +193,6 @@ router.post('/corporate-user/:id/reset-password', resetCorporatePassword);
 router.get('/apps/:appId', getAppById);
 router.get('/apps/:appId/partners', getAppPartners);
 router.patch('/apps/:appId/partners/:partnerId/status', updatePartnerStatus);
+router.put('/apps/:appId/partners/:partnerId', updatePartnerDetails);
 
 export default router;

@@ -37,8 +37,18 @@ export const CreateMedia: React.FC = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('accessToken');
+
+      // Get appId from selectedApp (set during partner login) or user.group_id as fallback
+      const selectedApp = JSON.parse(localStorage.getItem('selectedApp') || '{}');
       const user = JSON.parse(localStorage.getItem('user') || '{}');
-      const appId = user.group_id; // app_id is stored in group_id field
+      const appId = selectedApp?.id || user.group_id;
+
+      // Validate appId before making the API call
+      if (!appId) {
+        setError('No app ID found. Please log in again.');
+        setLoading(false);
+        return;
+      }
 
       const response = await axios.get(
         `${API_BASE_URL}/partner/media-categories/${appId}`,

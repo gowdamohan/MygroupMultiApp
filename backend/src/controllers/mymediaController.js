@@ -9,7 +9,18 @@ import {
   District,
   Language,
   MediaSchedule,
-  MediaScheduleSlot
+  MediaScheduleSlot,
+  MediaInteractions,
+  MediaSocialLinks,
+  MediaAwards,
+  MediaNewsletters,
+  MediaTeam,
+  MediaGalleryAlbums,
+  MediaGalleryImages,
+  MediaDocuments,
+  MediaSwitcher,
+  MediaOfflineMedia,
+  MediaChannelDocument
 } from '../models/index.js';
 
 /**
@@ -63,38 +74,58 @@ export const getMyMediaApp = async (req, res) => {
 /**
  * Get categories for MyMedia app (parent categories)
  * GET /api/v1/mymedia/categories
+ * Query params: appId (optional - if not provided, uses MyMedia app)
  */
 export const getMyMediaCategories = async (req, res) => {
   try {
-    // First find MyMedia app
-    const app = await GroupCreate.findOne({
-      where: { name: { [Op.like]: '%mymedia%' } }
-    });
+    const { appId } = req.query;
+    let targetAppId;
 
-    if (!app) {
-      return res.status(404).json({
-        success: false,
-        message: 'MyMedia app not found'
+    if (appId) {
+      // Use provided app ID
+      targetAppId = parseInt(appId);
+    } else {
+      // Find MyMedia app as fallback
+      const app = await GroupCreate.findOne({
+        where: { name: { [Op.like]: '%mymedia%' } }
       });
+
+      if (!app) {
+        return res.status(404).json({
+          success: false,
+          message: 'MyMedia app not found'
+        });
+      }
+      targetAppId = app.id;
     }
 
-    // Get parent categories for this app
+    // Get parent categories for this app, excluding addon categories
     const categories = await AppCategory.findAll({
       where: {
-        app_id: app.id,
+        app_id: targetAppId,
         parent_id: null,
-        status: 1
+        status: 1,
+        [Op.or]: [
+          { category_type: { [Op.ne]: 'addon' } },
+          { category_type: null },
+          { category_type: '' }
+        ]
       },
       order: [['sort_order', 'ASC'], ['category_name', 'ASC']]
     });
 
-    // Get child categories for each parent
+    // Get child categories for each parent (also excluding addon types)
     const categoriesWithChildren = await Promise.all(
       categories.map(async (category) => {
         const children = await AppCategory.findAll({
           where: {
             parent_id: category.id,
-            status: 1
+            status: 1,
+            [Op.or]: [
+              { category_type: { [Op.ne]: 'addon' } },
+              { category_type: null },
+              { category_type: '' }
+            ]
           },
           order: [['sort_order', 'ASC'], ['category_name', 'ASC']]
         });
@@ -124,6 +155,52 @@ export const getMyMediaCategories = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch categories',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Get addon categories for an app (for settings popup)
+ * GET /api/v1/mymedia/addon-categories
+ * Query params: appId (required)
+ */
+export const getAddonCategories = async (req, res) => {
+  try {
+    const { appId } = req.query;
+
+    if (!appId) {
+      return res.status(400).json({
+        success: false,
+        message: 'appId query parameter is required'
+      });
+    }
+
+    // Get addon categories for this app
+    const addonCategories = await AppCategory.findAll({
+      where: {
+        app_id: parseInt(appId),
+        status: 1,
+        category_type: 'addon'
+      },
+      order: [['sort_order', 'ASC'], ['category_name', 'ASC']]
+    });
+
+    res.json({
+      success: true,
+      data: addonCategories.map(c => ({
+        id: c.id,
+        category_name: c.category_name,
+        category_type: c.category_type,
+        category_image: c.category_image,
+        parent_id: c.parent_id
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching addon categories:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch addon categories',
       error: error.message
     });
   }
@@ -348,6 +425,307 @@ export const getMyMediaSchedules = async (req, res) => {
       message: 'Failed to fetch schedules',
       error: error.message
     });
+  }
+};
+
+/**
+ * Get channels by parent category name (E-Paper, Magazine, TV, Radio, etc.)
+ * GET /api/v1/mymedia/channels-by-category/:categoryName
+ * Query params: type, country_id, state_id, district_id, language_id
+ */
+export const getChannelsByCategory = async (req, res) => {
+  try {
+    const { categoryName } = req.params;
+    const { type, country_id, state_id, district_id, language_id, page = 1, limit = 20 } = req.query;
+
+    // Find MyMedia app
+    const app = await GroupCreate.findOne({
+      where: { name: { [Op.like]: '%mymedia%' } }
+    });
+
+    if (!app) {
+      return res.status(404).json({ success: false, message: 'MyMedia app not found' });
+    }
+
+    // Find the parent category by name
+    const parentCategory = await AppCategory.findOne({
+      where: {
+        app_id: app.id,
+        category_name: { [Op.like]: `%${categoryName}%` },
+        parent_id: null,
+        status: 1
+      }
+    });
+
+    if (!parentCategory) {
+      return res.status(404).json({ success: false, message: `Category '${categoryName}' not found` });
+    }
+
+    // Build where clause
+    const whereClause = {
+      app_id: app.id,
+      parent_category_id: parentCategory.id,
+      is_active: 1,
+      status: 'active'
+    };
+
+    if (type) whereClause.select_type = type;
+    if (country_id) whereClause.country_id = country_id;
+    if (state_id) whereClause.state_id = state_id;
+    if (district_id) whereClause.district_id = district_id;
+    if (language_id) whereClause.language_id = language_id;
+
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+
+    const { count, rows: channels } = await MediaChannel.findAndCountAll({
+      where: whereClause,
+      attributes: [
+        'id', 'media_logo', 'media_name_english', 'media_name_regional',
+        'select_type', 'category_id', 'parent_category_id', 'language_id',
+        'country_id', 'state_id', 'district_id', 'periodical_type'
+      ],
+      include: [
+        { model: AppCategory, as: 'category', attributes: ['id', 'category_name'] },
+        { model: Language, as: 'language', attributes: ['id', 'lang_1'], required: false },
+        { model: Country, as: 'country', attributes: ['id', 'country'], required: false },
+        { model: State, as: 'state', attributes: ['id', 'state'], required: false },
+        { model: MediaInteractions, as: 'interactions', attributes: ['views_count', 'followers_count', 'likes_count'], required: false }
+      ],
+      order: [['media_name_english', 'ASC']],
+      limit: parseInt(limit),
+      offset
+    });
+
+    res.json({
+      success: true,
+      data: {
+        channels,
+        pagination: {
+          total: count,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          totalPages: Math.ceil(count / parseInt(limit))
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching channels by category:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch channels', error: error.message });
+  }
+};
+
+/**
+ * Get channel details with all related data
+ * GET /api/v1/mymedia/channel/:channelId
+ */
+export const getChannelDetails = async (req, res) => {
+  try {
+    const { channelId } = req.params;
+
+    const channel = await MediaChannel.findOne({
+      where: { id: channelId, is_active: 1 },
+      include: [
+        { model: AppCategory, as: 'category', attributes: ['id', 'category_name', 'category_type'] },
+        { model: AppCategory, as: 'parentCategory', attributes: ['id', 'category_name'] },
+        { model: Language, as: 'language', attributes: ['id', 'lang_1', 'lang_2'], required: false },
+        { model: Country, as: 'country', attributes: ['id', 'country'], required: false },
+        { model: State, as: 'state', attributes: ['id', 'state'], required: false },
+        { model: District, as: 'district', attributes: ['id', 'district'], required: false },
+        { model: MediaInteractions, as: 'interactions', required: false }
+      ]
+    });
+
+    if (!channel) {
+      return res.status(404).json({ success: false, message: 'Channel not found' });
+    }
+
+    // Fetch related data in parallel
+    const [socialLinks, awards, newsletters, team, albums, switcher] = await Promise.all([
+      MediaSocialLinks.findAll({ where: { media_channel_id: channelId, is_active: 1 } }),
+      MediaAwards.findAll({ where: { media_channel_id: channelId, is_active: 1 }, order: [['sort_order', 'ASC']] }),
+      MediaNewsletters.findAll({ where: { media_channel_id: channelId, is_active: 1 }, order: [['sort_order', 'ASC']] }),
+      MediaTeam.findAll({ where: { media_channel_id: channelId, is_active: 1 }, order: [['sort_order', 'ASC']] }),
+      MediaGalleryAlbums.findAll({ where: { media_channel_id: channelId, is_active: 1 }, order: [['sort_order', 'ASC']] }),
+      MediaSwitcher.findOne({ where: { media_channel_id: channelId } })
+    ]);
+
+    // Get offline media if switcher exists
+    let offlineMedia = null;
+    if (switcher && switcher.offline_media_id) {
+      offlineMedia = await MediaOfflineMedia.findByPk(switcher.offline_media_id);
+    }
+
+    res.json({
+      success: true,
+      data: {
+        channel: channel.toJSON(),
+        socialLinks,
+        awards,
+        newsletters,
+        team,
+        gallery: albums,
+        switcher: switcher ? { ...switcher.toJSON(), offlineMedia } : null
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching channel details:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch channel details', error: error.message });
+  }
+};
+
+/**
+ * Get documents for E-Paper/Magazine channel
+ * GET /api/v1/mymedia/channel/:channelId/documents
+ * Query params: year, month, page, limit
+ */
+export const getChannelDocuments = async (req, res) => {
+  try {
+    const { channelId } = req.params;
+    const { year, month, page = 1, limit = 50 } = req.query;
+
+    // Build where clause for MediaChannelDocument (E-Paper/Magazine issues)
+    const whereClause = { media_channel_id: channelId, status: 1 };
+    if (year) whereClause.document_year = parseInt(year);
+    if (month) whereClause.document_month = parseInt(month);
+
+    // Get total count for pagination
+    const totalCount = await MediaChannelDocument.count({ where: whereClause });
+
+    // Fetch documents with pagination
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const channelDocuments = await MediaChannelDocument.findAll({
+      where: whereClause,
+      order: [['document_year', 'DESC'], ['document_month', 'DESC'], ['document_date', 'DESC']],
+      limit: parseInt(limit),
+      offset
+    });
+
+    // Format documents for frontend consumption
+    const formattedDocuments = channelDocuments.map(doc => ({
+      id: doc.id,
+      title: doc.file_name || `Issue ${doc.document_date}/${doc.document_month}/${doc.document_year}`,
+      document_type: doc.document_path?.split('.').pop()?.toUpperCase() || 'PDF',
+      file_url: doc.document_url,
+      thumbnail_url: null, // Could be added for PDF preview
+      file_size: doc.file_size,
+      year: doc.document_year,
+      month: doc.document_month,
+      date: doc.document_date,
+      created_at: doc.created_at
+    }));
+
+    // Calculate pagination info
+    const hasMore = offset + channelDocuments.length < totalCount;
+    const totalPages = Math.ceil(totalCount / parseInt(limit));
+
+    res.json({
+      success: true,
+      data: {
+        documents: formattedDocuments,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          totalCount,
+          totalPages,
+          hasMore
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching channel documents:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch documents', error: error.message });
+  }
+};
+
+/**
+ * Get gallery images for an album
+ * GET /api/v1/mymedia/gallery/:albumId/images
+ */
+export const getGalleryImages = async (req, res) => {
+  try {
+    const { albumId } = req.params;
+
+    const images = await MediaGalleryImages.findAll({
+      where: { album_id: albumId, is_active: 1 },
+      order: [['sort_order', 'ASC']]
+    });
+
+    res.json({ success: true, data: images });
+  } catch (error) {
+    console.error('Error fetching gallery images:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch gallery images', error: error.message });
+  }
+};
+
+/**
+ * Get TV stream URL for a channel
+ * GET /api/v1/mymedia/channel/:channelId/stream
+ */
+export const getChannelStream = async (req, res) => {
+  try {
+    const { channelId } = req.params;
+
+    const switcher = await MediaSwitcher.findOne({
+      where: { media_channel_id: channelId }
+    });
+
+    if (!switcher) {
+      return res.status(404).json({ success: false, message: 'Stream not configured' });
+    }
+
+    let streamUrl = null;
+    let offlineMedia = null;
+
+    switch (switcher.active_source) {
+      case 'live':
+        streamUrl = switcher.live_url;
+        break;
+      case 'mymedia':
+        streamUrl = switcher.mymedia_url;
+        break;
+      case 'offline':
+        if (switcher.offline_media_id) {
+          offlineMedia = await MediaOfflineMedia.findByPk(switcher.offline_media_id);
+          streamUrl = offlineMedia?.media_file_url;
+        }
+        break;
+    }
+
+    res.json({
+      success: true,
+      data: {
+        activeSource: switcher.active_source,
+        streamUrl,
+        offlineMedia
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching channel stream:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch stream', error: error.message });
+  }
+};
+
+/**
+ * Increment view count for a channel
+ * POST /api/v1/mymedia/channel/:channelId/view
+ */
+export const incrementViewCount = async (req, res) => {
+  try {
+    const { channelId } = req.params;
+
+    const [interaction, created] = await MediaInteractions.findOrCreate({
+      where: { media_channel_id: channelId },
+      defaults: { views_count: 1 }
+    });
+
+    if (!created) {
+      await interaction.increment('views_count');
+    }
+
+    res.json({ success: true, data: { views_count: interaction.views_count + (created ? 0 : 1) } });
+  } catch (error) {
+    console.error('Error incrementing view count:', error);
+    res.status(500).json({ success: false, message: 'Failed to increment view count' });
   }
 };
 

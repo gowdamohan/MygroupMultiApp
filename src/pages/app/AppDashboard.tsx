@@ -18,16 +18,47 @@ interface AppInfo {
   logo?: string;
 }
 
+interface FormFieldInfo {
+  raw: string | number;
+  resolved: string | number;
+  label: string;
+  fieldType: string;
+  mapping: string | null;
+  options: string[] | null;
+  order: number;
+}
+
+interface FormField {
+  id: string;
+  label: string;
+  field_type: string;
+  placeholder: string;
+  required: boolean;
+  enabled: boolean;
+  order: number;
+  mapping?: string;
+  options?: string[];
+}
+
+interface FormDefinition {
+  form_name: string;
+  fields: FormField[];
+}
+
 interface Partner {
   id: number;
   identification_code: string;
   email: string;
   active: number;
   created_on: number;
+  first_name?: string;
+  last_name?: string;
+  phone?: string;
   client_registration?: {
     id: number;
     status: string;
     custom_form_data: Record<string, any>;
+    resolved_form_data?: Record<string, FormFieldInfo>;
   };
 }
 
@@ -58,7 +89,7 @@ export const AppDashboard: React.FC = () => {
       const response = await axios.get(`${API_BASE_URL}/admin/apps/${appId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-
+      
       if (response.data.success) {
         setAppInfo(response.data.data);
       }
@@ -176,13 +207,30 @@ interface PartnersViewProps {
   appName: string | undefined;
 }
 
+interface EditFormData {
+  email: string;
+  custom_form_data: Record<string, any>;
+}
+
+interface TableHeader {
+  id: string;
+  label: string;
+  order: number;
+}
+
 const PartnersView: React.FC<PartnersViewProps> = ({ appId, appName }) => {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [selectedPartner, setSelectedPartner] = useState<Partner | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState<number | null>(null);
+  const [tableHeaders, setTableHeaders] = useState<TableHeader[]>([]);
+  const [formDefinition, setFormDefinition] = useState<FormField[] | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editFormData, setEditFormData] = useState<EditFormData>({ email: '', custom_form_data: {} });
 
   useEffect(() => {
     fetchPartners();
@@ -196,7 +244,34 @@ const PartnersView: React.FC<PartnersViewProps> = ({ appId, appName }) => {
       });
 
       if (response.data.success) {
-        setPartners(response.data.data || []);
+        const data: Partner[] = response.data.data || [];
+        setPartners(data);
+
+        // Store form definition if available
+        if (response.data.form_definition?.fields) {
+          setFormDefinition(response.data.form_definition.fields);
+        }
+
+        // Extract headers from resolved_form_data (which includes labels)
+        const headersMap = new Map<string, TableHeader>();
+        data.forEach((partner: Partner) => {
+          const resolvedData = partner.client_registration?.resolved_form_data;
+          if (resolvedData) {
+            Object.entries(resolvedData).forEach(([key, fieldInfo]) => {
+              if (!headersMap.has(key)) {
+                headersMap.set(key, {
+                  id: key,
+                  label: fieldInfo.label,
+                  order: fieldInfo.order
+                });
+              }
+            });
+          }
+        });
+
+        // Sort headers by order
+        const sortedHeaders = Array.from(headersMap.values()).sort((a, b) => a.order - b.order);
+        setTableHeaders(sortedHeaders);
       }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to fetch partners');
@@ -230,7 +305,72 @@ const PartnersView: React.FC<PartnersViewProps> = ({ appId, appName }) => {
 
   const handleViewDetails = (partner: Partner) => {
     setSelectedPartner(partner);
+    setEditFormData({
+      email: partner.email,
+      custom_form_data: { ...(partner.client_registration?.custom_form_data || {}) }
+    });
+    setIsEditing(false);
     setShowModal(true);
+  };
+
+  const handleEditFormChange = (key: string, value: string) => {
+    if (key === 'email') {
+      setEditFormData(prev => ({ ...prev, email: value }));
+    } else {
+      setEditFormData(prev => ({
+        ...prev,
+        custom_form_data: { ...prev.custom_form_data, [key]: value }
+      }));
+    }
+  };
+
+  const handleSavePartner = async () => {
+    if (!selectedPartner || !appId) return;
+
+    setSaving(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const token = localStorage.getItem('accessToken');
+      const response = await axios.put(
+        `${API_BASE_URL}/admin/apps/${appId}/partners/${selectedPartner.id}`,
+        {
+          email: editFormData.email,
+          custom_form_data: editFormData.custom_form_data
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+
+      if (response.data.success) {
+        // Update partners list with new data
+        setPartners(prev => prev.map(p =>
+          p.id === selectedPartner.id ? response.data.data : p
+        ));
+        setSelectedPartner(response.data.data);
+        setSuccess('Partner details updated successfully');
+        setIsEditing(false);
+
+        // Clear success message after 3 seconds
+        setTimeout(() => setSuccess(''), 3000);
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to update partner details');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    if (selectedPartner) {
+      setEditFormData({
+        email: selectedPartner.email,
+        custom_form_data: { ...(selectedPartner.client_registration?.custom_form_data || {}) }
+      });
+    }
+    setIsEditing(false);
   };
 
   const formatDate = (timestamp: number) => {
@@ -241,28 +381,11 @@ const PartnersView: React.FC<PartnersViewProps> = ({ appId, appName }) => {
     });
   };
 
-  const getNameFromCustomData = (data: Record<string, any> | undefined) => {
-    if (!data) return '-';
-    // Look for name fields in custom form data
-    for (const [key, value] of Object.entries(data)) {
-      const lowerKey = key.toLowerCase();
-      if (lowerKey.includes('name') && !lowerKey.includes('last') && value) {
-        return String(value);
-      }
-    }
-    // Also check for common field patterns
-    return data.name || data.first_name || data.Name || data.full_name || '-';
-  };
-
-  const getMobileFromCustomData = (data: Record<string, any> | undefined) => {
-    if (!data) return '-';
-    for (const [key, value] of Object.entries(data)) {
-      const lowerKey = key.toLowerCase();
-      if ((lowerKey.includes('mobile') || lowerKey.includes('phone')) && value) {
-        return String(value);
-      }
-    }
-    return data.mobile || data.phone || data.Mobile || data.Phone || '-';
+  const getResolvedFormValue = (partner: Partner, fieldId: string) => {
+    const resolvedData = partner.client_registration?.resolved_form_data;
+    if (!resolvedData || !resolvedData[fieldId]) return '-';
+    const value = resolvedData[fieldId].resolved;
+    return value !== undefined && value !== null && value !== '' ? String(value) : '-';
   };
 
   if (loading) {
@@ -290,17 +413,20 @@ const PartnersView: React.FC<PartnersViewProps> = ({ appId, appName }) => {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Partner ID</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email ID</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mobile</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Details</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                {tableHeaders.map(header => (
+                  <th key={header.id} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    {header.label}
+                  </th>
+                ))}
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {partners.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={tableHeaders.length + 5} className="px-6 py-12 text-center text-gray-500">
                     No partners found
                   </td>
                 </tr>
@@ -316,21 +442,11 @@ const PartnersView: React.FC<PartnersViewProps> = ({ appId, appName }) => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {partner.email}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {getNameFromCustomData(partner.client_registration?.custom_form_data)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {getMobileFromCustomData(partner.client_registration?.custom_form_data)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <button
-                        onClick={() => handleViewDetails(partner)}
-                        className="inline-flex items-center gap-1 px-3 py-1 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm"
-                      >
-                        <Eye size={16} />
-                        View
-                      </button>
-                    </td>
+                    {tableHeaders.map(header => (
+                      <td key={`${partner.id}-${header.id}`} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {getResolvedFormValue(partner, header.id)}
+                      </td>
+                    ))}
                     <td className="px-6 py-4 whitespace-nowrap">
                       <button
                         onClick={() => handleToggleStatus(partner)}
@@ -351,6 +467,15 @@ const PartnersView: React.FC<PartnersViewProps> = ({ appId, appName }) => {
                         {partner.active === 1 ? 'Active' : 'Inactive'}
                       </button>
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <button
+                        onClick={() => handleViewDetails(partner)}
+                        className="inline-flex items-center gap-1 px-3 py-1 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm"
+                      >
+                        <Eye size={16} />
+                        Edit
+                      </button>
+                    </td>
                   </tr>
                 ))
               )}
@@ -359,29 +484,41 @@ const PartnersView: React.FC<PartnersViewProps> = ({ appId, appName }) => {
         </div>
       </div>
 
-      {/* Details Modal */}
+      {/* Edit Partner Modal */}
       {showModal && selectedPartner && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden">
             <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-900">Partner Details</h2>
+              <h2 className="text-xl font-bold text-gray-900">
+                {isEditing ? 'Edit Partner' : 'Partner Details'}
+              </h2>
               <button
-                onClick={() => setShowModal(false)}
+                onClick={() => { setShowModal(false); setIsEditing(false); setError(''); setSuccess(''); }}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 <X size={20} />
               </button>
             </div>
+
+            {/* Success/Error Messages */}
+            {success && (
+              <div className="mx-6 mt-4 p-3 bg-green-50 text-green-700 rounded-lg text-sm">
+                {success}
+              </div>
+            )}
+            {error && (
+              <div className="mx-6 mt-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm">
+                {error}
+              </div>
+            )}
+
             <div className="p-6 overflow-y-auto max-h-[60vh]">
               <div className="space-y-4">
+                {/* Read-only fields */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm font-medium text-gray-500">Partner ID</label>
                     <p className="text-gray-900">{selectedPartner.identification_code || '-'}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Email</label>
-                    <p className="text-gray-900">{selectedPartner.email}</p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500">Created At</label>
@@ -389,23 +526,68 @@ const PartnersView: React.FC<PartnersViewProps> = ({ appId, appName }) => {
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500">Status</label>
-                    <p className={selectedPartner.active === 1 ? 'text-green-600' : 'text-red-600'}>
+                    <p className={selectedPartner.active === 1 ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
                       {selectedPartner.active === 1 ? 'Active' : 'Inactive'}
                     </p>
                   </div>
                 </div>
 
-                {selectedPartner.client_registration?.custom_form_data && (
+                <hr className="my-4" />
+
+                {/* Editable Email */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                  {isEditing ? (
+                    <input
+                      type="email"
+                      value={editFormData.email}
+                      onChange={(e) => handleEditFormChange('email', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  ) : (
+                    <p className="text-gray-900 py-2">{selectedPartner.email}</p>
+                  )}
+                </div>
+
+                {/* Editable Custom Form Fields */}
+                {selectedPartner.client_registration?.resolved_form_data && Object.keys(selectedPartner.client_registration.resolved_form_data).length > 0 && (
                   <>
-                    <hr className="my-4" />
-                    <h3 className="text-lg font-semibold text-gray-900 mb-3">Custom Form Data</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 mt-4 mb-3">Partner Information</h3>
                     <div className="grid grid-cols-2 gap-4">
-                      {Object.entries(selectedPartner.client_registration.custom_form_data).map(([key, value]) => (
-                        <div key={key}>
-                          <label className="text-sm font-medium text-gray-500 capitalize">
-                            {key.replace(/_/g, ' ').replace(/field_\d+/g, '')}
+                      {Object.entries(selectedPartner.client_registration.resolved_form_data)
+                        .sort(([, a], [, b]) => (a.order || 0) - (b.order || 0))
+                        .map(([fieldId, fieldInfo]) => (
+                        <div key={fieldId}>
+                          <label className="block text-sm font-medium text-gray-500 mb-1">
+                            {fieldInfo.label}
                           </label>
-                          <p className="text-gray-900">{String(value) || '-'}</p>
+                          {isEditing ? (
+                            fieldInfo.options && fieldInfo.options.length > 0 ? (
+                              <select
+                                value={String(editFormData.custom_form_data[fieldId] || '')}
+                                onChange={(e) => handleEditFormChange(fieldId, e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              >
+                                <option value="">Select {fieldInfo.label}</option>
+                                {fieldInfo.options.map((option: string) => (
+                                  <option key={option} value={option}>{option}</option>
+                                ))}
+                              </select>
+                            ) : fieldInfo.mapping ? (
+                              <p className="text-gray-500 py-2 italic">
+                                {String(fieldInfo.resolved || '-')} (mapped field - not editable)
+                              </p>
+                            ) : (
+                              <input
+                                type="text"
+                                value={String(editFormData.custom_form_data[fieldId] || '')}
+                                onChange={(e) => handleEditFormChange(fieldId, e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              />
+                            )
+                          ) : (
+                            <p className="text-gray-900 py-2">{String(fieldInfo.resolved) || '-'}</p>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -413,13 +595,42 @@ const PartnersView: React.FC<PartnersViewProps> = ({ appId, appName }) => {
                 )}
               </div>
             </div>
-            <div className="p-6 border-t border-gray-200 flex justify-end">
-              <button
-                onClick={() => setShowModal(false)}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                Close
-              </button>
+
+            <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
+              {isEditing ? (
+                <>
+                  <button
+                    onClick={handleCancelEdit}
+                    disabled={saving}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSavePartner}
+                    disabled={saving}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {saving && <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                    {saving ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => { setShowModal(false); setError(''); setSuccess(''); }}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                  >
+                    Close
+                  </button>
+                  <button
+                    onClick={() => setIsEditing(true)}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Edit Partner
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>

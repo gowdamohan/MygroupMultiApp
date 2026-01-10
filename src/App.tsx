@@ -183,11 +183,31 @@ function App() {
           <Route path="/register-form/:groupName" element={<RegistrationForm />} />
 
           {/* App Dashboard Routes */}
-          <Route path="/app/:appId/dashboard" element={<AppDashboard />} />
-          <Route path="/app/:appId/users" element={<AppDashboard />} />
-          <Route path="/app/:appId/content" element={<AppDashboard />} />
-          <Route path="/app/:appId/analytics" element={<AppDashboard />} />
-          <Route path="/app/:appId/settings" element={<AppDashboard />} />
+          <Route path="/app/:appId/dashboard" element={
+            <RequireAuth>
+              <AppDashboard />
+            </RequireAuth>
+          } />
+          <Route path="/app/:appId/users" element={
+            <RequireAuth>
+              <AppDashboard />
+            </RequireAuth>
+          } />
+          <Route path="/app/:appId/content" element={
+            <RequireAuth>
+              <AppDashboard />
+            </RequireAuth>
+          } />
+          <Route path="/app/:appId/analytics" element={
+            <RequireAuth>
+              <AppDashboard />
+            </RequireAuth>
+          } />
+          <Route path="/app/:appId/settings" element={
+            <RequireAuth>
+              <AppDashboard />
+            </RequireAuth>
+          } />
 
           {/* Mobile Routes */}
           <Route path="/mobile/mymedia" element={<MobileMyMediaPage />} />

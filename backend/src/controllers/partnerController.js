@@ -555,7 +555,8 @@ export const createPartnerAccount = async (req, res) => {
     // Create username from email
     const username = email.split('@')[0];
 
-    // Create user with basic info
+    // Create user with basic info - set as INACTIVE by default
+    // Admin will need to activate the partner after reviewing their registration
     const user = await User.create({
       username: username,
       email: email,
@@ -563,7 +564,7 @@ export const createPartnerAccount = async (req, res) => {
       first_name: username,
       group_id: app_id, // Store app_id in group_id field
       created_on: Math.floor(Date.now() / 1000),
-      active: 1
+      active: 0 // Set inactive by default - requires admin approval
     });
 
     // Create user-group association (partner role)
@@ -572,12 +573,21 @@ export const createPartnerAccount = async (req, res) => {
       group_id: partnerGroup.id
     });
 
+    // Create client_registration entry with inactive status
+    await ClientRegistration.create({
+      user_id: user.id,
+      group_id: app_id,
+      status: 'inactive',
+      custom_form_data: {}
+    });
+
     res.status(201).json({
       success: true,
-      message: 'Account created successfully',
+      message: 'Account created successfully. Your account is pending approval by the administrator.',
       data: {
         user_id: user.id,
-        email: user.email
+        email: user.email,
+        status: 'inactive'
       }
     });
   } catch (error) {

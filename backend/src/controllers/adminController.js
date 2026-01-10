@@ -1702,10 +1702,13 @@ export const appLogin = async (req, res) => {
     const app = await GroupCreate.findByPk(app_id);
 
     // Generate JWT tokens
+    // Use 'id' (not 'userId') to match what the auth middleware expects in decoded.id
     const accessToken = jwt.sign(
       {
-        userId: user.id,
+        id: user.id,
         username: user.username,
+        email: user.email,
+        group_id: user.group_id,
         appId: app_id,
         appName: app?.name
       },
@@ -1797,54 +1800,151 @@ export const getAppPartners = async (req, res) => {
   try {
     const { appId } = req.params;
 
-    // Get partner group
-    const partnerGroup = await Group.findOne({
-      where: { name: 'partner' }
+    // Fetch the form definition from create_details
+    const appDetails = await CreateDetails.findOne({
+      where: { create_id: appId }
     });
 
-    if (!partnerGroup) {
-      return res.status(404).json({
-        success: false,
-        message: 'Partner group not found'
-      });
+    let formDefinition = null;
+    if (appDetails?.custom_form) {
+      try {
+        formDefinition = typeof appDetails.custom_form === 'string'
+          ? JSON.parse(appDetails.custom_form)
+          : appDetails.custom_form;
+      } catch (e) {
+        console.error('Error parsing custom_form:', e);
+      }
     }
 
-    // Get users with partner role for this app
-    const partners = await User.findAll({
+    // Query ClientRegistration as the primary source and include User data
+    const clientRegistrations = await ClientRegistration.findAll({
       where: { group_id: appId },
       include: [
         {
-          model: UserGroup,
-          as: 'userGroups',
-          where: { group_id: partnerGroup.id },
-          required: true
-        },
-        {
-          model: ClientRegistration,
-          as: 'clientRegistration',
-          where: { group_id: appId },
-          required: false
+          model: User,
+          as: 'user',
+          attributes: ['id', 'identification_code', 'email', 'active', 'created_on', 'first_name', 'last_name', 'phone']
         }
       ],
-      order: [['created_on', 'DESC']]
+      order: [['created_at', 'DESC']]
     });
 
-    const partnersData = partners.map(partner => ({
-      id: partner.id,
-      identification_code: partner.identification_code,
-      email: partner.email,
-      active: partner.active,
-      created_on: partner.created_on,
-      client_registration: partner.clientRegistration ? {
-        id: partner.clientRegistration.id,
-        status: partner.clientRegistration.status,
-        custom_form_data: partner.clientRegistration.custom_form_data || {}
-      } : null
-    }));
+    // Collect all unique IDs for mapped fields to resolve them in bulk
+    const countryIds = new Set();
+    const stateIds = new Set();
+    const districtIds = new Set();
+
+    // Parse custom_form_data and collect mapped field IDs
+    const registrationsWithParsedData = clientRegistrations
+      .filter(reg => reg.user)
+      .map(reg => {
+        let customFormData = reg.custom_form_data || {};
+
+        // Parse if it's a string
+        if (typeof customFormData === 'string') {
+          try {
+            customFormData = JSON.parse(customFormData);
+          } catch (e) {
+            customFormData = {};
+          }
+        }
+
+        // Collect mapped field IDs for resolution
+        if (formDefinition?.fields) {
+          formDefinition.fields.forEach(field => {
+            const value = customFormData[field.id];
+            if (value && field.mapping) {
+              const numericValue = parseInt(value, 10);
+              if (!isNaN(numericValue)) {
+                if (field.mapping === 'country') countryIds.add(numericValue);
+                if (field.mapping === 'state') stateIds.add(numericValue);
+                if (field.mapping === 'district') districtIds.add(numericValue);
+              }
+            }
+          });
+        }
+
+        return { reg, customFormData };
+      });
+
+    // Fetch mapped values in bulk
+    const [countries, states, districts] = await Promise.all([
+      countryIds.size > 0 ? Country.findAll({ where: { id: Array.from(countryIds) } }) : [],
+      stateIds.size > 0 ? State.findAll({ where: { id: Array.from(stateIds) } }) : [],
+      districtIds.size > 0 ? District.findAll({ where: { id: Array.from(districtIds) } }) : []
+    ]);
+
+    // Create lookup maps
+    const countryMap = new Map(countries.map(c => [c.id, c.country]));
+    const stateMap = new Map(states.map(s => [s.id, s.state]));
+    const districtMap = new Map(districts.map(d => [d.id, d.district]));
+
+    // Build partner data with resolved values
+    const partnersData = registrationsWithParsedData.map(({ reg, customFormData }) => {
+      // Create resolved custom_form_data with both raw and resolved values
+      const resolvedFormData = {};
+
+      if (formDefinition?.fields) {
+        formDefinition.fields.forEach(field => {
+          const rawValue = customFormData[field.id];
+          let resolvedValue = rawValue;
+
+          if (rawValue && field.mapping) {
+            const numericValue = parseInt(rawValue, 10);
+            if (!isNaN(numericValue)) {
+              if (field.mapping === 'country') resolvedValue = countryMap.get(numericValue) || rawValue;
+              if (field.mapping === 'state') resolvedValue = stateMap.get(numericValue) || rawValue;
+              if (field.mapping === 'district') resolvedValue = districtMap.get(numericValue) || rawValue;
+            }
+          }
+
+          resolvedFormData[field.id] = {
+            raw: rawValue,
+            resolved: resolvedValue,
+            label: field.placeholder || field.label || field.id,
+            fieldType: field.field_type,
+            mapping: field.mapping || null,
+            options: field.options || null,
+            order: field.order
+          };
+        });
+      } else {
+        // No form definition, just return raw data
+        Object.entries(customFormData).forEach(([key, value]) => {
+          resolvedFormData[key] = {
+            raw: value,
+            resolved: value,
+            label: key,
+            fieldType: 'text',
+            mapping: null,
+            options: null,
+            order: 0
+          };
+        });
+      }
+
+      return {
+        id: reg.user.id,
+        identification_code: reg.user.identification_code,
+        email: reg.user.email,
+        active: reg.user.active,
+        created_on: reg.user.created_on,
+        first_name: reg.user.first_name,
+        last_name: reg.user.last_name,
+        phone: reg.user.phone,
+        client_registration: {
+          id: reg.id,
+          status: reg.status,
+          custom_form_data: customFormData,
+          resolved_form_data: resolvedFormData
+        }
+      };
+    });
 
     res.json({
       success: true,
-      data: partnersData
+      data: partnersData,
+      form_definition: formDefinition
     });
   } catch (error) {
     console.error('Error fetching partners:', error);
@@ -1897,6 +1997,98 @@ export const updatePartnerStatus = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to update partner status',
+      error: error.message
+    });
+  }
+};
+
+// Update partner details (custom_form_data and user info)
+export const updatePartnerDetails = async (req, res) => {
+  try {
+    const { appId, partnerId } = req.params;
+    const { email, custom_form_data } = req.body;
+
+    // Find the partner user
+    const partner = await User.findOne({
+      where: { id: partnerId, group_id: appId }
+    });
+
+    if (!partner) {
+      return res.status(404).json({
+        success: false,
+        message: 'Partner not found'
+      });
+    }
+
+    // Update user email if provided
+    if (email && email !== partner.email) {
+      // Check if email is already in use by another user
+      const existingUser = await User.findOne({
+        where: { email, id: { [Op.ne]: partnerId } }
+      });
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email is already in use by another user'
+        });
+      }
+      await partner.update({ email });
+    }
+
+    // Update custom_form_data in client_registration
+    if (custom_form_data) {
+      const clientReg = await ClientRegistration.findOne({
+        where: { user_id: partnerId, group_id: appId }
+      });
+
+      if (clientReg) {
+        await clientReg.update({
+          custom_form_data,
+          updated_at: new Date()
+        });
+      } else {
+        // Create client_registration if it doesn't exist
+        await ClientRegistration.create({
+          user_id: partnerId,
+          group_id: appId,
+          custom_form_data,
+          status: partner.active === 1 ? 'active' : 'inactive'
+        });
+      }
+    }
+
+    // Fetch updated data
+    const updatedPartner = await User.findOne({
+      where: { id: partnerId, group_id: appId },
+      include: [{
+        model: ClientRegistration,
+        as: 'clientRegistration',
+        where: { group_id: appId },
+        required: false
+      }]
+    });
+
+    res.json({
+      success: true,
+      message: 'Partner details updated successfully',
+      data: {
+        id: updatedPartner.id,
+        identification_code: updatedPartner.identification_code,
+        email: updatedPartner.email,
+        active: updatedPartner.active,
+        created_on: updatedPartner.created_on,
+        client_registration: updatedPartner.clientRegistration ? {
+          id: updatedPartner.clientRegistration.id,
+          status: updatedPartner.clientRegistration.status,
+          custom_form_data: updatedPartner.clientRegistration.custom_form_data || {}
+        } : null
+      }
+    });
+  } catch (error) {
+    console.error('Error updating partner details:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update partner details',
       error: error.message
     });
   }

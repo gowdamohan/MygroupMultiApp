@@ -1,17 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronDown, X } from 'lucide-react';
+import { ChevronDown, X, Eye, Heart, UserPlus, FileText, Play, Scale, HelpCircle, Star, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { MobileLayout } from '../../layouts/MobileLayout';
 import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
+import { ChannelDetailView } from '../../components/mobile/ChannelDetailView';
+import { EPaperMagazineView } from '../../components/mobile/EPaperMagazineView';
+import { TVChannelView } from '../../components/mobile/TVChannelView';
+import { getCategoryIcon, DefaultCategoryIcon } from '../../components/mobile/CategoryIcons';
 
-// Default SVG icon for categories
-const DefaultCategoryIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect>
-    <polyline points="17 2 12 7 7 2"></polyline>
-  </svg>
-);
+interface AppInfo {
+  id: number;
+  name: string;
+  apps_name: string;
+  icon: string;
+  logo: string;
+  name_image: string;
+}
 
 interface Category {
   id: number;
@@ -76,6 +81,11 @@ const TIME_SLOTS = ['00:00', '00:30', '01:00', '01:30', '02:00', '02:30', '03:00
   '18:00', '18:30', '19:00', '19:30', '20:00', '20:30', '21:00', '21:30', '22:00', '22:30', '23:00', '23:30'];
 
 export const MobileMyMediaPage: React.FC = () => {
+  // App info state
+  const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
+  const [addonCategories, setAddonCategories] = useState<Category[]>([]);
+  const [showAppSettingsPopup, setShowAppSettingsPopup] = useState(false);
+
   // Parent categories for footer (6 fixed items)
   const [parentCategories, setParentCategories] = useState<Category[]>([]);
   // Subcategories for dropdown (children of selected parent)
@@ -107,11 +117,92 @@ export const MobileMyMediaPage: React.FC = () => {
   const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
 
+  // View state for channel details
+  type ViewMode = 'list' | 'channel-detail' | 'epaper-view' | 'tv-player';
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
+
+  // Get current parent category type (TV, Radio, E-Paper, Magazine, etc.)
+  const getCurrentParentCategoryName = (): string => {
+    const parent = parentCategories.find(p => p.id === selectedParentCategory);
+    return parent?.category_name?.toLowerCase() || '';
+  };
+
+  // Check if current category is E-Paper or Magazine type
+  const isDocumentCategory = (): boolean => {
+    const name = getCurrentParentCategoryName();
+    return name.includes('e-paper') || name.includes('epaper') || name.includes('magazine');
+  };
+
+  // Check if current category is TV or Radio type
+  const isStreamCategory = (): boolean => {
+    const name = getCurrentParentCategoryName();
+    return name.includes('tv') || name.includes('radio');
+  };
+
+  // Handle channel click based on category type
+  const handleChannelClick = (channel: Channel) => {
+    setSelectedChannel(channel);
+    if (isDocumentCategory()) {
+      setViewMode('epaper-view');
+    } else if (isStreamCategory()) {
+      setViewMode('tv-player');
+    } else {
+      setViewMode('channel-detail');
+    }
+  };
+
+  // Handle back from detail views
+  const handleBackToList = () => {
+    setViewMode('list');
+    setSelectedChannel(null);
+  };
+
+  // Handle view channel details from player/document view
+  const handleViewChannelDetails = () => {
+    setViewMode('channel-detail');
+  };
+
+  // Fetch app info first, then categories
+  const fetchAppInfo = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/mymedia/app`);
+      if (response.data.success) {
+        setAppInfo(response.data.data);
+        return response.data.data.id;
+      }
+    } catch (error) {
+      console.error('Error fetching app info:', error);
+    }
+    return null;
+  };
+
+  // Fetch addon categories for the app settings popup
+  const fetchAddonCategories = async (appId: number) => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/mymedia/addon-categories?appId=${appId}`);
+      if (response.data.success) {
+        setAddonCategories(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching addon categories:', error);
+    }
+  };
+
   // Fetch data on mount - same pattern as MediaRegistrationForm
   useEffect(() => {
-    fetchCategories();
-    fetchLanguages();
-    fetchCountriesAndSetDefault();
+    const initializeData = async () => {
+      const appId = await fetchAppInfo();
+      if (appId) {
+        fetchCategories(appId);
+        fetchAddonCategories(appId);
+      } else {
+        fetchCategories();
+      }
+      fetchLanguages();
+      fetchCountriesAndSetDefault();
+    };
+    initializeData();
   }, []);
 
   // Fetch countries and set default country
@@ -168,9 +259,12 @@ export const MobileMyMediaPage: React.FC = () => {
   }, [channels, selectedDay]);
 
   // Fetch categories - API returns parent categories with children
-  const fetchCategories = async () => {
+  const fetchCategories = async (appId?: number) => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/mymedia/categories`);
+      const url = appId
+        ? `${API_BASE_URL}/mymedia/categories?appId=${appId}`
+        : `${API_BASE_URL}/mymedia/categories`;
+      const response = await axios.get(url);
       if (response.data.success) {
         const allParentCategories: Category[] = response.data.data;
         // Limit to 6 parent categories for footer
@@ -335,8 +429,9 @@ export const MobileMyMediaPage: React.FC = () => {
     return 'Location';
   };
 
-  // Render category icon from category_image or default SVG
+  // Render category icon from category_image or use SVG based on category name
   const renderCategoryIcon = (category: Category) => {
+    // If category has a custom image, use that
     if (category.category_image) {
       return (
         <img
@@ -346,7 +441,9 @@ export const MobileMyMediaPage: React.FC = () => {
         />
       );
     }
-    return <DefaultCategoryIcon />;
+    // Otherwise, use an SVG icon based on category name
+    const IconComponent = getCategoryIcon(category.category_name);
+    return <IconComponent size={24} />;
   };
 
   if (loading) {
@@ -359,6 +456,42 @@ export const MobileMyMediaPage: React.FC = () => {
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600"></div>
         </div>
       </MobileLayout>
+    );
+  }
+
+  // Render channel detail view
+  if (viewMode === 'channel-detail' && selectedChannel) {
+    return (
+      <ChannelDetailView
+        channelId={selectedChannel.id}
+        onBack={handleBackToList}
+      />
+    );
+  }
+
+  // Render E-Paper/Magazine document view
+  if (viewMode === 'epaper-view' && selectedChannel) {
+    return (
+      <EPaperMagazineView
+        channelId={selectedChannel.id}
+        channelName={selectedChannel.media_name_english}
+        channelLogo={selectedChannel.media_logo}
+        onBack={handleBackToList}
+        onViewDetails={handleViewChannelDetails}
+      />
+    );
+  }
+
+  // Render TV/Radio player view
+  if (viewMode === 'tv-player' && selectedChannel) {
+    return (
+      <TVChannelView
+        channelId={selectedChannel.id}
+        channelName={selectedChannel.media_name_english}
+        channelLogo={selectedChannel.media_logo}
+        onBack={handleBackToList}
+        onViewDetails={handleViewChannelDetails}
+      />
     );
   }
 
@@ -404,50 +537,117 @@ export const MobileMyMediaPage: React.FC = () => {
             >
               {getSelectedLanguageName()} <ChevronDown size={16} />
             </button>
-          </div>
-        </div>
 
-        {/* Days Row */}
-        <div className="sticky top-[158px] z-20 bg-gray-200 px-2 py-2">
-          <div className="flex gap-2 overflow-x-auto scrollbar-hide">
-            {DAYS_OF_WEEK.map((day, idx) => (
+            {/* App Settings Icon */}
+            {appInfo && (
               <button
-                key={day}
-                onClick={() => setSelectedDay(idx)}
-                className={`px-4 py-2 rounded-lg text-sm whitespace-nowrap transition-colors ${
-                  selectedDay === idx ? 'bg-teal-700 text-white' : 'bg-white text-gray-700 hover:bg-gray-100'
-                }`}
+                onClick={() => setShowAppSettingsPopup(true)}
+                className="flex items-center gap-1 bg-white rounded-full p-1 ml-auto flex-shrink-0"
               >
-                {day}
+                {appInfo.logo ? (
+                  <img
+                    src={`${BACKEND_URL}${appInfo.logo}`}
+                    alt={appInfo.apps_name || appInfo.name}
+                    className="w-8 h-8 rounded-full object-contain"
+                  />
+                ) : appInfo.icon ? (
+                  <img
+                    src={`${BACKEND_URL}${appInfo.icon}`}
+                    alt={appInfo.apps_name || appInfo.name}
+                    className="w-8 h-8 rounded-full object-contain"
+                  />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-teal-500 flex items-center justify-center text-white font-bold text-sm">
+                    {(appInfo.apps_name || appInfo.name || 'M').charAt(0).toUpperCase()}
+                  </div>
+                )}
               </button>
-            ))}
+            )}
           </div>
         </div>
 
-        {/* Schedule Grid */}
-        <div className="bg-white overflow-x-auto">
-          {/* Time Headers */}
-          <div className="flex border-b sticky top-0 bg-gray-100 z-10">
-            <div className="w-24 flex-shrink-0 p-2 font-semibold text-gray-700 border-r bg-gray-200">
-              Channel
+        {/* Days Row - Only show for TV/Radio categories */}
+        {isStreamCategory() && (
+          <div className="sticky top-[158px] z-20 bg-gray-200 px-2 py-2">
+            <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+              {DAYS_OF_WEEK.map((day, idx) => (
+                <button
+                  key={day}
+                  onClick={() => setSelectedDay(idx)}
+                  className={`px-4 py-2 rounded-lg text-sm whitespace-nowrap transition-colors ${
+                    selectedDay === idx ? 'bg-teal-700 text-white' : 'bg-white text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  {day}
+                </button>
+              ))}
             </div>
-            {TIME_SLOTS.slice(0, 6).map((time) => (
-              <div key={time} className="w-24 flex-shrink-0 p-2 text-center text-sm font-medium text-gray-600 border-r">
-                {time}
+          </div>
+        )}
+
+        {/* Content Area - Different layouts based on category type */}
+        {channels.length === 0 ? (
+          <div className="p-8 text-center text-gray-500 bg-white">
+            <FileText size={48} className="mx-auto mb-4 opacity-50" />
+            <p>No channels found for the selected filters</p>
+          </div>
+        ) : isDocumentCategory() ? (
+          /* E-Paper / Magazine Card Grid */
+          <div className="p-4 grid grid-cols-2 gap-3">
+            {channels.map((channel) => (
+              <div
+                key={channel.id}
+                onClick={() => handleChannelClick(channel)}
+                className="bg-white rounded-lg shadow-sm overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
+              >
+                {/* Channel Logo/Thumbnail */}
+                <div className="aspect-[3/4] bg-gray-100 relative">
+                  {channel.media_logo ? (
+                    <img
+                      src={`${BACKEND_URL}${channel.media_logo}`}
+                      alt={channel.media_name_english}
+                      className="w-full h-full object-contain p-4"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-red-100 to-red-200">
+                      <FileText size={48} className="text-red-400" />
+                    </div>
+                  )}
+                  {/* Category Badge */}
+                  <div className="absolute top-2 right-2 px-2 py-0.5 bg-teal-600 text-white text-xs rounded-full">
+                    {channel.select_type}
+                  </div>
+                </div>
+                {/* Channel Info */}
+                <div className="p-3">
+                  <h3 className="font-medium text-gray-900 text-sm truncate">{channel.media_name_english}</h3>
+                  {channel.media_name_regional && (
+                    <p className="text-xs text-gray-500 truncate">{channel.media_name_regional}</p>
+                  )}
+                </div>
               </div>
             ))}
           </div>
-
-          {/* Channel Rows */}
-          {channels.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">
-              No channels found for the selected filters
+        ) : isStreamCategory() ? (
+          /* TV / Radio Schedule Grid */
+          <div className="bg-white overflow-x-auto">
+            {/* Time Headers */}
+            <div className="flex border-b sticky top-0 bg-gray-100 z-10">
+              <div className="w-24 flex-shrink-0 p-2 font-semibold text-gray-700 border-r bg-gray-200">
+                Channel
+              </div>
+              {TIME_SLOTS.slice(0, 6).map((time) => (
+                <div key={time} className="w-24 flex-shrink-0 p-2 text-center text-sm font-medium text-gray-600 border-r">
+                  {time}
+                </div>
+              ))}
             </div>
-          ) : (
-            channels.map((channel) => (
-              <div key={channel.id} className="flex border-b">
+
+            {/* Channel Rows */}
+            {channels.map((channel) => (
+              <div key={channel.id} className="flex border-b cursor-pointer hover:bg-gray-50" onClick={() => handleChannelClick(channel)}>
                 {/* Channel Logo */}
-                <div className="w-24 flex-shrink-0 p-2 border-r bg-gray-50 flex items-center justify-center">
+                <div className="w-24 flex-shrink-0 p-2 border-r bg-gray-50 flex items-center justify-center relative">
                   {channel.media_logo ? (
                     <img
                       src={`${BACKEND_URL}${channel.media_logo}`}
@@ -459,6 +659,10 @@ export const MobileMyMediaPage: React.FC = () => {
                       {channel.media_name_english.substring(0, 2).toUpperCase()}
                     </div>
                   )}
+                  {/* Play overlay */}
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 hover:opacity-100 transition-opacity">
+                    <Play size={24} className="text-white" fill="white" />
+                  </div>
                 </div>
                 {/* Time Slots */}
                 {TIME_SLOTS.slice(0, 6).map((time) => {
@@ -476,9 +680,42 @@ export const MobileMyMediaPage: React.FC = () => {
                   );
                 })}
               </div>
-            ))
-          )}
-        </div>
+            ))}
+          </div>
+        ) : (
+          /* Default Card Grid for other categories (Web, Youtube, etc.) */
+          <div className="p-4 grid grid-cols-2 gap-3">
+            {channels.map((channel) => (
+              <div
+                key={channel.id}
+                onClick={() => handleChannelClick(channel)}
+                className="bg-white rounded-lg shadow-sm overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
+              >
+                {/* Channel Logo */}
+                <div className="aspect-video bg-gray-100 relative flex items-center justify-center">
+                  {channel.media_logo ? (
+                    <img
+                      src={`${BACKEND_URL}${channel.media_logo}`}
+                      alt={channel.media_name_english}
+                      className="w-full h-full object-contain p-2"
+                    />
+                  ) : (
+                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-teal-500 to-teal-600 flex items-center justify-center text-white text-2xl font-bold">
+                      {channel.media_name_english?.charAt(0)}
+                    </div>
+                  )}
+                </div>
+                {/* Channel Info */}
+                <div className="p-3">
+                  <h3 className="font-medium text-gray-900 text-sm truncate">{channel.media_name_english}</h3>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-xs text-gray-500">{channel.select_type}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Footer - Category Navigation (6 fixed parent categories) */}
         <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t shadow-lg">
@@ -717,6 +954,127 @@ export const MobileMyMediaPage: React.FC = () => {
               </button>
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* App Settings Popup */}
+      <AnimatePresence>
+        {showAppSettingsPopup && appInfo && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 z-[100]"
+              onClick={() => setShowAppSettingsPopup(false)}
+            />
+
+            {/* Sliding Panel from Right */}
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed top-0 right-0 bottom-0 w-full sm:w-[400px] bg-white z-[101] overflow-y-auto shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* App Header */}
+              <div className="relative" style={{ background: 'linear-gradient(135deg, #057284 0%, #0a9fb5 100%)' }}>
+                <div className="absolute top-4 right-4">
+                  <button
+                    onClick={() => setShowAppSettingsPopup(false)}
+                    className="p-2 hover:bg-white/20 rounded-full transition-colors"
+                  >
+                    <X size={24} className="text-white" />
+                  </button>
+                </div>
+
+                <div className="flex flex-col items-center pt-8 pb-6 px-4">
+                  {/* App Logo */}
+                  <div className="w-20 h-20 rounded-full bg-white p-2 shadow-lg">
+                    {appInfo.logo ? (
+                      <img
+                        src={`${BACKEND_URL}${appInfo.logo}`}
+                        alt={appInfo.apps_name || appInfo.name}
+                        className="w-full h-full rounded-full object-contain"
+                      />
+                    ) : appInfo.icon ? (
+                      <img
+                        src={`${BACKEND_URL}${appInfo.icon}`}
+                        alt={appInfo.apps_name || appInfo.name}
+                        className="w-full h-full rounded-full object-contain"
+                      />
+                    ) : (
+                      <div className="w-full h-full rounded-full bg-gradient-to-br from-teal-500 to-teal-700 flex items-center justify-center text-white text-2xl font-bold">
+                        {(appInfo.apps_name || appInfo.name || 'M').charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* App Name */}
+                  <h2 className="text-2xl font-bold text-white mt-4">
+                    {appInfo.apps_name || appInfo.name}
+                  </h2>
+                </div>
+              </div>
+
+              {/* Menu Items */}
+              <div className="p-6">
+                {/* Main Menu Section */}
+                <div className="mb-6">
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase mb-3">Menu</h3>
+                  <div className="space-y-2">
+                    <button className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors">
+                      <Scale size={20} className="text-gray-600" />
+                      <span className="text-gray-700">Legal</span>
+                    </button>
+                    <button className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors">
+                      <HelpCircle size={20} className="text-gray-600" />
+                      <span className="text-gray-700">Help & Support</span>
+                    </button>
+                    <button className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors">
+                      <MessageSquare size={20} className="text-gray-600" />
+                      <span className="text-gray-700">Reviews</span>
+                    </button>
+                    <button className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors">
+                      <Star size={20} className="text-gray-600" />
+                      <span className="text-gray-700">Ratings</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Addon Categories Section */}
+                {addonCategories.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-500 uppercase mb-3">Add-ons</h3>
+                    <div className="space-y-2">
+                      {addonCategories.map((category) => {
+                        const IconComponent = getCategoryIcon(category.category_name);
+                        return (
+                          <button
+                            key={category.id}
+                            className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors"
+                          >
+                            {category.category_image ? (
+                              <img
+                                src={`${BACKEND_URL}${category.category_image}`}
+                                alt={category.category_name}
+                                className="w-5 h-5 object-contain"
+                              />
+                            ) : (
+                              <IconComponent size={20} className="text-gray-600" />
+                            )}
+                            <span className="text-gray-700">{category.category_name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
 

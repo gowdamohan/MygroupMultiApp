@@ -33,25 +33,23 @@ export const AuthProvider = ({ children }) => {
       const token = localStorage.getItem('accessToken');
       const storedUser = localStorage.getItem('user');
 
-      if (token) {
-        // Try to get profile from API
+      if (token && storedUser) {
+        // If we have both token and stored user, use the stored user
+        // This handles app login scenario where profile endpoint may not exist
+        setUser(JSON.parse(storedUser));
+      } else if (token) {
+        // Try to get profile from API only if we have token but no stored user
         try {
           const response = await authAPI.getProfile();
-          // Backend returns { success: true, data: user }
           const userData = response.data.data || response.data;
           setUser(userData);
-          // Update localStorage with fresh user data
           localStorage.setItem('user', JSON.stringify(userData));
         } catch (apiError) {
           console.error('API profile fetch failed:', apiError);
-          // If API fails but we have stored user data, use it
-          if (storedUser) {
-            setUser(JSON.parse(storedUser));
-          } else {
-            // If no stored user and API fails, clear tokens
-            localStorage.removeItem('accessToken');
-            localStorage.removeItem('refreshToken');
-          }
+          // Clear tokens if profile fetch fails
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          localStorage.removeItem('user');
         }
       } else if (storedUser) {
         // If no token but we have stored user, clear it

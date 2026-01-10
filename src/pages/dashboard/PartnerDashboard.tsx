@@ -53,6 +53,7 @@ export const PartnerDashboard: React.FC = () => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [headerAds, setHeaderAds] = useState<HeaderAd[]>([]);
   const [currentAdIndex, setCurrentAdIndex] = useState(0);
+  const [isAccountActive, setIsAccountActive] = useState<boolean>(true);
 
   const fetchUserProfile = useCallback(async () => {
     try {
@@ -89,6 +90,8 @@ export const PartnerDashboard: React.FC = () => {
     if (userData) {
       const parsedUser = JSON.parse(userData);
       setUser(parsedUser);
+      // Check if user account is active (active === 1 means active)
+      setIsAccountActive(parsedUser.active === 1 || parsedUser.active === true);
       fetchUserProfile();
       fetchHeaderAds();
     } else {
@@ -376,7 +379,44 @@ export const PartnerDashboard: React.FC = () => {
     </div>
   );
 
+  // Render inactive account message
+  const renderInactiveMessage = () => (
+    <div className="flex flex-col items-center justify-center h-full p-8">
+      <div className="bg-white rounded-2xl shadow-xl p-8 max-w-lg w-full text-center">
+        <div className="w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-6">
+          <svg className="w-10 h-10 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        </div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-3">Account Pending Activation</h2>
+        <p className="text-gray-600 mb-6">
+          Your account is currently <span className="font-semibold text-yellow-600">inactive</span>.
+          Please contact the administrator to activate your account and access all features.
+        </p>
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+          <p className="text-sm text-yellow-800">
+            <strong>What you can do:</strong><br />
+            • Contact support for assistance<br />
+            • Wait for admin approval<br />
+            • Check back later
+          </p>
+        </div>
+        <button
+          onClick={handleLogout}
+          className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+        >
+          Logout
+        </button>
+      </div>
+    </div>
+  );
+
   const renderContent = () => {
+    // If account is inactive, show the inactive message
+    if (!isAccountActive) {
+      return renderInactiveMessage();
+    }
+
     const path = location.pathname;
 
     switch (path) {
@@ -439,58 +479,71 @@ export const PartnerDashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* Menu Items */}
+          {/* Menu Items - Hidden when account is inactive */}
           <div className="flex-1 overflow-y-auto py-4 px-3">
-            <nav className="space-y-1">
-              {menuItems.map(item => {
-                const isExpanded = expandedMenus.includes(item.id);
-                const isActive = activeMenu === item.id || location.pathname === item.path;
-                const hasChildren = item.children && item.children.length > 0;
+            {isAccountActive ? (
+              <nav className="space-y-1">
+                {menuItems.map(item => {
+                  const isExpanded = expandedMenus.includes(item.id);
+                  const isActive = activeMenu === item.id || location.pathname === item.path;
+                  const hasChildren = item.children && item.children.length > 0;
 
-                return (
-                  <div key={item.id}>
-                    <button
-                      onClick={() => handleMenuClick(item)}
-                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg transition-colors ${
-                        isActive
-                          ? 'bg-primary-600 text-white'
-                          : 'text-gray-300 hover:bg-gray-700 hover:text-white'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <item.icon size={18} />
-                        {sidebarOpen && <span className="text-sm font-medium">{item.label}</span>}
-                      </div>
-                      {sidebarOpen && hasChildren && (
-                        isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />
+                  return (
+                    <div key={item.id}>
+                      <button
+                        onClick={() => handleMenuClick(item)}
+                        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg transition-colors ${
+                          isActive
+                            ? 'bg-primary-600 text-white'
+                            : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <item.icon size={18} />
+                          {sidebarOpen && <span className="text-sm font-medium">{item.label}</span>}
+                        </div>
+                        {sidebarOpen && hasChildren && (
+                          isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />
+                        )}
+                      </button>
+
+                      {hasChildren && isExpanded && sidebarOpen && (
+                        <div className="mt-1 ml-4 space-y-1">
+                          {item.children!.map(child => {
+                            const childActive = location.pathname === child.path;
+                            return (
+                              <button
+                                key={child.id}
+                                onClick={() => handleMenuClick(child)}
+                                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm ${
+                                  childActive
+                                    ? 'bg-primary-600/50 text-white'
+                                    : 'text-gray-400 hover:bg-gray-700 hover:text-white'
+                                }`}
+                              >
+                                <child.icon size={16} />
+                                <span>{child.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
                       )}
-                    </button>
-
-                    {hasChildren && isExpanded && sidebarOpen && (
-                      <div className="mt-1 ml-4 space-y-1">
-                        {item.children!.map(child => {
-                          const childActive = location.pathname === child.path;
-                          return (
-                            <button
-                              key={child.id}
-                              onClick={() => handleMenuClick(child)}
-                              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm ${
-                                childActive
-                                  ? 'bg-primary-600/50 text-white'
-                                  : 'text-gray-400 hover:bg-gray-700 hover:text-white'
-                              }`}
-                            >
-                              <child.icon size={16} />
-                              <span>{child.label}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </nav>
+                    </div>
+                  );
+                })}
+              </nav>
+            ) : (
+              /* Inactive account - show disabled menu */
+              <div className="text-center py-8 px-4">
+                <div className="w-12 h-12 bg-yellow-600/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <svg className="w-6 h-6 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m0 0v2m0-2h2m-2 0H10m4-6V9a4 4 0 00-8 0v2m-2 0h12a2 2 0 012 2v6a2 2 0 01-2 2H6a2 2 0 01-2-2v-6a2 2 0 012-2z" />
+                  </svg>
+                </div>
+                <p className="text-yellow-400 text-sm font-medium">Account Inactive</p>
+                <p className="text-gray-500 text-xs mt-1">Menu disabled</p>
+              </div>
+            )}
           </div>
 
           {/* Logout */}
@@ -543,9 +596,21 @@ export const PartnerDashboard: React.FC = () => {
                 )}
               </div>
 
-              {/* Menu Items */}
+              {/* Menu Items - Hidden when account is inactive */}
               <div className="flex-1 overflow-y-auto py-4 px-3">
-                {menuItems.map(item => renderMenuItem(item))}
+                {isAccountActive ? (
+                  menuItems.map(item => renderMenuItem(item))
+                ) : (
+                  <div className="text-center py-8 px-4">
+                    <div className="w-12 h-12 bg-yellow-600/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <svg className="w-6 h-6 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m0 0v2m0-2h2m-2 0H10m4-6V9a4 4 0 00-8 0v2m-2 0h12a2 2 0 012 2v6a2 2 0 01-2 2H6a2 2 0 01-2-2v-6a2 2 0 012-2z" />
+                      </svg>
+                    </div>
+                    <p className="text-yellow-400 text-sm font-medium">Account Inactive</p>
+                    <p className="text-gray-500 text-xs mt-1">Menu disabled</p>
+                  </div>
+                )}
               </div>
 
               {/* Logout */}

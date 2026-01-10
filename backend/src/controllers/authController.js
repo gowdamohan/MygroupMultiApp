@@ -515,7 +515,7 @@ export const partnerLogin = async (req, res) => {
       ]
     });
 
-    if (!user || !user.active) {
+    if (!user) {
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials'
@@ -542,11 +542,15 @@ export const partnerLogin = async (req, res) => {
 
     const tokens = generateTokens(user, remember);
 
+    // Include active status in response so frontend can handle inactive users
     res.json({
       success: true,
-      message: 'Login successful',
+      message: user.active ? 'Login successful' : 'Login successful - Account pending activation',
       data: {
-        user: formatUserResponse(user),
+        user: {
+          ...formatUserResponse(user),
+          active: user.active // Include active status explicitly
+        },
         ...tokens,
         dashboardRoute: '/dashboard/partner'
       }
@@ -641,6 +645,7 @@ function formatUserResponse(user) {
     profile_img: userObj.profile_img,
     phone: userObj.phone,
     company: userObj.company,
+    group_id: userObj.group_id, // Include group_id for partner/client access
     groups: userObj.groups ? userObj.groups.map(g => ({ id: g.id, name: g.name })) : [],
     profile: userObj.profile || null,
     groupDetails: userObj.groupDetails || null
