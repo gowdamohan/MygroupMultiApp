@@ -20,7 +20,9 @@ import {
   MediaDocuments,
   MediaSwitcher,
   MediaOfflineMedia,
-  MediaChannelDocument
+  MediaChannelDocument,
+  HeaderAdsManagement,
+  CompanyAdsManagement
 } from '../models/index.js';
 
 /**
@@ -29,13 +31,19 @@ import {
  */
 
 /**
- * Get MyMedia app details
+ * Get app details by name or default to MyMedia
  * GET /api/v1/mymedia/app
+ * Query params: name (optional) - app name to search for
  */
 export const getMyMediaApp = async (req, res) => {
   try {
+    const { name } = req.query;
+
+    // Build where clause - search by name if provided, otherwise default to mymedia
+    const searchName = name || 'mymedia';
+
     const app = await GroupCreate.findOne({
-      where: { name: { [Op.like]: '%mymedia%' } },
+      where: { name: { [Op.like]: `%${searchName}%` } },
       include: [{
         model: CreateDetails,
         as: 'details',
@@ -46,7 +54,7 @@ export const getMyMediaApp = async (req, res) => {
     if (!app) {
       return res.status(404).json({
         success: false,
-        message: 'MyMedia app not found'
+        message: `App '${searchName}' not found`
       });
     }
 
@@ -62,10 +70,10 @@ export const getMyMediaApp = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching MyMedia app:', error);
+    console.error('Error fetching app:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch MyMedia app',
+      message: 'Failed to fetch app',
       error: error.message
     });
   }
@@ -726,6 +734,115 @@ export const incrementViewCount = async (req, res) => {
   } catch (error) {
     console.error('Error incrementing view count:', error);
     res.status(500).json({ success: false, message: 'Failed to increment view count' });
+  }
+};
+
+/**
+ * Get top icons for an app
+ * GET /api/v1/apps/:appId/top-icons
+ */
+export const getAppTopIcons = async (req, res) => {
+  try {
+    const { appId } = req.params;
+
+    // Get all apps in the same group (apps_name) as the requested app
+    const app = await GroupCreate.findByPk(appId, {
+      include: [{
+        model: CreateDetails,
+        as: 'details',
+        required: false
+      }]
+    });
+
+    if (!app) {
+      return res.status(404).json({
+        success: false,
+        message: 'App not found'
+      });
+    }
+
+    // Get all apps with the same apps_name (e.g., "My Apps")
+    const topIcons = await GroupCreate.findAll({
+      where: {
+        apps_name: app.apps_name,
+        id: { [Op.ne]: appId } // Exclude current app
+      },
+      include: [{
+        model: CreateDetails,
+        as: 'details',
+        required: false
+      }],
+      order: [['order_by', 'ASC'], ['id', 'ASC']]
+    });
+
+    const formattedIcons = topIcons.map(icon => ({
+      id: icon.id,
+      name: icon.name,
+      icon: icon.details?.icon || '',
+      url: icon.details?.url || `/mobile/${icon.name.toLowerCase().replace(/\s+/g, '-')}`
+    }));
+
+    res.json({
+      success: true,
+      data: formattedIcons
+    });
+  } catch (error) {
+    console.error('Error fetching top icons:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch top icons',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Get ads/carousel for an app
+ * GET /api/v1/apps/:appId/ads
+ */
+export const getAppAds = async (req, res) => {
+  try {
+    const { appId } = req.params;
+
+    // Get header ads for the app
+    const headerAds = await HeaderAdsManagement.findAll({
+      where: { app_id: appId }
+    });
+
+    // Get company ads for the app
+    const companyAds = await CompanyAdsManagement.findAll({
+      where: { app_id: appId }
+    });
+
+    // Combine and format ads
+    const allAds = [
+      ...headerAds.map(ad => ({
+        id: ad.id,
+        type: 'header',
+        image: ad.file_path || '',
+        title: `Header Ad ${ad.id}`,
+        url: ad.url || '#'
+      })),
+      ...companyAds.map(ad => ({
+        id: ad.id,
+        type: 'company',
+        image: ad.file_path || '',
+        title: `Company Ad ${ad.id}`,
+        url: ad.url || '#'
+      }))
+    ];
+
+    res.json({
+      success: true,
+      data: allAds
+    });
+  } catch (error) {
+    console.error('Error fetching ads:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch ads',
+      error: error.message
+    });
   }
 };
 

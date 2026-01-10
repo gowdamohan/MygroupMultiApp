@@ -27,6 +27,7 @@ import mediaChannelRoutes from './routes/mediaChannel.routes.js';
 import mediaDocumentRoutes from './routes/mediaDocument.routes.js';
 import mediaDashboardRoutes from './routes/mediaDashboard.routes.js';
 import mymediaRoutes from './routes/mymedia.routes.js';
+import appsRoutes from './routes/apps.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -121,6 +122,7 @@ app.use(`${API_PREFIX}/partner`, mediaChannelRoutes);
 app.use(`${API_PREFIX}/media-document`, mediaDocumentRoutes);
 app.use(`${API_PREFIX}/media-dashboard`, mediaDashboardRoutes);
 app.use(`${API_PREFIX}/mymedia`, mymediaRoutes);
+app.use(`${API_PREFIX}/apps`, appsRoutes);
 
 // Member login route (direct access)
 import { memberLogin } from './controllers/memberController.js';
