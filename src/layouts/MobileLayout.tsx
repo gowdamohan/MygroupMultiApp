@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
-  MoreHorizontal, User, Moon, Sun, Settings, X, Camera,
+  MoreHorizontal, User, Moon, Sun, X, Camera,
   Lock, Globe, DollarSign, Key, FileText, Shield,
   HelpCircle, MessageCircle, Phone, Share2, Download,
   Star, LogOut, Users, MapPin, Building2, Map
@@ -31,16 +31,27 @@ interface UserProfile {
   identification_code?: string;
 }
 
+interface AppInfo {
+  id: number;
+  name: string;
+  apps_name: string;
+  icon: string;
+  logo: string;
+  name_image: string;
+}
+
 interface MobileLayoutProps {
   children: React.ReactNode;
   darkMode?: boolean;
   onDarkModeToggle?: () => void;
+  appName?: string;
 }
 
 export const MobileLayout: React.FC<MobileLayoutProps> = ({
   children,
   darkMode = false,
-  onDarkModeToggle
+  onDarkModeToggle,
+  appName
 }) => {
   const location = useLocation();
   const [apps, setApps] = useState<AppItem[]>([]);
@@ -66,10 +77,14 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
     setDistrictData?: { district: string };
   } | null>(null);
 
+  // App info state
+  const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
+
   useEffect(() => {
     fetchApps();
     checkAuth();
-  }, []);
+    fetchAppInfo(appName);
+  }, [appName]);
 
   useEffect(() => {
     if (profileTab === 'profile' && showProfileModal) {
@@ -97,6 +112,21 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
       }
     } catch (error) {
       console.error('Error fetching apps:', error);
+    }
+  };
+
+  const fetchAppInfo = async (name?: string) => {
+    try {
+      let url = `${API_BASE_URL}/mymedia/app`;
+      if (name) {
+        url += `?name=${encodeURIComponent(name)}`;
+      }
+      const response = await axios.get(url);
+      if (response.data.success) {
+        setAppInfo(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching app info:', error);
     }
   };
 
@@ -311,17 +341,31 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
             )}
           </button>
 
-          {/* Dark Mode Toggle & Settings */}
+          {/* Dark Mode Toggle & App Logo */}
           <div className="flex items-center gap-2">
             <button onClick={toggleDarkMode} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
               {effectiveDarkMode ? <Sun size={20} className="text-gray-700" /> : <Moon size={20} className="text-gray-700" />}
             </button>
-            <button
-              onClick={() => isLoggedIn && setShowProfileModal(true)}
-              className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-            >
-              <Settings size={20} className="text-gray-700" />
-            </button>
+            {/* App Logo */}
+            <div className="p-1">
+              {appInfo?.logo ? (
+                <img
+                  src={`${BACKEND_URL}${appInfo.logo}`}
+                  alt={appInfo.apps_name || appInfo.name}
+                  className="w-8 h-8 rounded-full object-contain"
+                />
+              ) : appInfo?.icon ? (
+                <img
+                  src={`${BACKEND_URL}${appInfo.icon}`}
+                  alt={appInfo.apps_name || appInfo.name}
+                  className="w-8 h-8 rounded-full object-contain"
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-teal-500 flex items-center justify-center text-white font-bold text-sm">
+                  {(appInfo?.apps_name || appInfo?.name || 'M').charAt(0).toUpperCase()}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

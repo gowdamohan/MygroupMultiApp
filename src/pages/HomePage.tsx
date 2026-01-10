@@ -155,6 +155,7 @@ export const HomePage: React.FC = () => {
   // If mobile, render mobile home page
   if (isMobile) {
     return <MobileHomePage />;
+    return <MobileHomePage />;
   }
 
   return (

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronDown, X, Eye, Heart, UserPlus, FileText, Play, Scale, HelpCircle, Star, MessageSquare } from 'lucide-react';
+import { useParams } from 'react-router-dom';
+import { ChevronDown, X, Eye, Heart, UserPlus, FileText, Play } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { MobileLayout } from '../../layouts/MobileLayout';
@@ -81,10 +82,11 @@ const TIME_SLOTS = ['00:00', '00:30', '01:00', '01:30', '02:00', '02:30', '03:00
   '18:00', '18:30', '19:00', '19:30', '20:00', '20:30', '21:00', '21:30', '22:00', '22:30', '23:00', '23:30'];
 
 export const MobileMyMediaPage: React.FC = () => {
+  // Get app name from URL params (e.g., /mobile/mymedia or /mobile/mycompany)
+  const { appName } = useParams<{ appName?: string }>();
+
   // App info state
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
-  const [addonCategories, setAddonCategories] = useState<Category[]>([]);
-  const [showAppSettingsPopup, setShowAppSettingsPopup] = useState(false);
 
   // Parent categories for footer (6 fixed items)
   const [parentCategories, setParentCategories] = useState<Category[]>([]);
@@ -164,9 +166,13 @@ export const MobileMyMediaPage: React.FC = () => {
   };
 
   // Fetch app info first, then categories
-  const fetchAppInfo = async () => {
+  const fetchAppInfo = async (name?: string) => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/mymedia/app`);
+      let url = `${API_BASE_URL}/mymedia/app`;
+      if (name) {
+        url += `?name=${encodeURIComponent(name)}`;
+      }
+      const response = await axios.get(url);
       if (response.data.success) {
         setAppInfo(response.data.data);
         return response.data.data.id;
@@ -177,25 +183,13 @@ export const MobileMyMediaPage: React.FC = () => {
     return null;
   };
 
-  // Fetch addon categories for the app settings popup
-  const fetchAddonCategories = async (appId: number) => {
-    try {
-      const response = await axios.get(`${API_BASE_URL}/mymedia/addon-categories?appId=${appId}`);
-      if (response.data.success) {
-        setAddonCategories(response.data.data);
-      }
-    } catch (error) {
-      console.error('Error fetching addon categories:', error);
-    }
-  };
-
   // Fetch data on mount - same pattern as MediaRegistrationForm
   useEffect(() => {
     const initializeData = async () => {
-      const appId = await fetchAppInfo();
+      // Use appName from URL if available, otherwise default to 'mymedia'
+      const appId = await fetchAppInfo(appName || 'mymedia');
       if (appId) {
         fetchCategories(appId);
-        fetchAddonCategories(appId);
       } else {
         fetchCategories();
       }
@@ -203,7 +197,7 @@ export const MobileMyMediaPage: React.FC = () => {
       fetchCountriesAndSetDefault();
     };
     initializeData();
-  }, []);
+  }, [appName]);
 
   // Fetch countries and set default country
   const fetchCountriesAndSetDefault = async () => {
@@ -451,6 +445,7 @@ export const MobileMyMediaPage: React.FC = () => {
       <MobileLayout
         darkMode={darkMode}
         onDarkModeToggle={toggleDarkMode}
+        appName={appName || 'mymedia'}
       >
         <div className="flex items-center justify-center min-h-[60vh]">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600"></div>
@@ -499,6 +494,7 @@ export const MobileMyMediaPage: React.FC = () => {
     <MobileLayout
       darkMode={darkMode}
       onDarkModeToggle={toggleDarkMode}
+      appName={appName || 'mymedia'}
     >
       <div className="pb-20">
         {/* Filter Row */}
@@ -537,32 +533,6 @@ export const MobileMyMediaPage: React.FC = () => {
             >
               {getSelectedLanguageName()} <ChevronDown size={16} />
             </button>
-
-            {/* App Settings Icon */}
-            {appInfo && (
-              <button
-                onClick={() => setShowAppSettingsPopup(true)}
-                className="flex items-center gap-1 bg-white rounded-full p-1 ml-auto flex-shrink-0"
-              >
-                {appInfo.logo ? (
-                  <img
-                    src={`${BACKEND_URL}${appInfo.logo}`}
-                    alt={appInfo.apps_name || appInfo.name}
-                    className="w-8 h-8 rounded-full object-contain"
-                  />
-                ) : appInfo.icon ? (
-                  <img
-                    src={`${BACKEND_URL}${appInfo.icon}`}
-                    alt={appInfo.apps_name || appInfo.name}
-                    className="w-8 h-8 rounded-full object-contain"
-                  />
-                ) : (
-                  <div className="w-8 h-8 rounded-full bg-teal-500 flex items-center justify-center text-white font-bold text-sm">
-                    {(appInfo.apps_name || appInfo.name || 'M').charAt(0).toUpperCase()}
-                  </div>
-                )}
-              </button>
-            )}
           </div>
         </div>
 
@@ -954,127 +924,6 @@ export const MobileMyMediaPage: React.FC = () => {
               </button>
             </motion.div>
           </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* App Settings Popup */}
-      <AnimatePresence>
-        {showAppSettingsPopup && appInfo && (
-          <>
-            {/* Backdrop */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/50 z-[100]"
-              onClick={() => setShowAppSettingsPopup(false)}
-            />
-
-            {/* Sliding Panel from Right */}
-            <motion.div
-              initial={{ x: '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed top-0 right-0 bottom-0 w-full sm:w-[400px] bg-white z-[101] overflow-y-auto shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* App Header */}
-              <div className="relative" style={{ background: 'linear-gradient(135deg, #057284 0%, #0a9fb5 100%)' }}>
-                <div className="absolute top-4 right-4">
-                  <button
-                    onClick={() => setShowAppSettingsPopup(false)}
-                    className="p-2 hover:bg-white/20 rounded-full transition-colors"
-                  >
-                    <X size={24} className="text-white" />
-                  </button>
-                </div>
-
-                <div className="flex flex-col items-center pt-8 pb-6 px-4">
-                  {/* App Logo */}
-                  <div className="w-20 h-20 rounded-full bg-white p-2 shadow-lg">
-                    {appInfo.logo ? (
-                      <img
-                        src={`${BACKEND_URL}${appInfo.logo}`}
-                        alt={appInfo.apps_name || appInfo.name}
-                        className="w-full h-full rounded-full object-contain"
-                      />
-                    ) : appInfo.icon ? (
-                      <img
-                        src={`${BACKEND_URL}${appInfo.icon}`}
-                        alt={appInfo.apps_name || appInfo.name}
-                        className="w-full h-full rounded-full object-contain"
-                      />
-                    ) : (
-                      <div className="w-full h-full rounded-full bg-gradient-to-br from-teal-500 to-teal-700 flex items-center justify-center text-white text-2xl font-bold">
-                        {(appInfo.apps_name || appInfo.name || 'M').charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* App Name */}
-                  <h2 className="text-2xl font-bold text-white mt-4">
-                    {appInfo.apps_name || appInfo.name}
-                  </h2>
-                </div>
-              </div>
-
-              {/* Menu Items */}
-              <div className="p-6">
-                {/* Main Menu Section */}
-                <div className="mb-6">
-                  <h3 className="text-sm font-semibold text-gray-500 uppercase mb-3">Menu</h3>
-                  <div className="space-y-2">
-                    <button className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors">
-                      <Scale size={20} className="text-gray-600" />
-                      <span className="text-gray-700">Legal</span>
-                    </button>
-                    <button className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors">
-                      <HelpCircle size={20} className="text-gray-600" />
-                      <span className="text-gray-700">Help & Support</span>
-                    </button>
-                    <button className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors">
-                      <MessageSquare size={20} className="text-gray-600" />
-                      <span className="text-gray-700">Reviews</span>
-                    </button>
-                    <button className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors">
-                      <Star size={20} className="text-gray-600" />
-                      <span className="text-gray-700">Ratings</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Addon Categories Section */}
-                {addonCategories.length > 0 && (
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-500 uppercase mb-3">Add-ons</h3>
-                    <div className="space-y-2">
-                      {addonCategories.map((category) => {
-                        const IconComponent = getCategoryIcon(category.category_name);
-                        return (
-                          <button
-                            key={category.id}
-                            className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors"
-                          >
-                            {category.category_image ? (
-                              <img
-                                src={`${BACKEND_URL}${category.category_image}`}
-                                alt={category.category_name}
-                                className="w-5 h-5 object-contain"
-                              />
-                            ) : (
-                              <IconComponent size={20} className="text-gray-600" />
-                            )}
-                            <span className="text-gray-700">{category.category_name}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          </>
         )}
       </AnimatePresence>
 

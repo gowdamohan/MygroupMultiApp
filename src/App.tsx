@@ -23,6 +23,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import { MobileMyMediaPage } from './pages/mobile/MobileMyMediaPage';
+import { MobileAppPage } from './pages/mobile/MobileAppPage';
 
 // New Layout Components
 import AdminDashboardLayout from './layouts/AdminDashboardLayout';
@@ -211,6 +212,8 @@ function App() {
 
           {/* Mobile Routes */}
           <Route path="/mobile/mymedia" element={<MobileMyMediaPage />} />
+          <Route path="/mobile/app/:appName" element={<MobileAppPage />} />
+          <Route path="/mobile/:appName" element={<MobileMyMediaPage />} />
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
