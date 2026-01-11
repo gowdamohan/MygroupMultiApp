@@ -1,32 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, useLocation, Routes, Route } from 'react-router-dom';
-import {
-  Users,
-  LogOut,
-  Menu,
-  X,
-  Eye,
-  ToggleLeft,
-  ToggleRight,
-  Tv
-} from 'lucide-react';
 import axios from 'axios';
 import { API_BASE_URL } from '../../config/api.config';
-import { PartnersManagement } from './PartnersManagement';
-import { MediaChannelsView } from './MediaChannelsView';
-
-interface AppInfo {
-  id: number;
-  name: string;
-  logo?: string;
-}
-
-interface Category {
-  id: number;
-  category_name: string;
-  category_type: string;
-  category_image: string;
-}
+import { Eye, LogIn, X, ToggleLeft, ToggleRight } from 'lucide-react';
 
 interface FormFieldInfo {
   raw: string | number;
@@ -50,20 +25,16 @@ interface FormField {
   options?: string[];
 }
 
-interface FormDefinition {
-  form_name: string;
-  fields: FormField[];
-}
-
 interface Partner {
   id: number;
-  identification_code: string;
+  username: string;
   email: string;
-  active: number;
-  created_on: number;
   first_name?: string;
   last_name?: string;
   phone?: string;
+  identification_code: string;
+  active: number;
+  created_on: number;
   client_registration?: {
     id: number;
     status: string;
@@ -72,201 +43,10 @@ interface Partner {
   };
 }
 
-export const AppDashboard: React.FC = () => {
-  const { appId } = useParams<{ appId: string }>();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
-  const [user, setUser] = useState<any>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [loading, setLoading] = useState(true);
-  const [activeView, setActiveView] = useState<'partners' | string>('partners');
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
-
-  useEffect(() => {
-    // Get user from localStorage
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-
-    // Fetch app info and categories
-    fetchAppInfo();
-    fetchCategories();
-  }, [appId]);
-
-  const fetchAppInfo = async () => {
-    try {
-      const token = localStorage.getItem('accessToken');
-      const response = await axios.get(`${API_BASE_URL}/admin/apps/${appId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      if (response.data.success) {
-        setAppInfo(response.data.data);
-      }
-    } catch (error) {
-      console.error('Error fetching app info:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchCategories = async () => {
-    try {
-      const token = localStorage.getItem('accessToken');
-      const response = await axios.get(`${API_BASE_URL}/mymedia/categories?appId=${appId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      if (response.data.success) {
-        setCategories(response.data.data || []);
-      }
-    } catch (error) {
-      console.error('Error fetching categories:', error);
-    }
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('user');
-    navigate('/admin/login');
-  };
-
-  const handleCategoryClick = (categoryId: number, categoryName: string) => {
-    setSelectedCategoryId(categoryId);
-    setActiveView(`category-${categoryId}`);
-  };
-
-  const menuItems = [
-    { icon: Users, label: 'Partners', path: `/app/${appId}/dashboard`, view: 'partners' as const },
-  ];
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-gray-600">Loading dashboard...</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-gray-50 flex">
-      {/* Sidebar */}
-      <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-white shadow-lg transition-all duration-300 flex flex-col`}>
-        {/* App Header */}
-        <div className="p-4 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            {sidebarOpen && (
-              <div className="flex items-center gap-3">
-                {appInfo?.logo ? (
-                  <img src={appInfo.logo} alt={appInfo.name} className="w-10 h-10 object-contain" />
-                ) : (
-                  <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center text-white font-bold">
-                    {appInfo?.name?.charAt(0).toUpperCase()}
-                  </div>
-                )}
-                <div>
-                  <h2 className="font-bold text-gray-900">{appInfo?.name || 'App'}</h2>
-                  <p className="text-xs text-gray-500">Admin Panel</p>
-                </div>
-              </div>
-            )}
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
-            </button>
-          </div>
-        </div>
-
-        {/* Menu Items */}
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-          {/* Partners Menu Item */}
-          {menuItems.map((item) => (
-            <button
-              key={item.path}
-              onClick={() => setActiveView(item.view)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                activeView === item.view
-                  ? 'bg-blue-50 text-blue-600'
-                  : 'text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              <item.icon size={20} />
-              {sidebarOpen && <span className="font-medium">{item.label}</span>}
-            </button>
-          ))}
-
-          {/* Category Menu Items */}
-          {sidebarOpen && categories.length > 0 && (
-            <div className="pt-2 mt-2 border-t border-gray-200">
-              <p className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase">Categories</p>
-            </div>
-          )}
-          {categories.map((category) => (
-            <button
-              key={category.id}
-              onClick={() => handleCategoryClick(category.id, category.category_name)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                activeView === `category-${category.id}`
-                  ? 'bg-blue-50 text-blue-600'
-                  : 'text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              <Tv size={20} />
-              {sidebarOpen && <span className="font-medium">{category.category_name}</span>}
-            </button>
-          ))}
-        </nav>
-
-        {/* User Info & Logout */}
-        <div className="p-4 border-t border-gray-200">
-          {sidebarOpen && user && (
-            <div className="mb-3 px-2">
-              <p className="text-sm font-medium text-gray-900">{user.username}</p>
-              <p className="text-xs text-gray-500">{user.email}</p>
-            </div>
-          )}
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-          >
-            <LogOut size={20} />
-            {sidebarOpen && <span className="font-medium">Logout</span>}
-          </button>
-        </div>
-      </aside>
-
-      {/* Main Content */}
-      <main className="flex-1 p-8">
-        <div className="max-w-7xl mx-auto">
-          {activeView === 'partners' && (
-            <PartnersManagement appId={appId} appName={appInfo?.name} />
-          )}
-          {activeView.startsWith('category-') && selectedCategoryId && (
-            <MediaChannelsView
-              appId={appId}
-              categoryId={selectedCategoryId}
-              categoryName={categories.find(c => c.id === selectedCategoryId)?.category_name || ''}
-            />
-          )}
-        </div>
-      </main>
-    </div>
-  );
-};
-
-// Partners View Component
-interface PartnersViewProps {
-  appId: string | undefined;
-  appName: string | undefined;
+interface TableHeader {
+  id: string;
+  label: string;
+  order: number;
 }
 
 interface EditFormData {
@@ -274,40 +54,43 @@ interface EditFormData {
   custom_form_data: Record<string, any>;
 }
 
-interface TableHeader {
-  id: string;
-  label: string;
-  order: number;
+interface PartnersManagementProps {
+  appId: string | undefined;
+  appName: string | undefined;
 }
 
-const PartnersView: React.FC<PartnersViewProps> = ({ appId, appName }) => {
+export const PartnersManagement: React.FC<PartnersManagementProps> = ({ appId, appName }) => {
+  const [activeAppTab, setActiveAppTab] = useState<'MyMedia' | 'MyGod'>('MyMedia');
+  const [activeStatusTab, setActiveStatusTab] = useState<'pending' | 'active' | 'inactive'>('pending');
   const [partners, setPartners] = useState<Partner[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [selectedPartner, setSelectedPartner] = useState<Partner | null>(null);
-  const [showModal, setShowModal] = useState(false);
-  const [updatingStatus, setUpdatingStatus] = useState<number | null>(null);
   const [tableHeaders, setTableHeaders] = useState<TableHeader[]>([]);
   const [formDefinition, setFormDefinition] = useState<FormField[] | null>(null);
+  const [selectedPartner, setSelectedPartner] = useState<Partner | null>(null);
+  const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editFormData, setEditFormData] = useState<EditFormData>({ email: '', custom_form_data: {} });
+  const [updatingStatus, setUpdatingStatus] = useState<number | null>(null);
 
   useEffect(() => {
-    fetchPartners();
-  }, [appId]);
+    if (appId) {
+      fetchPartners();
+    }
+  }, [appId, activeStatusTab]);
 
   const fetchPartners = async () => {
     try {
+      setLoading(true);
       const token = localStorage.getItem('accessToken');
       const response = await axios.get(`${API_BASE_URL}/admin/apps/${appId}/partners`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
       if (response.data.success) {
-        const data: Partner[] = response.data.data || [];
-        setPartners(data);
+        const allPartners: Partner[] = response.data.data || [];
 
         // Store form definition if available
         if (response.data.form_definition?.fields) {
@@ -316,7 +99,7 @@ const PartnersView: React.FC<PartnersViewProps> = ({ appId, appName }) => {
 
         // Extract headers from resolved_form_data (which includes labels)
         const headersMap = new Map<string, TableHeader>();
-        data.forEach((partner: Partner) => {
+        allPartners.forEach((partner: Partner) => {
           const resolvedData = partner.client_registration?.resolved_form_data;
           if (resolvedData) {
             Object.entries(resolvedData).forEach(([key, fieldInfo]) => {
@@ -334,6 +117,12 @@ const PartnersView: React.FC<PartnersViewProps> = ({ appId, appName }) => {
         // Sort headers by order
         const sortedHeaders = Array.from(headersMap.values()).sort((a, b) => a.order - b.order);
         setTableHeaders(sortedHeaders);
+
+        // Filter by status
+        const filtered = allPartners.filter(p =>
+          p.client_registration?.status === activeStatusTab
+        );
+        setPartners(filtered);
       }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to fetch partners');
@@ -341,6 +130,8 @@ const PartnersView: React.FC<PartnersViewProps> = ({ appId, appName }) => {
       setLoading(false);
     }
   };
+
+
 
   const handleToggleStatus = async (partner: Partner) => {
     setUpdatingStatus(partner.id);
@@ -435,13 +226,29 @@ const PartnersView: React.FC<PartnersViewProps> = ({ appId, appName }) => {
     setIsEditing(false);
   };
 
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp * 1000).toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric'
-    });
+  const handleAccessPartnerPortal = async (partner: Partner) => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const response = await axios.post(
+        `${API_BASE_URL}/admin/partner-portal-access`,
+        { partner_id: partner.id, app_id: appId },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (response.data.success && response.data.data.accessToken) {
+        // Store partner's token temporarily
+        localStorage.setItem('partnerAccessToken', response.data.data.accessToken);
+        localStorage.setItem('partnerUser', JSON.stringify(response.data.data.user));
+
+        // Open partner portal in new tab
+        window.open('/dashboard/partner', '_blank');
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to access partner portal');
+    }
   };
+
+
 
   const getResolvedFormValue = (partner: Partner, fieldId: string) => {
     const resolvedData = partner.client_registration?.resolved_form_data;
@@ -450,101 +257,188 @@ const PartnersView: React.FC<PartnersViewProps> = ({ appId, appName }) => {
     return value !== undefined && value !== null && value !== '' ? String(value) : '-';
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
+  const formatDate = (timestamp: number) => {
+    if (!timestamp) return '-';
+    return new Date(timestamp * 1000).toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
+  };
 
   return (
-    <>
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Partners - {appName}</h1>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-900">Partners Management</h1>
+      </div>
 
+      {/* Error/Success Messages */}
       {error && (
-        <div className="mb-4 p-4 bg-red-50 text-red-600 rounded-lg">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
           {error}
         </div>
       )}
-
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Partner ID</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                {tableHeaders.map(header => (
-                  <th key={header.id} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {header.label}
-                  </th>
-                ))}
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {partners.length === 0 ? (
-                <tr>
-                  <td colSpan={tableHeaders.length + 5} className="px-6 py-12 text-center text-gray-500">
-                    No partners found
-                  </td>
-                </tr>
-              ) : (
-                partners.map((partner) => (
-                  <tr key={partner.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatDate(partner.created_on)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {partner.identification_code || '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {partner.email}
-                    </td>
-                    {tableHeaders.map(header => (
-                      <td key={`${partner.id}-${header.id}`} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {getResolvedFormValue(partner, header.id)}
-                      </td>
-                    ))}
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <button
-                        onClick={() => handleToggleStatus(partner)}
-                        disabled={updatingStatus === partner.id}
-                        className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg transition-colors text-sm ${
-                          partner.active === 1
-                            ? 'bg-green-50 text-green-600 hover:bg-green-100'
-                            : 'bg-red-50 text-red-600 hover:bg-red-100'
-                        }`}
-                      >
-                        {updatingStatus === partner.id ? (
-                          <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                        ) : partner.active === 1 ? (
-                          <ToggleRight size={16} />
-                        ) : (
-                          <ToggleLeft size={16} />
-                        )}
-                        {partner.active === 1 ? 'Active' : 'Inactive'}
-                      </button>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <button
-                        onClick={() => handleViewDetails(partner)}
-                        className="inline-flex items-center gap-1 px-3 py-1 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm"
-                      >
-                        <Eye size={16} />
-                        Edit
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+      {success && (
+        <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg">
+          {success}
         </div>
-      </div>
+      )}
+
+      {/* Partners View */}
+      <div className="space-y-4">
+          {/* App Tabs */}
+          <div className="flex gap-2 bg-gray-100 p-1 rounded-lg w-fit">
+            <button
+              onClick={() => setActiveAppTab('MyMedia')}
+              className={`px-6 py-2 rounded-md font-medium transition-colors ${
+                activeAppTab === 'MyMedia'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              MyMedia
+            </button>
+            <button
+              onClick={() => setActiveAppTab('MyGod')}
+              className={`px-6 py-2 rounded-md font-medium transition-colors ${
+                activeAppTab === 'MyGod'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              MyGod
+            </button>
+          </div>
+
+          {/* Status Tabs */}
+          <div className="flex gap-2 bg-gray-50 p-1 rounded-lg w-fit">
+            <button
+              onClick={() => setActiveStatusTab('pending')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                activeStatusTab === 'pending'
+                  ? 'bg-yellow-100 text-yellow-700'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Pending
+            </button>
+            <button
+              onClick={() => setActiveStatusTab('active')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                activeStatusTab === 'active'
+                  ? 'bg-green-100 text-green-700'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Approved
+            </button>
+            <button
+              onClick={() => setActiveStatusTab('inactive')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                activeStatusTab === 'inactive'
+                  ? 'bg-red-100 text-red-700'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Inactive
+            </button>
+          </div>
+
+          {/* Partners Table */}
+          {loading ? (
+            <div className="text-center py-12">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+          ) : (
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Partner ID</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                      {tableHeaders.map(header => (
+                        <th key={header.id} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          {header.label}
+                        </th>
+                      ))}
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {partners.length === 0 ? (
+                      <tr>
+                        <td colSpan={tableHeaders.length + 5} className="px-6 py-12 text-center text-gray-500">
+                          No {activeStatusTab} partners found
+                        </td>
+                      </tr>
+                    ) : (
+                      partners.map((partner) => (
+                        <tr key={partner.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {formatDate(partner.created_on)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {partner.identification_code || '-'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {partner.email}
+                          </td>
+                          {tableHeaders.map(header => (
+                            <td key={`${partner.id}-${header.id}`} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {getResolvedFormValue(partner, header.id)}
+                            </td>
+                          ))}
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <button
+                              onClick={() => handleToggleStatus(partner)}
+                              disabled={updatingStatus === partner.id}
+                              className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg transition-colors text-sm ${
+                                partner.active === 1
+                                  ? 'bg-green-50 text-green-600 hover:bg-green-100'
+                                  : 'bg-red-50 text-red-600 hover:bg-red-100'
+                              }`}
+                            >
+                              {updatingStatus === partner.id ? (
+                                <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                              ) : partner.active === 1 ? (
+                                <ToggleRight size={16} />
+                              ) : (
+                                <ToggleLeft size={16} />
+                              )}
+                              {partner.active === 1 ? 'Active' : 'Inactive'}
+                            </button>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleViewDetails(partner)}
+                                className="inline-flex items-center gap-1 px-3 py-1 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm"
+                              >
+                                <Eye size={16} />
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleAccessPartnerPortal(partner)}
+                                className="inline-flex items-center gap-1 px-3 py-1 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 transition-colors text-sm"
+                              >
+                                <LogIn size={16} />
+                                Access Portal
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
 
       {/* Edit Partner Modal */}
       {showModal && selectedPartner && (
@@ -697,7 +591,7 @@ const PartnersView: React.FC<PartnersViewProps> = ({ appId, appName }) => {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 };
 

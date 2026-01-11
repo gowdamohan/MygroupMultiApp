@@ -334,8 +334,9 @@ export const setPartnerPassword = async (req, res) => {
 
 /**
  * Generate partner identification code
- * Format: CountryCode + StateCode + - + GroupCreateCode + 5 digits
- * Example: INKA-MM00001
+ * Format: {app_code}-{country_code}{5-digit-number}
+ * Example: MM-IND000001
+ * The running number is unique per combination of app_code and country_code
  */
 const generatePartnerIdentificationCode = async (countryId, stateId, appId) => {
   // Get country code
@@ -347,15 +348,6 @@ const generatePartnerIdentificationCode = async (countryId, stateId, appId) => {
     }
   }
 
-  // Get state code
-  let stateCode = '';
-  if (stateId) {
-    const state = await State.findByPk(stateId);
-    if (state && state.code) {
-      stateCode = state.code.toUpperCase();
-    }
-  }
-
   // Get app code from group_create
   let appCode = '';
   const app = await GroupCreate.findByPk(appId);
@@ -363,15 +355,27 @@ const generatePartnerIdentificationCode = async (countryId, stateId, appId) => {
     appCode = app.code.toUpperCase();
   }
 
-  // Get the next sequential number for this app
-  // Count existing partners for this app and add 1
-  const partnerCount = await User.count({
-    where: { group_id: appId }
+  // Get the next sequential number for this app_code + country_code combination
+  // Find the last user with this pattern
+  const lastUser = await User.findOne({
+    where: {
+      identification_code: {
+        [Op.like]: `${appCode}-${countryCode}%`
+      }
+    },
+    order: [['id', 'DESC']]
   });
-  const sequentialNumber = String(partnerCount + 1).padStart(5, '0');
 
-  // Build identification code: CountryCode + StateCode + - + AppCode + 5digits
-  const identificationCode = `${countryCode}${stateCode}-${appCode}${sequentialNumber}`;
+  let sequenceNumber = 1;
+  if (lastUser && lastUser.identification_code) {
+    // Extract the last 6 digits (000001)
+    const lastSequence = lastUser.identification_code.slice(-6);
+    sequenceNumber = parseInt(lastSequence, 10) + 1;
+  }
+
+  // Build identification code: {app_code}-{country_code}{6-digit-number}
+  // Format: MM-IND000001
+  const identificationCode = `${appCode}-${countryCode}${String(sequenceNumber).padStart(6, '0')}`;
 
   return identificationCode;
 };
@@ -445,10 +449,10 @@ export const registerPartner = async (req, res) => {
 
     await user.update(updateData);
 
-    // Update client_registration to active
+    // Update client_registration - keep status as 'pending' for admin approval
     await ClientRegistration.update(
       {
-        status: 'active',
+        status: 'pending',
         custom_form_data: custom_form_data || {}
       },
       {

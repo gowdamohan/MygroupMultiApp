@@ -49,7 +49,11 @@ import {
   getAppById,
   getAppPartners,
   updatePartnerStatus,
-  updatePartnerDetails
+  updatePartnerDetails,
+  generatePartnerPortalAccess,
+  getMediaChannels,
+  updateMediaChannelStatus,
+  updateMediaChannelActive
 } from '../controllers/adminController.js';
 import { authenticate } from '../middleware/auth.js';
 import { uploadAppImages } from '../middleware/upload.js';
@@ -194,5 +198,17 @@ router.get('/apps/:appId', getAppById);
 router.get('/apps/:appId/partners', getAppPartners);
 router.patch('/apps/:appId/partners/:partnerId/status', updatePartnerStatus);
 router.put('/apps/:appId/partners/:partnerId', updatePartnerDetails);
+
+// Partner portal access
+router.post('/partner-portal-access', generatePartnerPortalAccess);
+
+/**
+ * ============================================
+ * MEDIA CHANNEL ROUTES
+ * ============================================
+ */
+router.get('/media-channels', getMediaChannels);
+router.put('/media-channels/:channelId/status', updateMediaChannelStatus);
+router.put('/media-channels/:channelId/active', updateMediaChannelActive);
 
 export default router;

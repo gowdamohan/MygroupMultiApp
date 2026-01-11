@@ -174,7 +174,7 @@ router.post(
       .trim()
       .isEmail()
       .withMessage('Please provide a valid email')
-      .normalizeEmail()
+      // Removed .normalizeEmail() to preserve dots in email addresses
   ],
   validate,
   sendPartnerOtp
@@ -191,8 +191,8 @@ router.post(
     body('email')
       .trim()
       .isEmail()
-      .withMessage('Please provide a valid email')
-      .normalizeEmail(),
+      .withMessage('Please provide a valid email'),
+      // Removed .normalizeEmail() to preserve dots in email addresses
     body('otp')
       .trim()
       .notEmpty()
@@ -213,8 +213,8 @@ router.post(
     body('email')
       .trim()
       .isEmail()
-      .withMessage('Please provide a valid email')
-      .normalizeEmail(),
+      .withMessage('Please provide a valid email'),
+      // Removed .normalizeEmail() to preserve dots in email addresses
     body('password')
       .isLength({ min: 6 })
       .withMessage('Password must be at least 6 characters long'),
@@ -256,8 +256,8 @@ router.post(
     body('email')
       .trim()
       .isEmail()
-      .withMessage('Please provide a valid email')
-      .normalizeEmail(),
+      .withMessage('Please provide a valid email'),
+      // Removed .normalizeEmail() to preserve dots in email addresses
     body('password')
       .isLength({ min: 6 })
       .withMessage('Password must be at least 6 characters long'),
@@ -296,8 +296,8 @@ router.post(
     body('email')
       .trim()
       .isEmail()
-      .withMessage('Please provide a valid email')
-      .normalizeEmail(),
+      .withMessage('Please provide a valid email'),
+      // Removed .normalizeEmail() to preserve dots in email addresses
     body('app_id')
       .notEmpty()
       .withMessage('App ID is required')

@@ -2094,3 +2094,219 @@ export const updatePartnerDetails = async (req, res) => {
   }
 };
 
+/**
+ * ============================================
+ * PARTNER PORTAL ACCESS
+ * ============================================
+ */
+
+// Generate access token for admin to access partner portal
+export const generatePartnerPortalAccess = async (req, res) => {
+  try {
+    const { partner_id, app_id } = req.body;
+
+    if (!partner_id || !app_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Partner ID and App ID are required'
+      });
+    }
+
+    // Find the partner user
+    const partner = await User.findByPk(partner_id);
+
+    if (!partner) {
+      return res.status(404).json({
+        success: false,
+        message: 'Partner not found'
+      });
+    }
+
+    // Generate tokens for the partner
+    const accessToken = jwt.sign(
+      { userId: partner.id, groupId: app_id },
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: '24h' }
+    );
+
+    const refreshToken = jwt.sign(
+      { userId: partner.id },
+      process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-key',
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      success: true,
+      message: 'Partner portal access granted',
+      data: {
+        accessToken,
+        refreshToken,
+        user: {
+          id: partner.id,
+          username: partner.username,
+          email: partner.email,
+          first_name: partner.first_name,
+          identification_code: partner.identification_code
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error generating partner portal access:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate partner portal access',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * ============================================
+ * MEDIA CHANNEL MANAGEMENT
+ * ============================================
+ */
+
+// Get media channels by app_id and category_id
+export const getMediaChannels = async (req, res) => {
+  try {
+    const { app_id, category_id } = req.query;
+
+    if (!app_id || !category_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'app_id and category_id are required'
+      });
+    }
+
+    const { MediaChannel, Language, Country, State, District } = await import('../models/index.js');
+
+    const channels = await MediaChannel.findAll({
+      where: {
+        app_id: app_id,
+        category_id: category_id
+      },
+      include: [
+        {
+          model: Language,
+          as: 'language',
+          attributes: ['id', 'lang_1', 'lang_2'],
+          required: false
+        },
+        {
+          model: Country,
+          as: 'country',
+          attributes: ['id', 'country'],
+          required: false
+        },
+        {
+          model: State,
+          as: 'state',
+          attributes: ['id', 'state'],
+          required: false
+        },
+        {
+          model: District,
+          as: 'district',
+          attributes: ['id', 'district'],
+          required: false
+        }
+      ],
+      order: [['created_at', 'DESC']]
+    });
+
+    res.json({
+      success: true,
+      data: channels
+    });
+  } catch (error) {
+    console.error('Error fetching media channels:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch media channels',
+      error: error.message
+    });
+  }
+};
+
+// Update media channel status
+export const updateMediaChannelStatus = async (req, res) => {
+  try {
+    const { channelId } = req.params;
+    const { status } = req.body;
+
+    if (!['active', 'inactive', 'pending', 'rejected'].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid status value'
+      });
+    }
+
+    const { MediaChannel } = await import('../models/index.js');
+
+    const channel = await MediaChannel.findByPk(channelId);
+
+    if (!channel) {
+      return res.status(404).json({
+        success: false,
+        message: 'Media channel not found'
+      });
+    }
+
+    await channel.update({ status });
+
+    res.json({
+      success: true,
+      message: 'Media channel status updated successfully',
+      data: channel
+    });
+  } catch (error) {
+    console.error('Error updating media channel status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update media channel status',
+      error: error.message
+    });
+  }
+};
+
+// Update media channel is_active
+export const updateMediaChannelActive = async (req, res) => {
+  try {
+    const { channelId } = req.params;
+    const { is_active } = req.body;
+
+    if (![0, 1].includes(is_active)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid is_active value'
+      });
+    }
+
+    const { MediaChannel } = await import('../models/index.js');
+
+    const channel = await MediaChannel.findByPk(channelId);
+
+    if (!channel) {
+      return res.status(404).json({
+        success: false,
+        message: 'Media channel not found'
+      });
+    }
+
+    await channel.update({ is_active });
+
+    res.json({
+      success: true,
+      message: 'Media channel active status updated successfully',
+      data: channel
+    });
+  } catch (error) {
+    console.error('Error updating media channel active status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update media channel active status',
+      error: error.message
+    });
+  }
+};
+

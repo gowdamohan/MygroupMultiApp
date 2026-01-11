@@ -344,10 +344,24 @@ export const PartnerRegister: React.FC = () => {
       if (response.data.success) {
         // Clear localStorage on successful registration
         localStorage.removeItem(STORAGE_KEY);
-        setSuccess('Registration successful!');
+
+        // Store authentication tokens for auto-login
+        if (response.data.data.accessToken) {
+          localStorage.setItem('accessToken', response.data.data.accessToken);
+        }
+        if (response.data.data.refreshToken) {
+          localStorage.setItem('refreshToken', response.data.data.refreshToken);
+        }
+        if (response.data.data.user) {
+          localStorage.setItem('user', JSON.stringify(response.data.data.user));
+        }
+
+        setSuccess('Registration successful! Redirecting to your dashboard...');
+
+        // Redirect to partner dashboard after successful registration
         setTimeout(() => {
-          navigate(`/partner?${app?.name}`);
-        }, 2000);
+          navigate('/dashboard/partner');
+        }, 1500);
       }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Registration failed');
