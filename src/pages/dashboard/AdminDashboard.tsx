@@ -3,7 +3,10 @@ import { Sidebar } from '../../components/Sidebar';
 import { StatsCard } from '../../components/StatsCard';
 import { UsersCRUD } from '../../components/dashboard/UsersCRUD';
 import { GroupsCRUD } from '../../components/dashboard/GroupsCRUD';
-import { Users, Grid3x3, DollarSign, UserPlus, Search, Bell, Menu, X, LayoutDashboard, Package, Languages, GraduationCap, Briefcase, Plus, Edit2, Trash2, Save } from 'lucide-react';
+import { AccountsLogin } from '../admin/AccountsLogin';
+import { AdminWallet } from '../admin/AdminWallet';
+import { AdminSupportChat } from '../admin/AdminSupportChat';
+import { Users, Grid3x3, DollarSign, UserPlus, Search, Bell, Menu, X, LayoutDashboard, Package, Languages, GraduationCap, Briefcase, Plus, Edit2, Trash2, Save, Wallet, MessageSquare, UserCog } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
@@ -59,7 +62,7 @@ export const AdminDashboard: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'groups' | 'language' | 'education' | 'profession'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'groups' | 'language' | 'education' | 'profession' | 'accounts-login' | 'wallet' | 'support-chat'>('overview');
 
   // Language Management State
   const [languages, setLanguages] = useState<any[]>([]);
@@ -91,7 +94,10 @@ export const AdminDashboard: React.FC = () => {
     { id: 'groups' as const, label: 'Groups', icon: Package },
     { id: 'language' as const, label: 'Language', icon: Languages },
     { id: 'education' as const, label: 'Education', icon: GraduationCap },
-    { id: 'profession' as const, label: 'Profession', icon: Briefcase }
+    { id: 'profession' as const, label: 'Profession', icon: Briefcase },
+    { id: 'accounts-login' as const, label: 'Accounts Login', icon: UserCog },
+    { id: 'wallet' as const, label: 'Wallet', icon: Wallet },
+    { id: 'support-chat' as const, label: 'Support Chat', icon: MessageSquare }
   ];
 
   // Fetch Languages
@@ -897,6 +903,39 @@ export const AdminDashboard: React.FC = () => {
                   </table>
                 </div>
               </div>
+            </motion.div>
+          )}
+
+          {/* Accounts Login Tab */}
+          {activeTab === 'accounts-login' && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <AccountsLogin />
+            </motion.div>
+          )}
+
+          {/* Wallet Tab */}
+          {activeTab === 'wallet' && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <AdminWallet />
+            </motion.div>
+          )}
+
+          {/* Support Chat Tab */}
+          {activeTab === 'support-chat' && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <AdminSupportChat />
             </motion.div>
           )}
         </main>

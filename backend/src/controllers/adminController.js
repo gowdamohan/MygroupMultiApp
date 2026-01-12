@@ -1654,9 +1654,14 @@ export const appLogin = async (req, res) => {
       });
     }
 
-    // Find user by username
+    // Find user by username with groups
     const user = await User.findOne({
-      where: { username: username }
+      where: { username: username },
+      include: [{
+        model: Group,
+        as: 'groups',
+        through: { attributes: [] }
+      }]
     });
 
     console.log('User found:', user ? { id: user.id, username: user.username, group_id: user.group_id, active: user.active } : 'No user found');
@@ -1668,7 +1673,92 @@ export const appLogin = async (req, res) => {
       });
     }
 
-    // Check if user is active
+    // Verify password first
+    console.log('Verifying password...');
+    const isPasswordValid = await user.comparePassword(password);
+    console.log('Password valid:', isPasswordValid);
+
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid username or password'
+      });
+    }
+
+    // Check user roles
+    const userRoles = user.groups ? user.groups.map(g => g.name) : [];
+    const isPartner = userRoles.includes('partner');
+
+    // Get app details
+    const app = await GroupCreate.findByPk(app_id);
+
+    // If user is a partner, check if they belong to this app and redirect to partner dashboard
+    if (isPartner) {
+      // Partners should have group_id matching the app_id
+      if (user.group_id !== parseInt(app_id)) {
+        return res.status(403).json({
+          success: false,
+          message: 'You do not have access to this app'
+        });
+      }
+
+      // Check if partner account is active (active can be 0 for pending)
+      // Partners with active=0 can still login but see pending message
+
+      // Generate JWT tokens for partner
+      const accessToken = jwt.sign(
+        {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          group_id: user.group_id,
+          appId: app_id,
+          appName: app?.name,
+          role: 'partner'
+        },
+        process.env.JWT_SECRET || 'your-secret-key',
+        { expiresIn: '24h' }
+      );
+
+      const refreshToken = jwt.sign(
+        { userId: user.id },
+        process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-key',
+        { expiresIn: '7d' }
+      );
+
+      // Update last login
+      await user.update({
+        last_login: Math.floor(Date.now() / 1000)
+      });
+
+      // Store selected app for partner
+      return res.json({
+        success: true,
+        message: 'Login successful',
+        data: {
+          accessToken,
+          refreshToken,
+          user: {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            first_name: user.first_name,
+            app_id: app_id,
+            app_name: app?.name,
+            active: user.active,
+            role: 'partner'
+          },
+          selectedApp: {
+            id: app?.id,
+            name: app?.name
+          },
+          dashboardRoute: '/dashboard/partner',
+          isPartner: true
+        }
+      });
+    }
+
+    // For non-partner users (app admins), check if user is active
     if (user.active !== 1) {
       console.log('User is inactive:', user.active);
       return res.status(403).json({
@@ -1686,23 +1776,7 @@ export const appLogin = async (req, res) => {
       });
     }
 
-    // Verify password
-    console.log('Verifying password...');
-    const isPasswordValid = await user.comparePassword(password);
-    console.log('Password valid:', isPasswordValid);
-
-    if (!isPasswordValid) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid username or password'
-      });
-    }
-
-    // Get app details
-    const app = await GroupCreate.findByPk(app_id);
-
-    // Generate JWT tokens
-    // Use 'id' (not 'userId') to match what the auth middleware expects in decoded.id
+    // Generate JWT tokens for app admin
     const accessToken = jwt.sign(
       {
         id: user.id,

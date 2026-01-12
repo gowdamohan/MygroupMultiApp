@@ -496,6 +496,72 @@ export const getUserProfile = async (req, res) => {
 };
 
 /**
+ * Upload profile photo
+ * POST /api/v1/partner/profile-photo
+ */
+export const uploadProfilePhoto = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No file uploaded'
+      });
+    }
+
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Delete old profile image if exists
+    if (user.profile_img) {
+      const oldPath = path.join(process.cwd(), 'public', user.profile_img);
+      if (fs.existsSync(oldPath)) {
+        fs.unlinkSync(oldPath);
+      }
+    }
+
+    // Compress and save new image
+    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'profile-photos');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+
+    const timestamp = Date.now();
+    const filename = `profile-${userId}-${timestamp}.jpg`;
+    const outputPath = path.join(uploadDir, filename);
+
+    await compressImage(req.file.path, outputPath);
+
+    // Delete temp file
+    if (fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+
+    const profileImgPath = `/uploads/profile-photos/${filename}`;
+    await user.update({ profile_img: profileImgPath });
+
+    res.json({
+      success: true,
+      message: 'Profile photo uploaded successfully',
+      data: { profile_img: profileImgPath }
+    });
+  } catch (error) {
+    console.error('Upload profile photo error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error uploading profile photo',
+      error: error.message
+    });
+  }
+};
+
+/**
  * Check if passcode is set for a channel
  * GET /api/v1/partner/channel/:id/check-passcode
  */

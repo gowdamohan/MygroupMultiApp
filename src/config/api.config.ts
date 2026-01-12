@@ -23,8 +23,9 @@
 const isProduction = import.meta.env.PROD;
 
 // Default values for development - full URLs to the dev server
-const DEFAULT_DEV_API_BASE_URL = 'http://localhost:5000/api/v1';
-const DEFAULT_DEV_BACKEND_URL = 'http://localhost:5000';
+// Using port 5001 since port 5000 is often used by other Windows services
+const DEFAULT_DEV_API_BASE_URL = 'http://localhost:5001/api/v1';
+const DEFAULT_DEV_BACKEND_URL = 'http://localhost:5001';
 
 // Production defaults - relative URLs work when frontend is served from same origin
 const DEFAULT_PROD_API_BASE_URL = '/api/v1';
@@ -32,7 +33,7 @@ const DEFAULT_PROD_BACKEND_URL = '';
 
 /**
  * API Base URL for all API calls
- * - Development: http://localhost:5000/api/v1
+ * - Development: http://localhost:5001/api/v1
  * - Production (same-origin): /api/v1
  * - Production (different origin): https://api.yourdomain.com/api/v1
  */

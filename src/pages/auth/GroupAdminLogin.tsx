@@ -101,9 +101,15 @@ export const GroupAdminLogin: React.FC = () => {
         // Store user data
         localStorage.setItem('user', JSON.stringify(response.data.data.user));
 
-        // Redirect to app-specific dashboard
-        const dashboardRoute = response.data.data.dashboardRoute || selectedApp.dashboard_route || `/app/${selectedApp.id}/dashboard`;
-        navigate(dashboardRoute);
+        // If user is a partner, store selected app and redirect to partner dashboard
+        if (response.data.data.isPartner && response.data.data.selectedApp) {
+          localStorage.setItem('selectedApp', JSON.stringify(response.data.data.selectedApp));
+          navigate('/dashboard/partner');
+        } else {
+          // Redirect to app-specific dashboard for app admins
+          const dashboardRoute = response.data.data.dashboardRoute || selectedApp.dashboard_route || `/app/${selectedApp.id}/dashboard`;
+          navigate(dashboardRoute);
+        }
       }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Login failed. Please try again.');

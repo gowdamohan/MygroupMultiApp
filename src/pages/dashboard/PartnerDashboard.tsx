@@ -5,7 +5,7 @@ import {
   LayoutDashboard, User, Lock, Video, List, MessageSquare,
   Mail, LogOut, ChevronDown, ChevronRight, Menu, X,
   HelpCircle, MessageCircle, ChevronLeft, ChevronRightIcon,
-  Users, Star, TrendingUp, DollarSign
+  Users, Star, TrendingUp, DollarSign, Megaphone, Wallet
 } from 'lucide-react';
 import { EditProfile } from '../partner/EditProfile';
 import { ChangePassword } from '../partner/ChangePassword';
@@ -14,6 +14,8 @@ import { MyChannelList } from '../partner/MyChannelList';
 import { Enquiry } from '../partner/Enquiry';
 import { Feedback } from '../partner/Feedback';
 import { LiveChat } from '../partner/LiveChat';
+import { HeaderAdsBooking } from '../partner/HeaderAdsBooking';
+import { SupportChat } from '../partner/SupportChat';
 import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
 
 interface MenuItem {
@@ -146,13 +148,23 @@ export const PartnerDashboard: React.FC = () => {
       path: '/partner/my-channel-list'
     },
     {
+      id: 'advertisement',
+      label: 'Advertisement',
+      icon: Megaphone,
+      children: [
+        { id: 'header-ads-booking', label: 'Book Header Ads', icon: Megaphone, path: '/partner/header-ads-booking' },
+        { id: 'my-wallet', label: 'My Wallet', icon: Wallet, path: '/partner/wallet' }
+      ]
+    },
+    {
       id: 'support',
       label: 'Support',
       icon: HelpCircle,
       children: [
         { id: 'enquiry', label: 'Enquiry', icon: Mail, path: '/partner/enquiry' },
         { id: 'feedback', label: 'Feedback and Suggestions', icon: MessageSquare, path: '/partner/feedback' },
-        { id: 'live-chat', label: 'Live Chat', icon: MessageCircle, path: '/partner/live-chat' }
+        { id: 'live-chat', label: 'Chat', icon: MessageCircle, path: '/partner/live-chat' },
+        { id: 'support-chat', label: 'Support Chat', icon: MessageCircle, path: '/partner/support-chat' }
       ]
     }
   ];
@@ -436,6 +448,12 @@ export const PartnerDashboard: React.FC = () => {
         return <Feedback />;
       case '/partner/live-chat':
         return <LiveChat />;
+      case '/partner/header-ads-booking':
+        return <HeaderAdsBooking />;
+      case '/partner/wallet':
+        return <div className="p-6"><h2 className="text-2xl font-bold">My Wallet</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
+      case '/partner/support-chat':
+        return <SupportChat />;
       default:
         return renderDashboard();
     }

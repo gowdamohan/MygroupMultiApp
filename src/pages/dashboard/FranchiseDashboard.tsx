@@ -9,6 +9,8 @@ import {
 } from 'lucide-react';
 import { RegionalOfficeLogin } from '../franchise/RegionalOfficeLogin';
 import { BranchOfficeLogin } from '../franchise/BranchOfficeLogin';
+import { Accounts } from '../franchise/Accounts';
+import { FranchiseHeaderAds } from '../franchise/FranchiseHeaderAds';
 
 interface MenuItem {
   id: string;
@@ -261,6 +263,18 @@ export const FranchiseDashboard: React.FC = () => {
 
     if (path === '/franchise/create-branch-office-login') {
       return <BranchOfficeLogin />;
+    }
+
+    if (path === '/franchise/accounts') {
+      return <Accounts />;
+    }
+
+    if (path === '/franchise/create-header-ads-head-office') {
+      return <FranchiseHeaderAds officeLevel="head_office" />;
+    }
+
+    if (path === '/franchise/create-header-ads-branch-office') {
+      return <FranchiseHeaderAds officeLevel="branch" />;
     }
 
     // Default dashboard view

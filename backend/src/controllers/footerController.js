@@ -1,4 +1,4 @@
-import { FooterPage, User, GalleryList, GalleryImagesMaster } from '../models/index.js';
+import { FooterPage, User, GalleryList, GalleryImagesMaster, FooterLink } from '../models/index.js';
 import { Op } from 'sequelize';
 
 /**
@@ -402,3 +402,98 @@ export const deleteGalleryImage = async (req, res) => {
   }
 };
 
+/**
+ * ============================================
+ * FOOTER LINKS MANAGEMENT
+ * ============================================
+ */
+
+// Get footer links by app_id
+export const getFooterLinks = async (req, res) => {
+  try {
+    const { app_id } = req.query;
+    const where = {};
+    if (app_id) where.app_id = app_id;
+
+    const links = await FooterLink.findAll({
+      where,
+      order: [['order_index', 'ASC']]
+    });
+
+    res.json({ success: true, data: links });
+  } catch (error) {
+    console.error('Error fetching footer links:', error);
+    res.status(500).json({ success: false, message: 'Error fetching footer links', error: error.message });
+  }
+};
+
+// Create footer link
+export const createFooterLink = async (req, res) => {
+  try {
+    const { app_id, title, url, order_index } = req.body;
+    if (!app_id || !title || !url) {
+      return res.status(400).json({ success: false, message: 'app_id, title, and url are required' });
+    }
+
+    const link = await FooterLink.create({ app_id, title, url, order_index: order_index || 0 });
+    res.status(201).json({ success: true, message: 'Footer link created', data: link });
+  } catch (error) {
+    console.error('Error creating footer link:', error);
+    res.status(500).json({ success: false, message: 'Error creating footer link', error: error.message });
+  }
+};
+
+// Update footer link
+export const updateFooterLink = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, url, order_index } = req.body;
+
+    const link = await FooterLink.findByPk(id);
+    if (!link) {
+      return res.status(404).json({ success: false, message: 'Footer link not found' });
+    }
+
+    await link.update({ title, url, order_index });
+    res.json({ success: true, message: 'Footer link updated', data: link });
+  } catch (error) {
+    console.error('Error updating footer link:', error);
+    res.status(500).json({ success: false, message: 'Error updating footer link', error: error.message });
+  }
+};
+
+// Delete footer link
+export const deleteFooterLink = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const link = await FooterLink.findByPk(id);
+    if (!link) {
+      return res.status(404).json({ success: false, message: 'Footer link not found' });
+    }
+
+    await link.destroy();
+    res.json({ success: true, message: 'Footer link deleted' });
+  } catch (error) {
+    console.error('Error deleting footer link:', error);
+    res.status(500).json({ success: false, message: 'Error deleting footer link', error: error.message });
+  }
+};
+
+// Toggle footer link status
+export const toggleFooterLinkStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { is_active } = req.body;
+
+    const link = await FooterLink.findByPk(id);
+    if (!link) {
+      return res.status(404).json({ success: false, message: 'Footer link not found' });
+    }
+
+    await link.update({ is_active });
+    res.json({ success: true, message: 'Footer link status updated', data: link });
+  } catch (error) {
+    console.error('Error toggling footer link status:', error);
+    res.status(500).json({ success: false, message: 'Error toggling status', error: error.message });
+  }
+};

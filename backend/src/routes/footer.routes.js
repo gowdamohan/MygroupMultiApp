@@ -13,7 +13,12 @@ import {
   getGalleryImages,
   addGalleryImage,
   updateGalleryImage,
-  deleteGalleryImage
+  deleteGalleryImage,
+  getFooterLinks,
+  createFooterLink,
+  updateFooterLink,
+  deleteFooterLink,
+  toggleFooterLinkStatus
 } from '../controllers/footerController.js';
 
 const router = express.Router();
@@ -39,6 +44,13 @@ router.get('/galleries/:galleryId/images', getGalleryImages);
 router.post('/gallery-images', addGalleryImage);
 router.put('/gallery-images/:id', updateGalleryImage);
 router.delete('/gallery-images/:id', deleteGalleryImage);
+
+// Footer Links Routes
+router.get('/links', getFooterLinks);
+router.post('/links', createFooterLink);
+router.put('/links/:id', updateFooterLink);
+router.delete('/links/:id', deleteFooterLink);
+router.patch('/links/:id/status', toggleFooterLinkStatus);
 
 export default router;
 

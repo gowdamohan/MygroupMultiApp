@@ -55,6 +55,13 @@ import {
   updateMediaChannelStatus,
   updateMediaChannelActive
 } from '../controllers/adminController.js';
+import {
+  getAccountsUsers,
+  createAccountsUser,
+  updateAccountsUser,
+  resetAccountsUserPassword,
+  toggleAccountsUserStatus
+} from '../controllers/accountsUserController.js';
 import { authenticate } from '../middleware/auth.js';
 import { uploadAppImages } from '../middleware/upload.js';
 
@@ -210,5 +217,16 @@ router.post('/partner-portal-access', generatePartnerPortalAccess);
 router.get('/media-channels', getMediaChannels);
 router.put('/media-channels/:channelId/status', updateMediaChannelStatus);
 router.put('/media-channels/:channelId/active', updateMediaChannelActive);
+
+/**
+ * ============================================
+ * ACCOUNTS USER ROUTES
+ * ============================================
+ */
+router.get('/accounts-users', getAccountsUsers);
+router.post('/accounts-users', createAccountsUser);
+router.put('/accounts-users/:id', updateAccountsUser);
+router.post('/accounts-users/:id/reset-password', resetAccountsUserPassword);
+router.patch('/accounts-users/:id/status', toggleAccountsUserStatus);
 
 export default router;

@@ -20,8 +20,9 @@ import { StateList } from '../admin/Content/Country/StateList';
 import { DistrictList } from '../admin/Content/Country/DistrictList';
 import { CreateAppsList } from '../admin/CreateApps/CreateAppsList';
 import { CorporateLogin } from '../admin/CorporateLogin';
+import { AccountsLogin } from '../admin/AccountsLogin';
 import { CreateCategoryPage } from '../admin/CreateCategory';
-
+import { AdminSupportChat } from '../admin/AdminSupportChat';
 interface MenuItem {
   id: string;
   label: string;
@@ -83,9 +84,15 @@ export const AdminDashboardNew: React.FC = () => {
       case '/admin/corporate-login':
         console.log('Rendering CorporateLogin');
         return <CorporateLogin />;
+      case '/admin/accounts-login':
+        console.log('Rendering Accounts Login');
+        return <AccountsLogin />;
       case '/admin/create-category':
         console.log('Rendering CreateCategoryPage');
         return <CreateCategoryPage />;
+      case '/admin/support-chat':
+        console.log('Rendering Support Chart');
+        return <AdminSupportChat />;
       default:
         return (
           <div className="p-6">
@@ -123,6 +130,12 @@ export const AdminDashboardNew: React.FC = () => {
       label: 'Corporate Login',
       icon: Building2,
       path: '/admin/corporate-login'
+    },
+    {
+      id: 'accounts-login',
+      label: 'Accounts Login',
+      icon: Building2,
+      path: '/admin/accounts-login'
     },
     {
       id: 'group-management',
@@ -234,7 +247,8 @@ export const AdminDashboardNew: React.FC = () => {
       label: 'Supports',
       icon: HeadphonesIcon,
       children: [
-        { id: 'feedback', label: 'Feedback and Suggestions', icon: MessageSquare, path: '/admin/feedback-users' }
+        { id: 'feedback', label: 'Feedback and Suggestions', icon: MessageSquare, path: '/admin/feedback-users' },
+        { id: 'support-chat', label: 'Support Chat', icon: MessageSquare, path: '/admin/support-chat' }
       ]
     }
   ];

@@ -10,6 +10,7 @@ import { CompanyHeaderAds } from '../corporate/CompanyHeaderAds';
 import { ApplicationDetails } from '../corporate/ApplicationDetails';
 import { TermsConditions } from '../corporate/TermsConditions';
 import { TncDetailsManager } from '../corporate/TncDetailsManager';
+import { HeaderAdsPricing } from '../corporate/HeaderAdsPricing';
 import {
   LayoutDashboard, Users, Building2, MapPin, Globe, FileText,
   LogOut, ChevronDown, ChevronRight, Menu, X, Search, Bell,
@@ -95,6 +96,12 @@ export const CorporateDashboard: React.FC = () => {
         { id: 'company-header-ads', label: 'My Company Header Ads', icon: Building, path: '/corporate/company-header-ads' },
         { id: 'main-page-ads', label: 'Main Page Ads', icon: FileImage, path: '/corporate/main-page-ads' }
       ]
+    },
+    {
+      id: 'header-ads-pricing',
+      label: 'Header Ads Pricing',
+      icon: DollarSign,
+      path: '/corporate/header-ads-pricing'
     },
     {
       id: 'profile',
@@ -207,6 +214,8 @@ export const CorporateDashboard: React.FC = () => {
         return <HeadOfficeLogin />;
       case '/corporate/header-ads':
         return <HeaderAds />;
+      case '/corporate/header-ads-pricing':
+        return <HeaderAdsPricing />;
       case '/corporate/popup-ads':
         return <div className="p-6"><h2 className="text-2xl font-bold">Popup Ads Management</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
       case '/corporate/company-header-ads':

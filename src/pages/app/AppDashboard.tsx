@@ -8,12 +8,16 @@ import {
   Eye,
   ToggleLeft,
   ToggleRight,
-  Tv
+  Tv,
+  Link,
+  MessageSquare
 } from 'lucide-react';
 import axios from 'axios';
 import { API_BASE_URL } from '../../config/api.config';
 import { PartnersManagement } from './PartnersManagement';
 import { MediaChannelsView } from './MediaChannelsView';
+import { FooterManagement } from './FooterManagement';
+import { AppSupportChat } from './AppSupportChat';
 
 interface AppInfo {
   id: number;
@@ -142,6 +146,8 @@ export const AppDashboard: React.FC = () => {
 
   const menuItems = [
     { icon: Users, label: 'Partners', path: `/app/${appId}/dashboard`, view: 'partners' as const },
+    { icon: Link, label: 'Footer Links', path: `/app/${appId}/footer`, view: 'footer' as const },
+    { icon: MessageSquare, label: 'Support Chat', path: `/app/${appId}/support`, view: 'support' as const },
   ];
 
   if (loading) {
@@ -249,6 +255,12 @@ export const AppDashboard: React.FC = () => {
         <div className="max-w-7xl mx-auto">
           {activeView === 'partners' && (
             <PartnersManagement appId={appId} appName={appInfo?.name} />
+          )}
+          {activeView === 'footer' && (
+            <FooterManagement appId={appId} />
+          )}
+          {activeView === 'support' && (
+            <AppSupportChat appId={appId} />
           )}
           {activeView.startsWith('category-') && selectedCategoryId && (
             <MediaChannelsView

@@ -41,6 +41,15 @@ interface MobileHeaderProps {
   isLoggedIn?: boolean;
   onProfileClick?: () => void;
   onTopIconClick?: (icon: TopIcon) => void;
+  // Customization options for different apps
+  showTopIcons?: boolean;
+  showAds?: boolean;
+  showDarkModeToggle?: boolean;
+  showProfileButton?: boolean;
+  headerBgColor?: string;
+  topIconsBgColor?: string;
+  customLogo?: string;
+  customIcon?: string;
 }
 
 export const MobileHeader: React.FC<MobileHeaderProps> = ({
@@ -49,15 +58,26 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
   darkMode = false,
   onDarkModeToggle,
   userProfile,
-  isLoggedIn = false,
+  isLoggedIn: _isLoggedIn = false,
   onProfileClick,
-  onTopIconClick
+  onTopIconClick,
+  showTopIcons = true,
+  showAds = true,
+  showDarkModeToggle = true,
+  showProfileButton = true,
+  headerBgColor = 'bg-white',
+  topIconsBgColor = 'bg-gray-900',
+  customLogo,
+  customIcon
 }) => {
+  // Suppress unused variable warning
+  void _isLoggedIn;
+
   const [topIcons, setTopIcons] = useState<TopIcon[]>([]);
   const [ads, setAds] = useState<Ad[]>([]);
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
   const [currentAdIndex, setCurrentAdIndex] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [_loading, setLoading] = useState(true);
 
   // Fetch app info
   const fetchAppInfo = useCallback(async () => {
@@ -144,11 +164,15 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
     // If no callback, allow default anchor behavior (navigation via href)
   };
 
+  // Get the logo to display (custom or from app info)
+  const displayLogo = customLogo || appInfo?.logo;
+  const displayIcon = customIcon || appInfo?.icon;
+
   return (
     <div className="fixed top-0 left-0 right-0 z-50">
       {/* Top Icon Navigation */}
-      {topIcons.length > 0 && (
-        <div className="bg-gray-900 px-2 py-2">
+      {showTopIcons && topIcons.length > 0 && (
+        <div className={`${topIconsBgColor} px-2 py-2`}>
           <div className="flex gap-3 overflow-x-auto scrollbar-hide">
             {topIcons.map((icon) => (
               <a
@@ -172,27 +196,29 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
       )}
 
       {/* Logo Header */}
-      <div className="bg-white shadow-sm">
+      <div className={`${headerBgColor} shadow-sm`}>
         <div className="flex items-center justify-between px-4 py-3">
           {/* User Profile Icon */}
-          <button
-            onClick={onProfileClick}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-          >
-            {userProfile?.profile_img ? (
-              <img
-                src={`${BACKEND_URL}${userProfile.profile_img}`}
-                alt="Profile"
-                className="w-8 h-8 rounded-full object-cover"
-              />
-            ) : (
-              <User size={24} className="text-gray-700" />
-            )}
-          </button>
+          {showProfileButton && (
+            <button
+              onClick={onProfileClick}
+              className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+            >
+              {userProfile?.profile_img ? (
+                <img
+                  src={`${BACKEND_URL}${userProfile.profile_img}`}
+                  alt="Profile"
+                  className="w-8 h-8 rounded-full object-cover"
+                />
+              ) : (
+                <User size={24} className="text-gray-700" />
+              )}
+            </button>
+          )}
 
           {/* Dark Mode Toggle & App Logo */}
           <div className="flex items-center gap-2">
-            {onDarkModeToggle && (
+            {showDarkModeToggle && onDarkModeToggle && (
               <button
                 onClick={onDarkModeToggle}
                 className="p-2 hover:bg-gray-100 rounded-full transition-colors"
@@ -206,16 +232,16 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
             )}
             {/* App Logo */}
             <div className="p-1">
-              {appInfo?.logo ? (
+              {displayLogo ? (
                 <img
-                  src={`${BACKEND_URL}${appInfo.logo}`}
-                  alt={appInfo.apps_name || appInfo.name}
+                  src={displayLogo.startsWith('http') ? displayLogo : `${BACKEND_URL}${displayLogo}`}
+                  alt={appInfo?.apps_name || appInfo?.name || 'App'}
                   className="w-8 h-8 rounded-full object-contain"
                 />
-              ) : appInfo?.icon ? (
+              ) : displayIcon ? (
                 <img
-                  src={`${BACKEND_URL}${appInfo.icon}`}
-                  alt={appInfo.apps_name || appInfo.name}
+                  src={displayIcon.startsWith('http') ? displayIcon : `${BACKEND_URL}${displayIcon}`}
+                  alt={appInfo?.apps_name || appInfo?.name || 'App'}
                   className="w-8 h-8 rounded-full object-contain"
                 />
               ) : (
@@ -229,7 +255,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
       </div>
 
       {/* Carousel Ads Section */}
-      {ads.length > 0 && (
+      {showAds && ads.length > 0 && (
         <div className="relative bg-gray-100">
           {/* Carousel Container */}
           <div className="relative h-32 overflow-hidden">

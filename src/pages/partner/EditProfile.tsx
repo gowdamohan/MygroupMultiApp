@@ -1,12 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { User, Mail, Phone, MapPin, Building, Save } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { User, Mail, Phone, MapPin, Building, Save, Camera, Loader2 } from 'lucide-react';
 import axios from 'axios';
-import { API_BASE_URL } from '../../config/api.config';
+import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
 
 export const EditProfile: React.FC = () => {
   const [loading, setLoading] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
+  const [profileImg, setProfileImg] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
@@ -21,6 +24,7 @@ export const EditProfile: React.FC = () => {
 
   useEffect(() => {
     fetchProfile();
+    fetchUserProfile();
   }, []);
 
   const fetchProfile = async () => {
@@ -46,6 +50,64 @@ export const EditProfile: React.FC = () => {
       }
     } catch (err: any) {
       console.error('Failed to fetch profile:', err);
+    }
+  };
+
+  const fetchUserProfile = async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const response = await axios.get(`${API_BASE_URL}/partner/user-profile`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.success && response.data.data.profile_img) {
+        setProfileImg(response.data.data.profile_img);
+      }
+    } catch (err) {
+      console.error('Failed to fetch user profile:', err);
+    }
+  };
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+    if (!allowedTypes.includes(file.type)) {
+      setError('Only image files (JPEG, PNG, GIF) are allowed');
+      return;
+    }
+
+    // Validate file size (2MB max)
+    if (file.size > 2 * 1024 * 1024) {
+      setError('File size must be less than 2MB');
+      return;
+    }
+
+    setUploadingPhoto(true);
+    setError('');
+
+    try {
+      const token = localStorage.getItem('accessToken');
+      const formData = new FormData();
+      formData.append('profile_photo', file);
+
+      const response = await axios.post(`${API_BASE_URL}/partner/profile-photo`, formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      if (response.data.success) {
+        setProfileImg(response.data.data.profile_img);
+        setSuccess('Profile photo updated successfully!');
+        setTimeout(() => setSuccess(''), 3000);
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to upload photo');
+    } finally {
+      setUploadingPhoto(false);
     }
   };
 
@@ -98,6 +160,46 @@ export const EditProfile: React.FC = () => {
       )}
 
       <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+        {/* Profile Photo Section */}
+        <div className="flex flex-col items-center mb-8 pb-6 border-b border-gray-200">
+          <div className="relative">
+            <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-primary-100 shadow-lg">
+              {profileImg ? (
+                <img
+                  src={`${BACKEND_URL}${profileImg}`}
+                  alt="Profile"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center">
+                  <User className="text-white" size={48} />
+                </div>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploadingPhoto}
+              className="absolute bottom-0 right-0 w-10 h-10 bg-primary-600 hover:bg-primary-700 text-white rounded-full flex items-center justify-center shadow-lg transition-colors disabled:opacity-50"
+            >
+              {uploadingPhoto ? (
+                <Loader2 className="animate-spin" size={20} />
+              ) : (
+                <Camera size={20} />
+              )}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/jpg,image/png,image/gif"
+              onChange={handlePhotoUpload}
+              className="hidden"
+            />
+          </div>
+          <p className="text-sm text-gray-500 mt-3">Click the camera icon to upload a new photo</p>
+          <p className="text-xs text-gray-400">Max size: 2MB. Formats: JPEG, PNG, GIF</p>
+        </div>
+
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* First Name */}

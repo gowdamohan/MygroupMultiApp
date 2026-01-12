@@ -14,6 +14,7 @@ import {
   deleteMyChannel,
   getPartnerHeaderAds,
   getUserProfile,
+  uploadProfilePhoto,
   checkPasscode,
   generatePasscode,
   setPasscode,
@@ -132,6 +133,13 @@ router.get('/header-ads', authenticate, getPartnerHeaderAds);
  * @access  Private (Partner)
  */
 router.get('/user-profile', authenticate, getUserProfile);
+
+/**
+ * @route   POST /api/v1/partner/profile-photo
+ * @desc    Upload profile photo
+ * @access  Private (Partner)
+ */
+router.post('/profile-photo', authenticate, upload.single('profile_photo'), uploadProfilePhoto);
 
 /**
  * @route   GET /api/v1/partner/channel/:id/check-passcode

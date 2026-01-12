@@ -42,6 +42,13 @@ import MediaGalleryImages from './MediaGalleryImages.js';
 import MediaTeam from './MediaTeam.js';
 import MediaHeaderAds from './MediaHeaderAds.js';
 import MediaComments from './MediaComments.js';
+import HeaderAdsPricing from './HeaderAdsPricing.js';
+import HeaderAd from './HeaderAd.js';
+import SupportConversation from './SupportConversation.js';
+import SupportMessage from './SupportMessage.js';
+import Wallet from './Wallet.js';
+import WalletTransaction from './WalletTransaction.js';
+import FooterLink from './FooterLink.js';
 
 // ============================================
 // USER ASSOCIATIONS
@@ -554,6 +561,73 @@ User.hasMany(MediaComments, { foreignKey: 'user_id', as: 'mediaComments' });
 MediaComments.belongsTo(MediaComments, { foreignKey: 'parent_id', as: 'parent' });
 MediaComments.hasMany(MediaComments, { foreignKey: 'parent_id', as: 'replies' });
 
+// ============================================
+// HEADER ADS PRICING ASSOCIATIONS
+// ============================================
+
+// HeaderAdsPricing belongs to GroupCreate (app)
+HeaderAdsPricing.belongsTo(GroupCreate, { foreignKey: 'app_id', as: 'app' });
+GroupCreate.hasMany(HeaderAdsPricing, { foreignKey: 'app_id', as: 'adsPricing' });
+
+// HeaderAdsPricing belongs to AppCategory
+HeaderAdsPricing.belongsTo(AppCategory, { foreignKey: 'category_id', as: 'category' });
+AppCategory.hasMany(HeaderAdsPricing, { foreignKey: 'category_id', as: 'adsPricing' });
+
+// HeaderAdsPricing belongs to User (created_by)
+HeaderAdsPricing.belongsTo(User, { foreignKey: 'created_by', as: 'creator' });
+
+// ============================================
+// HEADER AD ASSOCIATIONS
+// ============================================
+
+// HeaderAd belongs to GroupCreate (app)
+HeaderAd.belongsTo(GroupCreate, { foreignKey: 'app_id', as: 'app' });
+GroupCreate.hasMany(HeaderAd, { foreignKey: 'app_id', as: 'ads' });
+
+// HeaderAd belongs to AppCategory
+HeaderAd.belongsTo(AppCategory, { foreignKey: 'category_id', as: 'category' });
+AppCategory.hasMany(HeaderAd, { foreignKey: 'category_id', as: 'ads' });
+
+// HeaderAd belongs to Country, State, District (location targeting)
+HeaderAd.belongsTo(Country, { foreignKey: 'country_id', as: 'country' });
+HeaderAd.belongsTo(State, { foreignKey: 'state_id', as: 'state' });
+HeaderAd.belongsTo(District, { foreignKey: 'district_id', as: 'district' });
+
+// HeaderAd belongs to User (created_by, approved_by)
+HeaderAd.belongsTo(User, { foreignKey: 'created_by', as: 'creator' });
+HeaderAd.belongsTo(User, { foreignKey: 'approved_by', as: 'approver' });
+
+// ============================================
+// SUPPORT CONVERSATION ASSOCIATIONS
+// ============================================
+
+// SupportConversation belongs to GroupCreate (app)
+SupportConversation.belongsTo(GroupCreate, { foreignKey: 'app_id', as: 'app' });
+GroupCreate.hasMany(SupportConversation, { foreignKey: 'app_id', as: 'supportConversations' });
+
+// SupportConversation belongs to User (partner and assigned_to)
+SupportConversation.belongsTo(User, { foreignKey: 'partner_id', as: 'partner' });
+SupportConversation.belongsTo(User, { foreignKey: 'assigned_to', as: 'assignee' });
+
+// SupportConversation has many SupportMessages
+SupportConversation.hasMany(SupportMessage, { foreignKey: 'conversation_id', as: 'messages' });
+SupportMessage.belongsTo(SupportConversation, { foreignKey: 'conversation_id', as: 'conversation' });
+
+// SupportMessage belongs to User (sender)
+SupportMessage.belongsTo(User, { foreignKey: 'sender_id', as: 'sender' });
+
+// ============================================
+// WALLET ASSOCIATIONS
+// ============================================
+
+// Wallet belongs to User
+Wallet.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
+User.hasMany(Wallet, { foreignKey: 'user_id', as: 'wallets' });
+
+// Wallet has many WalletTransactions
+Wallet.hasMany(WalletTransaction, { foreignKey: 'wallet_id', as: 'transactions' });
+WalletTransaction.belongsTo(Wallet, { foreignKey: 'wallet_id', as: 'wallet' });
+
 // Export all models
 export {
   User,
@@ -599,6 +673,13 @@ export {
   MediaGalleryImages,
   MediaTeam,
   MediaHeaderAds,
-  MediaComments
+  MediaComments,
+  HeaderAdsPricing,
+  HeaderAd,
+  SupportConversation,
+  SupportMessage,
+  Wallet,
+  WalletTransaction,
+  FooterLink
 };
 
