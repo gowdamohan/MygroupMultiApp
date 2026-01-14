@@ -11,6 +11,7 @@ import { ApplicationDetails } from '../corporate/ApplicationDetails';
 import { TermsConditions } from '../corporate/TermsConditions';
 import { TncDetailsManager } from '../corporate/TncDetailsManager';
 import { HeaderAdsPricing } from '../corporate/HeaderAdsPricing';
+import { CorporateHeaderAdsPricing } from '../corporate/CorporateHeaderAdsPricing';
 import {
   LayoutDashboard, Users, Building2, MapPin, Globe, FileText,
   LogOut, ChevronDown, ChevronRight, Menu, X, Search, Bell,
@@ -215,7 +216,7 @@ export const CorporateDashboard: React.FC = () => {
       case '/corporate/header-ads':
         return <HeaderAds />;
       case '/corporate/header-ads-pricing':
-        return <HeaderAdsPricing />;
+        return <CorporateHeaderAdsPricing />;
       case '/corporate/popup-ads':
         return <div className="p-6"><h2 className="text-2xl font-bold">Popup Ads Management</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
       case '/corporate/company-header-ads':

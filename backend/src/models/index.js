@@ -43,6 +43,8 @@ import MediaTeam from './MediaTeam.js';
 import MediaHeaderAds from './MediaHeaderAds.js';
 import MediaComments from './MediaComments.js';
 import HeaderAdsPricing from './HeaderAdsPricing.js';
+import HeaderAdsPricingMaster from './HeaderAdsPricingMaster.js';
+import HeaderAdsPricingSlave from './HeaderAdsPricingSlave.js';
 import HeaderAdsSlot from './HeaderAdsSlot.js';
 import HeaderAd from './HeaderAd.js';
 import SupportConversation from './SupportConversation.js';
@@ -587,6 +589,17 @@ AppCategory.hasMany(HeaderAdsPricing, { foreignKey: 'category_id', as: 'adsPrici
 // HeaderAdsPricing belongs to User (created_by)
 HeaderAdsPricing.belongsTo(User, { foreignKey: 'created_by', as: 'creator' });
 
+// HeaderAdsPricingMaster associations
+HeaderAdsPricingMaster.belongsTo(Country, { foreignKey: 'country_id', as: 'country' });
+Country.hasMany(HeaderAdsPricingMaster, { foreignKey: 'country_id', as: 'headerAdsPricingMasters' });
+
+// HeaderAdsPricingSlave associations
+HeaderAdsPricingSlave.belongsTo(HeaderAdsPricingMaster, { foreignKey: 'header_ads_pricing_master_id', as: 'master' });
+HeaderAdsPricingMaster.hasMany(HeaderAdsPricingSlave, { foreignKey: 'header_ads_pricing_master_id', as: 'slaves' });
+
+HeaderAdsPricingSlave.belongsTo(GroupCreate, { foreignKey: 'app_id', as: 'app' });
+HeaderAdsPricingSlave.belongsTo(AppCategory, { foreignKey: 'category_id', as: 'category' });
+
 // ============================================
 // HEADER AD ASSOCIATIONS
 // ============================================
@@ -686,6 +699,8 @@ export {
   MediaHeaderAds,
   MediaComments,
   HeaderAdsPricing,
+  HeaderAdsPricingMaster,
+  HeaderAdsPricingSlave,
   HeaderAdsSlot,
   HeaderAd,
   SupportConversation,
