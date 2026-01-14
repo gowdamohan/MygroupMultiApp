@@ -1,125 +1,285 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, DollarSign, ChevronLeft, ChevronRight, Upload, Link, Check, X, Loader2 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { Upload, Save, Loader2, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
 import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
 
-interface PricingData {
+interface App {
   id: number;
+  name: string;
+}
+
+interface Category {
+  id: number;
+  category_name: string;
+}
+
+interface PricingData {
   date: string;
-  ad_slot: 'ads1' | 'ads2';
   price: number;
-  is_booked: number;
-  booked_by?: string;
+  is_booked: boolean;
 }
 
-interface FranchiseHeaderAdsProps {
-  officeLevel: 'head_office' | 'regional' | 'branch';
+interface SelectedSlot {
+  appId: number;
+  categoryId: number;
+  dates: string[];
+  file: File | null;
+  url: string;
+  preview: string;
 }
 
-export const FranchiseHeaderAds: React.FC<FranchiseHeaderAdsProps> = ({ officeLevel }) => {
-  const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [selectedSlot, setSelectedSlot] = useState<'ads1' | 'ads2'>('ads1');
-  const [pricingData, setPricingData] = useState<PricingData[]>([]);
+export const FranchiseHeaderAds: React.FC = () => {
+  const [apps, setApps] = useState<App[]>([]);
+  const [appCategories, setAppCategories] = useState<{[appId: number]: Category[]}>({});
+  const [pricingData, setPricingData] = useState<{[key: string]: PricingData[]}>({});
+  const [selectedSlots, setSelectedSlots] = useState<{[key: string]: SelectedSlot}>({});
   const [loading, setLoading] = useState(true);
-  const [selectedDates, setSelectedDates] = useState<string[]>([]);
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [linkUrl, setLinkUrl] = useState('');
-  const [previewUrl, setPreviewUrl] = useState('');
-  const [showBookingModal, setShowBookingModal] = useState(false);
-  const [booking, setBooking] = useState(false);
+  const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [showBookingModal, setShowBookingModal] = useState<{appId: number, categoryId: number} | null>(null);
+  const [calendarStartMonth, setCalendarStartMonth] = useState(new Date());
 
   useEffect(() => {
-    fetchPricing();
-  }, [currentMonth, selectedSlot, officeLevel]);
+    fetchApps();
+  }, []);
 
-  const fetchPricing = async () => {
+  useEffect(() => {
+    if (apps.length > 0) {
+      fetchPricingForAllCategories();
+    }
+  }, [apps, appCategories]);
+
+  useEffect(() => {
+    if (showBookingModal) {
+      fetchPricingForCalendar(showBookingModal.appId, showBookingModal.categoryId);
+    }
+  }, [showBookingModal, calendarStartMonth]);
+
+  const fetchApps = async () => {
     try {
-      setLoading(true);
       const token = localStorage.getItem('accessToken');
-      const startDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
-      const endDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
-      
-      const response = await axios.get(`${API_BASE_URL}/advertisement/franchise-pricing`, {
-        headers: { Authorization: `Bearer ${token}` },
-        params: {
-          office_level: officeLevel,
-          ad_slot: selectedSlot,
-          start_date: startDate.toISOString().split('T')[0],
-          end_date: endDate.toISOString().split('T')[0]
-        }
+      const response = await axios.get(`${API_BASE_URL}/header-ads/my-apps`, {
+        headers: { Authorization: `Bearer ${token}` }
       });
       if (response.data.success) {
-        setPricingData(response.data.data);
+        const appsData = response.data.data;
+        setApps(appsData);
+        
+        for (const app of appsData) {
+          await fetchCategories(app.id);
+        }
       }
     } catch (err: any) {
-      console.error('Error fetching pricing:', err);
+      console.error('Error fetching apps:', err);
+      setError('Failed to fetch apps');
     } finally {
       setLoading(false);
     }
   };
 
-  const handlePrevMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
-  };
-
-  const handleNextMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
-  };
-
-  const handleDateClick = (date: string, pricing: PricingData | undefined) => {
-    if (pricing?.is_booked) return;
-    
-    if (selectedDates.includes(date)) {
-      setSelectedDates(selectedDates.filter(d => d !== date));
-    } else {
-      setSelectedDates([...selectedDates, date]);
+  const fetchCategories = async (appId: number) => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const response = await axios.get(`${API_BASE_URL}/header-ads/categories/${appId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.success) {
+        setAppCategories(prev => ({ ...prev, [appId]: response.data.data }));
+      }
+    } catch (err: any) {
+      console.error('Error fetching categories:', err);
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const fetchPricingForAllCategories = async () => {
+    const today = new Date();
+    const startDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const endDate = new Date(today.getFullYear(), today.getMonth() + 3, today.getDate() - 1);
+
+    for (const app of apps) {
+      const categories = appCategories[app.id] || [];
+      for (const category of categories) {
+        await fetchPricing(app.id, category.id, startDate, endDate);
+      }
+    }
+  };
+
+  const fetchPricingForCalendar = async (appId: number, categoryId: number) => {
+    const startDate = new Date(calendarStartMonth);
+    const endDate = new Date(calendarStartMonth.getFullYear(), calendarStartMonth.getMonth() + 3, 0);
+    await fetchPricing(appId, categoryId, startDate, endDate);
+  };
+
+  const fetchPricing = async (appId: number, categoryId: number, startDate: Date, endDate: Date) => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const response = await axios.get(`${API_BASE_URL}/header-ads/pricing`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: {
+          app_id: appId,
+          category_id: categoryId,
+          start_date: startDate.toISOString().split('T')[0],
+          end_date: endDate.toISOString().split('T')[0]
+        }
+      });
+      
+      if (response.data.success) {
+        const key = `${appId}-${categoryId}`;
+        setPricingData(prev => ({ ...prev, [key]: response.data.data }));
+      }
+    } catch (err: any) {
+      console.error('Error fetching pricing:', err);
+    }
+  };
+
+  const getMonthGroups = () => {
+    const today = new Date();
+    const groups: { month: string; dates: { date: string; day: number }[] }[] = [];
+
+    for (let m = 0; m < 3; m++) {
+      const monthDate = new Date(today.getFullYear(), today.getMonth() + m, 1);
+      const monthName = monthDate.toLocaleDateString('en-US', { month: 'short' });
+      const year = monthDate.getFullYear();
+      const month = monthDate.getMonth();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const dates = [];
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(year, month, day);
+        const dateStr = date.toISOString().split('T')[0];
+        
+        // Only include dates from today onwards
+        if (date >= new Date(today.getFullYear(), today.getMonth(), today.getDate())) {
+          dates.push({ date: dateStr, day });
+        }
+      }
+
+      if (dates.length > 0) {
+        groups.push({ month: monthName, dates });
+      }
+    }
+
+    return groups;
+  };
+
+  const handleCellClick = (appId: number, categoryId: number) => {
+    const key = `${appId}-${categoryId}`;
+    if (!selectedSlots[key]) {
+      setSelectedSlots(prev => ({
+        ...prev,
+        [key]: { appId, categoryId, dates: [], file: null, url: '', preview: '' }
+      }));
+    }
+    setCalendarStartMonth(new Date());
+    setShowBookingModal({ appId, categoryId });
+  };
+
+  const handleCalendarDateClick = (appId: number, categoryId: number, date: string, pricing: PricingData | undefined) => {
+    if (!pricing || pricing.is_booked) return;
+
+    const key = `${appId}-${categoryId}`;
+    const currentSlot = selectedSlots[key] || { appId, categoryId, dates: [], file: null, url: '', preview: '' };
+    
+    const newDates = currentSlot.dates.includes(date)
+      ? currentSlot.dates.filter(d => d !== date)
+      : [...currentSlot.dates, date];
+    
+    setSelectedSlots(prev => ({
+      ...prev,
+      [key]: { ...currentSlot, dates: newDates }
+    }));
+  };
+
+  const getCalendarMonths = () => {
+    const months = [];
+    for (let i = 0; i < 3; i++) {
+      const month = new Date(calendarStartMonth.getFullYear(), calendarStartMonth.getMonth() + i, 1);
+      months.push(month);
+    }
+    return months;
+  };
+
+  const getDaysInCalendarMonth = (month: Date) => {
+    const year = month.getFullYear();
+    const monthIndex = month.getMonth();
+    const firstDay = new Date(year, monthIndex, 1);
+    const lastDay = new Date(year, monthIndex + 1, 0);
+    const daysInMonth = lastDay.getDate();
+
+    const days: { date: string; day: number }[] = [];
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(year, monthIndex, day);
+      days.push({ date: date.toISOString().split('T')[0], day });
+    }
+    return days;
+  };
+
+  const getPricingForDate = (appId: number, categoryId: number, date: string): PricingData | undefined => {
+    const key = `${appId}-${categoryId}`;
+    return pricingData[key]?.find(p => p.date === date);
+  };
+
+  const calculateTotal = (appId: number, categoryId: number): number => {
+    const key = `${appId}-${categoryId}`;
+    const slot = selectedSlots[key];
+    if (!slot) return 0;
+
+    return slot.dates.reduce((total, date) => {
+      const pricing = getPricingForDate(appId, categoryId, date);
+      return total + (pricing?.price || 0);
+    }, 0);
+  };
+
+  const handleFileChange = (appId: number, categoryId: number, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
-      if (!validTypes.includes(file.type)) {
-        setError('Please upload a valid image file (JPEG, PNG, or GIF)');
-        return;
-      }
-      if (file.size > 2 * 1024 * 1024) {
-        setError('File size must be less than 2MB');
-        return;
-      }
-      setUploadedFile(file);
-      setPreviewUrl(URL.createObjectURL(file));
-      setError('');
+      const key = `${appId}-${categoryId}`;
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setSelectedSlots(prev => ({
+          ...prev,
+          [key]: {
+            ...prev[key],
+            file,
+            preview: reader.result as string
+          }
+        }));
+      };
+      reader.readAsDataURL(file);
     }
   };
 
-  const handleBooking = async () => {
-    if (selectedDates.length === 0) {
+  const handleSave = async (appId: number, categoryId: number) => {
+    setError('');
+    setSuccess('');
+
+    const key = `${appId}-${categoryId}`;
+    const slot = selectedSlots[key];
+
+    if (!slot?.file) {
+      setError('Please upload a file');
+      return;
+    }
+
+    if (!slot?.dates || slot.dates.length === 0) {
       setError('Please select at least one date');
       return;
     }
-    if (!uploadedFile) {
-      setError('Please upload an ad image');
-      return;
-    }
 
-    setBooking(true);
-    setError('');
+    setSaving(key);
 
     try {
       const token = localStorage.getItem('accessToken');
       const formData = new FormData();
-      formData.append('ad_image', uploadedFile);
-      formData.append('dates', JSON.stringify(selectedDates));
-      formData.append('ad_slot', selectedSlot);
-      formData.append('office_level', officeLevel);
-      formData.append('link_url', linkUrl);
+      formData.append('app_id', appId.toString());
+      formData.append('category_id', categoryId.toString());
+      formData.append('dates', JSON.stringify(slot.dates));
+      if (slot.url) formData.append('link_url', slot.url);
+      if (slot.file) formData.append('file', slot.file);
 
-      const response = await axios.post(`${API_BASE_URL}/advertisement/franchise-book`, formData, {
+      const response = await axios.post(`${API_BASE_URL}/header-ads`, formData, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'multipart/form-data'
@@ -127,308 +287,286 @@ export const FranchiseHeaderAds: React.FC<FranchiseHeaderAdsProps> = ({ officeLe
       });
 
       if (response.data.success) {
-        setSuccess('Ad booked successfully!');
-        setSelectedDates([]);
-        setUploadedFile(null);
-        setPreviewUrl('');
-        setLinkUrl('');
-        setShowBookingModal(false);
-        fetchPricing();
+        setSuccess('Header ad booked successfully');
+        setSelectedSlots(prev => {
+          const updated = { ...prev };
+          delete updated[key];
+          return updated;
+        });
+        setShowBookingModal(null);
+        await fetchPricingForAllCategories();
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to book ad');
+      console.error('Booking error:', err);
+      setError(err.response?.data?.message || 'Booking failed. Please try again.');
     } finally {
-      setBooking(false);
+      setSaving(null);
     }
   };
 
-  const getDaysInMonth = () => {
-    const year = currentMonth.getFullYear();
-    const month = currentMonth.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const daysInMonth = lastDay.getDate();
-    const startingDay = firstDay.getDay();
-
-    const days: { date: string; day: number; isCurrentMonth: boolean }[] = [];
-
-    // Previous month days
-    const prevMonthLastDay = new Date(year, month, 0).getDate();
-    for (let i = startingDay - 1; i >= 0; i--) {
-      const day = prevMonthLastDay - i;
-      const date = new Date(year, month - 1, day);
-      days.push({ date: date.toISOString().split('T')[0], day, isCurrentMonth: false });
-    }
-
-    // Current month days
-    for (let day = 1; day <= daysInMonth; day++) {
-      const date = new Date(year, month, day);
-      days.push({ date: date.toISOString().split('T')[0], day, isCurrentMonth: true });
-    }
-
-    return days;
-  };
-
-  const getPricingForDate = (date: string) => {
-    return pricingData.find(p => p.date === date);
-  };
-
-  const calculateTotal = () => {
-    return selectedDates.reduce((total, date) => {
-      const pricing = getPricingForDate(date);
-      return total + (pricing?.price || 0);
-    }, 0);
-  };
-
-  const getOfficeLevelLabel = () => {
-    switch (officeLevel) {
-      case 'head_office': return 'Head Office';
-      case 'regional': return 'Regional Office';
-      case 'branch': return 'Branch Office';
-      default: return 'Office';
-    }
-  };
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <Loader2 className="animate-spin text-blue-600" size={32} />
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-6xl mx-auto">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">{getOfficeLevelLabel()} Header Ads</h2>
-        <p className="text-gray-600 mt-1">Book header advertisement slots for your {getOfficeLevelLabel().toLowerCase()}</p>
-      </div>
-
-      {error && (
-        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
-          {error}
-        </div>
-      )}
-
-      {success && (
-        <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg text-green-700">
-          {success}
-        </div>
-      )}
-
-      {/* Slot Selection */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Select Ad Slot</h3>
-        <div className="flex gap-4">
-          <button
-            onClick={() => setSelectedSlot('ads1')}
-            className={`flex-1 p-4 rounded-lg border-2 transition-all ${
-              selectedSlot === 'ads1'
-                ? 'border-blue-500 bg-blue-50'
-                : 'border-gray-200 hover:border-gray-300'
-            }`}
-          >
-            <div className="font-medium text-gray-900">Header Ads 1</div>
-            <div className="text-sm text-gray-500">Primary header position</div>
-          </button>
-          <button
-            onClick={() => setSelectedSlot('ads2')}
-            className={`flex-1 p-4 rounded-lg border-2 transition-all ${
-              selectedSlot === 'ads2'
-                ? 'border-blue-500 bg-blue-50'
-                : 'border-gray-200 hover:border-gray-300'
-            }`}
-          >
-            <div className="font-medium text-gray-900">Header Ads 2</div>
-            <div className="text-sm text-gray-500">Secondary header position</div>
-          </button>
+    <div className="p-6 space-y-6">
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold text-gray-900">Franchise Header Ads Booking</h1>
+        <div className="text-sm text-gray-600">
+          Next 3 months from {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
         </div>
       </div>
 
-      {/* Calendar */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-lg font-semibold text-gray-900">
-            {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-          </h3>
-          <div className="flex gap-2">
-            <button
-              onClick={handlePrevMonth}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <ChevronLeft size={20} />
-            </button>
-            <button
-              onClick={handleNextMonth}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <ChevronRight size={20} />
-            </button>
-          </div>
-        </div>
+      <AnimatePresence>
+        {error && (
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+            {error}
+          </motion.div>
+        )}
+        {success && (
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg">
+            {success}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="animate-spin text-blue-600" size={32} />
-          </div>
-        ) : (
-          <>
-            <div className="grid grid-cols-7 gap-1 mb-2">
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                <div key={day} className="text-center text-sm font-medium text-gray-500 py-2">
-                  {day}
-                </div>
-              ))}
-            </div>
-            <div className="grid grid-cols-7 gap-1">
-              {getDaysInMonth().map((dayInfo, index) => {
-                const pricing = getPricingForDate(dayInfo.date);
-                const isSelected = selectedDates.includes(dayInfo.date);
-                const isBooked = pricing?.is_booked === 1;
-                const isPast = new Date(dayInfo.date) < new Date(new Date().toDateString());
-
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto relative max-h-[600px]">
+        <table className="w-full border-collapse">
+          <thead className="sticky top-0 z-10">
+            <tr>
+              <th rowSpan={2} className="sticky left-0 z-20 bg-blue-600 border border-gray-300 px-4 py-2 text-sm font-bold text-white min-w-[150px]">
+                Category
+              </th>
+              {getMonthGroups().map((group, idx) => {
+                const colors = ['bg-blue-600', 'bg-indigo-600', 'bg-purple-600'];
                 return (
-                  <button
-                    key={index}
-                    onClick={() => !isPast && dayInfo.isCurrentMonth && handleDateClick(dayInfo.date, pricing)}
-                    disabled={isPast || !dayInfo.isCurrentMonth || isBooked}
-                    className={`
-                      p-2 min-h-[80px] rounded-lg border text-left transition-all
-                      ${!dayInfo.isCurrentMonth ? 'opacity-30' : ''}
-                      ${isPast ? 'bg-gray-100 cursor-not-allowed' : ''}
-                      ${isBooked ? 'bg-red-50 border-red-200 cursor-not-allowed' : ''}
-                      ${isSelected ? 'bg-blue-100 border-blue-500' : 'border-gray-200 hover:border-gray-300'}
-                    `}
-                  >
-                    <div className="text-sm font-medium text-gray-900">{dayInfo.day}</div>
-                    {dayInfo.isCurrentMonth && pricing && (
-                      <div className={`text-xs mt-1 ${isBooked ? 'text-red-600' : 'text-green-600'}`}>
-                        {isBooked ? 'Booked' : `₹${pricing.price}`}
-                      </div>
-                    )}
-                    {isSelected && (
-                      <Check size={14} className="text-blue-600 mt-1" />
-                    )}
-                  </button>
+                  <th key={group.month} colSpan={group.dates.length} className={`border border-gray-300 px-2 py-2 text-sm font-bold text-white ${colors[idx]}`}>
+                    {group.month}
+                  </th>
                 );
               })}
-            </div>
-          </>
-        )}
+            </tr>
+            <tr>
+              {getMonthGroups().map((group, idx) => {
+                const colors = ['bg-blue-600', 'bg-indigo-600', 'bg-purple-600'];
+                return group.dates.map((dayInfo) => (
+                  <th key={dayInfo.date} className={`border border-gray-300 px-2 py-2 text-xs font-semibold text-white min-w-[50px] ${colors[idx]}`}>
+                    {dayInfo.day}
+                  </th>
+                ));
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {apps.map((app) => {
+              const categories = appCategories[app.id] || [];
+              return (
+                <React.Fragment key={app.id}>
+                  <tr>
+                    <td colSpan={getMonthGroups().reduce((sum, g) => sum + g.dates.length, 0) + 1} 
+                      className="bg-blue-500 border border-gray-300 px-4 py-2 font-bold text-white">
+                      {app.name}
+                    </td>
+                  </tr>
+                  {categories.map((category) => {
+                    const key = `${app.id}-${category.id}`;
+                    const slot = selectedSlots[key];
+                    const total = calculateTotal(app.id, category.id);
+
+                    return (
+                      <tr key={category.id} className="hover:bg-gray-50">
+                        <td className="sticky left-0 z-10 bg-blue-100 border border-gray-300 px-4 py-2 font-medium text-gray-900">
+                          {category.category_name}
+                        </td>
+                        {getMonthGroups().flatMap(g => g.dates).map((dayInfo) => {
+                          const pricing = getPricingForDate(app.id, category.id, dayInfo.date);
+                          const isBooked = pricing?.is_booked;
+                          const price = pricing?.price ?? 0;
+
+                          return (
+                            <td
+                              key={dayInfo.date}
+                              onClick={() => !isBooked && handleCellClick(app.id, category.id)}
+                              className={`border border-gray-300 px-2 py-2 text-center text-xs cursor-pointer transition-colors
+                                ${isBooked ? 'bg-red-500 cursor-not-allowed' : 'bg-green-100 hover:bg-green-200'}
+                              `}
+                            >
+                              {!isBooked && (
+                                <div className="font-semibold text-gray-900">₹{price}</div>
+                              )}
+                              {isBooked && <div className="text-white font-bold text-lg">✕</div>}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </React.Fragment>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
 
-      {/* Selected Dates Summary */}
-      {selectedDates.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Selected Dates</h3>
-          <div className="flex flex-wrap gap-2 mb-4">
-            {selectedDates.map(date => (
-              <span key={date} className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm flex items-center gap-2">
-                {new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                <button onClick={() => setSelectedDates(selectedDates.filter(d => d !== date))}>
-                  <X size={14} />
-                </button>
-              </span>
-            ))}
-          </div>
-          <div className="flex items-center justify-between pt-4 border-t border-gray-200">
-            <div>
-              <span className="text-gray-600">Total:</span>
-              <span className="text-2xl font-bold text-gray-900 ml-2">₹{calculateTotal()}</span>
-            </div>
-            <button
-              onClick={() => setShowBookingModal(true)}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Proceed to Book
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Booking Modal */}
       {showBookingModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6"
+            className="bg-white rounded-xl shadow-xl max-w-7xl w-full p-6 my-8"
           >
-            <h3 className="text-xl font-bold text-gray-900 mb-4">Complete Your Booking</h3>
+            {(() => {
+              const key = `${showBookingModal.appId}-${showBookingModal.categoryId}`;
+              const slot = selectedSlots[key];
+              const total = calculateTotal(showBookingModal.appId, showBookingModal.categoryId);
+              const app = apps.find(a => a.id === showBookingModal.appId);
+              const category = appCategories[showBookingModal.appId]?.find(c => c.id === showBookingModal.categoryId);
 
-            <div className="space-y-4">
-              {/* File Upload */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Upload Ad Image
-                </label>
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
-                  {previewUrl ? (
-                    <div className="relative">
-                      <img src={previewUrl} alt="Preview" className="max-h-40 mx-auto rounded" />
+              return (
+                <>
+                  <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-xl font-bold text-gray-900">
+                      Book Header Ad - {app?.name} - {category?.category_name}
+                    </h3>
+                    <button onClick={() => { setShowBookingModal(null); setSelectedSlots(prev => { const updated = {...prev}; delete updated[key]; return updated; }); }} className="p-2 hover:bg-gray-100 rounded-lg">
+                      <X size={20} />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                    <div className="lg:col-span-3 space-y-4">
+                      <h4 className="font-semibold text-gray-900">Select Dates (3 Months)</h4>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[400px] overflow-y-auto">
+                        {getCalendarMonths().map((month) => (
+                          <div key={month.toISOString()} className="border border-gray-200 rounded-lg p-3">
+                            <h5 className="font-semibold text-center mb-2 text-gray-800">
+                              {month.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                            </h5>
+                            <div className="grid grid-cols-7 gap-1">
+                              {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => (
+                                <div key={i} className="text-xs font-semibold text-center text-gray-600 py-1">{day}</div>
+                              ))}
+                              {Array.from({ length: new Date(month.getFullYear(), month.getMonth(), 1).getDay() }).map((_, i) => (
+                                <div key={`empty-${i}`} />
+                              ))}
+                              {getDaysInCalendarMonth(month).map((dayInfo) => {
+                                const pricing = getPricingForDate(showBookingModal.appId, showBookingModal.categoryId, dayInfo.date);
+                                const isSelected = slot?.dates.includes(dayInfo.date);
+                                const isBooked = pricing?.is_booked;
+                                const isPast = new Date(dayInfo.date) < new Date(new Date().toDateString());
+                                const price = pricing?.price ?? 0;
+
+                                return (
+                                  <button
+                                    key={dayInfo.date}
+                                    onClick={() => !isPast && !isBooked && handleCalendarDateClick(showBookingModal.appId, showBookingModal.categoryId, dayInfo.date, pricing)}
+                                    disabled={isPast || isBooked}
+                                    className={`text-xs p-1 rounded transition-colors
+                                      ${isPast ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''}
+                                      ${isBooked ? 'bg-red-100 text-red-500 cursor-not-allowed line-through' : ''}
+                                      ${isSelected ? 'bg-teal-600 text-white font-bold' : ''}
+                                      ${!isPast && !isBooked && !isSelected ? 'bg-[rgb(150,240,68)] hover:bg-[rgb(140,230,60)] text-gray-900' : ''}
+                                    `}
+                                  >
+                                    <div>{dayInfo.day}</div>
+                                    {!isBooked && !isPast && <div className="text-[9px]">₹{price}</div>}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Upload Ad Image</label>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => handleFileChange(showBookingModal.appId, showBookingModal.categoryId, e)}
+                            className="hidden"
+                            id={`file-${key}`}
+                          />
+                          <label htmlFor={`file-${key}`}
+                            className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 w-full justify-center">
+                            <Upload size={16} />
+                            <span className="text-sm truncate">{slot?.file ? slot.file.name : 'Choose file'}</span>
+                          </label>
+                          {slot?.preview && (
+                            <img src={slot.preview} alt="Preview" className="mt-2 w-full h-32 object-contain rounded border" />
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Link URL (Optional)</label>
+                          <input
+                            type="url"
+                            value={slot?.url || ''}
+                            onChange={(e) => setSelectedSlots(prev => ({
+                              ...prev,
+                              [key]: { ...prev[key], url: e.target.value }
+                            }))}
+                            placeholder="https://example.com"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="bg-gray-50 rounded-lg p-4">
+                        <h4 className="font-semibold mb-3 text-sm">Selection Summary</h4>
+                        <div className="text-sm text-gray-600 mb-2">
+                          Selected Dates: <span className="font-bold text-gray-900">{slot?.dates.length || 0}</span>
+                        </div>
+                        <div className="space-y-1 max-h-60 overflow-y-auto mb-3">
+                          {slot?.dates.length > 0 ? slot.dates.map(date => {
+                            const pricing = getPricingForDate(showBookingModal.appId, showBookingModal.categoryId, date);
+                            return (
+                              <div key={date} className="flex justify-between text-xs bg-white p-2 rounded">
+                                <span>{new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                                <span className="font-medium">₹{pricing?.price ?? 0}</span>
+                              </div>
+                            );
+                          }) : (
+                            <p className="text-xs text-gray-500 text-center py-4">No dates selected</p>
+                          )}
+                        </div>
+                        <div className="flex justify-between text-base font-bold pt-3 border-t border-gray-200">
+                          <span>Total:</span>
+                          <span className="text-teal-600">₹{total}</span>
+                        </div>
+                      </div>
+
                       <button
-                        onClick={() => { setUploadedFile(null); setPreviewUrl(''); }}
-                        className="absolute top-0 right-0 p-1 bg-red-500 text-white rounded-full"
-                      >
-                        <X size={14} />
+                        onClick={() => handleSave(showBookingModal.appId, showBookingModal.categoryId)}
+                        disabled={saving === key || !slot?.file || !slot?.dates?.length}
+                        className="w-full px-4 py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-semibold">
+                        {saving === key ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
+                        Confirm Booking
+                      </button>
+                      
+                      <button
+                        onClick={() => { setShowBookingModal(null); setSelectedSlots(prev => { const updated = {...prev}; delete updated[key]; return updated; }); }}
+                        className="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">
+                        Cancel
                       </button>
                     </div>
-                  ) : (
-                    <label className="cursor-pointer">
-                      <Upload className="mx-auto text-gray-400 mb-2" size={32} />
-                      <span className="text-sm text-gray-600">Click to upload (JPEG, PNG, GIF - Max 2MB)</span>
-                      <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
-                    </label>
-                  )}
-                </div>
-              </div>
-
-              {/* Link URL */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Link URL (Optional)
-                </label>
-                <div className="flex items-center gap-2">
-                  <Link size={18} className="text-gray-400" />
-                  <input
-                    type="url"
-                    value={linkUrl}
-                    onChange={(e) => setLinkUrl(e.target.value)}
-                    placeholder="https://example.com"
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-              </div>
-
-              {/* Summary */}
-              <div className="bg-gray-50 rounded-lg p-4">
-                <div className="flex justify-between text-sm mb-2">
-                  <span className="text-gray-600">Selected Dates:</span>
-                  <span className="font-medium">{selectedDates.length} days</span>
-                </div>
-                <div className="flex justify-between text-sm mb-2">
-                  <span className="text-gray-600">Ad Slot:</span>
-                  <span className="font-medium">{selectedSlot === 'ads1' ? 'Header Ads 1' : 'Header Ads 2'}</span>
-                </div>
-                <div className="flex justify-between text-lg font-bold pt-2 border-t border-gray-200">
-                  <span>Total:</span>
-                  <span className="text-blue-600">₹{calculateTotal()}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => setShowBookingModal(false)}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleBooking}
-                disabled={booking || !uploadedFile}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {booking ? <Loader2 className="animate-spin" size={18} /> : <Check size={18} />}
-                {booking ? 'Booking...' : 'Confirm Booking'}
-              </button>
-            </div>
+                  </div>
+                </>
+              );
+            })()}
           </motion.div>
         </div>
       )}
     </div>
   );
 };
-

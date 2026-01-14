@@ -32,23 +32,13 @@ const HeaderAdsPricing = sequelize.define('header_ads_pricing', {
     allowNull: false,
     defaultValue: 0.00
   },
-  office_level: {
-    type: DataTypes.ENUM('corporate', 'head_office', 'regional_office', 'branch_office'),
-    allowNull: false,
-    defaultValue: 'corporate'
-  },
-  ad_slot: {
-    type: DataTypes.ENUM('ads1', 'ads2'),
-    allowNull: false,
-    defaultValue: 'ads1'
+  price_slot: {
+    type: DataTypes.STRING(50),
+    allowNull: true
   },
   currency: {
     type: DataTypes.STRING(10),
     defaultValue: 'INR'
-  },
-  is_active: {
-    type: DataTypes.TINYINT,
-    defaultValue: 1
   },
   created_by: {
     type: DataTypes.INTEGER,

@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import {
   getMyApps,
   getCategoriesByApp,
+  getPricing,
   getHeaderAds,
   createHeaderAd,
   updateHeaderAd,
@@ -60,6 +61,9 @@ router.get('/my-apps', getMyApps);
 
 // Get categories by app ID
 router.get('/categories/:appId', getCategoriesByApp);
+
+// Get pricing data
+router.get('/pricing', getPricing);
 
 // Get all header ads
 router.get('/', getHeaderAds);

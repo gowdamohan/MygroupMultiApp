@@ -43,6 +43,7 @@ import MediaTeam from './MediaTeam.js';
 import MediaHeaderAds from './MediaHeaderAds.js';
 import MediaComments from './MediaComments.js';
 import HeaderAdsPricing from './HeaderAdsPricing.js';
+import HeaderAdsSlot from './HeaderAdsSlot.js';
 import HeaderAd from './HeaderAd.js';
 import SupportConversation from './SupportConversation.js';
 import SupportMessage from './SupportMessage.js';
@@ -299,12 +300,22 @@ GroupCreate.hasMany(HeaderAdsManagement, {
 
 // HeaderAdsManagement belongs to AppCategory
 HeaderAdsManagement.belongsTo(AppCategory, {
-  foreignKey: 'app_category_id',
+  foreignKey: 'category_id',
   as: 'category'
 });
 AppCategory.hasMany(HeaderAdsManagement, {
-  foreignKey: 'app_category_id',
+  foreignKey: 'category_id',
   as: 'headerAds'
+});
+
+// HeaderAdsManagement has many HeaderAdsSlot
+HeaderAdsManagement.hasMany(HeaderAdsSlot, {
+  foreignKey: 'header_ads_id',
+  as: 'slots'
+});
+HeaderAdsSlot.belongsTo(HeaderAdsManagement, {
+  foreignKey: 'header_ads_id',
+  as: 'headerAd'
 });
 
 // ============================================
@@ -675,6 +686,7 @@ export {
   MediaHeaderAds,
   MediaComments,
   HeaderAdsPricing,
+  HeaderAdsSlot,
   HeaderAd,
   SupportConversation,
   SupportMessage,

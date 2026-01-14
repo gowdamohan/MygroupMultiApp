@@ -1,4 +1,5 @@
-import { HeaderAdsManagement, GroupCreate, AppCategory } from '../models/index.js';
+import { HeaderAdsManagement, GroupCreate, AppCategory, HeaderAdsPricing, FranchiseHolder, HeaderAdsSlot } from '../models/index.js';
+import { Op } from 'sequelize';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -63,6 +64,79 @@ export const getCategoriesByApp = async (req, res) => {
   }
 };
 
+// Get pricing data for date range
+export const getPricing = async (req, res) => {
+  try {
+    const { app_id, category_id, start_date, end_date } = req.query;
+
+    const start = new Date(start_date);
+    const end = new Date(end_date);
+    const pricingData = [];
+
+    // Get existing bookings from header_ads_slot
+    const existingSlots = await HeaderAdsSlot.findAll({
+      include: [{
+        model: HeaderAdsManagement,
+        as: 'headerAd',
+        where: {
+          app_id,
+          category_id
+        },
+        attributes: []
+      }],
+      where: {
+        selected_date: {
+          [Op.between]: [start_date, end_date]
+        },
+        is_active: 1
+      },
+      attributes: ['selected_date']
+    });
+
+    // Create a set of booked dates
+    const bookedDates = new Set(existingSlots.map(slot => slot.selected_date));
+
+    // Get pricing from header_ads_pricing table
+    const pricingRecords = await HeaderAdsPricing.findAll({
+      where: {
+        app_id,
+        category_id,
+        ad_date: {
+          [Op.between]: [start_date, end_date]
+        }
+      }
+    });
+
+    // Create a map of date to price
+    const priceMap = new Map();
+    pricingRecords.forEach(record => {
+      priceMap.set(record.ad_date, parseFloat(record.price));
+    });
+
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().split('T')[0];
+      
+      pricingData.push({
+        date: dateStr,
+        price: priceMap.get(dateStr) || 0,
+        is_booked: bookedDates.has(dateStr)
+      });
+    }
+
+    res.json({
+      success: true,
+      data: pricingData
+    });
+  } catch (error) {
+    console.error('Error fetching pricing:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch pricing',
+      error: error.message
+    });
+  }
+};
+
 // Get all header ads grouped by app and category
 export const getHeaderAds = async (req, res) => {
   try {
@@ -99,34 +173,85 @@ export const getHeaderAds = async (req, res) => {
 // Create header ad
 export const createHeaderAd = async (req, res) => {
   try {
-    const { app_id, app_category_id, url } = req.body;
+    const { app_id, category_id, link_url, dates } = req.body;
+    const userId = req.user.id;
     let file_path = null;
 
-    // Handle file upload
     if (req.file) {
       file_path = `/uploads/header-ads/${req.file.filename}`;
     }
 
-    const ad = await HeaderAdsManagement.create({
-      app_id,
-      app_category_id,
-      file_path,
-      url
+    const selectedDates = typeof dates === 'string' ? JSON.parse(dates) : dates;
+
+    if (!selectedDates || selectedDates.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'At least one date must be selected'
+      });
+    }
+
+    // Get franchise_holder_id from franchise_holder table
+    const franchiseHolder = await FranchiseHolder.findOne({
+      where: { user_id: userId }
     });
 
-    // Fetch the created ad with associations
+    if (!franchiseHolder) {
+      return res.status(400).json({
+        success: false,
+        message: 'Franchise holder not found for this user'
+      });
+    }
+
+    // Get pricing for selected dates
+    const pricingRecords = await HeaderAdsPricing.findAll({
+      where: {
+        app_id,
+        category_id,
+        ad_date: {
+          [Op.in]: selectedDates
+        }
+      }
+    });
+
+    // Create price map
+    const priceMap = new Map();
+    pricingRecords.forEach(record => {
+      priceMap.set(record.ad_date, parseFloat(record.price));
+    });
+
+    // Calculate total price
+    const total_price = selectedDates.reduce((sum, date) => sum + (priceMap.get(date) || 0), 0);
+
+    // Create header ad
+    const ad = await HeaderAdsManagement.create({
+      app_id,
+      category_id,
+      file_path,
+      link_url,
+      total_price,
+      status: 'pending',
+      franchise_holder_id: franchiseHolder.id,
+      created_by: userId
+    });
+
+    // Create header_ads_slot records for each selected date
+    const slotRecords = selectedDates.map(date => ({
+      header_ads_id: ad.id,
+      selected_date: date,
+      price: priceMap.get(date) || 0,
+      impressions: 0,
+      clicks: 0,
+      is_active: 1
+    }));
+
+    await HeaderAdsSlot.bulkCreate(slotRecords);
+
+    // Fetch created ad with associations
     const createdAd = await HeaderAdsManagement.findByPk(ad.id, {
       include: [
-        {
-          model: GroupCreate,
-          as: 'app',
-          attributes: ['id', 'name']
-        },
-        {
-          model: AppCategory,
-          as: 'category',
-          attributes: ['id', 'category_name']
-        }
+        { model: GroupCreate, as: 'app', attributes: ['id', 'name'] },
+        { model: AppCategory, as: 'category', attributes: ['id', 'category_name'] },
+        { model: HeaderAdsSlot, as: 'slots' }
       ]
     });
 
@@ -149,7 +274,7 @@ export const createHeaderAd = async (req, res) => {
 export const updateHeaderAd = async (req, res) => {
   try {
     const { id } = req.params;
-    const { app_id, app_category_id, url } = req.body;
+    const { app_id, category_id, url } = req.body;
 
     const ad = await HeaderAdsManagement.findByPk(id);
     if (!ad) {
@@ -175,9 +300,9 @@ export const updateHeaderAd = async (req, res) => {
 
     await ad.update({
       app_id,
-      app_category_id,
+      category_id,
       file_path,
-      url
+      link_url: url
     });
 
     // Fetch updated ad with associations
