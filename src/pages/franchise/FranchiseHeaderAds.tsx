@@ -146,10 +146,10 @@ export const FranchiseHeaderAds: React.FC = () => {
     today.setHours(0, 0, 0, 0);
     
     // Calculate end date: exactly 3 months from today
-    // Use a safer method to add 3 months
     const endDate = new Date(today);
     endDate.setMonth(endDate.getMonth() + 3);
     endDate.setDate(endDate.getDate() - 1); // Subtract 1 day to get exactly 3 months (not 3 months + 1 day)
+    endDate.setHours(0, 0, 0, 0);
 
     // Generate all dates from today to endDate (inclusive)
     const allDates: { date: string; day: number; month: number; year: number }[] = [];
@@ -162,9 +162,8 @@ export const FranchiseHeaderAds: React.FC = () => {
         month: currentDate.getMonth(),
         year: currentDate.getFullYear()
       });
-      const nextDate = new Date(currentDate);
-      nextDate.setDate(nextDate.getDate() + 1);
-      currentDate.setTime(nextDate.getTime());
+      currentDate.setDate(currentDate.getDate() + 1);
+      currentDate.setHours(0, 0, 0, 0);
     }
 
     // Group dates by month
@@ -188,42 +187,58 @@ export const FranchiseHeaderAds: React.FC = () => {
       });
     });
 
-    // Convert map to array and sort by year and month
-    return Array.from(monthMap.values()).sort((a, b) => {
-      if (a.year !== b.year) return a.year - b.year;
-      const monthOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      const aIndex = monthOrder.indexOf(a.month);
-      const bIndex = monthOrder.indexOf(b.month);
-      return aIndex - bIndex;
-    });
+    // Ensure we have all months in the range, even if they're empty
+    // This ensures all month headers display correctly
+    const startMonth = today.getMonth();
+    const startYear = today.getFullYear();
+    const endMonth = endDate.getMonth();
+    const endYear = endDate.getFullYear();
+    
+    // Get all months that should be displayed
+    const allMonths: { month: string; year: number; dates: { date: string; day: number }[] }[] = [];
+    let currentMonthDate = new Date(startYear, startMonth, 1);
+    currentMonthDate.setHours(0, 0, 0, 0);
+    const lastMonthDate = new Date(endYear, endMonth, 1);
+    lastMonthDate.setHours(0, 0, 0, 0);
+    
+    while (currentMonthDate <= lastMonthDate) {
+      const monthKey = `${currentMonthDate.getFullYear()}-${String(currentMonthDate.getMonth()).padStart(2, '0')}`;
+      const monthName = currentMonthDate.toLocaleDateString('en-US', { month: 'short' });
+      
+      if (monthMap.has(monthKey)) {
+        allMonths.push(monthMap.get(monthKey)!);
+      } else {
+        // Add empty month to ensure header displays
+        allMonths.push({
+          month: monthName,
+          year: currentMonthDate.getFullYear(),
+          dates: []
+        });
+      }
+      
+      currentMonthDate.setMonth(currentMonthDate.getMonth() + 1);
+    }
+
+    return allMonths;
   };
 
   const getDateRangeText = () => {
-    const groups = getMonthGroups();
-    if (groups.length === 0) return '';
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     
-    const firstGroup = groups[0];
-    const lastGroup = groups[groups.length - 1];
+    // Calculate end date: exactly 3 months from today
+    const endDate = new Date(today);
+    endDate.setMonth(endDate.getMonth() + 3);
+    endDate.setDate(endDate.getDate() - 1);
+    endDate.setHours(0, 0, 0, 0);
     
-    if (groups.length === 1) {
-      // Single month
-      const firstDate = new Date(firstGroup.dates[0].date);
-      const lastDate = new Date(firstGroup.dates[firstGroup.dates.length - 1].date);
-      const firstMonth = firstDate.toLocaleDateString('en-US', { month: 'short' });
-      const firstDay = firstDate.getDate();
-      const lastMonth = lastDate.toLocaleDateString('en-US', { month: 'short' });
-      const lastDay = lastDate.getDate();
-      return `${firstMonth}-${firstDay} to ${lastMonth}-${lastDay}`;
-    } else {
-      // Multiple months
-      const firstDate = new Date(firstGroup.dates[0].date);
-      const lastDate = new Date(lastGroup.dates[lastGroup.dates.length - 1].date);
-      const firstMonth = firstDate.toLocaleDateString('en-US', { month: 'short' });
-      const firstDay = firstDate.getDate();
-      const lastMonth = lastDate.toLocaleDateString('en-US', { month: 'short' });
-      const lastDay = lastDate.getDate();
-      return `${firstMonth}-${firstDay} to ${lastMonth}-${lastDay}`;
-    }
+    // Format dates
+    const firstMonth = today.toLocaleDateString('en-US', { month: 'short' });
+    const firstDay = today.getDate();
+    const lastMonth = endDate.toLocaleDateString('en-US', { month: 'short' });
+    const lastDay = endDate.getDate();
+    
+    return `${firstMonth}-${firstDay} to ${lastMonth}-${lastDay}`;
   };
 
   const handleCellClick = (appId: number, categoryId: number) => {
@@ -261,12 +276,28 @@ export const FranchiseHeaderAds: React.FC = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    // Always start from today's month, show exactly 3 months
-    const months = [];
-    for (let i = 0; i < 3; i++) {
-      const month = new Date(today.getFullYear(), today.getMonth() + i, 1);
-      months.push(month);
+    // Calculate end date: exactly 3 months from today
+    const endDate = new Date(today);
+    endDate.setMonth(endDate.getMonth() + 3);
+    endDate.setDate(endDate.getDate() - 1);
+    endDate.setHours(0, 0, 0, 0);
+    
+    // Get all unique months that contain dates in our range
+    // This could be 3 or 4 months depending on the start date
+    const startMonth = today.getMonth();
+    const startYear = today.getFullYear();
+    const endMonth = endDate.getMonth();
+    const endYear = endDate.getFullYear();
+    
+    const months: Date[] = [];
+    let currentMonth = new Date(startYear, startMonth, 1);
+    currentMonth.setHours(0, 0, 0, 0);
+    
+    while (currentMonth <= new Date(endYear, endMonth, 1)) {
+      months.push(new Date(currentMonth));
+      currentMonth.setMonth(currentMonth.getMonth() + 1);
     }
+    
     return months;
   };
 
@@ -277,20 +308,31 @@ export const FranchiseHeaderAds: React.FC = () => {
     // Calculate end date: exactly 3 months from today
     const endDate = new Date(today);
     endDate.setMonth(endDate.getMonth() + 3);
-    endDate.setDate(endDate.getDate() - 1); // Subtract 1 day to get exactly 3 months
+    endDate.setDate(endDate.getDate() - 1);
+    endDate.setHours(0, 0, 0, 0);
     
     const year = month.getFullYear();
     const monthIndex = month.getMonth();
-    const firstDay = new Date(year, monthIndex, 1);
-    const lastDay = new Date(year, monthIndex + 1, 0);
-    const daysInMonth = lastDay.getDate();
+    
+    // Determine the start day for this month
+    // If this is the current month, start from today's date
+    // Otherwise, start from day 1
+    const isCurrentMonth = month.getFullYear() === today.getFullYear() && monthIndex === today.getMonth();
+    const startDay = isCurrentMonth ? today.getDate() : 1;
+    
+    // Determine the end day for this month
+    // If this is the last month in range, end at endDate's date
+    // Otherwise, end at the last day of the month
+    const isLastMonth = month.getFullYear() === endDate.getFullYear() && monthIndex === endDate.getMonth();
+    const lastDayOfMonth = new Date(year, monthIndex + 1, 0).getDate();
+    const endDay = isLastMonth ? endDate.getDate() : lastDayOfMonth;
 
     const days: { date: string; day: number }[] = [];
-    for (let day = 1; day <= daysInMonth; day++) {
+    for (let day = startDay; day <= endDay; day++) {
       const date = new Date(year, monthIndex, day);
       date.setHours(0, 0, 0, 0);
       
-      // Only include dates from today up to endDate
+      // Double-check that date is within our range
       if (date >= today && date <= endDate) {
         days.push({ date: date.toISOString().split('T')[0], day });
       }
@@ -427,9 +469,11 @@ export const FranchiseHeaderAds: React.FC = () => {
               </th>
               {getMonthGroups().map((group, idx) => {
                 const colors = ['bg-blue-600', 'bg-indigo-600', 'bg-purple-600'];
-                const headerText = group.dates.length > 0 ? `${group.month} ${group.year}` : group.month;
+                const colorIndex = idx % colors.length;
+                const headerText = `${group.month} ${group.year}`;
+                const colSpan = group.dates.length > 0 ? group.dates.length : 1; // Minimum 1 to ensure header displays
                 return (
-                  <th key={`${group.month}-${group.year}`} colSpan={group.dates.length} className={`border border-gray-300 px-2 py-2 text-sm font-bold text-white ${colors[idx]}`}>
+                  <th key={`${group.month}-${group.year}-${idx}`} colSpan={colSpan} className={`border border-gray-300 px-2 py-2 text-sm font-bold text-white ${colors[colorIndex]}`}>
                     {headerText}
                   </th>
                 );
@@ -438,8 +482,17 @@ export const FranchiseHeaderAds: React.FC = () => {
             <tr>
               {getMonthGroups().map((group, idx) => {
                 const colors = ['bg-blue-600', 'bg-indigo-600', 'bg-purple-600'];
+                const colorIndex = idx % colors.length;
+                if (group.dates.length === 0) {
+                  // If no dates in this month, add a placeholder cell to match colSpan
+                  return (
+                    <th key={`empty-${group.month}-${group.year}-${idx}`} className={`border border-gray-300 px-2 py-2 text-xs font-semibold text-white min-w-[50px] ${colors[colorIndex]}`}>
+                      &nbsp;
+                    </th>
+                  );
+                }
                 return group.dates.map((dayInfo) => (
-                  <th key={dayInfo.date} className={`border border-gray-300 px-2 py-2 text-xs font-semibold text-white min-w-[50px] ${colors[idx]}`}>
+                  <th key={dayInfo.date} className={`border border-gray-300 px-2 py-2 text-xs font-semibold text-white min-w-[50px] ${colors[colorIndex]}`}>
                     {dayInfo.day}
                   </th>
                 ));
@@ -452,7 +505,7 @@ export const FranchiseHeaderAds: React.FC = () => {
               return (
                 <React.Fragment key={app.id}>
                   <tr>
-                    <td colSpan={getMonthGroups().reduce((sum, g) => sum + g.dates.length, 0) + 1} 
+                    <td colSpan={getMonthGroups().reduce((sum, g) => sum + Math.max(g.dates.length, 1), 0) + 1} 
                       className="bg-blue-500 border border-gray-300 px-4 py-2 font-bold text-white">
                       {app.name}
                     </td>
@@ -467,26 +520,39 @@ export const FranchiseHeaderAds: React.FC = () => {
                         <td className="sticky left-0 z-10 bg-blue-100 border border-gray-300 px-4 py-2 font-medium text-gray-900">
                           {category.category_name}
                         </td>
-                        {getMonthGroups().flatMap(g => g.dates).map((dayInfo) => {
-                          const pricing = getPricingForDate(app.id, category.id, dayInfo.date);
-                          const isBooked = pricing?.is_booked;
-                          const price = pricing?.price ?? 0;
+                        {getMonthGroups().map((group, groupIdx) => {
+                          if (group.dates.length === 0) {
+                            // Empty month - add placeholder cell to match header colSpan
+                            return (
+                              <td
+                                key={`empty-${group.month}-${group.year}-${groupIdx}`}
+                                className="border border-gray-300 px-2 py-2 text-center text-xs bg-gray-50"
+                              >
+                                &nbsp;
+                              </td>
+                            );
+                          }
+                          return group.dates.map((dayInfo) => {
+                            const pricing = getPricingForDate(app.id, category.id, dayInfo.date);
+                            const isBooked = pricing?.is_booked;
+                            const price = pricing?.price ?? 0;
 
-                          return (
-                            <td
-                              key={dayInfo.date}
-                              onClick={() => !isBooked && handleCellClick(app.id, category.id)}
-                              className={`border border-gray-300 px-2 py-2 text-center text-xs cursor-pointer transition-colors
-                                ${isBooked ? 'bg-red-500 cursor-not-allowed' : 'bg-green-100 hover:bg-green-200'}
-                              `}
-                            >
-                              {!isBooked && (
-                                <div className="font-semibold text-gray-900">₹{price}</div>
-                              )}
-                              {isBooked && <div className="text-white font-bold text-lg">✕</div>}
-                            </td>
-                          );
-                        })}
+                            return (
+                              <td
+                                key={dayInfo.date}
+                                onClick={() => !isBooked && handleCellClick(app.id, category.id)}
+                                className={`border border-gray-300 px-2 py-2 text-center text-xs cursor-pointer transition-colors
+                                  ${isBooked ? 'bg-red-500 cursor-not-allowed' : 'bg-green-100 hover:bg-green-200'}
+                                `}
+                              >
+                                {!isBooked && (
+                                  <div className="font-semibold text-gray-900">₹{price}</div>
+                                )}
+                                {isBooked && <div className="text-white font-bold text-lg">✕</div>}
+                              </td>
+                            );
+                          });
+                        }).flat()}
                       </tr>
                     );
                   })}
