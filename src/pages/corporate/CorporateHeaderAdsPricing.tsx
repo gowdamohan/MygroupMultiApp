@@ -12,6 +12,11 @@ interface Country {
   flag_icon: string;
 }
 
+interface ExchangeRate {
+  rate: number;
+  loading: boolean;
+  error: string;
+}
 
 interface App {
   id: number;
@@ -64,6 +69,7 @@ interface PriceCardEditModal {
 export const CorporateHeaderAdsPricing: React.FC = () => {
   const [countries, setCountries] = useState<Country[]>([]);
   const [selectedCountry, setSelectedCountry] = useState<Country | null>(null);
+  const [exchangeRate, setExchangeRate] = useState<ExchangeRate>({ rate: 0, loading: false, error: '' });
   const [activeTab, setActiveTab] = useState<'General' | 'Capitals'>('General');
   const [loading, setLoading] = useState(false);
   const [pricingData, setPricingData] = useState<{[key: string]: PricingSlave[]}>({});
@@ -89,6 +95,7 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
 
   useEffect(() => {
     if (selectedCountry) {
+      fetchExchangeRate();
       fetchMasterPricing();
       fetchPricingData();
     }
@@ -100,6 +107,40 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
     }
   }, [activeTab]);
 
+  const fetchExchangeRate = async () => {
+    if (!selectedCountry) return;
+
+    // Skip fetching if the country currency is INR (1:1 conversion)
+    if (selectedCountry.currency_code === 'INR') {
+      setExchangeRate({ rate: 1, loading: false, error: '' });
+      return;
+    }
+
+    setExchangeRate({ rate: 0, loading: true, error: '' });
+
+    try {
+      // Fetch exchange rate from INR to the selected country's currency
+      // Using exchangerate-api.com which is free and doesn't require an API key
+      const response = await axios.get(`https://api.exchangerate-api.com/v4/latest/INR`, {
+        timeout: 10000 // 10 second timeout
+      });
+      
+      if (response.data && response.data.rates && response.data.rates[selectedCountry.currency_code]) {
+        const rate = response.data.rates[selectedCountry.currency_code];
+        setExchangeRate({ rate: rate, loading: false, error: '' });
+      } else {
+        setExchangeRate({ rate: 0, loading: false, error: 'Exchange rate not available for this currency' });
+      }
+    } catch (error: any) {
+      console.error('Error fetching exchange rate:', error);
+      const errorMessage = error.response 
+        ? 'Failed to fetch exchange rate from service' 
+        : error.code === 'ECONNABORTED' 
+        ? 'Request timed out. Please try again.' 
+        : 'Failed to fetch exchange rate. Please check your internet connection.';
+      setExchangeRate({ rate: 0, loading: false, error: errorMessage });
+    }
+  };
 
   const fetchCountries = async () => {
     try {
@@ -385,15 +426,33 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
 
           {/* Currency Display */}
           <div className="flex items-center gap-2 text-white">
-            {selectedCountry ? (
-              <>
-                <span className="bg-indigo-600 px-3 py-2 rounded-lg">1 {selectedCountry.currency_code}</span>
-                <span>=</span>
-                <span className="bg-indigo-600 px-3 py-2 rounded-lg">1</span>
-                <span className="font-semibold">Mycoins</span>
-              </>
-            ) : (
+            {!selectedCountry ? (
               <span className="text-white/70">Select a country</span>
+            ) : exchangeRate.loading ? (
+              <div className="flex items-center gap-2">
+                <Loader2 className="animate-spin" size={18} />
+                <span className="text-white/70">Loading exchange rate...</span>
+              </div>
+            ) : exchangeRate.error ? (
+              <div className="flex items-center gap-2">
+                <span className="text-red-300 text-sm">{exchangeRate.error}</span>
+                <button
+                  onClick={fetchExchangeRate}
+                  className="text-xs bg-red-600 hover:bg-red-700 px-2 py-1 rounded"
+                  title="Retry"
+                >
+                  Retry
+                </button>
+              </div>
+            ) : (
+              <>
+                <span className="bg-indigo-600 px-3 py-2 rounded-lg">1 INR</span>
+                <span>=</span>
+                <span className="bg-indigo-600 px-3 py-2 rounded-lg">
+                  {exchangeRate.rate > 0 ? exchangeRate.rate.toFixed(4) : '1.0000'}
+                </span>
+                <span className="font-semibold">{selectedCountry.currency_code}</span>
+              </>
             )}
           </div>
         </div>
