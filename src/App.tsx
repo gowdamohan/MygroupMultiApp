@@ -212,8 +212,7 @@ function App() {
 
           {/* Mobile Routes */}
           <Route path="/mobile/mymedia" element={<MobileMyMediaPage />} />
-          <Route path="/mobile/app/:appName" element={<MobileAppPage />} />
-          <Route path="/mobile/:appName" element={<MobileMyMediaPage />} />
+          <Route path="/mobile/:appName" element={<MobileAppPage />} />
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />

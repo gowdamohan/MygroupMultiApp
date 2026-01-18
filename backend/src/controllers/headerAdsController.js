@@ -242,6 +242,121 @@ export const getHeaderAds = async (req, res) => {
   }
 };
 
+// Get header ads by group_name with priority (public endpoint for mobile)
+export const getHeaderAdsByGroup = async (req, res) => {
+  try {
+    const { app_id, limit = 4 } = req.query;
+    
+    // Priority order: branch_ads1, regional_ads1, branch_ads2, head_office_ads1, corporate_ads1 (fallback)
+    const groupNames = ['branch_ads1', 'regional_ads1', 'branch_ads2', 'head_office_ads1'];
+    const ads = [];
+    const foundGroups = new Set();
+    
+    const baseWhere = {
+      status: 'active',
+      is_active: 1
+    };
+    
+    if (app_id) {
+      baseWhere.app_id = parseInt(app_id);
+    }
+
+    // Fetch ads for each group in priority order
+    for (const groupName of groupNames) {
+      if (ads.length >= limit) break;
+      
+      const groupAds = await HeaderAdsManagement.findAll({
+        where: {
+          ...baseWhere,
+          group_name: groupName
+        },
+        include: [
+          {
+            model: GroupCreate,
+            as: 'app',
+            attributes: ['id', 'name']
+          },
+          {
+            model: AppCategory,
+            as: 'category',
+            attributes: ['id', 'category_name']
+          }
+        ],
+        order: [['created_at', 'DESC']],
+        limit: limit - ads.length
+      });
+
+      // Process and add ads
+      for (const ad of groupAds) {
+        if (ads.length >= limit) break;
+        const adJson = ad.toJSON();
+        ads.push({
+          id: adJson.id,
+          app_id: adJson.app_id,
+          category_id: adJson.category_id,
+          file_path: adJson.file_path || adJson.file_url,
+          link_url: adJson.link_url,
+          group_name: adJson.group_name,
+          app: adJson.app,
+          category: adJson.category
+        });
+        foundGroups.add(groupName);
+      }
+    }
+
+    // Fill remaining slots with corporate_ads1 as fallback
+    if (ads.length < limit) {
+      const corporateAds = await HeaderAdsManagement.findAll({
+        where: {
+          ...baseWhere,
+          group_name: 'corporate_ads1'
+        },
+        include: [
+          {
+            model: GroupCreate,
+            as: 'app',
+            attributes: ['id', 'name']
+          },
+          {
+            model: AppCategory,
+            as: 'category',
+            attributes: ['id', 'category_name']
+          }
+        ],
+        order: [['created_at', 'DESC']],
+        limit: limit - ads.length
+      });
+
+      for (const ad of corporateAds) {
+        if (ads.length >= limit) break;
+        const adJson = ad.toJSON();
+        ads.push({
+          id: adJson.id,
+          app_id: adJson.app_id,
+          category_id: adJson.category_id,
+          file_path: adJson.file_path || adJson.file_url,
+          link_url: adJson.link_url,
+          group_name: adJson.group_name,
+          app: adJson.app,
+          category: adJson.category
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      data: ads
+    });
+  } catch (error) {
+    console.error('Error fetching header ads by group:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch header ads by group',
+      error: error.message
+    });
+  }
+};
+
 // Create header ad
 export const createHeaderAd = async (req, res) => {
   try {

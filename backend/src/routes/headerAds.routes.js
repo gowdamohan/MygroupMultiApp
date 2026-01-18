@@ -8,6 +8,7 @@ import {
   getCategoriesByApp,
   getPricing,
   getHeaderAds,
+  getHeaderAdsByGroup,
   createHeaderAd,
   updateHeaderAd,
   deleteHeaderAd
@@ -53,7 +54,10 @@ const upload = multer({
   }
 });
 
-// All routes require authentication
+// Public route - Get header ads by group with priority (for mobile)
+router.get('/by-group', getHeaderAdsByGroup);
+
+// All other routes require authentication
 router.use(authenticate);
 
 // Get all "My Apps" apps

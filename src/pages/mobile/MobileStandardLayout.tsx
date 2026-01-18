@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import { MobileHeader, TopIcon, getMobileHeaderHeight } from '../../components/mobile/MobileHeader';
 import { MobileFooter, Category } from '../../components/mobile/MobileFooter';
@@ -26,9 +25,15 @@ interface UserProfile {
   identification_code?: string;
 }
 
-export const MobileAppPage: React.FC = () => {
-  // Get app name from URL params
-  const { appName } = useParams<{ appName?: string }>();
+interface MobileStandardLayoutProps {
+  appName?: string;
+  appId?: number;
+}
+
+export const MobileStandardLayout: React.FC<MobileStandardLayoutProps> = ({ 
+  appName = 'mymedia',
+  appId 
+}) => {
 
   // App and user state
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
@@ -107,7 +112,7 @@ export const MobileAppPage: React.FC = () => {
     const initialize = async () => {
       setLoading(true);
       await Promise.all([
-        fetchAppInfo(appName || 'mymedia'),
+        fetchAppInfo(appName),
         checkAuth()
       ]);
       setLoading(false);
@@ -164,16 +169,20 @@ export const MobileAppPage: React.FC = () => {
 
   return (
     <div className={`min-h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-100'}`}>
-      {/* Header Component */}
+      {/* Header Component with top icons, profile, dark mode, and carousel ads */}
       <MobileHeader
-        appId={appInfo?.id}
-        appName={appName || 'mymedia'}
+        appId={appId || appInfo?.id}
+        appName={appName}
         darkMode={darkMode}
         onDarkModeToggle={toggleDarkMode}
         userProfile={userProfile}
         isLoggedIn={isLoggedIn}
         onTopIconClick={handleTopIconClick}
         onLogout={handleLogout}
+        showTopIcons={true}
+        showAds={true}
+        showDarkModeToggle={true}
+        showProfileButton={true}
       />
 
       {/* Main Content Area */}
@@ -181,7 +190,7 @@ export const MobileAppPage: React.FC = () => {
         className="pb-16"
         style={{ paddingTop: `${headerHeight}px` }}
       >
-        {/* Content based on selected category */}
+        {/* Body Content - Keep existing MyMedia implementation or minimal */}
         <div className="p-4">
           {selectedCategory ? (
             <div className={`${darkMode ? 'text-white' : 'text-gray-900'}`}>
@@ -189,10 +198,8 @@ export const MobileAppPage: React.FC = () => {
                 {selectedCategory.category_name}
               </h2>
               <p className={`${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                Content for {selectedCategory.category_name} will be displayed here.
+                Content coming soon...
               </p>
-              {/* TODO: Render appropriate content based on category type */}
-              {/* e.g., TV channels, Radio stations, E-Paper documents, etc. */}
             </div>
           ) : (
             <div className={`text-center py-12 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -202,9 +209,9 @@ export const MobileAppPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Footer Component */}
+      {/* Footer Component with app-specific categories */}
       <MobileFooter
-        appId={appInfo?.id}
+        appId={appId || appInfo?.id}
         selectedCategoryId={selectedCategoryId}
         onCategorySelect={handleCategorySelect}
         onCategoriesLoaded={handleCategoriesLoaded}
@@ -214,5 +221,4 @@ export const MobileAppPage: React.FC = () => {
   );
 };
 
-export default MobileAppPage;
-
+export default MobileStandardLayout;
