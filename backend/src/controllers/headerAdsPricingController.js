@@ -50,16 +50,17 @@ export const getCountries = async (req, res) => {
 // Get pricing master data
 export const getPricingMaster = async (req, res) => {
   try {
-    const { country_id, pricing_slot } = req.query;
+    const { country_id, pricing_slot, ads_type } = req.query;
 
-    const where = { ads_type: 'header_ads' };
+    const where = {};
     if (country_id) where.country_id = country_id;
     if (pricing_slot) where.pricing_slot = pricing_slot;
+    if (ads_type) where.ads_type = ads_type;
 
     const masters = await HeaderAdsPricingMaster.findAll({
       where,
       include: [
-        { model: Country, as: 'country', attributes: ['id', 'name', 'currency_code'] }
+        { model: Country, as: 'country', attributes: ['id', ['country', 'name'], ['currency', 'currency_code']] }
       ],
       order: [['created_at', 'DESC']]
     });
@@ -78,29 +79,87 @@ export const getPricingMaster = async (req, res) => {
   }
 };
 
-// Create pricing master and generate slave records
-export const createPricingMaster = async (req, res) => {
+// Get all pricing master for display cards (all ads types for a country)
+export const getAllPricingMasterByCountry = async (req, res) => {
   try {
-    const { country_id, pricing_slot, my_coins } = req.body;
+    const { country_id } = req.query;
 
-    if (!country_id || !pricing_slot || !my_coins) {
+    if (!country_id) {
       return res.status(400).json({
         success: false,
-        message: 'country_id, pricing_slot, and my_coins are required'
+        message: 'country_id is required'
       });
     }
 
-    // Create master record only
-    const master = await HeaderAdsPricingMaster.create({
-      country_id,
-      pricing_slot,
-      my_coins,
-      ads_type: 'header_ads'
+    const masters = await HeaderAdsPricingMaster.findAll({
+      where: { country_id },
+      attributes: ['id', 'pricing_slot', 'ads_type', 'my_coins', 'country_id'],
+      order: [['pricing_slot', 'ASC'], ['ads_type', 'ASC']]
+    });
+
+    // Group by pricing_slot
+    const grouped = {
+      General: {
+        header_ads: null,
+        popup_ads: null,
+        middle_ads: null
+      },
+      Capitals: {
+        header_ads: null,
+        popup_ads: null,
+        middle_ads: null
+      }
+    };
+
+    masters.forEach(master => {
+      if (grouped[master.pricing_slot] && grouped[master.pricing_slot][master.ads_type] !== undefined) {
+        grouped[master.pricing_slot][master.ads_type] = {
+          id: master.id,
+          my_coins: parseFloat(master.my_coins) || 0
+        };
+      }
     });
 
     res.json({
       success: true,
-      message: 'Pricing master created successfully',
+      data: grouped
+    });
+  } catch (error) {
+    console.error('Error fetching all pricing master:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch pricing master',
+      error: error.message
+    });
+  }
+};
+
+// Create pricing master and generate slave records
+export const createPricingMaster = async (req, res) => {
+  try {
+    const { country_id, pricing_slot, ads_type, my_coins } = req.body;
+
+    if (!country_id || !pricing_slot || !ads_type || !my_coins) {
+      return res.status(400).json({
+        success: false,
+        message: 'country_id, pricing_slot, ads_type, and my_coins are required'
+      });
+    }
+
+    // Upsert master record
+    const [master, created] = await HeaderAdsPricingMaster.upsert({
+      country_id,
+      pricing_slot,
+      ads_type,
+      my_coins
+    }, {
+      where: { country_id, pricing_slot, ads_type },
+      returning: true
+    });
+
+    res.json({
+      success: true,
+      message: created ? 'Pricing master created successfully' : 'Pricing master updated successfully',
       data: master
     });
   } catch (error) {
@@ -118,7 +177,7 @@ export const getPricingSlave = async (req, res) => {
   try {
     const { country_id, pricing_slot, start_date, end_date } = req.query;
 
-    // Get master pricing
+    // Get master pricing for header_ads only
     const masterWhere = { ads_type: 'header_ads' };
     if (country_id) masterWhere.country_id = country_id;
     if (pricing_slot) masterWhere.pricing_slot = pricing_slot;
@@ -181,7 +240,7 @@ export const updateSlavePricing = async (req, res) => {
       });
     }
 
-    // Get master record
+    // Get master record for header_ads only
     const master = await HeaderAdsPricingMaster.findOne({
       where: {
         country_id,
@@ -227,6 +286,7 @@ export const updateSlavePricing = async (req, res) => {
 export default {
   getCountries,
   getPricingMaster,
+  getAllPricingMasterByCountry,
   createPricingMaster,
   getPricingSlave,
   updateSlavePricing

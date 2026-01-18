@@ -2,6 +2,7 @@ import express from 'express';
 import {
   getCountries,
   getPricingMaster,
+  getAllPricingMasterByCountry,
   createPricingMaster,
   getPricingSlave,
   updateSlavePricing
@@ -18,6 +19,7 @@ router.get('/countries', getCountries);
 
 // Pricing master routes
 router.get('/master', getPricingMaster);
+router.get('/master/all', getAllPricingMasterByCountry);
 router.post('/master', createPricingMaster);
 
 // Pricing slave routes
