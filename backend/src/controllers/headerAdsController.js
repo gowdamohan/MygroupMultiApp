@@ -1,4 +1,4 @@
-import { HeaderAdsManagement, GroupCreate, AppCategory, HeaderAdsPricing, FranchiseHolder, HeaderAdsSlot } from '../models/index.js';
+import { HeaderAdsManagement, GroupCreate, AppCategory, HeaderAdsPricing, FranchiseHolder, HeaderAdsSlot, HeaderAdsPricingSlave, HeaderAdsPricingMaster } from '../models/index.js';
 import { Op } from 'sequelize';
 import path from 'path';
 import fs from 'fs';
@@ -69,6 +69,20 @@ export const getPricing = async (req, res) => {
   try {
     const { app_id, category_id, start_date, end_date } = req.query;
 
+    // Get franchise holder's country_id if user is a franchise holder
+    let countryId = null;
+    let pricingSlot = 'General'; // Default to General, can be made configurable
+    
+    if (req.user && req.user.id) {
+      const { FranchiseHolder } = await import('../models/index.js');
+      const franchiseHolder = await FranchiseHolder.findOne({
+        where: { user_id: req.user.id }
+      });
+      if (franchiseHolder && franchiseHolder.country) {
+        countryId = franchiseHolder.country;
+      }
+    }
+
     const start = new Date(start_date);
     const end = new Date(end_date);
     const pricingData = [];
@@ -96,7 +110,65 @@ export const getPricing = async (req, res) => {
     // Create a set of booked dates
     const bookedDates = new Set(existingSlots.map(slot => slot.selected_date));
 
-    // Get pricing from header_ads_pricing table
+    // Step 1: Get pricing from header_ads_pricing_slave table first
+    let slavePriceMap = new Map();
+    
+    if (countryId) {
+      // Get master record for this country and pricing slot
+      const masterRecord = await HeaderAdsPricingMaster.findOne({
+        where: {
+          country_id: countryId,
+          pricing_slot: pricingSlot,
+          ads_type: 'header_ads'
+        },
+        order: [['created_at', 'DESC']]
+      });
+
+      if (masterRecord) {
+        // Get slave pricing records for this app/category combination
+        const slaveRecords = await HeaderAdsPricingSlave.findAll({
+          where: {
+            header_ads_pricing_master_id: masterRecord.id,
+            app_id: parseInt(app_id),
+            category_id: parseInt(category_id),
+            selected_date: {
+              [Op.between]: [start_date, end_date]
+            }
+          }
+        });
+
+        // Map slave prices by date
+        slaveRecords.forEach(record => {
+          slavePriceMap.set(record.selected_date, parseFloat(record.my_coins) || 0);
+        });
+
+        // Master price as fallback
+        const masterPrice = parseFloat(masterRecord.my_coins) || 0;
+
+        // Generate pricing data for all dates in range
+        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+          const dateStr = d.toISOString().split('T')[0];
+          
+          // Use slave price if available, otherwise use master price
+          const price = slavePriceMap.has(dateStr) 
+            ? slavePriceMap.get(dateStr) 
+            : masterPrice;
+          
+          pricingData.push({
+            date: dateStr,
+            price: price,
+            is_booked: bookedDates.has(dateStr)
+          });
+        }
+
+        return res.json({
+          success: true,
+          data: pricingData
+        });
+      }
+    }
+
+    // Step 2: Fallback to header_ads_pricing table (legacy) if no master/slave data
     const pricingRecords = await HeaderAdsPricing.findAll({
       where: {
         app_id,

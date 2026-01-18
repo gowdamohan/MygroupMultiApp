@@ -95,8 +95,11 @@ export const FranchiseHeaderAds: React.FC = () => {
 
   const fetchPricingForAllCategories = async () => {
     const today = new Date();
-    const startDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const endDate = new Date(today.getFullYear(), today.getMonth() + 3, today.getDate() - 1);
+    today.setHours(0, 0, 0, 0);
+    const startDate = new Date(today);
+    const endDate = new Date(today);
+    endDate.setMonth(endDate.getMonth() + 3);
+    endDate.setDate(endDate.getDate() - 1); // Exactly 3 months from today
 
     for (const app of apps) {
       const categories = appCategories[app.id] || [];
@@ -107,8 +110,12 @@ export const FranchiseHeaderAds: React.FC = () => {
   };
 
   const fetchPricingForCalendar = async (appId: number, categoryId: number) => {
-    const startDate = new Date(calendarStartMonth);
-    const endDate = new Date(calendarStartMonth.getFullYear(), calendarStartMonth.getMonth() + 3, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const startDate = new Date(today);
+    const endDate = new Date(today);
+    endDate.setMonth(endDate.getMonth() + 3);
+    endDate.setDate(endDate.getDate() - 1); // Exactly 3 months from today
     await fetchPricing(appId, categoryId, startDate, endDate);
   };
 
@@ -136,32 +143,87 @@ export const FranchiseHeaderAds: React.FC = () => {
 
   const getMonthGroups = () => {
     const today = new Date();
-    const groups: { month: string; dates: { date: string; day: number }[] }[] = [];
+    today.setHours(0, 0, 0, 0);
+    
+    // Calculate end date: exactly 3 months from today
+    // Use a safer method to add 3 months
+    const endDate = new Date(today);
+    endDate.setMonth(endDate.getMonth() + 3);
+    endDate.setDate(endDate.getDate() - 1); // Subtract 1 day to get exactly 3 months (not 3 months + 1 day)
 
-    for (let m = 0; m < 3; m++) {
-      const monthDate = new Date(today.getFullYear(), today.getMonth() + m, 1);
-      const monthName = monthDate.toLocaleDateString('en-US', { month: 'short' });
-      const year = monthDate.getFullYear();
-      const month = monthDate.getMonth();
-      const daysInMonth = new Date(year, month + 1, 0).getDate();
-      const dates = [];
-
-      for (let day = 1; day <= daysInMonth; day++) {
-        const date = new Date(year, month, day);
-        const dateStr = date.toISOString().split('T')[0];
-        
-        // Only include dates from today onwards
-        if (date >= new Date(today.getFullYear(), today.getMonth(), today.getDate())) {
-          dates.push({ date: dateStr, day });
-        }
-      }
-
-      if (dates.length > 0) {
-        groups.push({ month: monthName, dates });
-      }
+    // Generate all dates from today to endDate (inclusive)
+    const allDates: { date: string; day: number; month: number; year: number }[] = [];
+    const currentDate = new Date(today);
+    
+    while (currentDate <= endDate) {
+      allDates.push({
+        date: currentDate.toISOString().split('T')[0],
+        day: currentDate.getDate(),
+        month: currentDate.getMonth(),
+        year: currentDate.getFullYear()
+      });
+      const nextDate = new Date(currentDate);
+      nextDate.setDate(nextDate.getDate() + 1);
+      currentDate.setTime(nextDate.getTime());
     }
 
-    return groups;
+    // Group dates by month
+    const monthMap = new Map<string, { month: string; year: number; dates: { date: string; day: number }[] }>();
+    
+    allDates.forEach(dayInfo => {
+      const monthKey = `${dayInfo.year}-${String(dayInfo.month).padStart(2, '0')}`;
+      
+      if (!monthMap.has(monthKey)) {
+        const monthName = new Date(dayInfo.year, dayInfo.month, 1).toLocaleDateString('en-US', { month: 'short' });
+        monthMap.set(monthKey, {
+          month: monthName,
+          year: dayInfo.year,
+          dates: []
+        });
+      }
+      
+      monthMap.get(monthKey)!.dates.push({
+        date: dayInfo.date,
+        day: dayInfo.day
+      });
+    });
+
+    // Convert map to array and sort by year and month
+    return Array.from(monthMap.values()).sort((a, b) => {
+      if (a.year !== b.year) return a.year - b.year;
+      const monthOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const aIndex = monthOrder.indexOf(a.month);
+      const bIndex = monthOrder.indexOf(b.month);
+      return aIndex - bIndex;
+    });
+  };
+
+  const getDateRangeText = () => {
+    const groups = getMonthGroups();
+    if (groups.length === 0) return '';
+    
+    const firstGroup = groups[0];
+    const lastGroup = groups[groups.length - 1];
+    
+    if (groups.length === 1) {
+      // Single month
+      const firstDate = new Date(firstGroup.dates[0].date);
+      const lastDate = new Date(firstGroup.dates[firstGroup.dates.length - 1].date);
+      const firstMonth = firstDate.toLocaleDateString('en-US', { month: 'short' });
+      const firstDay = firstDate.getDate();
+      const lastMonth = lastDate.toLocaleDateString('en-US', { month: 'short' });
+      const lastDay = lastDate.getDate();
+      return `${firstMonth}-${firstDay} to ${lastMonth}-${lastDay}`;
+    } else {
+      // Multiple months
+      const firstDate = new Date(firstGroup.dates[0].date);
+      const lastDate = new Date(lastGroup.dates[lastGroup.dates.length - 1].date);
+      const firstMonth = firstDate.toLocaleDateString('en-US', { month: 'short' });
+      const firstDay = firstDate.getDate();
+      const lastMonth = lastDate.toLocaleDateString('en-US', { month: 'short' });
+      const lastDay = lastDate.getDate();
+      return `${firstMonth}-${firstDay} to ${lastMonth}-${lastDay}`;
+    }
   };
 
   const handleCellClick = (appId: number, categoryId: number) => {
@@ -172,7 +234,10 @@ export const FranchiseHeaderAds: React.FC = () => {
         [key]: { appId, categoryId, dates: [], file: null, url: '', preview: '' }
       }));
     }
-    setCalendarStartMonth(new Date());
+    // Reset calendar to start from today
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    setCalendarStartMonth(today);
     setShowBookingModal({ appId, categoryId });
   };
 
@@ -193,15 +258,27 @@ export const FranchiseHeaderAds: React.FC = () => {
   };
 
   const getCalendarMonths = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Always start from today's month, show exactly 3 months
     const months = [];
     for (let i = 0; i < 3; i++) {
-      const month = new Date(calendarStartMonth.getFullYear(), calendarStartMonth.getMonth() + i, 1);
+      const month = new Date(today.getFullYear(), today.getMonth() + i, 1);
       months.push(month);
     }
     return months;
   };
 
   const getDaysInCalendarMonth = (month: Date) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Calculate end date: exactly 3 months from today
+    const endDate = new Date(today);
+    endDate.setMonth(endDate.getMonth() + 3);
+    endDate.setDate(endDate.getDate() - 1); // Subtract 1 day to get exactly 3 months
+    
     const year = month.getFullYear();
     const monthIndex = month.getMonth();
     const firstDay = new Date(year, monthIndex, 1);
@@ -211,7 +288,12 @@ export const FranchiseHeaderAds: React.FC = () => {
     const days: { date: string; day: number }[] = [];
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(year, monthIndex, day);
-      days.push({ date: date.toISOString().split('T')[0], day });
+      date.setHours(0, 0, 0, 0);
+      
+      // Only include dates from today up to endDate
+      if (date >= today && date <= endDate) {
+        days.push({ date: date.toISOString().split('T')[0], day });
+      }
     }
     return days;
   };
@@ -316,8 +398,8 @@ export const FranchiseHeaderAds: React.FC = () => {
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">Franchise Header Ads Booking</h1>
-        <div className="text-sm text-gray-600">
-          Next 3 months from {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+        <div className="text-sm text-gray-600 font-medium">
+          {getDateRangeText()}
         </div>
       </div>
 
@@ -345,9 +427,10 @@ export const FranchiseHeaderAds: React.FC = () => {
               </th>
               {getMonthGroups().map((group, idx) => {
                 const colors = ['bg-blue-600', 'bg-indigo-600', 'bg-purple-600'];
+                const headerText = group.dates.length > 0 ? `${group.month} ${group.year}` : group.month;
                 return (
-                  <th key={group.month} colSpan={group.dates.length} className={`border border-gray-300 px-2 py-2 text-sm font-bold text-white ${colors[idx]}`}>
-                    {group.month}
+                  <th key={`${group.month}-${group.year}`} colSpan={group.dates.length} className={`border border-gray-300 px-2 py-2 text-sm font-bold text-white ${colors[idx]}`}>
+                    {headerText}
                   </th>
                 );
               })}
@@ -453,14 +536,34 @@ export const FranchiseHeaderAds: React.FC = () => {
                               {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => (
                                 <div key={i} className="text-xs font-semibold text-center text-gray-600 py-1">{day}</div>
                               ))}
-                              {Array.from({ length: new Date(month.getFullYear(), month.getMonth(), 1).getDay() }).map((_, i) => (
-                                <div key={`empty-${i}`} />
-                              ))}
+                              {(() => {
+                                const today = new Date();
+                                today.setHours(0, 0, 0, 0);
+                                const days = getDaysInCalendarMonth(month);
+                                
+                                if (days.length === 0) {
+                                  // No days to show in this month
+                                  return null;
+                                }
+                                
+                                // Get the first date that should be displayed
+                                const firstDate = new Date(days[0].date);
+                                firstDate.setHours(0, 0, 0, 0);
+                                const emptyCells = firstDate.getDay();
+                                
+                                return Array.from({ length: emptyCells }).map((_, i) => (
+                                  <div key={`empty-${i}`} />
+                                ));
+                              })()}
                               {getDaysInCalendarMonth(month).map((dayInfo) => {
                                 const pricing = getPricingForDate(showBookingModal.appId, showBookingModal.categoryId, dayInfo.date);
                                 const isSelected = slot?.dates.includes(dayInfo.date);
                                 const isBooked = pricing?.is_booked;
-                                const isPast = new Date(dayInfo.date) < new Date(new Date().toDateString());
+                                const dayDate = new Date(dayInfo.date);
+                                dayDate.setHours(0, 0, 0, 0);
+                                const today = new Date();
+                                today.setHours(0, 0, 0, 0);
+                                const isPast = dayDate < today;
                                 const price = pricing?.price ?? 0;
 
                                 return (
