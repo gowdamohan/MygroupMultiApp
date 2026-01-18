@@ -49,14 +49,22 @@ export const FooterPageManager: React.FC<FooterPageManagerProps> = ({ pageType, 
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      if (response.data.data) {
+      if (response.data.data && response.data.data.footer_page_type === pageType) {
         setFormData({
           ...response.data.data,
           image: response.data.data.image || null
         });
       } else {
-        // Set default group_name for new pages
-        setFormData(prev => ({ ...prev, group_name }));
+        // Reset form for new pages or different pageType
+        setFormData({
+          footer_page_type: pageType,
+          title: '',
+          tag_line: '',
+          image: null,
+          content: '',
+          url: '',
+          group_name
+        });
       }
     } catch (error) {
       console.error('Error fetching page data:', error);
