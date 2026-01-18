@@ -5,7 +5,7 @@ import axios from 'axios';
 import { API_BASE_URL } from '../../../../config/api.config';
 
 interface Continent { id: number; continent: string; code: string; }
-interface Country { id: number; country: string; code: string; continent_id: number; continent?: Continent; }
+interface Country { id: number; country: string; code: string; continent_id: number; continent?: Continent; locking_json?: { lockStates?: boolean; lockDistricts?: boolean } | null; }
 interface State { id: number; state: string; code: string; country_id: number; country?: Country; }
 interface District {
   id: number;
@@ -135,6 +135,14 @@ export const DistrictList: React.FC = () => {
 
     if (!formData.district.trim() || !formData.state_id) {
       setError('District name and state are required');
+      return;
+    }
+
+    // Check if district creation is locked for this country
+    const selectedState = states.find(s => s.id === parseInt(formData.state_id));
+    const selectedCountry = countries.find(c => c.id === selectedState?.country_id);
+    if (!editingId && selectedCountry?.locking_json?.lockDistricts) {
+      setError('District creation is locked for this country');
       return;
     }
 

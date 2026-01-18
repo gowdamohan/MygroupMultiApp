@@ -45,7 +45,7 @@ export default function ClientDashboardLayout() {
   const isActive = (path) => location.pathname === path;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-900">
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div 
@@ -165,7 +165,7 @@ export default function ClientDashboardLayout() {
           </div>
         </header>
 
-        <main className="p-4 lg:p-6">
+        <main className="p-4 lg:p-6 bg-gray-900">
           <Outlet />
         </main>
       </div>

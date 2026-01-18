@@ -264,6 +264,44 @@ export const deleteCountry = async (req, res) => {
 
 /**
  * ============================================
+ * COUNTRY LOCKING MANAGEMENT
+ * ============================================
+ */
+
+// Update country locking settings
+export const updateCountryLocking = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { lockStates, lockDistricts } = req.body;
+
+    const country = await Country.findByPk(id);
+    if (!country) {
+      return res.status(404).json({
+        success: false,
+        message: 'Country not found'
+      });
+    }
+
+    await country.update({
+      locking_json: { lockStates, lockDistricts }
+    });
+
+    res.json({
+      success: true,
+      message: 'Country locking settings updated successfully',
+      data: country
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update country locking settings',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * ============================================
  * STATE MANAGEMENT
  * ============================================
  */

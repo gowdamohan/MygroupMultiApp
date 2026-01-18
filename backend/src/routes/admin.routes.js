@@ -8,6 +8,7 @@ import {
   createCountry,
   updateCountry,
   deleteCountry,
+  updateCountryLocking,
   getStates,
   createState,
   updateState,
@@ -108,6 +109,7 @@ router.get('/countries', getCountries);
 router.post('/countries', createCountry);
 router.put('/countries/:id', updateCountry);
 router.delete('/countries/:id', deleteCountry);
+router.put('/countries/:id/locking', updateCountryLocking);
 
 /**
  * ============================================

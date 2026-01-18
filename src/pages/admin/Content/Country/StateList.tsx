@@ -5,7 +5,7 @@ import axios from 'axios';
 import { API_BASE_URL } from '../../../../config/api.config';
 
 interface Continent { id: number; continent: string; code: string; }
-interface Country { id: number; country: string; code: string; continent_id: number; continent?: Continent; }
+interface Country { id: number; country: string; code: string; continent_id: number; continent?: Continent; locking_json?: { lockStates?: boolean; lockDistricts?: boolean } | null; }
 interface State {
   id: number;
   country_id: number;
@@ -99,6 +99,13 @@ export const StateList: React.FC = () => {
 
     if (!formData.state.trim() || !formData.country_id) {
       setError('State name and country are required');
+      return;
+    }
+
+    // Check if state creation is locked for this country
+    const selectedCountry = countries.find(c => c.id === parseInt(formData.country_id));
+    if (!editingId && selectedCountry?.locking_json?.lockStates) {
+      setError('State creation is locked for this country');
       return;
     }
 

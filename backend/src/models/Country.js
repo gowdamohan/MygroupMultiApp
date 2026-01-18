@@ -39,6 +39,17 @@ const Country = sequelize.define('country_tbl', {
     type: DataTypes.STRING(100),
     allowNull: true
   },
+  locking_json: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    get() {
+      const value = this.getDataValue('locking_json');
+      return value ? JSON.parse(value) : null;
+    },
+    set(value) {
+      this.setDataValue('locking_json', value ? JSON.stringify(value) : null);
+    }
+  },
   order: {
     type: DataTypes.TINYINT,
     allowNull: true
