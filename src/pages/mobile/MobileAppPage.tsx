@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
-import { MobileHeader, TopIcon, getMobileHeaderHeight } from '../../components/mobile/MobileHeader';
+import { MobileLayout } from '../../layouts/MobileLayout';
 import { MobileFooter, Category } from '../../components/mobile/MobileFooter';
+import { MobileMyMediaPage } from './MobileMyMediaPage';
 import { API_BASE_URL } from '../../config/api.config';
-import { authAPI } from '../../services/api';
 
 interface AppInfo {
   id: number;
@@ -15,25 +15,12 @@ interface AppInfo {
   name_image: string;
 }
 
-interface UserProfile {
-  id: number;
-  username: string;
-  email?: string;
-  first_name?: string;
-  last_name?: string;
-  phone?: string;
-  profile_img?: string;
-  identification_code?: string;
-}
-
 export const MobileAppPage: React.FC = () => {
   // Get app name from URL params
   const { appName } = useParams<{ appName?: string }>();
 
-  // App and user state
+  // For all apps - hooks must be called unconditionally
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -59,44 +46,6 @@ export const MobileAppPage: React.FC = () => {
     return null;
   }, []);
 
-  // Check authentication
-  const checkAuth = useCallback(async () => {
-    const token = localStorage.getItem('accessToken');
-    const user = localStorage.getItem('user');
-    if (token && user) {
-      setIsLoggedIn(true);
-      try {
-        const userData = JSON.parse(user);
-        setUserProfile({
-          id: userData.id || 0,
-          username: userData.username || '',
-          email: userData.email,
-          first_name: userData.first_name,
-          last_name: userData.last_name,
-          phone: userData.phone,
-          profile_img: userData.profile_img,
-          identification_code: userData.identification_code
-        });
-        const response = await authAPI.getProfile();
-        if (response.data.success) {
-          const profileData = response.data.data;
-          setUserProfile({
-            id: profileData.id || 0,
-            username: profileData.username || '',
-            email: profileData.email,
-            first_name: profileData.first_name,
-            last_name: profileData.last_name,
-            phone: profileData.phone,
-            profile_img: profileData.profile_img,
-            identification_code: profileData.identification_code
-          });
-        }
-      } catch (error) {
-        console.error('Error fetching user profile:', error);
-      }
-    }
-  }, []);
-
   // Initialize page - reset state when appName changes
   useEffect(() => {
     // Reset state when appName changes
@@ -106,22 +55,11 @@ export const MobileAppPage: React.FC = () => {
     
     const initialize = async () => {
       setLoading(true);
-      await Promise.all([
-        fetchAppInfo(appName || 'mymedia'),
-        checkAuth()
-      ]);
+      await fetchAppInfo(appName);
       setLoading(false);
     };
     initialize();
-  }, [appName, fetchAppInfo, checkAuth]);
-
-  // Handle top icon click - navigate to different app
-  const handleTopIconClick = (icon: TopIcon) => {
-    // Use icon.url if available, otherwise construct from name
-    const targetUrl = icon.url || `/mobile/${icon.name.toLowerCase().replace(/\s+/g, '')}`;
-    // Force full page reload to ensure component re-initializes with new app
-    window.location.href = targetUrl;
-  };
+  }, [appName, fetchAppInfo]);
 
   // Handle footer category selection
   const handleCategorySelect = (categoryId: number, category: Category) => {
@@ -137,50 +75,39 @@ export const MobileAppPage: React.FC = () => {
     }
   }, [selectedCategoryId]);
 
-  // Handle logout
-  const handleLogout = () => {
-    setIsLoggedIn(false);
-    setUserProfile(null);
-    // Header component will handle the actual logout
-  };
-
   // Toggle dark mode
   const toggleDarkMode = () => {
     setDarkMode(!darkMode);
   };
 
-  // Calculate header height (assume ads are shown by default)
-  const headerHeight = getMobileHeaderHeight(true, true, true);
+  // If appName is 'mymedia', render MobileMyMediaPage which already uses MobileLayout
+  // with the same navigation endpoint as MobileAppPage
+  if (appName === 'mymedia') {
+    return <MobileMyMediaPage />;
+  }
 
+  // For all other apps, render generic app page
   if (loading) {
     return (
-      <div className={`min-h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-100'}`}>
-        <div className="flex items-center justify-center min-h-screen">
+      <MobileLayout
+        darkMode={darkMode}
+        onDarkModeToggle={toggleDarkMode}
+        appName={appName || 'mymedia'}
+      >
+        <div className="flex items-center justify-center min-h-[60vh]">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600"></div>
         </div>
-      </div>
+      </MobileLayout>
     );
   }
 
   return (
-    <div className={`min-h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-100'}`}>
-      {/* Header Component */}
-      <MobileHeader
-        appId={appInfo?.id}
-        appName={appName || 'mymedia'}
-        darkMode={darkMode}
-        onDarkModeToggle={toggleDarkMode}
-        userProfile={userProfile}
-        isLoggedIn={isLoggedIn}
-        onTopIconClick={handleTopIconClick}
-        onLogout={handleLogout}
-      />
-
-      {/* Main Content Area */}
-      <div
-        className="pb-16"
-        style={{ paddingTop: `${headerHeight}px` }}
-      >
+    <MobileLayout
+      darkMode={darkMode}
+      onDarkModeToggle={toggleDarkMode}
+      appName={appName || 'mymedia'}
+    >
+      <div className="pb-20">
         {/* Content based on selected category */}
         <div className="p-4">
           {selectedCategory ? (
@@ -200,17 +127,19 @@ export const MobileAppPage: React.FC = () => {
             </div>
           )}
         </div>
-      </div>
 
-      {/* Footer Component */}
-      <MobileFooter
-        appId={appInfo?.id}
-        selectedCategoryId={selectedCategoryId}
-        onCategorySelect={handleCategorySelect}
-        onCategoriesLoaded={handleCategoriesLoaded}
-        maxCategories={6}
-      />
-    </div>
+        {/* Footer Component */}
+        <div className="fixed bottom-0 left-0 right-0 z-40">
+          <MobileFooter
+            appId={appInfo?.id}
+            selectedCategoryId={selectedCategoryId}
+            onCategorySelect={handleCategorySelect}
+            onCategoriesLoaded={handleCategoriesLoaded}
+            maxCategories={6}
+          />
+        </div>
+      </div>
+    </MobileLayout>
   );
 };
 
