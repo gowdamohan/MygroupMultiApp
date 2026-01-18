@@ -157,48 +157,21 @@ export const AdminDashboardNew: React.FC = () => {
       label: 'Content',
       icon: FileText,
       children: [
-        {
-          id: 'country-list',
-          label: 'Country List',
-          icon: Globe,
-          children: [
-            { id: 'continent', label: 'Continent', icon: Globe, path: '/admin/continent' },
-            { id: 'country', label: 'Country', icon: MapPin, path: '/admin/country' },
-            { id: 'state', label: 'State', icon: MapPin, path: '/admin/state' },
-            { id: 'district', label: 'District', icon: MapPin, path: '/admin/district' }
-          ]
-        },
         { id: 'education', label: 'Education', icon: GraduationCap, path: '/admin/education' },
         { id: 'profession', label: 'Profession', icon: Briefcase, path: '/admin/profession' },
         { id: 'language', label: 'Language', icon: Languages, path: '/admin/language' }
       ]
     },
     {
-      id: 'footer-pages',
-      label: 'Footer Pages',
-      adminOnly: true,
-      icon: FileText,
+      id: 'country-list',
+      label: 'Location',
+      icon: Globe,
       children: [
-        { id: 'about-us', label: 'About Us', icon: FileText, path: '/admin/about-us' },
-        { id: 'awards', label: 'Awards', icon: Award, path: '/admin/awards' },
-        { id: 'newsroom', label: 'Newsroom', icon: Newspaper, path: '/admin/newsroom' },
-        { id: 'events', label: 'Events', icon: Calendar, path: '/admin/events' },
-        { id: 'careers', label: 'Careers', icon: Career, path: '/admin/careers' },
-        { id: 'clients', label: 'Clients', icon: Users, path: '/admin/clients' },
-        { id: 'milestones', label: 'Milestones', icon: Milestone, path: '/admin/milestones' },
-        { id: 'testimonials', label: 'Testimonials', icon: MessageSquare, path: '/admin/testimonials' },
-        { id: 'contact-us', label: 'Contact Us', icon: Mail, path: '/admin/contact-us' },
-        { id: 'terms', label: 'Terms & Conditions', icon: FileCheck, path: '/admin/terms-conditions' },
-        { id: 'privacy', label: 'Privacy Policy', icon: Lock, path: '/admin/privacy-policy' },
-        { id: 'copyrights', label: 'Copy Rights', icon: Copyright, path: '/admin/copy-rights' }
+        { id: 'continent', label: 'Continent', icon: Globe, path: '/admin/continent' },
+        { id: 'country', label: 'Country', icon: MapPin, path: '/admin/country' },
+        { id: 'state', label: 'State', icon: MapPin, path: '/admin/state' },
+        { id: 'district', label: 'District', icon: MapPin, path: '/admin/district' }
       ]
-    },
-    {
-      id: 'gallery',
-      label: 'Gallery',
-      icon: Image,
-      adminOnly: true,
-      path: '/admin/gallery'
     },
     {
       id: 'needy-services',
