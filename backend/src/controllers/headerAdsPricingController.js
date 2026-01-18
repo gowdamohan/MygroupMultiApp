@@ -139,23 +139,42 @@ export const createPricingMaster = async (req, res) => {
   try {
     const { country_id, pricing_slot, ads_type, my_coins } = req.body;
 
-    if (!country_id || !pricing_slot || !ads_type || !my_coins) {
+    if (!country_id || !pricing_slot || !ads_type || my_coins === undefined || my_coins === null) {
       return res.status(400).json({
         success: false,
         message: 'country_id, pricing_slot, ads_type, and my_coins are required'
       });
     }
 
-    // Upsert master record
-    const [master, created] = await HeaderAdsPricingMaster.upsert({
-      country_id,
-      pricing_slot,
-      ads_type,
-      my_coins
-    }, {
-      where: { country_id, pricing_slot, ads_type },
-      returning: true
+    // Find existing record with the specific combination
+    const existingMaster = await HeaderAdsPricingMaster.findOne({
+      where: {
+        country_id,
+        pricing_slot,
+        ads_type
+      }
     });
+
+    let master;
+    let created;
+
+    if (existingMaster) {
+      // Update existing record
+      await existingMaster.update({
+        my_coins: parseFloat(my_coins)
+      });
+      master = existingMaster;
+      created = false;
+    } else {
+      // Create new record
+      master = await HeaderAdsPricingMaster.create({
+        country_id,
+        pricing_slot,
+        ads_type,
+        my_coins: parseFloat(my_coins)
+      });
+      created = true;
+    }
 
     res.json({
       success: true,

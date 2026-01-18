@@ -12,11 +12,6 @@ interface Country {
   flag_icon: string;
 }
 
-interface ExchangeRate {
-  rate: number;
-  loading: boolean;
-  error: string;
-}
 
 interface App {
   id: number;
@@ -69,7 +64,6 @@ interface PriceCardEditModal {
 export const CorporateHeaderAdsPricing: React.FC = () => {
   const [countries, setCountries] = useState<Country[]>([]);
   const [selectedCountry, setSelectedCountry] = useState<Country | null>(null);
-  const [exchangeRate, setExchangeRate] = useState<ExchangeRate>({ rate: 0, loading: false, error: '' });
   const [activeTab, setActiveTab] = useState<'General' | 'Capitals'>('General');
   const [loading, setLoading] = useState(false);
   const [pricingData, setPricingData] = useState<{[key: string]: PricingSlave[]}>({});
@@ -95,7 +89,6 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
 
   useEffect(() => {
     if (selectedCountry) {
-      fetchExchangeRate();
       fetchMasterPricing();
       fetchPricingData();
     }
@@ -107,25 +100,6 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
     }
   }, [activeTab]);
 
-  const fetchExchangeRate = async () => {
-    if (!selectedCountry) return;
-
-    setExchangeRate({ rate: 0, loading: true, error: '' });
-
-    try {
-      // Using exchangerate-api.com (free tier, no API key required)
-      const res = await axios.get(`https://api.exchangerate-api.com/v4/latest/${selectedCountry.currency_code}`);
-      
-      if (res.data && res.data.rates && res.data.rates.USD) {
-        setExchangeRate({ rate: res.data.rates.USD, loading: false, error: '' });
-      } else {
-        setExchangeRate({ rate: 0, loading: false, error: 'Rate not available' });
-      }
-    } catch (error) {
-      console.error('Error fetching exchange rate:', error);
-      setExchangeRate({ rate: 0, loading: false, error: 'Failed to fetch rate' });
-    }
-  };
 
   const fetchCountries = async () => {
     try {
@@ -411,17 +385,11 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
 
           {/* Currency Display */}
           <div className="flex items-center gap-2 text-white">
-            {exchangeRate.loading ? (
-              <span className="text-white/70">Loading...</span>
-            ) : exchangeRate.error ? (
-              <span className="text-red-300">{exchangeRate.error}</span>
-            ) : selectedCountry ? (
+            {selectedCountry ? (
               <>
-                <span className="bg-indigo-600 px-3 py-2 rounded-lg">1</span>
+                <span className="bg-indigo-600 px-3 py-2 rounded-lg">1 {selectedCountry.currency_code}</span>
                 <span>=</span>
-                <span className="bg-indigo-600 px-3 py-2 rounded-lg">
-                  {exchangeRate.rate > 0 ? Math.round(1 / exchangeRate.rate) : 1}
-                </span>
+                <span className="bg-indigo-600 px-3 py-2 rounded-lg">1</span>
                 <span className="font-semibold">Mycoins</span>
               </>
             ) : (
