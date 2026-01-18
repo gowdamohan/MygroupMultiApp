@@ -11,6 +11,8 @@ import { RegionalOfficeLogin } from '../franchise/RegionalOfficeLogin';
 import { BranchOfficeLogin } from '../franchise/BranchOfficeLogin';
 import { Accounts } from '../franchise/Accounts';
 import { FranchiseHeaderAds } from '../franchise/FranchiseHeaderAds';
+import axios from 'axios';
+import { API_BASE_URL } from '../../config/api.config';
 
 interface MenuItem {
   id: string;
@@ -37,6 +39,7 @@ export const FranchiseDashboard: React.FC = () => {
   const [expandedMenus, setExpandedMenus] = useState<string[]>(['dashboard']);
   const [activeMenu, setActiveMenu] = useState('dashboard');
   const [user, setUser] = useState<any>(null);
+  const [userProfile, setUserProfile] = useState<any>(null);
   const [userRole, setUserRole] = useState<'head_office' | 'regional' | 'branch'>('head_office');
   const [currentTime, setCurrentTime] = useState(new Date());
   const [stats, setStats] = useState<DashboardStats>({
@@ -60,6 +63,9 @@ export const FranchiseDashboard: React.FC = () => {
           setUserRole(role);
         }
       }
+      
+      // Fetch full user profile with group description
+      fetchUserProfile();
     } else {
       navigate('/auth/login');
     }
@@ -71,6 +77,20 @@ export const FranchiseDashboard: React.FC = () => {
 
     return () => clearInterval(timer);
   }, [navigate]);
+
+  const fetchUserProfile = async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const response = await axios.get(`${API_BASE_URL}/auth/profile`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.success) {
+        setUserProfile(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+    }
+  };
 
   const menuItems: MenuItem[] = [
     {
@@ -117,6 +137,13 @@ export const FranchiseDashboard: React.FC = () => {
           label: 'Header Ads -1', 
           icon: BarChart3, 
           path: '/franchise/create-header-ads-branch-office',
+          roleRestriction: ['branch']
+        },
+        { 
+          id: 'header-ads-2', 
+          label: 'Header Ads -2', 
+          icon: BarChart3, 
+          path: '/franchise/create-header-ads-2',
           roleRestriction: ['branch']
         }
       ]
@@ -270,11 +297,15 @@ export const FranchiseDashboard: React.FC = () => {
     }
 
     if (path === '/franchise/create-header-ads-head-office') {
-      return <FranchiseHeaderAds officeLevel="head_office" />;
+      return <FranchiseHeaderAds officeLevel="head_office" adSlot="ads1" />;
     }
 
     if (path === '/franchise/create-header-ads-branch-office') {
-      return <FranchiseHeaderAds officeLevel="branch" />;
+      return <FranchiseHeaderAds officeLevel="branch" adSlot="ads1" />;
+    }
+
+    if (path === '/franchise/create-header-ads-2') {
+      return <FranchiseHeaderAds officeLevel={userRole} adSlot="ads2" />;
     }
 
     // Default dashboard view
@@ -400,20 +431,40 @@ export const FranchiseDashboard: React.FC = () => {
         } hidden lg:block bg-white border-r border-gray-200 transition-all duration-300 overflow-hidden`}
       >
         <div className="h-full flex flex-col">
-          {/* Logo */}
-          <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200">
-            <div className="flex items-center gap-2">
-              <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${getRoleColor()} flex items-center justify-center`}>
-                <Building2 className="text-white" size={18} />
+          {/* Logo & User Info */}
+          <div className="border-b border-gray-200">
+            <div className="h-16 flex items-center justify-between px-4">
+              <div className="flex items-center gap-2">
+                <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${getRoleColor()} flex items-center justify-center`}>
+                  <Building2 className="text-white" size={18} />
+                </div>
+                <span className="font-bold text-gray-900">Franchise</span>
               </div>
-              <span className="font-bold text-gray-900">Franchise</span>
+              <button
+                onClick={() => setSidebarOpen(false)}
+                className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X size={18} />
+              </button>
             </div>
-            <button
-              onClick={() => setSidebarOpen(false)}
-              className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <X size={18} />
-            </button>
+            {/* User Information Section */}
+            {(userProfile || user) && (
+              <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
+                <div className="space-y-1.5">
+                  {(userProfile?.groups?.[0]?.description || user?.groups?.[0]?.description) && (
+                    <div className="text-xs text-gray-600">
+                      <span className="font-semibold">Group:</span> {userProfile?.groups?.[0]?.description || user?.groups?.[0]?.description || 'N/A'}
+                    </div>
+                  )}
+                  <div className="text-xs text-gray-600">
+                    <span className="font-semibold">Name:</span> {userProfile?.first_name || user?.first_name || 'N/A'}
+                  </div>
+                  <div className="text-xs text-gray-600">
+                    <span className="font-semibold">Username:</span> {userProfile?.username || user?.username || 'N/A'}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Menu Items */}
@@ -452,20 +503,40 @@ export const FranchiseDashboard: React.FC = () => {
               className="fixed left-0 top-0 bottom-0 w-64 bg-white z-50 lg:hidden shadow-xl"
             >
               <div className="h-full flex flex-col">
-                {/* Logo */}
-                <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200">
-                  <div className="flex items-center gap-2">
-                    <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${getRoleColor()} flex items-center justify-center`}>
-                      <Building2 className="text-white" size={18} />
+                {/* Logo & User Info */}
+                <div className="border-b border-gray-200">
+                  <div className="h-16 flex items-center justify-between px-4">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${getRoleColor()} flex items-center justify-center`}>
+                        <Building2 className="text-white" size={18} />
+                      </div>
+                      <span className="font-bold text-gray-900">Franchise</span>
                     </div>
-                    <span className="font-bold text-gray-900">Franchise</span>
+                    <button
+                      onClick={() => setMobileSidebarOpen(false)}
+                      className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+                    >
+                      <X size={18} />
+                    </button>
                   </div>
-                  <button
-                    onClick={() => setMobileSidebarOpen(false)}
-                    className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
-                  >
-                    <X size={18} />
-                  </button>
+                  {/* User Information Section */}
+                  {(userProfile || user) && (
+                    <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
+                      <div className="space-y-1.5">
+                        {(userProfile?.groups?.[0]?.description || user?.groups?.[0]?.description) && (
+                          <div className="text-xs text-gray-600">
+                            <span className="font-semibold">Group:</span> {userProfile?.groups?.[0]?.description || user?.groups?.[0]?.description || 'N/A'}
+                          </div>
+                        )}
+                        <div className="text-xs text-gray-600">
+                          <span className="font-semibold">Name:</span> {userProfile?.first_name || user?.first_name || 'N/A'}
+                        </div>
+                        <div className="text-xs text-gray-600">
+                          <span className="font-semibold">Username:</span> {userProfile?.username || user?.username || 'N/A'}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Menu Items */}

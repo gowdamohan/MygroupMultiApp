@@ -29,7 +29,15 @@ interface SelectedSlot {
   preview: string;
 }
 
-export const FranchiseHeaderAds: React.FC = () => {
+interface FranchiseHeaderAdsProps {
+  officeLevel?: 'head_office' | 'regional' | 'branch';
+  adSlot?: 'ads1' | 'ads2';
+}
+
+export const FranchiseHeaderAds: React.FC<FranchiseHeaderAdsProps> = ({ 
+  officeLevel = 'head_office',
+  adSlot = 'ads1'
+}) => {
   const [apps, setApps] = useState<App[]>([]);
   const [appCategories, setAppCategories] = useState<{[appId: number]: Category[]}>({});
   const [pricingData, setPricingData] = useState<{[key: string]: PricingData[]}>({});
@@ -400,6 +408,7 @@ export const FranchiseHeaderAds: React.FC = () => {
       formData.append('app_id', appId.toString());
       formData.append('category_id', categoryId.toString());
       formData.append('dates', JSON.stringify(slot.dates));
+      formData.append('ad_slot', adSlot);
       if (slot.url) formData.append('link_url', slot.url);
       if (slot.file) formData.append('file', slot.file);
 
@@ -439,7 +448,9 @@ export const FranchiseHeaderAds: React.FC = () => {
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">Franchise Header Ads Booking</h1>
+        <h1 className="text-2xl font-bold text-gray-900">
+          Franchise Header Ads {adSlot === 'ads2' ? '-2' : ''} Booking
+        </h1>
         <div className="text-sm text-gray-600 font-medium">
           {getDateRangeText()}
         </div>
@@ -581,7 +592,7 @@ export const FranchiseHeaderAds: React.FC = () => {
                 <>
                   <div className="flex justify-between items-center mb-6">
                     <h3 className="text-xl font-bold text-gray-900">
-                      Book Header Ad - {app?.name} - {category?.category_name}
+                      Book Header Ad {adSlot === 'ads2' ? '-2' : ''} - {app?.name} - {category?.category_name}
                     </h3>
                     <button onClick={() => { setShowBookingModal(null); setSelectedSlots(prev => { const updated = {...prev}; delete updated[key]; return updated; }); }} className="p-2 hover:bg-gray-100 rounded-lg">
                       <X size={20} />

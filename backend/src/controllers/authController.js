@@ -187,7 +187,8 @@ export const getProfile = async (req, res) => {
         {
           model: Group,
           as: 'groups',
-          through: { attributes: [] }
+          through: { attributes: [] },
+          attributes: ['id', 'name', 'description']
         },
         {
           model: UserRegistration,
@@ -646,7 +647,7 @@ function formatUserResponse(user) {
     phone: userObj.phone,
     company: userObj.company,
     group_id: userObj.group_id, // Include group_id for partner/client access
-    groups: userObj.groups ? userObj.groups.map(g => ({ id: g.id, name: g.name })) : [],
+    groups: userObj.groups ? userObj.groups.map(g => ({ id: g.id, name: g.name, description: g.description })) : [],
     profile: userObj.profile || null,
     groupDetails: userObj.groupDetails || null
   };

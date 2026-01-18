@@ -1,4 +1,4 @@
-import { HeaderAdsManagement, GroupCreate, AppCategory, HeaderAdsPricing, FranchiseHolder, HeaderAdsSlot, HeaderAdsPricingSlave, HeaderAdsPricingMaster } from '../models/index.js';
+import { HeaderAdsManagement, GroupCreate, AppCategory, HeaderAdsPricing, FranchiseHolder, HeaderAdsSlot, HeaderAdsPricingSlave, HeaderAdsPricingMaster, User, UserGroup, Group } from '../models/index.js';
 import { Op } from 'sequelize';
 import path from 'path';
 import fs from 'fs';
@@ -245,7 +245,7 @@ export const getHeaderAds = async (req, res) => {
 // Create header ad
 export const createHeaderAd = async (req, res) => {
   try {
-    const { app_id, category_id, link_url, dates } = req.body;
+    const { app_id, category_id, link_url, dates, ad_slot } = req.body;
     const userId = req.user.id;
     let file_path = null;
 
@@ -254,6 +254,7 @@ export const createHeaderAd = async (req, res) => {
     }
 
     const selectedDates = typeof dates === 'string' ? JSON.parse(dates) : dates;
+    const adSlot = ad_slot || 'ads1'; // Default to ads1 if not provided
 
     if (!selectedDates || selectedDates.length === 0) {
       return res.status(400).json({
@@ -274,22 +275,91 @@ export const createHeaderAd = async (req, res) => {
       });
     }
 
-    // Get pricing for selected dates
-    const pricingRecords = await HeaderAdsPricing.findAll({
-      where: {
-        app_id,
-        category_id,
-        ad_date: {
-          [Op.in]: selectedDates
+    // Get group name from user's groups through users_groups relationship
+    // Get user's groups using the belongsToMany relationship
+    const user = await User.findByPk(userId, {
+      include: [
+        {
+          model: Group,
+          as: 'groups',
+          through: { attributes: [] }, // Exclude join table attributes
+          attributes: ['name']
         }
-      }
+      ]
     });
 
-    // Create price map
+    let groupName = 'corporate'; // default
+    if (user && user.groups && user.groups.length > 0) {
+      // Get the first group (users typically have one primary group)
+      groupName = user.groups[0].name;
+    }
+
+    // Format group_name as {group_name}_{ad_slot}
+    const group_name = `${groupName}_${adSlot}`;
+
+    // Get pricing for selected dates using slave/master pricing hierarchy
+    // First, get franchise holder's country_id
+    const countryId = franchiseHolder.country || null;
+    
+    // Initialize price map
     const priceMap = new Map();
-    pricingRecords.forEach(record => {
-      priceMap.set(record.ad_date, parseFloat(record.price));
-    });
+    
+    if (countryId) {
+      // Try to get pricing from slave/master tables
+      const masterRecord = await HeaderAdsPricingMaster.findOne({
+        where: {
+          country_id: countryId,
+          pricing_slot: 'General', // Default to General
+          ads_type: 'header_ads'
+        },
+        order: [['created_at', 'DESC']]
+      });
+
+      if (masterRecord) {
+        const masterPrice = parseFloat(masterRecord.my_coins) || 0;
+        
+        // Get slave pricing records for this app/category combination
+        const slaveRecords = await HeaderAdsPricingSlave.findAll({
+          where: {
+            header_ads_pricing_master_id: masterRecord.id,
+            app_id: parseInt(app_id),
+            category_id: parseInt(category_id),
+            selected_date: {
+              [Op.in]: selectedDates
+            }
+          }
+        });
+
+        // Create price map from slave records
+        slaveRecords.forEach(record => {
+          priceMap.set(record.selected_date, parseFloat(record.my_coins) || 0);
+        });
+
+        // Fill in missing dates with master price
+        selectedDates.forEach(date => {
+          if (!priceMap.has(date)) {
+            priceMap.set(date, masterPrice);
+          }
+        });
+      }
+    }
+
+    // Fallback to legacy HeaderAdsPricing table if no slave/master data
+    if (priceMap.size === 0) {
+      const pricingRecords = await HeaderAdsPricing.findAll({
+        where: {
+          app_id,
+          category_id,
+          ad_date: {
+            [Op.in]: selectedDates
+          }
+        }
+      });
+
+      pricingRecords.forEach(record => {
+        priceMap.set(record.ad_date, parseFloat(record.price) || 0);
+      });
+    }
 
     // Calculate total price
     const total_price = selectedDates.reduce((sum, date) => sum + (priceMap.get(date) || 0), 0);
@@ -303,10 +373,11 @@ export const createHeaderAd = async (req, res) => {
       total_price,
       status: 'pending',
       franchise_holder_id: franchiseHolder.id,
-      created_by: userId
+      created_by: userId,
+      group_name: group_name
     });
 
-    // Create header_ads_slot records for each selected date
+    // Create header_ads_slot records for each selected date with individual prices
     const slotRecords = selectedDates.map(date => ({
       header_ads_id: ad.id,
       selected_date: date,

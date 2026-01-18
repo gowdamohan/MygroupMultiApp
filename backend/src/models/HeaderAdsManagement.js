@@ -55,6 +55,10 @@ const HeaderAdsManagement = sequelize.define('header_ads', {
     type: DataTypes.TINYINT,
     defaultValue: 1
   },
+  group_name: {
+    type: DataTypes.STRING(100),
+    allowNull: true
+  },
   created_by: {
     type: DataTypes.INTEGER,
     allowNull: true
