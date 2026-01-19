@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Upload, Save, Loader2, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
@@ -48,25 +48,159 @@ export const FranchiseHeaderAds: React.FC<FranchiseHeaderAdsProps> = ({
   const [success, setSuccess] = useState('');
   const [showBookingModal, setShowBookingModal] = useState<{appId: number, categoryId: number} | null>(null);
   const [calendarStartMonth, setCalendarStartMonth] = useState(new Date());
+  const [isFetchingCategories, setIsFetchingCategories] = useState(false);
+  const pricingFetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const hasFetchedInitialPricing = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Define fetchPricing first so it can be used in useEffects and useCallbacks
+  const fetchPricing = useCallback(async (appId: number, categoryId: number, startDate: Date, endDate: Date, cancelPrevious: boolean = false) => {
+    // Cancel previous request only if explicitly requested (e.g., for calendar modal)
+    if (cancelPrevious && abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    // Create new abort controller for this request
+    const controller = new AbortController();
+    if (cancelPrevious) {
+      abortControllerRef.current = controller;
+    }
+    
+    try {
+      const token = localStorage.getItem('accessToken');
+      const response = await axios.get(`${API_BASE_URL}/header-ads/pricing`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: {
+          app_id: appId,
+          category_id: categoryId,
+          start_date: startDate.toISOString().split('T')[0],
+          end_date: endDate.toISOString().split('T')[0]
+        },
+        signal: controller.signal
+      });
+      
+      if (response.data.success) {
+        const key = `${appId}-${categoryId}`;
+        setPricingData(prev => ({ ...prev, [key]: response.data.data }));
+      }
+    } catch (err: any) {
+      // Don't log errors for aborted requests
+      if (axios.isCancel(err) || err.name === 'AbortError') {
+        return;
+      }
+      
+      // Handle rate limit errors
+      if (err.response?.status === 429) {
+        const retryAfter = err.response?.headers['retry-after'] || 60;
+        setError(`Too many requests. Please wait ${retryAfter} seconds before trying again.`);
+        console.error('Rate limit exceeded:', err);
+        return;
+      }
+      
+      // Handle other errors
+      if (err.response?.status >= 400 && err.response?.status < 500) {
+        console.error('Error fetching pricing:', err.response?.data?.message || err.message);
+      } else {
+        console.error('Error fetching pricing:', err);
+      }
+    }
+  }, []);
+
+  const fetchPricingForAllCategories = useCallback(async () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const startDate = new Date(today);
+    const endDate = new Date(today);
+    endDate.setMonth(endDate.getMonth() + 3);
+    endDate.setDate(endDate.getDate() - 1); // Exactly 3 months from today
+
+    // Fetch pricing for all app-category combinations with a small delay between requests
+    // to avoid overwhelming the server
+    for (const app of apps) {
+      const categories = appCategories[app.id] || [];
+      for (const category of categories) {
+        // Add a small delay between requests to prevent rate limiting
+        await new Promise(resolve => setTimeout(resolve, 100));
+        await fetchPricing(app.id, category.id, startDate, endDate, false);
+      }
+    }
+  }, [apps, appCategories, fetchPricing]);
+
+  const fetchPricingForCalendar = useCallback(async (appId: number, categoryId: number) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const startDate = new Date(today);
+    const endDate = new Date(today);
+    endDate.setMonth(endDate.getMonth() + 3);
+    endDate.setDate(endDate.getDate() - 1); // Exactly 3 months from today
+    // Cancel previous calendar pricing request when fetching new one
+    await fetchPricing(appId, categoryId, startDate, endDate, true);
+  }, [fetchPricing]);
 
   useEffect(() => {
     fetchApps();
+    return () => {
+      // Cleanup: cancel any pending requests on unmount
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      if (pricingFetchTimeoutRef.current) {
+        clearTimeout(pricingFetchTimeoutRef.current);
+      }
+    };
   }, []);
 
+  // Only fetch pricing once all categories are loaded
   useEffect(() => {
-    if (apps.length > 0) {
-      fetchPricingForAllCategories();
+    // Check if we have apps and all categories are loaded
+    if (apps.length > 0 && !isFetchingCategories && !hasFetchedInitialPricing.current) {
+      const allCategoriesLoaded = apps.every(app => appCategories[app.id] && appCategories[app.id].length > 0);
+      
+      if (allCategoriesLoaded) {
+        // Debounce the pricing fetch to prevent rapid calls
+        if (pricingFetchTimeoutRef.current) {
+          clearTimeout(pricingFetchTimeoutRef.current);
+        }
+        
+        pricingFetchTimeoutRef.current = setTimeout(() => {
+          fetchPricingForAllCategories();
+          hasFetchedInitialPricing.current = true;
+        }, 300); // 300ms debounce
+      }
     }
-  }, [apps, appCategories]);
 
+    return () => {
+      if (pricingFetchTimeoutRef.current) {
+        clearTimeout(pricingFetchTimeoutRef.current);
+      }
+    };
+  }, [apps, appCategories, isFetchingCategories, fetchPricingForAllCategories]);
+
+  // Debounced pricing fetch for calendar modal
   useEffect(() => {
     if (showBookingModal) {
-      fetchPricingForCalendar(showBookingModal.appId, showBookingModal.categoryId);
+      // Cancel any pending pricing fetch
+      if (pricingFetchTimeoutRef.current) {
+        clearTimeout(pricingFetchTimeoutRef.current);
+      }
+      
+      // Debounce the calendar pricing fetch
+      pricingFetchTimeoutRef.current = setTimeout(() => {
+        fetchPricingForCalendar(showBookingModal.appId, showBookingModal.categoryId);
+      }, 200);
     }
-  }, [showBookingModal, calendarStartMonth]);
+
+    return () => {
+      if (pricingFetchTimeoutRef.current) {
+        clearTimeout(pricingFetchTimeoutRef.current);
+      }
+    };
+  }, [showBookingModal, calendarStartMonth, fetchPricingForCalendar]);
 
   const fetchApps = async () => {
     try {
+      setIsFetchingCategories(true);
+      hasFetchedInitialPricing.current = false;
       const token = localStorage.getItem('accessToken');
       const response = await axios.get(`${API_BASE_URL}/header-ads/my-apps`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -75,14 +209,14 @@ export const FranchiseHeaderAds: React.FC<FranchiseHeaderAdsProps> = ({
         const appsData = response.data.data;
         setApps(appsData);
         
-        for (const app of appsData) {
-          await fetchCategories(app.id);
-        }
+        // Fetch all categories in parallel
+        await Promise.all(appsData.map(app => fetchCategories(app.id)));
       }
     } catch (err: any) {
       console.error('Error fetching apps:', err);
       setError('Failed to fetch apps');
     } finally {
+      setIsFetchingCategories(false);
       setLoading(false);
     }
   };
@@ -101,53 +235,6 @@ export const FranchiseHeaderAds: React.FC<FranchiseHeaderAdsProps> = ({
     }
   };
 
-  const fetchPricingForAllCategories = async () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const startDate = new Date(today);
-    const endDate = new Date(today);
-    endDate.setMonth(endDate.getMonth() + 3);
-    endDate.setDate(endDate.getDate() - 1); // Exactly 3 months from today
-
-    for (const app of apps) {
-      const categories = appCategories[app.id] || [];
-      for (const category of categories) {
-        await fetchPricing(app.id, category.id, startDate, endDate);
-      }
-    }
-  };
-
-  const fetchPricingForCalendar = async (appId: number, categoryId: number) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const startDate = new Date(today);
-    const endDate = new Date(today);
-    endDate.setMonth(endDate.getMonth() + 3);
-    endDate.setDate(endDate.getDate() - 1); // Exactly 3 months from today
-    await fetchPricing(appId, categoryId, startDate, endDate);
-  };
-
-  const fetchPricing = async (appId: number, categoryId: number, startDate: Date, endDate: Date) => {
-    try {
-      const token = localStorage.getItem('accessToken');
-      const response = await axios.get(`${API_BASE_URL}/header-ads/pricing`, {
-        headers: { Authorization: `Bearer ${token}` },
-        params: {
-          app_id: appId,
-          category_id: categoryId,
-          start_date: startDate.toISOString().split('T')[0],
-          end_date: endDate.toISOString().split('T')[0]
-        }
-      });
-      
-      if (response.data.success) {
-        const key = `${appId}-${categoryId}`;
-        setPricingData(prev => ({ ...prev, [key]: response.data.data }));
-      }
-    } catch (err: any) {
-      console.error('Error fetching pricing:', err);
-    }
-  };
 
   const getMonthGroups = () => {
     const today = new Date();
@@ -427,11 +514,26 @@ export const FranchiseHeaderAds: React.FC<FranchiseHeaderAdsProps> = ({
           return updated;
         });
         setShowBookingModal(null);
-        await fetchPricingForAllCategories();
+        // Reset the flag to allow refetching pricing after booking
+        hasFetchedInitialPricing.current = false;
+        // Debounce the pricing refetch
+        if (pricingFetchTimeoutRef.current) {
+          clearTimeout(pricingFetchTimeoutRef.current);
+        }
+        pricingFetchTimeoutRef.current = setTimeout(() => {
+          fetchPricingForAllCategories();
+          hasFetchedInitialPricing.current = true;
+        }, 500);
       }
     } catch (err: any) {
       console.error('Booking error:', err);
-      setError(err.response?.data?.message || 'Booking failed. Please try again.');
+      // Handle rate limit errors
+      if (err.response?.status === 429) {
+        const retryAfter = err.response?.headers['retry-after'] || 60;
+        setError(`Too many requests. Please wait ${retryAfter} seconds before trying again.`);
+      } else {
+        setError(err.response?.data?.message || 'Booking failed. Please try again.');
+      }
     } finally {
       setSaving(null);
     }

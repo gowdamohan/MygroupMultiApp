@@ -2,6 +2,7 @@ import {
   User,
   Group,
   UserGroup,
+  UserActivity,
   GroupCreate,
   CreateDetails,
   UserRegistration,
@@ -37,6 +38,7 @@ export const register = async (req, res) => {
     }
 
     // Create new user
+    const now = Math.floor(Date.now() / 1000);
     const user = await User.create({
       username,
       email,
@@ -44,12 +46,23 @@ export const register = async (req, res) => {
       first_name,
       last_name,
       phone,
-      created_on: Math.floor(Date.now() / 1000),
+      created_on: now,
       active: 1
     });
 
-    // Generate tokens
-    const tokens = generateTokens(user);
+    // Create user activity record for new user
+    const userActivity = await UserActivity.create({
+      user_id: user.id,
+      last_activity: now,
+      is_active: 1,
+      token_expires_at: null
+    });
+
+    // Generate tokens with activity data
+    const tokens = generateTokens(user, {
+      isActive: true,
+      lastActivity: now
+    });
 
     res.status(201).json({
       success: true,
@@ -108,12 +121,46 @@ export const login = async (req, res) => {
     }
 
     // Update last login
+    const now = Math.floor(Date.now() / 1000);
     await user.update({
-      last_login: Math.floor(Date.now() / 1000)
+      last_login: now
     });
 
-    // Generate tokens
-    const tokens = generateTokens(user);
+    // Create or update user activity record
+    let userActivity = await UserActivity.findOne({
+      where: { user_id: user.id }
+    });
+
+    if (!userActivity) {
+      userActivity = await UserActivity.create({
+        user_id: user.id,
+        last_activity: now,
+        is_active: 1,
+        token_expires_at: null // Active users don't have expiration
+      });
+    } else {
+      // Update activity on login
+      await userActivity.update({
+        last_activity: now,
+        is_active: 1,
+        token_expires_at: null
+      });
+    }
+
+    // Load user with activity for token generation
+    await user.reload({
+      include: [{
+        model: UserActivity,
+        as: 'activity',
+        required: false
+      }]
+    });
+
+    // Generate tokens with activity data
+    const tokens = generateTokens(user, {
+      isActive: userActivity.is_active === 1,
+      lastActivity: userActivity.last_activity
+    });
 
     res.json({
       success: true,
@@ -150,8 +197,15 @@ export const refreshToken = async (req, res) => {
     // Verify refresh token
     const decoded = verifyRefreshToken(refreshToken);
 
-    // Find user
-    const user = await User.findByPk(decoded.id);
+    // Find user with activity data
+    const user = await User.findByPk(decoded.id, {
+      include: [{
+        model: UserActivity,
+        as: 'activity',
+        required: false
+      }]
+    });
+
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -159,8 +213,54 @@ export const refreshToken = async (req, res) => {
       });
     }
 
-    // Generate new tokens
-    const tokens = generateTokens(user);
+    // Check if user is still active
+    if (!user.active) {
+      return res.status(403).json({
+        success: false,
+        message: 'Account is inactive'
+      });
+    }
+
+    // Update activity on token refresh (this counts as activity)
+    const now = Math.floor(Date.now() / 1000);
+    let userActivity = await UserActivity.findOne({
+      where: { user_id: user.id }
+    });
+
+    if (!userActivity) {
+      userActivity = await UserActivity.create({
+        user_id: user.id,
+        last_activity: now,
+        is_active: 1,
+        token_expires_at: null
+      });
+    } else {
+      // Check if user should be considered active
+      const INACTIVE_THRESHOLD_SECONDS = 15 * 24 * 60 * 60; // 15 days
+      const timeSinceLastActivity = now - (userActivity.last_activity || 0);
+      const isActive = timeSinceLastActivity < INACTIVE_THRESHOLD_SECONDS;
+
+      await userActivity.update({
+        last_activity: now,
+        is_active: isActive ? 1 : 0,
+        token_expires_at: isActive ? null : (now + INACTIVE_THRESHOLD_SECONDS)
+      });
+    }
+
+    // Reload user with updated activity
+    await user.reload({
+      include: [{
+        model: UserActivity,
+        as: 'activity',
+        required: false
+      }]
+    });
+
+    // Generate new tokens with activity data
+    const tokens = generateTokens(user, {
+      isActive: userActivity.is_active === 1,
+      lastActivity: userActivity.last_activity
+    });
 
     res.json({
       success: true,
@@ -280,9 +380,49 @@ export const adminLogin = async (req, res) => {
       });
     }
 
-    await user.update({ last_login: Math.floor(Date.now() / 1000) });
+    const now = Math.floor(Date.now() / 1000);
+    await user.update({ last_login: now });
 
-    const tokens = generateTokens(user, remember);
+    // Create or update user activity record
+    let userActivity = await UserActivity.findOne({
+      where: { user_id: user.id }
+    });
+
+    if (!userActivity) {
+      userActivity = await UserActivity.create({
+        user_id: user.id,
+        last_activity: now,
+        is_active: 1,
+        token_expires_at: null
+      });
+    } else {
+      await userActivity.update({
+        last_activity: now,
+        is_active: 1,
+        token_expires_at: null
+      });
+    }
+
+    // Load user with activity
+    await user.reload({
+      include: [
+        {
+          model: Group,
+          as: 'groups',
+          through: { attributes: [] }
+        },
+        {
+          model: UserActivity,
+          as: 'activity',
+          required: false
+        }
+      ]
+    });
+
+    const tokens = generateTokens(user, {
+      isActive: userActivity.is_active === 1,
+      lastActivity: userActivity.last_activity
+    });
     const dashboardRoute = getDashboardRoute(userRoles[0]);
 
     res.json({

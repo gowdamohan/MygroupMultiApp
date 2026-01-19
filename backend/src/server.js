@@ -32,6 +32,7 @@ import appsRoutes from './routes/apps.routes.js';
 import advertisementRoutes from './routes/advertisement.routes.js';
 import supportRoutes from './routes/support.routes.js';
 import walletRoutes from './routes/wallet.routes.js';
+import { cleanupExpiredTokens, markInactiveUsers } from './utils/tokenCleanup.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -224,5 +225,34 @@ process.on('unhandledRejection', (err) => {
   process.exit(1);
 });
 
+/**
+ * Start token cleanup scheduler
+ * Runs daily to mark inactive users and clean up expired tokens
+ */
+const startTokenCleanupScheduler = () => {
+  const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+  // Run cleanup immediately on startup (after a short delay to ensure DB is connected)
+  setTimeout(async () => {
+    console.log('🔄 Starting initial token cleanup...');
+    await cleanupExpiredTokens();
+    await markInactiveUsers();
+  }, 10000); // Wait 10 seconds after server start
+
+  // Schedule daily cleanup
+  setInterval(async () => {
+    console.log('🔄 Running scheduled token cleanup...');
+    await cleanupExpiredTokens();
+    await markInactiveUsers();
+  }, CLEANUP_INTERVAL_MS);
+
+  console.log('✅ Token cleanup scheduler started (runs daily)');
+};
+
 // Start the server
 startServer();
+
+// Start token cleanup scheduler after server starts
+setTimeout(() => {
+  startTokenCleanupScheduler();
+}, 5000); // Wait 5 seconds after server starts

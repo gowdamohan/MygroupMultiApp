@@ -1,6 +1,7 @@
 import User from './User.js';
 import Group from './Group.js';
 import UserGroup from './UserGroup.js';
+import UserActivity from './UserActivity.js';
 import GroupCreate from './GroupCreate.js';
 import CreateDetails from './CreateDetails.js';
 import UserRegistration from './UserRegistration.js';
@@ -56,6 +57,16 @@ import FooterLink from './FooterLink.js';
 // ============================================
 // USER ASSOCIATIONS
 // ============================================
+
+// User has one UserActivity (activity tracking for token expiration)
+User.hasOne(UserActivity, {
+  foreignKey: 'user_id',
+  as: 'activity'
+});
+UserActivity.belongsTo(User, {
+  foreignKey: 'user_id',
+  as: 'user'
+});
 
 // User has one UserRegistration (extended profile)
 User.hasOne(UserRegistration, {
@@ -657,6 +668,7 @@ export {
   User,
   Group,
   UserGroup,
+  UserActivity,
   GroupCreate,
   CreateDetails,
   UserRegistration,
