@@ -219,7 +219,13 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
     try {
       const token = localStorage.getItem('accessToken');
       const today = new Date();
-      const endDate = new Date(today.getFullYear(), today.getMonth() + 3, 0);
+      today.setHours(0, 0, 0, 0);
+      
+      // Calculate end date: exactly 3 months from today
+      const endDate = new Date(today);
+      endDate.setMonth(endDate.getMonth() + 3);
+      endDate.setDate(endDate.getDate() - 1); // Subtract 1 day to get exactly 3 months (not 3 months + 1 day)
+      endDate.setHours(0, 0, 0, 0);
 
       const res = await axios.get(`${API_BASE_URL}/header-ads-pricing/slave`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -344,29 +350,82 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
   const getMonthGroups = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const groups: { month: string; year: number; dates: { date: string; day: number }[] }[] = [];
+    
+    // Calculate end date: exactly 3 months from today
+    const endDate = new Date(today);
+    endDate.setMonth(endDate.getMonth() + 3);
+    endDate.setDate(endDate.getDate() - 1); // Subtract 1 day to get exactly 3 months (not 3 months + 1 day)
+    endDate.setHours(0, 0, 0, 0);
 
-    for (let m = 0; m < 3; m++) {
-      const monthDate = new Date(today.getFullYear(), today.getMonth() + m, 1);
-      const monthName = monthDate.toLocaleDateString('en-US', { month: 'short' });
-      const year = monthDate.getFullYear();
-      const month = monthDate.getMonth();
-      const daysInMonth = new Date(year, month + 1, 0).getDate();
-      const dates: { date: string; day: number }[] = [];
-
-      const startDay = (m === 0) ? today.getDate() : 1;
-
-      for (let day = startDay; day <= daysInMonth; day++) {
-        const dateStr = formatDateString(year, month, day);
-        dates.push({ date: dateStr, day });
-      }
-
-      if (dates.length > 0) {
-        groups.push({ month: monthName, year, dates });
-      }
+    // Generate all dates from today to endDate (inclusive)
+    const allDates: { date: string; day: number; month: number; year: number }[] = [];
+    const currentDate = new Date(today);
+    
+    while (currentDate <= endDate) {
+      allDates.push({
+        date: currentDate.toISOString().split('T')[0],
+        day: currentDate.getDate(),
+        month: currentDate.getMonth(),
+        year: currentDate.getFullYear()
+      });
+      currentDate.setDate(currentDate.getDate() + 1);
+      currentDate.setHours(0, 0, 0, 0);
     }
 
-    return groups;
+    // Group dates by month
+    const monthMap = new Map<string, { month: string; year: number; dates: { date: string; day: number }[] }>();
+    
+    allDates.forEach(dayInfo => {
+      const monthKey = `${dayInfo.year}-${String(dayInfo.month).padStart(2, '0')}`;
+      
+      if (!monthMap.has(monthKey)) {
+        const monthName = new Date(dayInfo.year, dayInfo.month, 1).toLocaleDateString('en-US', { month: 'short' });
+        monthMap.set(monthKey, {
+          month: monthName,
+          year: dayInfo.year,
+          dates: []
+        });
+      }
+      
+      monthMap.get(monthKey)!.dates.push({
+        date: dayInfo.date,
+        day: dayInfo.day
+      });
+    });
+
+    // Ensure we have all months in the range, even if they're empty
+    // This ensures all month headers display correctly
+    const startMonth = today.getMonth();
+    const startYear = today.getFullYear();
+    const endMonth = endDate.getMonth();
+    const endYear = endDate.getFullYear();
+    
+    // Get all months that should be displayed
+    const allMonths: { month: string; year: number; dates: { date: string; day: number }[] }[] = [];
+    let currentMonthDate = new Date(startYear, startMonth, 1);
+    currentMonthDate.setHours(0, 0, 0, 0);
+    const lastMonthDate = new Date(endYear, endMonth, 1);
+    lastMonthDate.setHours(0, 0, 0, 0);
+    
+    while (currentMonthDate <= lastMonthDate) {
+      const monthKey = `${currentMonthDate.getFullYear()}-${String(currentMonthDate.getMonth()).padStart(2, '0')}`;
+      const monthName = currentMonthDate.toLocaleDateString('en-US', { month: 'short' });
+      
+      if (monthMap.has(monthKey)) {
+        allMonths.push(monthMap.get(monthKey)!);
+      } else {
+        // Add empty month to ensure header displays
+        allMonths.push({
+          month: monthName,
+          year: currentMonthDate.getFullYear(),
+          dates: []
+        });
+      }
+      
+      currentMonthDate.setMonth(currentMonthDate.getMonth() + 1);
+    }
+
+    return allMonths;
   };
 
   const getPriceForDate = (appId: number, categoryId: number, date: string): number | null => {
@@ -516,19 +575,31 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
                 Category
               </th>
               {getMonthGroups().map((group, idx) => {
-                const colors = ['bg-blue-600', 'bg-indigo-600', 'bg-purple-600'];
+                const colors = ['bg-blue-600', 'bg-indigo-600', 'bg-purple-600', 'bg-pink-600', 'bg-yellow-600', 'bg-green-600', 'bg-red-600'];
+                const colorIndex = idx % colors.length;
+                const headerText = `${group.month} ${group.year}`;
+                const colSpan = group.dates.length > 0 ? group.dates.length : 1; // Minimum 1 to ensure header displays
                 return (
-                  <th key={group.month} colSpan={group.dates.length} className={`border border-gray-300 px-2 py-2 text-sm font-bold text-white ${colors[idx]}`}>
-                    {group.month}
+                  <th key={`${group.month}-${group.year}-${idx}`} colSpan={colSpan} className={`border border-gray-300 px-2 py-2 text-sm font-bold text-white ${colors[colorIndex]}`}>
+                    {headerText}
                   </th>
                 );
               })}
             </tr>
             <tr>
               {getMonthGroups().map((group, idx) => {
-                const colors = ['bg-blue-600', 'bg-indigo-600', 'bg-purple-600'];
+                const colors = ['bg-blue-600', 'bg-indigo-600', 'bg-purple-600', 'bg-pink-600', 'bg-yellow-600', 'bg-green-600', 'bg-red-600'];
+                const colorIndex = idx % colors.length;
+                if (group.dates.length === 0) {
+                  // If no dates in this month, add a placeholder cell to match colSpan
+                  return (
+                    <th key={`empty-${group.month}-${group.year}-${idx}`} className={`border border-gray-300 px-2 py-2 text-xs font-semibold text-white min-w-[50px] ${colors[colorIndex]}`}>
+                      &nbsp;
+                    </th>
+                  );
+                }
                 return group.dates.map((dayInfo) => (
-                  <th key={dayInfo.date} className={`border border-gray-300 px-2 py-2 text-xs font-semibold text-white min-w-[50px] ${colors[idx]}`}>
+                  <th key={dayInfo.date} className={`border border-gray-300 px-2 py-2 text-xs font-semibold text-white min-w-[50px] ${colors[colorIndex]}`}>
                     {dayInfo.day}
                   </th>
                 ));
@@ -541,7 +612,7 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
               return (
                 <React.Fragment key={app.id}>
                   <tr>
-                    <td colSpan={getMonthGroups().reduce((sum, g) => sum + g.dates.length, 0) + 1} 
+                    <td colSpan={getMonthGroups().reduce((sum, g) => sum + Math.max(g.dates.length, 1), 0) + 1} 
                       className="sticky left-0 z-10 bg-blue-500 border border-gray-300 px-4 py-2 font-bold text-white">
                       {app.name}
                     </td>
@@ -551,22 +622,35 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
                       <td className="sticky left-0 z-10 bg-blue-100 border border-gray-300 px-4 py-2 font-medium text-gray-900">
                         {category.category_name}
                       </td>
-                      {getMonthGroups().flatMap(g => g.dates).map((dayInfo) => {
-                        const price = getPriceForDate(app.id, category.id, dayInfo.date);
-                        return (
-                          <td 
-                            key={dayInfo.date} 
-                            onClick={() => handleCellClick(app.id, category.id, dayInfo.date)}
-                            className="border border-gray-300 px-2 py-2 text-center text-xs bg-green-50 cursor-pointer hover:bg-green-100 transition-colors"
-                          >
-                            {price !== null ? (
-                              <div className="font-semibold text-gray-900">🪙{price}</div>
-                            ) : (
-                              <div className="text-gray-400">-</div>
-                            )}
-                          </td>
-                        );
-                      })}
+                      {getMonthGroups().map((group, groupIdx) => {
+                        if (group.dates.length === 0) {
+                          // Empty month - add placeholder cell to match header colSpan
+                          return (
+                            <td
+                              key={`empty-${group.month}-${group.year}-${groupIdx}`}
+                              className="border border-gray-300 px-2 py-2 text-center text-xs bg-gray-50"
+                            >
+                              &nbsp;
+                            </td>
+                          );
+                        }
+                        return group.dates.map((dayInfo) => {
+                          const price = getPriceForDate(app.id, category.id, dayInfo.date);
+                          return (
+                            <td 
+                              key={dayInfo.date} 
+                              onClick={() => handleCellClick(app.id, category.id, dayInfo.date)}
+                              className="border border-gray-300 px-2 py-2 text-center text-xs bg-green-50 cursor-pointer hover:bg-green-100 transition-colors"
+                            >
+                              {price !== null ? (
+                                <div className="font-semibold text-gray-900">🪙{price}</div>
+                              ) : (
+                                <div className="text-gray-400">-</div>
+                              )}
+                            </td>
+                          );
+                        });
+                      }).flat()}
                     </tr>
                   ))}
                 </React.Fragment>
