@@ -32,6 +32,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, allowClos
     confirmPassword: ''
   });
 
+  // User ID for Step 2 registration
+  const [userId, setUserId] = useState<number | null>(null);
+
   if (!isOpen) return null;
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -89,8 +92,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, allowClos
       setLoading(false);
     }
   };
-
-  const [userId, setUserId] = useState<number | null>(null);
 
   const handleRegisterStep1 = async (e: React.FormEvent) => {
     e.preventDefault();
