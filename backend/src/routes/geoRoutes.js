@@ -4,7 +4,8 @@ import {
   getStatesByCountry,
   getDistrictsByState,
   getEducation,
-  getProfessions
+  getProfessions,
+  getExchangeRates
 } from '../controllers/geoController.js';
 
 const router = express.Router();
@@ -57,6 +58,14 @@ router.get('/education', getEducation);
  * @access  Public
  */
 router.get('/professions', getProfessions);
+
+/**
+ * @route   GET /api/v1/geo/exchange-rates
+ * @desc    Get exchange rates (proxy to external API)
+ * @access  Public
+ * @query   baseCurrency - Base currency code (default: INR)
+ */
+router.get('/exchange-rates', getExchangeRates);
 
 export default router;
 

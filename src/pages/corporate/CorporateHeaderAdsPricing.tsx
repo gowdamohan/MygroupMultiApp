@@ -119,21 +119,26 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
     setExchangeRate({ rate: 0, loading: true, error: '' });
 
     try {
-      // Fetch exchange rate from INR to the selected country's currency
-      // Using exchangerate-api.com which is free and doesn't require an API key
-      const response = await axios.get(`https://api.exchangerate-api.com/v4/latest/INR`, {
+      // Fetch exchange rate from backend proxy endpoint
+      // This avoids CSP violations by routing through our backend
+      const response = await axios.get(`${API_BASE_URL}/geo/exchange-rates`, {
+        params: {
+          baseCurrency: 'INR'
+        },
         timeout: 10000 // 10 second timeout
       });
       
-      if (response.data && response.data.rates && response.data.rates[selectedCountry.currency_code]) {
-        const rate = response.data.rates[selectedCountry.currency_code];
+      if (response.data.success && response.data.data && response.data.data.rates && response.data.data.rates[selectedCountry.currency_code]) {
+        const rate = response.data.data.rates[selectedCountry.currency_code];
         setExchangeRate({ rate: rate, loading: false, error: '' });
       } else {
         setExchangeRate({ rate: 0, loading: false, error: 'Exchange rate not available for this currency' });
       }
     } catch (error: any) {
       console.error('Error fetching exchange rate:', error);
-      const errorMessage = error.response 
+      const errorMessage = error.response?.data?.message 
+        ? error.response.data.message
+        : error.response 
         ? 'Failed to fetch exchange rate from service' 
         : error.code === 'ECONNABORTED' 
         ? 'Request timed out. Please try again.' 

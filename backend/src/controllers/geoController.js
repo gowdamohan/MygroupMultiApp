@@ -1,4 +1,5 @@
 import { Country, State, District, Education, Profession } from '../models/index.js';
+import axios from 'axios';
 
 /**
  * Get all countries
@@ -123,6 +124,62 @@ export const getProfessions = async (req, res) => {
       message: 'Error fetching professions',
       error: error.message
     });
+  }
+};
+
+/**
+ * Get exchange rates (proxy to external API)
+ * @route   GET /api/v1/geo/exchange-rates
+ * @desc    Proxy endpoint to fetch exchange rates from external API
+ * @access  Public
+ */
+export const getExchangeRates = async (req, res) => {
+  try {
+    const { baseCurrency = 'INR' } = req.query;
+
+    // Fetch exchange rate from external API
+    // Using exchangerate-api.com which is free and doesn't require an API key
+    const response = await axios.get(`https://api.exchangerate-api.com/v4/latest/${baseCurrency}`, {
+      timeout: 10000 // 10 second timeout
+    });
+
+    if (response.data && response.data.rates) {
+      res.json({
+        success: true,
+        data: {
+          base: response.data.base || baseCurrency,
+          rates: response.data.rates,
+          date: response.data.date
+        }
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        message: 'Invalid response from exchange rate service'
+      });
+    }
+  } catch (error) {
+    console.error('Get exchange rates error:', error);
+    
+    if (error.code === 'ECONNABORTED') {
+      res.status(504).json({
+        success: false,
+        message: 'Request timed out. Please try again.',
+        error: 'TIMEOUT'
+      });
+    } else if (error.response) {
+      res.status(error.response.status || 500).json({
+        success: false,
+        message: 'Failed to fetch exchange rates from service',
+        error: error.response.statusText || error.message
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        message: 'Error fetching exchange rates',
+        error: error.message
+      });
+    }
   }
 };
 
