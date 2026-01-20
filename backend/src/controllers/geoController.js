@@ -1,5 +1,4 @@
 import { Country, State, District, Education, Profession } from '../models/index.js';
-import axios from 'axios';
 
 /**
  * Get all countries
@@ -137,41 +136,69 @@ export const getExchangeRates = async (req, res) => {
   try {
     const { baseCurrency = 'INR' } = req.query;
 
-    // Fetch exchange rate from external API
+    // Fetch exchange rate from external API using Node.js native fetch
     // Using exchangerate-api.com which is free and doesn't require an API key
-    const response = await axios.get(`https://api.exchangerate-api.com/v4/latest/${baseCurrency}`, {
-      timeout: 10000 // 10 second timeout
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
-    if (response.data && response.data.rates) {
-      res.json({
-        success: true,
-        data: {
-          base: response.data.base || baseCurrency,
-          rates: response.data.rates,
-          date: response.data.date
+    try {
+      const response = await fetch(`https://api.exchangerate-api.com/v4/latest/${baseCurrency}`, {
+        signal: controller.signal,
+        headers: {
+          'Accept': 'application/json'
         }
       });
-    } else {
-      res.status(500).json({
-        success: false,
-        message: 'Invalid response from exchange rate service'
-      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (data && data.rates) {
+        res.json({
+          success: true,
+          data: {
+            base: data.base || baseCurrency,
+            rates: data.rates,
+            date: data.date
+          }
+        });
+      } else {
+        res.status(500).json({
+          success: false,
+          message: 'Invalid response from exchange rate service'
+        });
+      }
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      
+      if (fetchError.name === 'AbortError') {
+        res.status(504).json({
+          success: false,
+          message: 'Request timed out. Please try again.',
+          error: 'TIMEOUT'
+        });
+        return;
+      }
+      throw fetchError;
     }
   } catch (error) {
     console.error('Get exchange rates error:', error);
     
-    if (error.code === 'ECONNABORTED') {
+    if (error.name === 'AbortError' || error.message.includes('timeout')) {
       res.status(504).json({
         success: false,
         message: 'Request timed out. Please try again.',
         error: 'TIMEOUT'
       });
-    } else if (error.response) {
-      res.status(error.response.status || 500).json({
+    } else if (error.message.includes('HTTP error')) {
+      res.status(500).json({
         success: false,
         message: 'Failed to fetch exchange rates from service',
-        error: error.response.statusText || error.message
+        error: error.message
       });
     } else {
       res.status(500).json({
