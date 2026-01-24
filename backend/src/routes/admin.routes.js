@@ -64,15 +64,9 @@ import {
   toggleAccountsUserStatus
 } from '../controllers/accountsUserController.js';
 import { authenticate } from '../middleware/auth.js';
-import { uploadAppImages, uploadCountryAssets } from '../middleware/upload.js';
+import { uploadAppImages } from '../middleware/upload.js';
 
 const router = express.Router();
-const countryUploadIfNeeded = (req, res, next) => {
-  if (req.is('multipart/form-data')) {
-    return uploadCountryAssets(req, res, next);
-  }
-  return next();
-};
 
 /**
  * ============================================
@@ -112,8 +106,8 @@ router.delete('/continents/:id', deleteContinent);
  * ============================================
  */
 router.get('/countries', getCountries);
-router.post('/countries', countryUploadIfNeeded, createCountry);
-router.put('/countries/:id', countryUploadIfNeeded, updateCountry);
+router.post('/countries', createCountry);
+router.put('/countries/:id', updateCountry);
 router.delete('/countries/:id', deleteCountry);
 router.put('/countries/:id/locking', updateCountryLocking);
 
