@@ -354,7 +354,7 @@ export const DistrictList: React.FC = () => {
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-200">
-                <th className="text-left py-3 px-4 font-semibold text-gray-700">ID</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-700">#</th>
                 <th className="text-left py-3 px-4 font-semibold text-gray-700">Continent</th>
                 <th className="text-left py-3 px-4 font-semibold text-gray-700">Country</th>
                 <th className="text-left py-3 px-4 font-semibold text-gray-700">State</th>
@@ -373,9 +373,9 @@ export const DistrictList: React.FC = () => {
                   if (filterContinentId) return district.state?.country?.continent_id === parseInt(filterContinentId);
                   return true;
                 })
-                .map((district) => (
+                .map((district, index) => (
                 <tr key={district.id} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="py-3 px-4 text-gray-900">{district.id}</td>
+                  <td className="py-3 px-4 text-gray-900">{index + 1}</td>
                   <td className="py-3 px-4 text-gray-600">{district.state?.country?.continent?.continent || '-'}</td>
                   <td className="py-3 px-4 text-gray-600">{district.state?.country?.country || '-'}</td>
                   <td className="py-3 px-4 text-gray-600">{district.state?.state || '-'}</td>

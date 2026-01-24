@@ -439,7 +439,7 @@ export const CountryList: React.FC = () => {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="text-left py-3 px-4 font-semibold text-gray-900">ID</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900">#</th>
                 <th className="text-left py-3 px-4 font-semibold text-gray-900">Continent</th>
                 <th className="text-left py-3 px-4 font-semibold text-gray-900">Country</th>
                 <th className="text-left py-3 px-4 font-semibold text-gray-900">Code</th>
@@ -455,9 +455,9 @@ export const CountryList: React.FC = () => {
             <tbody>
               {countries
                 .filter(country => !filterContinentId || country.continent_id === parseInt(filterContinentId))
-                .map((country) => (
+                .map((country, index) => (
                 <tr key={country.id} className="border-b border-gray-200 hover:bg-gray-50">
-                  <td className="py-3 px-4 text-gray-900">{country.id}</td>
+                  <td className="py-3 px-4 text-gray-900">{index + 1}</td>
                   <td className="py-3 px-4 text-gray-600">{country.continent?.continent || '-'}</td>
                   <td className="py-3 px-4 text-gray-900 font-medium">{country.country}</td>
                   <td className="py-3 px-4 text-gray-600">{country.code || '-'}</td>

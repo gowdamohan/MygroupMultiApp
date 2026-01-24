@@ -169,6 +169,17 @@ export const createCountry = async (req, res) => {
   try {
     const { continent_id, country, code, currency, currency_name, phone_code, nationality, order, status, country_flag: countryFlagPath, currency_icon: currencyIconPath } = req.body;
 
+    // Validate duplicate country code if code is provided
+    if (code) {
+      const existingCountry = await Country.findOne({ where: { code } });
+      if (existingCountry) {
+        return res.status(400).json({
+          success: false,
+          message: `Country code "${code}" already exists. Please use a different code.`
+        });
+      }
+    }
+
     // Get uploaded file paths (new uploads) or use existing paths from body
     const country_flag = req.files?.country_flag 
       ? `/uploads/geo/${req.files.country_flag[0].filename}` 
@@ -217,6 +228,17 @@ export const updateCountry = async (req, res) => {
         success: false,
         message: 'Country not found'
       });
+    }
+
+    // Validate duplicate country code if code is provided and different from current
+    if (code && code !== countryRecord.code) {
+      const existingCountry = await Country.findOne({ where: { code } });
+      if (existingCountry) {
+        return res.status(400).json({
+          success: false,
+          message: `Country code "${code}" already exists. Please use a different code.`
+        });
+      }
     }
 
     // Get uploaded file paths (new uploads), or use paths from body, or keep existing ones
@@ -359,6 +381,17 @@ export const createState = async (req, res) => {
   try {
     const { country_id, state, code, order, status } = req.body;
 
+    // Validate duplicate state code if code is provided
+    if (code) {
+      const existingState = await State.findOne({ where: { code } });
+      if (existingState) {
+        return res.status(400).json({
+          success: false,
+          message: `State code "${code}" already exists. Please use a different code.`
+        });
+      }
+    }
+
     const newState = await State.create({
       country_id,
       state,
@@ -393,6 +426,17 @@ export const updateState = async (req, res) => {
         success: false,
         message: 'State not found'
       });
+    }
+
+    // Validate duplicate state code if code is provided and different from current
+    if (code && code !== stateRecord.code) {
+      const existingState = await State.findOne({ where: { code } });
+      if (existingState) {
+        return res.status(400).json({
+          success: false,
+          message: `State code "${code}" already exists. Please use a different code.`
+        });
+      }
     }
 
     await stateRecord.update({
@@ -493,6 +537,17 @@ export const createDistrict = async (req, res) => {
   try {
     const { state_id, district, code, order, status } = req.body;
 
+    // Validate duplicate district code if code is provided
+    if (code) {
+      const existingDistrict = await District.findOne({ where: { code } });
+      if (existingDistrict) {
+        return res.status(400).json({
+          success: false,
+          message: `District code "${code}" already exists. Please use a different code.`
+        });
+      }
+    }
+
     const newDistrict = await District.create({
       state_id,
       district,
@@ -527,6 +582,17 @@ export const updateDistrict = async (req, res) => {
         success: false,
         message: 'District not found'
       });
+    }
+
+    // Validate duplicate district code if code is provided and different from current
+    if (code && code !== districtRecord.code) {
+      const existingDistrict = await District.findOne({ where: { code } });
+      if (existingDistrict) {
+        return res.status(400).json({
+          success: false,
+          message: `District code "${code}" already exists. Please use a different code.`
+        });
+      }
     }
 
     await districtRecord.update({
