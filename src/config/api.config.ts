@@ -57,7 +57,7 @@ export const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ??
 export const getUploadUrl = (path: string): string => {
   if (!path) return '';
   // If the path is already a full URL, return it as is
-  if (path.startsWith('http://') || path.startsWith('https://')) {
+  if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:')) {
     return path;
   }
   // Ensure the path starts with /

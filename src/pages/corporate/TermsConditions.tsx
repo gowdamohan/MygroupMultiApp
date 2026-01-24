@@ -3,6 +3,7 @@ import { Save, Building2, MapPin, Home } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
 import { API_BASE_URL } from '../../config/api.config';
+import { SummernoteEditor } from '../../components/form/SummernoteEditor';
 
 interface TermsData {
   id?: number;
@@ -182,13 +183,14 @@ export const TermsConditions: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Content for {tabs.find(t => t.id === activeTab)?.label}
                 </label>
-                <textarea
-                  value={termsData[activeTab].content}
-                  onChange={(e) => handleContentChange(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  rows={15}
-                  placeholder={`Enter terms and conditions for ${tabs.find(t => t.id === activeTab)?.label}...`}
-                />
+                <div className="border border-gray-300 rounded-lg overflow-hidden">
+                  <SummernoteEditor
+                    value={termsData[activeTab].content}
+                    onChange={handleContentChange}
+                    placeholder={`Enter terms and conditions for ${tabs.find(t => t.id === activeTab)?.label}...`}
+                    height={320}
+                  />
+                </div>
                 <p className="text-sm text-gray-500 mt-2">
                   {termsData[activeTab].content.length} characters
                 </p>
@@ -218,9 +220,10 @@ export const TermsConditions: React.FC = () => {
         </h2>
         <div className="prose max-w-none">
           {termsData[activeTab].content ? (
-            <div className="whitespace-pre-wrap text-gray-700 bg-gray-50 p-4 rounded-lg border border-gray-200">
-              {termsData[activeTab].content}
-            </div>
+            <div
+              className="text-gray-700 bg-gray-50 p-4 rounded-lg border border-gray-200"
+              dangerouslySetInnerHTML={{ __html: termsData[activeTab].content }}
+            />
           ) : (
             <p className="text-gray-400 italic">No content available. Add content above to see preview.</p>
           )}

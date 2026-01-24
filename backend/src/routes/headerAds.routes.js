@@ -8,8 +8,10 @@ import {
   getCategoriesByApp,
   getPricing,
   getHeaderAds,
+  getHeaderAdsManagement,
   getHeaderAdsByGroup,
   createHeaderAd,
+  saveHeaderAdsManagement,
   updateHeaderAd,
   deleteHeaderAd
 } from '../controllers/headerAdsController.js';
@@ -71,6 +73,10 @@ router.get('/pricing', getPricing);
 
 // Get all header ads
 router.get('/', getHeaderAds);
+
+// Corporate header ads management (simple)
+router.get('/management', getHeaderAdsManagement);
+router.post('/management', upload.single('file'), saveHeaderAdsManagement);
 
 // Create header ad
 router.post('/', upload.single('file'), createHeaderAd);

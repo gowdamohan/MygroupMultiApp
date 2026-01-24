@@ -19,6 +19,7 @@ import FooterPage from './FooterPage.js';
 import GalleryList from './GalleryList.js';
 import GalleryImagesMaster from './GalleryImagesMaster.js';
 import HeaderAdsManagement from './HeaderAdsManagement.js';
+import HeaderAdsManagementCorporate from './HeaderAdsManagementCorporate.js';
 import CompanyAdsManagement from './CompanyAdsManagement.js';
 import ApplicationsManagement from './ApplicationsManagement.js';
 import FranchiseTermsConditions from './FranchiseTermsConditions.js';
@@ -54,6 +55,8 @@ import SupportMessage from './SupportMessage.js';
 import Wallet from './Wallet.js';
 import WalletTransaction from './WalletTransaction.js';
 import FooterLink from './FooterLink.js';
+import FooterFaq from './FooterFaq.js';
+import FooterPageImage from './FooterPageImage.js';
 
 // ============================================
 // USER ASSOCIATIONS
@@ -301,6 +304,30 @@ FooterPage.belongsTo(User, {
   foreignKey: 'user_id',
   as: 'user'
 });
+User.hasMany(FooterPage, {
+  foreignKey: 'user_id',
+  as: 'footerPages'
+});
+
+// FooterPage has many FooterPageImage
+FooterPage.hasMany(FooterPageImage, {
+  foreignKey: 'footer_page_id',
+  as: 'images'
+});
+FooterPageImage.belongsTo(FooterPage, {
+  foreignKey: 'footer_page_id',
+  as: 'footerPage'
+});
+
+// FooterFaq belongs to User
+FooterFaq.belongsTo(User, {
+  foreignKey: 'user_id',
+  as: 'user'
+});
+User.hasMany(FooterFaq, {
+  foreignKey: 'user_id',
+  as: 'footerFaqs'
+});
 
 // ============================================
 // GALLERY ASSOCIATIONS
@@ -340,6 +367,26 @@ HeaderAdsManagement.belongsTo(AppCategory, {
 AppCategory.hasMany(HeaderAdsManagement, {
   foreignKey: 'category_id',
   as: 'headerAds'
+});
+
+// HeaderAdsManagementCorporate belongs to GroupCreate (app)
+HeaderAdsManagementCorporate.belongsTo(GroupCreate, {
+  foreignKey: 'app_id',
+  as: 'app'
+});
+GroupCreate.hasMany(HeaderAdsManagementCorporate, {
+  foreignKey: 'app_id',
+  as: 'headerAdsManagement'
+});
+
+// HeaderAdsManagementCorporate belongs to AppCategory
+HeaderAdsManagementCorporate.belongsTo(AppCategory, {
+  foreignKey: 'app_category_id',
+  as: 'category'
+});
+AppCategory.hasMany(HeaderAdsManagementCorporate, {
+  foreignKey: 'app_category_id',
+  as: 'headerAdsManagement'
 });
 
 // HeaderAdsManagement has many HeaderAdsSlot
@@ -707,6 +754,7 @@ export {
   GalleryList,
   GalleryImagesMaster,
   HeaderAdsManagement,
+  HeaderAdsManagementCorporate,
   CompanyAdsManagement,
   ApplicationsManagement,
   FranchiseTermsConditions,
@@ -741,6 +789,8 @@ export {
   SupportMessage,
   Wallet,
   WalletTransaction,
-  FooterLink
+  FooterLink,
+  FooterFaq,
+  FooterPageImage
 };
 

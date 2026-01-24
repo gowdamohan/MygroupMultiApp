@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { Plus, Save, X, Edit2, Trash2, Link as LinkIcon } from 'lucide-react';
+import { Save } from 'lucide-react';
 import { API_BASE_URL } from '../../config/api.config';
 
 interface SocialLink {
@@ -11,15 +11,14 @@ interface SocialLink {
 }
 
 export const SocialMediaLinks: React.FC = () => {
-  const [links, setLinks] = useState<SocialLink[]>([]);
+  const platforms = useMemo(
+    () => ['Website', 'YouTube', 'Facebook', 'Instagram', 'Twitter', 'LinkedIn', 'Blogger'],
+    []
+  );
   const [loading, setLoading] = useState(false);
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [formData, setFormData] = useState<SocialLink>({
-    title: '',
-    url: '',
-    group_name: ''
-  });
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [formRows, setFormRows] = useState<Record<string, { id?: number; url: string }>>({});
 
   useEffect(() => {
     fetchLinks();
@@ -28,6 +27,7 @@ export const SocialMediaLinks: React.FC = () => {
   const fetchLinks = async () => {
     try {
       setLoading(true);
+      setError('');
       const token = localStorage.getItem('accessToken');
       const user = JSON.parse(localStorage.getItem('user') || '{}');
       const group_name = user.group_name || 'corporate';
@@ -37,138 +37,84 @@ export const SocialMediaLinks: React.FC = () => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      setLinks(response.data.data || []);
+      const data = response.data.data || [];
+
+      const rows: Record<string, { id?: number; url: string }> = {};
+      const normalize = (value: string) => value.trim().toLowerCase();
+      platforms.forEach((platform) => {
+        const existing = data.find((link: SocialLink) => normalize(link.title) === normalize(platform));
+        rows[platform] = {
+          id: existing?.id,
+          url: existing?.url || ''
+        };
+      });
+      setFormRows(rows);
     } catch (error) {
       console.error('Error fetching social media links:', error);
+      setError('Failed to load social media links');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSave = async (platform: string) => {
+    setError('');
+    setSuccess('');
+    const row = formRows[platform];
+
+    if (!row?.url?.trim()) {
+      setError(`Please enter a URL for ${platform}`);
+      return;
+    }
 
     try {
       const token = localStorage.getItem('accessToken');
       const user = JSON.parse(localStorage.getItem('user') || '{}');
 
       const payload = {
-        ...formData,
+        id: row.id,
+        title: platform,
+        url: row.url,
         user_id: user.id,
-        group_name: formData.group_name || user.group_name || 'corporate'
+        group_name: user.group_name || 'corporate'
       };
 
       await axios.post(`${API_BASE_URL}/footer/social-media`, payload, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      alert(editingId ? 'Link updated successfully!' : 'Link added successfully!');
-      resetForm();
+      setSuccess(`${platform} link saved successfully`);
       fetchLinks();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Error saving link');
+      setError(error.response?.data?.message || 'Error saving link');
     }
   };
 
-  const handleEdit = (link: SocialLink) => {
-    setFormData(link);
-    setEditingId(link.id || null);
-    setShowForm(true);
-  };
-
-  const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this link?')) return;
-
-    try {
-      const token = localStorage.getItem('accessToken');
-      await axios.delete(`${API_BASE_URL}/footer/social-media/${id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      alert('Link deleted successfully!');
-      fetchLinks();
-    } catch (error: any) {
-      alert(error.response?.data?.message || 'Error deleting link');
-    }
-  };
-
-  const resetForm = () => {
-    setFormData({ title: '', url: '', group_name: '' });
-    setEditingId(null);
-    setShowForm(false);
+  const handleUrlChange = (platform: string, url: string) => {
+    setFormRows((prev) => ({
+      ...prev,
+      [platform]: {
+        ...prev[platform],
+        url
+      }
+    }));
   };
 
   return (
-    <div className="p-6">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Social Media Links</h2>
-          <p className="text-gray-600 mt-1">Manage social media links</p>
-        </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-        >
-          <Plus size={20} />
-          Add Link
-        </button>
+    <div className="p-6 space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold text-gray-900">Social Media Links</h2>
+        <p className="text-gray-600 mt-1">Manage social media links</p>
       </div>
 
-      {/* Form */}
-      {showForm && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            {editingId ? 'Edit Link' : 'Add New Link'}
-          </h3>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Platform Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="e.g., Facebook, Twitter, LinkedIn"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  URL <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="url"
-                  value={formData.url}
-                  onChange={(e) => setFormData({ ...formData, url: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="https://facebook.com/yourpage"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-              >
-                <Save size={20} />
-                {editingId ? 'Update' : 'Save'}
-              </button>
-              <button
-                type="button"
-                onClick={resetForm}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors flex items-center gap-2"
-              >
-                <X size={20} />
-                Cancel
-              </button>
-            </div>
-          </form>
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+          {error}
+        </div>
+      )}
+      {success && (
+        <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg">
+          {success}
         </div>
       )}
 
@@ -179,7 +125,7 @@ export const SocialMediaLinks: React.FC = () => {
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  ID
+                  #
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Platform
@@ -193,55 +139,44 @@ export const SocialMediaLinks: React.FC = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {loading ? (
+                {loading ? (
                 <tr>
                   <td colSpan={4} className="px-6 py-4 text-center text-gray-500">
                     Loading...
                   </td>
                 </tr>
-              ) : links.length === 0 ? (
+                ) : platforms.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="px-6 py-4 text-center text-gray-500">
-                    No social media links found. Click "Add Link" to create one.
+                    No platform options available.
                   </td>
                 </tr>
               ) : (
-                links.map((link) => (
-                  <tr key={link.id} className="hover:bg-gray-50">
+                platforms.map((platform, index) => (
+                  <tr key={platform} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {link.id}
+                      {index + 1}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {link.title}
+                      {platform}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900">
-                      <a
-                        href={link.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
-                      >
-                        <LinkIcon size={16} />
-                        {link.url}
-                      </a>
+                      <input
+                        type="url"
+                        value={formRows[platform]?.url || ''}
+                        onChange={(e) => handleUrlChange(platform, e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder={`https://${platform.toLowerCase()}.com/yourpage`}
+                      />
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleEdit(link)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="Edit"
-                        >
-                          <Edit2 size={18} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(link.id!)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => handleSave(platform)}
+                        className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                      >
+                        <Save size={16} />
+                        Save
+                      </button>
                     </td>
                   </tr>
                 ))

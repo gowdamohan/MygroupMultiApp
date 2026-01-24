@@ -39,6 +39,14 @@ const FooterPage = sequelize.define('footer_page', {
     type: DataTypes.TEXT,
     allowNull: true
   },
+  event_date: {
+    type: DataTypes.DATEONLY,
+    allowNull: true
+  },
+  year: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
   group_name: {
     type: DataTypes.STRING(45),
     allowNull: true

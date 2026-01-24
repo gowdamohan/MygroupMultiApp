@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Plus, Save, X, Edit2, Trash2, Image as ImageIcon, Upload } from 'lucide-react';
-import { FileUpload } from '../../components/form/FileUpload';
-import { API_BASE_URL } from '../../config/api.config';
+import { Plus, Save, X, Edit2, Trash2, Upload } from 'lucide-react';
+import { API_BASE_URL, getUploadUrl } from '../../config/api.config';
 
 interface GalleryItem {
   gallery_id: number;
@@ -19,6 +18,7 @@ interface GalleryImage {
   image_name: string;
   image_description: string;
   group_id?: number;
+  image_url?: string;
 }
 
 export const Gallery: React.FC = () => {
@@ -33,10 +33,15 @@ export const Gallery: React.FC = () => {
     gallery_description: '',
     gallery_date: new Date().toISOString().split('T')[0]
   });
-  const [imageFormData, setImageFormData] = useState({
-    image_name: null as File | null,
-    image_description: ''
-  });
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [imageDescription, setImageDescription] = useState('');
+  const resolveImageSrc = (path?: string) => {
+    if (!path) return '';
+    if (path.startsWith('/uploads')) {
+      return getUploadUrl(path);
+    }
+    return path;
+  };
 
   useEffect(() => {
     fetchGalleries();
@@ -95,8 +100,8 @@ export const Gallery: React.FC = () => {
   const handleImageSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!selectedGalleryId || !imageFormData.image_name) {
-      alert('Please select a gallery and upload an image');
+    if (!selectedGalleryId || imageFiles.length === 0) {
+      alert('Please select a gallery and upload at least one image');
       return;
     }
 
@@ -104,15 +109,11 @@ export const Gallery: React.FC = () => {
       const token = localStorage.getItem('accessToken');
       const user = JSON.parse(localStorage.getItem('user') || '{}');
 
-      // Convert image to base64
-      const imageBase64 = await fileToBase64(imageFormData.image_name);
-
-      const payload = {
-        gallery_id: selectedGalleryId,
-        image_name: imageBase64,
-        image_description: imageFormData.image_description,
-        group_id: user.group_id
-      };
+      const payload = new FormData();
+      payload.append('gallery_id', String(selectedGalleryId));
+      payload.append('image_description', imageDescription || '');
+      payload.append('group_id', user.group_id || '');
+      imageFiles.forEach((file) => payload.append('images', file));
 
       await axios.post(`${API_BASE_URL}/footer/gallery-images`, payload, {
         headers: { Authorization: `Bearer ${token}` }
@@ -179,21 +180,15 @@ export const Gallery: React.FC = () => {
   };
 
   const resetImageForm = () => {
-    setImageFormData({
-      image_name: null,
-      image_description: ''
-    });
+    setImageFiles([]);
+    setImageDescription('');
     setSelectedGalleryId(null);
     setShowImageForm(false);
   };
 
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = error => reject(error);
-    });
+  const handleMultiFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    setImageFiles(files);
   };
 
   return (
@@ -306,26 +301,31 @@ export const Gallery: React.FC = () => {
             </div>
 
             <div>
-              <FileUpload
-                label="Image *"
-                value={imageFormData.image_name}
-                onChange={(file) => setImageFormData({ ...imageFormData, image_name: file })}
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Images <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="file"
                 accept="image/*"
-                preview={true}
-                required={true}
+                multiple
+                onChange={handleMultiFileChange}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
               />
+              {imageFiles.length > 0 && (
+                <p className="text-xs text-gray-500 mt-1">{imageFiles.length} file(s) selected</p>
+              )}
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Image Description <span className="text-red-500">*</span>
+                Image Description
               </label>
               <textarea
-                value={imageFormData.image_description}
-                onChange={(e) => setImageFormData({ ...imageFormData, image_description: e.target.value })}
+                value={imageDescription}
+                onChange={(e) => setImageDescription(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 rows={2}
-                required
               />
             </div>
 
@@ -407,7 +407,7 @@ export const Gallery: React.FC = () => {
                       <div key={image.image_id} className="relative group">
                         <div className="aspect-square rounded-lg overflow-hidden bg-gray-100">
                           <img
-                            src={image.image_name}
+                            src={resolveImageSrc(image.image_url || image.image_name)}
                             alt={image.image_description}
                             className="w-full h-full object-cover"
                           />

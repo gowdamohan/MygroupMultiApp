@@ -1,4 +1,4 @@
-import { HeaderAdsManagement, GroupCreate, AppCategory, HeaderAdsPricing, FranchiseHolder, HeaderAdsSlot, HeaderAdsPricingSlave, HeaderAdsPricingMaster, User, UserGroup, Group } from '../models/index.js';
+import { HeaderAdsManagement, HeaderAdsManagementCorporate, GroupCreate, AppCategory, HeaderAdsPricing, FranchiseHolder, HeaderAdsSlot, HeaderAdsPricingSlave, HeaderAdsPricingMaster, User, UserGroup, Group } from '../models/index.js';
 import { Op } from 'sequelize';
 import path from 'path';
 import fs from 'fs';
@@ -19,7 +19,7 @@ export const getMyApps = async (req, res) => {
     const apps = await GroupCreate.findAll({
       where: { apps_name: 'My Apps' },
       attributes: ['id', 'name'],
-      order: [['name', 'ASC']]
+      order: [['order_by', 'ASC'], ['name', 'ASC']]
     });
 
     res.json({
@@ -237,6 +237,88 @@ export const getHeaderAds = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch header ads',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * ============================================
+ * CORPORATE HEADER ADS MANAGEMENT (SIMPLE)
+ * ============================================
+ */
+
+export const getHeaderAdsManagement = async (req, res) => {
+  try {
+    const ads = await HeaderAdsManagementCorporate.findAll({
+      include: [
+        { model: GroupCreate, as: 'app', attributes: ['id', 'name'] },
+        { model: AppCategory, as: 'category', attributes: ['id', 'category_name'] }
+      ],
+      order: [['id', 'DESC']]
+    });
+
+    res.json({ success: true, data: ads });
+  } catch (error) {
+    console.error('Error fetching header ads management:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch header ads management',
+      error: error.message
+    });
+  }
+};
+
+export const saveHeaderAdsManagement = async (req, res) => {
+  try {
+    const { app_id, app_category_id, url } = req.body;
+
+    if (!app_id || !app_category_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'app_id and app_category_id are required'
+      });
+    }
+
+    let file_path = null;
+    if (req.file) {
+      file_path = `/uploads/header-ads/${req.file.filename}`;
+    }
+
+    const existing = await HeaderAdsManagementCorporate.findOne({
+      where: { app_id, app_category_id }
+    });
+
+    if (existing) {
+      await existing.update({
+        file_path: file_path || existing.file_path,
+        url: url ?? existing.url
+      });
+
+      return res.json({
+        success: true,
+        message: 'Header ad updated successfully',
+        data: existing
+      });
+    }
+
+    const created = await HeaderAdsManagementCorporate.create({
+      app_id,
+      app_category_id,
+      file_path,
+      url
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Header ad created successfully',
+      data: created
+    });
+  } catch (error) {
+    console.error('Error saving header ads management:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to save header ad',
       error: error.message
     });
   }

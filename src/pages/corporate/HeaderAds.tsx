@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Save, Upload } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
-import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
+import { API_BASE_URL, getUploadUrl } from '../../config/api.config';
 
 interface App {
   id: number;
@@ -84,7 +84,7 @@ export const HeaderAds: React.FC = () => {
   const fetchHeaderAds = async () => {
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await axios.get(`${API_BASE_URL}/header-ads`, {
+      const response = await axios.get(`${API_BASE_URL}/header-ads/management`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (response.data.success) {
@@ -144,7 +144,7 @@ export const HeaderAds: React.FC = () => {
       if (adData.url) formDataToSend.append('url', adData.url);
       if (adData.file) formDataToSend.append('file', adData.file);
 
-      await axios.post(`${API_BASE_URL}/header-ads`, formDataToSend, {
+      await axios.post(`${API_BASE_URL}/header-ads/management`, formDataToSend, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'multipart/form-data'
@@ -249,7 +249,7 @@ export const HeaderAds: React.FC = () => {
                             {(adData?.preview || existingAd?.file_path) && (
                               <div className="mt-2">
                                 <img
-                                  src={adData?.preview || `${BACKEND_URL}${existingAd?.file_path}`}
+                                  src={adData?.preview || getUploadUrl(existingAd?.file_path || '')}
                                   alt="Preview"
                                   className="h-16 w-auto object-contain rounded border border-gray-200"
                                 />

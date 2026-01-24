@@ -3,13 +3,14 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { HeadOfficeLogin } from '../corporate/HeadOfficeLogin';
 import { FooterPageManager } from '../corporate/FooterPageManager';
+import { FooterPageListManager } from '../corporate/FooterPageListManager';
 import { SocialMediaLinks } from '../corporate/SocialMediaLinks';
 import { Gallery } from '../corporate/Gallery';
 import { HeaderAds } from '../corporate/HeaderAds';
 import { CompanyHeaderAds } from '../corporate/CompanyHeaderAds';
 import { ApplicationDetails } from '../corporate/ApplicationDetails';
 import { TermsConditions } from '../corporate/TermsConditions';
-import { TncDetailsManager } from '../corporate/TncDetailsManager';
+import { FooterFaqManager } from '../corporate/FooterFaqManager';
 import { HeaderAdsPricing } from '../corporate/HeaderAdsPricing';
 import { CorporateHeaderAdsPricing } from '../corporate/CorporateHeaderAdsPricing';
 import {
@@ -139,7 +140,8 @@ export const CorporateDashboard: React.FC = () => {
         { id: 'contact-us', label: 'Contact Us', icon: Phone, path: '/corporate/footer/contact-us' },
         { id: 'social-media', label: 'Social Media Link', icon: Share2, path: '/corporate/footer/social-media' },
         { id: 'footer-terms', label: 'Terms And Conditions', icon: Scale, path: '/corporate/footer/terms' },
-        { id: 'privacy-policy', label: 'Privacy and Policy', icon: ShieldCheck, path: '/corporate/footer/privacy' }
+        { id: 'privacy-policy', label: 'Privacy and Policy', icon: ShieldCheck, path: '/corporate/footer/privacy' },
+        { id: 'faq', label: 'FAQ', icon: HelpCircle, path: '/corporate/footer/faq' }
       ]
     },
     {
@@ -230,21 +232,21 @@ export const CorporateDashboard: React.FC = () => {
       case '/corporate/terms-conditions':
         return <TermsConditions />;
       case '/corporate/footer/about-us':
-        return <FooterPageManager pageType="about_us" pageTitle="About Us" />;
+        return <FooterPageListManager pageType="about_us" pageTitle="About Us" />;
       case '/corporate/footer/awards':
-        return <FooterPageManager pageType="awards" pageTitle="Awards" />;
+        return <FooterPageListManager pageType="awards" pageTitle="Awards" />;
       case '/corporate/footer/newsroom':
-        return <FooterPageManager pageType="newsroom" pageTitle="Newsroom" />;
+        return <FooterPageListManager pageType="newsroom" pageTitle="Newsroom" />;
       case '/corporate/footer/events':
-        return <FooterPageManager pageType="events" pageTitle="Events" />;
+        return <FooterPageListManager pageType="events" pageTitle="Events" />;
       case '/corporate/footer/careers':
-        return <FooterPageManager pageType="careers" pageTitle="Careers" />;
+        return <FooterPageListManager pageType="careers" pageTitle="Careers" />;
       case '/corporate/footer/clients':
-        return <FooterPageManager pageType="clients" pageTitle="Clients" />;
+        return <FooterPageListManager pageType="clients" pageTitle="Clients" />;
       case '/corporate/footer/milestones':
-        return <FooterPageManager pageType="milestones" pageTitle="Milestones" />;
+        return <FooterPageListManager pageType="milestones" pageTitle="Milestones" />;
       case '/corporate/footer/testimonials':
-        return <FooterPageManager pageType="testimonials" pageTitle="Testimonials" />;
+        return <FooterPageListManager pageType="testimonials" pageTitle="Testimonials" />;
       case '/corporate/footer/gallery':
         return <Gallery />;
       case '/corporate/footer/contact-us':
@@ -252,9 +254,11 @@ export const CorporateDashboard: React.FC = () => {
       case '/corporate/footer/social-media':
         return <SocialMediaLinks />;
       case '/corporate/footer/terms':
-        return <TncDetailsManager />;
+        return <FooterPageManager pageType="terms" pageTitle="Terms and Conditions" />;
       case '/corporate/footer/privacy':
         return <FooterPageManager pageType="privacy_policy" pageTitle="Privacy Policy" />;
+      case '/corporate/footer/faq':
+        return <FooterFaqManager />;
       case '/corporate/public-database':
         return <div className="p-6"><h2 className="text-2xl font-bold">Public Database</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
       case '/corporate/client-database':
