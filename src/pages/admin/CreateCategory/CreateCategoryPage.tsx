@@ -175,7 +175,7 @@ export const CreateCategoryPage: React.FC = () => {
           <div className="bg-gray-700 text-white text-center py-2 font-semibold text-sm">
             {tabs.find(t => t.id === activeTab)?.label}
           </div>
-          <div className="flex-1 p-2 space-y-1 overflow-y-auto max-h-[500px]">
+          <div className="flex-1 p-2 space-y-1 overflow-y-auto">
             {loading ? (
               <div className="flex justify-center py-8">
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>

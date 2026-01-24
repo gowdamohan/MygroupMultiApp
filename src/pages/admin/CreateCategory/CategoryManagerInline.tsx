@@ -240,19 +240,34 @@ export const CategoryManagerInline: React.FC<CategoryManagerInlineProps> = ({ ap
   const childCategoryList = selectedSubCategory ? subCategoryList.find(c => c.id === selectedSubCategory.id)?.children || [] : [];
 
   const renderDeepChildren = (cats: Category[], level: number = 0): React.ReactNode => {
-    return cats.map((cat) => (
-      <div key={cat.id} className={`${level > 0 ? 'ml-3' : ''}`}>
-        <div className="flex items-center justify-between py-1.5 px-2 hover:bg-purple-50 rounded border-b border-gray-100">
-          <span className="text-sm font-medium">{cat.category_name}</span>
-          <div className="flex items-center gap-0.5">
-            <button onClick={() => openAddForm(cat.id, 'child')} className="p-1 text-green-600 hover:bg-green-100 rounded"><Plus size={12} /></button>
-            <button onClick={() => handleEditCategory(cat)} className="p-1 text-blue-600 hover:bg-blue-100 rounded"><Edit2 size={12} /></button>
-            {/* <button onClick={() => handleDelete(cat.id)} className="p-1 text-red-600 hover:bg-red-100 rounded"><Trash2 size={12} /></button> */}
+    return cats.map((cat) => {
+      // Check if this is a leaf node (no children) - last level child category
+      const isLeafNode = !cat.children || cat.children.length === 0;
+      
+      return (
+        <div key={cat.id} className={`${level > 0 ? 'ml-3' : ''}`}>
+          <div className="flex items-center justify-between py-1.5 px-2 hover:bg-purple-50 rounded border-b border-gray-100">
+            <span className="text-sm font-medium">{cat.category_name}</span>
+            <div className="flex items-center gap-0.5">
+              <button onClick={() => openAddForm(cat.id, 'child')} className="p-1 text-green-600 hover:bg-green-100 rounded"><Plus size={12} /></button>
+              {/* Show custom form icon for leaf nodes (last level) or when child category is locked */}
+              {(isLeafNode || isChildCategoryLocked()) && (
+                <button 
+                  onClick={() => handleCustomFormClick(cat)} 
+                  className="p-1 text-purple-600 hover:bg-purple-100 rounded" 
+                  title="Custom Form"
+                >
+                  <FileText size={12} />
+                </button>
+              )}
+              <button onClick={() => handleEditCategory(cat)} className="p-1 text-blue-600 hover:bg-blue-100 rounded"><Edit2 size={12} /></button>
+              {/* <button onClick={() => handleDelete(cat.id)} className="p-1 text-red-600 hover:bg-red-100 rounded"><Trash2 size={12} /></button> */}
+            </div>
           </div>
+          {cat.children && cat.children.length > 0 && renderDeepChildren(cat.children, level + 1)}
         </div>
-        {cat.children && cat.children.length > 0 && renderDeepChildren(cat.children, level + 1)}
-      </div>
-    ));
+      );
+    });
   };
 
   const Panel: React.FC<{
