@@ -199,7 +199,7 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({ appId, onClose }) 
                   <select
                     value={formData.parent_id || ''}
                     onChange={(e) => setFormData({ ...formData, parent_id: e.target.value ? parseInt(e.target.value) : null })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm">
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm">
                     <option value="">None (Root Level)</option>
                     {categories.filter(c => c.id !== editingId).map(cat => (
                       <option key={cat.id} value={cat.id}>
@@ -214,7 +214,7 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({ appId, onClose }) 
                     type="text"
                     value={formData.category_name}
                     onChange={(e) => setFormData({ ...formData, category_name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
                     placeholder="Enter category name"
                     required
                   />
@@ -225,7 +225,7 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({ appId, onClose }) 
                     type="text"
                     value={formData.category_type}
                     onChange={(e) => setFormData({ ...formData, category_type: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
                     placeholder="e.g., product, service"
                   />
                 </div>
@@ -237,7 +237,7 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({ appId, onClose }) 
                     type="text"
                     value={formData.category_image}
                     onChange={(e) => setFormData({ ...formData, category_image: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
                     placeholder="Image URL"
                   />
                 </div>
@@ -247,7 +247,7 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({ appId, onClose }) 
                     type="number"
                     value={formData.sort_order}
                     onChange={(e) => setFormData({ ...formData, sort_order: parseInt(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
                   />
                 </div>
                 <div>
@@ -255,14 +255,14 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({ appId, onClose }) 
                   <select
                     value={formData.status}
                     onChange={(e) => setFormData({ ...formData, status: parseInt(e.target.value) })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm">
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm">
                     <option value={1}>Active</option>
                     <option value={0}>Inactive</option>
                   </select>
                 </div>
               </div>
               <div className="flex gap-2">
-                <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm">
+                <button type="submit" className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center gap-2 text-sm">
                   <Save size={16} />
                   {editingId ? 'Update' : 'Create'}
                 </button>
@@ -280,7 +280,7 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({ appId, onClose }) 
             <h3 className="text-md font-semibold mb-3">Categories List</h3>
             {loading ? (
               <div className="flex justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
               </div>
             ) : (
               <div className="overflow-x-auto border border-gray-200 rounded-lg">

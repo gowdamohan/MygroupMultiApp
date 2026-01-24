@@ -138,7 +138,7 @@ export const AccountsLogin: React.FC = () => {
         <h1 className="text-2xl font-bold text-gray-900">Accounts Login Management</h1>
         <button
           onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
         >
           <Plus className="w-4 h-4" />
           Create Accounts User
@@ -160,7 +160,7 @@ export const AccountsLogin: React.FC = () => {
             placeholder="Search by name, email, or username..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
           />
         </div>
       </div>
@@ -169,7 +169,7 @@ export const AccountsLogin: React.FC = () => {
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         {loading ? (
           <div className="p-8 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
           </div>
         ) : filteredUsers.length === 0 ? (
           <div className="p-8 text-center text-gray-500">No accounts users found</div>
@@ -235,7 +235,7 @@ export const AccountsLogin: React.FC = () => {
               <input type="text" placeholder="Username" value={formData.username} onChange={(e) => setFormData({...formData, username: e.target.value})} className="w-full px-3 py-2 border rounded-lg" />
               <input type="text" placeholder="Phone" value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} className="w-full px-3 py-2 border rounded-lg" />
               <input type="password" placeholder="Password" value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} className="w-full px-3 py-2 border rounded-lg" />
-              <button onClick={handleCreateUser} className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Create User</button>
+              <button onClick={handleCreateUser} className="w-full py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">Create User</button>
             </div>
           </div>
         </div>
@@ -254,7 +254,7 @@ export const AccountsLogin: React.FC = () => {
               <input type="email" placeholder="Email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} className="w-full px-3 py-2 border rounded-lg" />
               <input type="text" placeholder="Username" value={formData.username} onChange={(e) => setFormData({...formData, username: e.target.value})} className="w-full px-3 py-2 border rounded-lg" />
               <input type="text" placeholder="Phone" value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} className="w-full px-3 py-2 border rounded-lg" />
-              <button onClick={handleUpdateUser} className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Update User</button>
+              <button onClick={handleUpdateUser} className="w-full py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">Update User</button>
             </div>
           </div>
         </div>

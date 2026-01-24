@@ -203,7 +203,7 @@ export const CustomFormBuilder: React.FC<CustomFormBuilderProps> = ({ appId, onC
               type="text"
               value={formName}
               onChange={(e) => setFormName(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               placeholder="Enter form name"
             />
           </div>
@@ -214,7 +214,7 @@ export const CustomFormBuilder: React.FC<CustomFormBuilderProps> = ({ appId, onC
               <h3 className="text-lg font-semibold text-gray-900">Form Fields</h3>
               <button
                 onClick={addField}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center gap-2"
               >
                 <Plus size={18} />
                 Add Field
@@ -384,7 +384,7 @@ export const CustomFormBuilder: React.FC<CustomFormBuilderProps> = ({ appId, onC
           <button
             onClick={handleSave}
             disabled={loading}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 disabled:opacity-50"
+            className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center gap-2 disabled:opacity-50"
           >
             <Save size={20} />
             {loading ? 'Saving...' : 'Save Form'}

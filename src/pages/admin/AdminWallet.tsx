@@ -121,10 +121,10 @@ export const AdminWallet: React.FC = () => {
           <button onClick={() => { fetchWalletData(); fetchTransactions(); }} className="p-2 bg-gray-100 rounded-lg hover:bg-gray-200">
             <RefreshCw className="w-5 h-5" />
           </button>
-          <button onClick={exportCSV} className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">
+          <button onClick={exportCSV} className="flex items-center gap-2 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
             <Download className="w-4 h-4" /> Export
           </button>
-          <button onClick={() => setShowAddFundsModal(true)} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+          <button onClick={() => setShowAddFundsModal(true)} className="flex items-center gap-2 px-4 py-2 bg-secondary-600 text-white rounded-lg hover:bg-secondary-700">
             <Plus className="w-4 h-4" /> Add Funds to User
           </button>
         </div>
@@ -138,7 +138,7 @@ export const AdminWallet: React.FC = () => {
 
       {/* Wallet Balance Card */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 text-white">
+        <div className="bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl p-6 text-white">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-blue-100 text-sm">Admin Wallet Balance</p>
@@ -158,7 +158,7 @@ export const AdminWallet: React.FC = () => {
         </div>
         {loading ? (
           <div className="p-8 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
           </div>
         ) : transactions.length === 0 ? (
           <div className="p-8 text-center text-gray-500">No transactions found</div>

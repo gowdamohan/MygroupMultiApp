@@ -259,7 +259,7 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ app, onBack })
   if (loading) {
     return (
       <div className="p-6 flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
       </div>
     );
   }
@@ -328,7 +328,7 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ app, onBack })
           {/* Regular Sub Apps */}
           <Panel
             title={`Sub Apps (${regularMainCategories.length}/${MAX_MAIN_CATEGORIES})`}
-            headerColor="bg-blue-600 text-white"
+            headerColor="bg-primary-600 text-white"
             bgColor="bg-yellow-300"
             onAdd={canAddMainCategory ? () => openAddForm(null, 'subapp') : undefined}
             addLabel="Add Sub App"
@@ -516,7 +516,7 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ app, onBack })
                     type="text"
                     value={formData.category_name}
                     onChange={(e) => setFormData({ ...formData, category_name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                     required
                   />
                 </div>
@@ -526,7 +526,7 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ app, onBack })
                     type="text"
                     value={formData.category_type}
                     onChange={(e) => setFormData({ ...formData, category_type: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                     placeholder="e.g., product, service, addon"
                   />
                 </div>
@@ -536,7 +536,7 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ app, onBack })
                     type="text"
                     value={formData.category_image}
                     onChange={(e) => setFormData({ ...formData, category_image: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -546,7 +546,7 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ app, onBack })
                       type="number"
                       value={formData.sort_order}
                       onChange={(e) => setFormData({ ...formData, sort_order: parseInt(e.target.value) || 0 })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                     />
                   </div>
                   <div>
@@ -554,7 +554,7 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ app, onBack })
                     <select
                       value={formData.status}
                       onChange={(e) => setFormData({ ...formData, status: parseInt(e.target.value) })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                     >
                       <option value={1}>Active</option>
                       <option value={0}>Inactive</option>
@@ -564,7 +564,7 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ app, onBack })
                 <div className="flex gap-3 pt-4">
                   <button
                     type="submit"
-                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2"
+                    className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center justify-center gap-2"
                   >
                     <Save size={18} /> {editingCategory ? 'Update' : 'Create'}
                   </button>

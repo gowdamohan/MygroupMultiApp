@@ -161,7 +161,7 @@ export const LanguageList: React.FC = () => {
               <select
                 value={formData.country_id}
                 onChange={(e) => setFormData({ ...formData, country_id: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 required
               >
                 <option value="">Select Country</option>
@@ -174,19 +174,19 @@ export const LanguageList: React.FC = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Primary Language *</label>
               <input type="text" value={formData.lang_1} onChange={(e) => setFormData({ ...formData, lang_1: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 placeholder="Enter primary language" required />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Secondary Language</label>
               <input type="text" value={formData.lang_2} onChange={(e) => setFormData({ ...formData, lang_2: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 placeholder="Enter secondary language (optional)" />
             </div>
           </div>
           <div className="flex gap-3">
             <button type="submit"
-              className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+              className="flex items-center gap-2 px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors">
               <Save size={18} />
               {editingId ? 'Update' : 'Create'}
             </button>

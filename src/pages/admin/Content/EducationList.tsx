@@ -137,12 +137,12 @@ export const EducationList: React.FC = () => {
             <label className="block text-sm font-medium text-gray-700 mb-2">Education Name *</label>
             <input type="text" value={formData.education}
               onChange={(e) => setFormData({ ...formData, education: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               placeholder="Enter education name" required />
           </div>
           <div className="flex gap-3">
             <button type="submit"
-              className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+              className="flex items-center gap-2 px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors">
               <Save size={18} />
               {editingId ? 'Update' : 'Create'}
             </button>

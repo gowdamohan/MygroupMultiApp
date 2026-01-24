@@ -68,7 +68,7 @@ import {
   toggleAccountsUserStatus
 } from '../controllers/accountsUserController.js';
 import { authenticate } from '../middleware/auth.js';
-import { uploadAppImages } from '../middleware/upload.js';
+import { uploadAppImages, uploadCountryAssets } from '../middleware/upload.js';
 
 const router = express.Router();
 
@@ -110,8 +110,8 @@ router.delete('/continents/:id', deleteContinent);
  * ============================================
  */
 router.get('/countries', getCountries);
-router.post('/countries', createCountry);
-router.put('/countries/:id', updateCountry);
+router.post('/countries', uploadCountryAssets, createCountry);
+router.put('/countries/:id', uploadCountryAssets, updateCountry);
 router.delete('/countries/:id', deleteCountry);
 router.put('/countries/:id/locking', updateCountryLocking);
 

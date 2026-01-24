@@ -151,28 +151,28 @@ export const ContinentList: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700 mb-2">Continent Name *</label>
               <input type="text" value={formData.continent}
                 onChange={(e) => setFormData({ ...formData, continent: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 placeholder="Enter continent name" required />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Code *</label>
               <input type="text" value={formData.code}
                 onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 placeholder="Continent code" required />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Order</label>
               <input type="number" value={formData.order}
                 onChange={(e) => setFormData({ ...formData, order: parseInt(e.target.value) || 0 })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 placeholder="Display order" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
               <select value={formData.status}
                 onChange={(e) => setFormData({ ...formData, status: parseInt(e.target.value) })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
                 <option value={1}>Active</option>
                 <option value={0}>Inactive</option>
               </select>
@@ -180,7 +180,7 @@ export const ContinentList: React.FC = () => {
           </div>
           <div className="flex gap-3">
             <button type="submit"
-              className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+              className="flex items-center gap-2 px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors">
               <Save size={18} />
               {editingId ? 'Update' : 'Create'}
             </button>

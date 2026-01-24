@@ -167,7 +167,15 @@ export const getCountries = async (req, res) => {
 // Create country
 export const createCountry = async (req, res) => {
   try {
-    const { continent_id, country, code, country_flag, currency, phone_code, nationality, order, status } = req.body;
+    const { continent_id, country, code, currency, currency_name, phone_code, nationality, order, status, country_flag: countryFlagPath, currency_icon: currencyIconPath } = req.body;
+
+    // Get uploaded file paths (new uploads) or use existing paths from body
+    const country_flag = req.files?.country_flag 
+      ? `/uploads/geo/${req.files.country_flag[0].filename}` 
+      : (countryFlagPath || null);
+    const currency_icon = req.files?.currency_icon 
+      ? `/uploads/geo/${req.files.currency_icon[0].filename}` 
+      : (currencyIconPath || null);
 
     const newCountry = await Country.create({
       continent_id,
@@ -175,6 +183,8 @@ export const createCountry = async (req, res) => {
       code,
       country_flag,
       currency,
+      currency_name,
+      currency_icon,
       phone_code,
       nationality,
       order: order || 0,
@@ -199,7 +209,7 @@ export const createCountry = async (req, res) => {
 export const updateCountry = async (req, res) => {
   try {
     const { id } = req.params;
-    const { continent_id, country, code, country_flag, currency, phone_code, nationality, order, status } = req.body;
+    const { continent_id, country, code, currency, currency_name, phone_code, nationality, order, status, country_flag: countryFlagPath, currency_icon: currencyIconPath } = req.body;
 
     const countryRecord = await Country.findByPk(id);
     if (!countryRecord) {
@@ -209,12 +219,22 @@ export const updateCountry = async (req, res) => {
       });
     }
 
+    // Get uploaded file paths (new uploads), or use paths from body, or keep existing ones
+    const country_flag = req.files?.country_flag
+      ? `/uploads/geo/${req.files.country_flag[0].filename}`
+      : (countryFlagPath || countryRecord.country_flag || null);
+    const currency_icon = req.files?.currency_icon
+      ? `/uploads/geo/${req.files.currency_icon[0].filename}`
+      : (currencyIconPath || countryRecord.currency_icon || null);
+
     await countryRecord.update({
       continent_id,
       country,
       code,
       country_flag,
       currency,
+      currency_name,
+      currency_icon,
       phone_code,
       nationality,
       order,

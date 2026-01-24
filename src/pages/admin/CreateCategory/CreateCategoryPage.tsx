@@ -171,23 +171,25 @@ export const CreateCategoryPage: React.FC = () => {
       {/* Multi-Panel Layout: Panel 1 (Apps) + Panels 2-5 (Categories) */}
       <div className="flex gap-3 overflow-x-auto pb-4">
         {/* Panel 1: Apps List */}
-        <div className="w-48 min-w-[192px] bg-gray-800 rounded-lg overflow-hidden flex flex-col">
-          <div className="bg-gray-700 text-white text-center py-2 font-semibold text-sm">
+        <div className="w-48 min-w-[192px] bg-white rounded-lg overflow-hidden flex flex-col border border-gray-200 shadow-sm">
+          <div className="bg-primary-600 text-white text-center py-2 font-semibold text-sm">
             {tabs.find(t => t.id === activeTab)?.label}
           </div>
           <div className="flex-1 p-2 space-y-1 overflow-y-auto">
             {loading ? (
               <div className="flex justify-center py-8">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
               </div>
             ) : apps.length === 0 ? (
-              <p className="text-gray-400 text-center text-xs py-4">No apps found</p>
+              <p className="text-gray-500 text-center text-xs py-4">No apps found</p>
             ) : (
               apps.map((app) => (
                 <div
                   key={app.id}
-                  className={`w-full flex items-center justify-between px-3 py-2 text-white text-sm rounded transition-colors ${
-                    selectedApp?.id === app.id ? 'bg-green-600' : 'hover:bg-gray-700'
+                  className={`w-full flex items-center justify-between px-3 py-2 text-sm rounded transition-colors ${
+                    selectedApp?.id === app.id 
+                      ? 'bg-primary-600 text-white' 
+                      : 'text-gray-900 hover:bg-gray-100'
                   }`}
                 >
                   <button
@@ -199,7 +201,11 @@ export const CreateCategoryPage: React.FC = () => {
                   {activeTab === 'myapps' && (
                     <button
                       onClick={(e) => handleLockClick(app, e)}
-                      className="p-1 text-purple-300 hover:bg-gray-600 rounded transition-colors ml-2"
+                      className={`p-1 rounded transition-colors ml-2 ${
+                        selectedApp?.id === app.id
+                          ? 'text-white hover:bg-primary-700'
+                          : 'text-purple-600 hover:bg-purple-50'
+                      }`}
                       title="Lock Settings"
                     >
                       <Lock size={16} />
@@ -246,7 +252,7 @@ export const CreateCategoryPage: React.FC = () => {
                     type="checkbox"
                     checked={lockSettings.lockCategory}
                     onChange={(e) => setLockSettings({ ...lockSettings, lockCategory: e.target.checked })}
-                    className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                    className="w-5 h-5 text-primary-600 rounded focus:ring-2 focus:ring-primary-500"
                   />
                   <div>
                     <span className="text-gray-700 font-medium">Lock Category Level</span>
@@ -258,7 +264,7 @@ export const CreateCategoryPage: React.FC = () => {
                     type="checkbox"
                     checked={lockSettings.lockSubCategory}
                     onChange={(e) => setLockSettings({ ...lockSettings, lockSubCategory: e.target.checked })}
-                    className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                    className="w-5 h-5 text-primary-600 rounded focus:ring-2 focus:ring-primary-500"
                   />
                   <div>
                     <span className="text-gray-700 font-medium">Lock Sub Category Level</span>
@@ -270,7 +276,7 @@ export const CreateCategoryPage: React.FC = () => {
                     type="checkbox"
                     checked={lockSettings.lockChildCategory}
                     onChange={(e) => setLockSettings({ ...lockSettings, lockChildCategory: e.target.checked })}
-                    className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                    className="w-5 h-5 text-primary-600 rounded focus:ring-2 focus:ring-primary-500"
                   />
                   <div>
                     <span className="text-gray-700 font-medium">Lock Child Category Level</span>
@@ -281,7 +287,7 @@ export const CreateCategoryPage: React.FC = () => {
               <div className="flex gap-3 mt-6">
                 <button
                   onClick={handleLockSave}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
                 >
                   Save
                 </button>

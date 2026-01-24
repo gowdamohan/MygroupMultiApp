@@ -47,7 +47,7 @@ export default function AdminDashboardLayout() {
   const isActive = (path) => location.pathname === path;
 
   return (
-    <div className="min-h-screen bg-gray-900">
+    <div className="min-h-screen bg-gray-50">
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div 
@@ -182,7 +182,7 @@ export default function AdminDashboardLayout() {
           </div>
         </header>
 
-        <main className="p-4 lg:p-6 bg-gray-900">
+        <main className="p-4 lg:p-6 bg-gray-50">
           <Outlet />
         </main>
       </div>

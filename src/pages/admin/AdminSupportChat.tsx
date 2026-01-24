@@ -143,7 +143,7 @@ export const AdminSupportChat: React.FC = () => {
           <div className="p-3 border-b border-gray-200 space-y-2">
             <div className="flex gap-2">
               {(['all', 'open', 'in_progress', 'resolved'] as const).map(s => (
-                <button key={s} onClick={() => setFilter(s)} className={`px-2 py-1 text-xs rounded ${filter === s ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}>
+                <button key={s} onClick={() => setFilter(s)} className={`px-2 py-1 text-xs rounded ${filter === s ? 'bg-primary-600 text-white' : 'bg-gray-100'}`}>
                   {s === 'all' ? 'All' : s.replace('_', ' ')}
                 </button>
               ))}
@@ -161,7 +161,7 @@ export const AdminSupportChat: React.FC = () => {
           <div className="flex-1 overflow-y-auto">
             {loading ? (
               <div className="p-8 text-center">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600 mx-auto"></div>
               </div>
             ) : conversations.length === 0 ? (
               <div className="p-8 text-center text-gray-500 text-sm">No conversations found</div>
@@ -221,7 +221,7 @@ export const AdminSupportChat: React.FC = () => {
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 {messages.map(msg => (
                   <div key={msg.id} className={`flex ${msg.sender_type === 'support' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[70%] p-3 rounded-lg ${msg.sender_type === 'support' ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}>
+                    <div className={`max-w-[70%] p-3 rounded-lg ${msg.sender_type === 'support' ? 'bg-primary-600 text-white' : 'bg-gray-100'}`}>
                       <p className="text-sm">{msg.message}</p>
                       <p className={`text-xs mt-1 ${msg.sender_type === 'support' ? 'text-blue-200' : 'text-gray-400'}`}>
                         {new Date(msg.created_at).toLocaleTimeString()}
@@ -241,9 +241,9 @@ export const AdminSupportChat: React.FC = () => {
                     onChange={(e) => setNewMessage(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
                     placeholder="Type a message..."
-                    className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                   />
-                  <button onClick={handleSendMessage} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                  <button onClick={handleSendMessage} className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">
                     <Send className="w-5 h-5" />
                   </button>
                 </div>

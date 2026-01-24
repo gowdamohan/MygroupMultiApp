@@ -201,7 +201,7 @@ export const CreateAppsList: React.FC = () => {
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
     </div>
   );
 
@@ -230,14 +230,14 @@ export const CreateAppsList: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700 mb-2">Name *</label>
               <input type="text" value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 placeholder="Enter name" required />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Apps Name *</label>
               <select value={formData.apps_name}
                 onChange={(e) => setFormData({ ...formData, apps_name: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required>
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500" required>
                 <option value="">Select Apps Name</option>
                 <option value="My Apps">My Apps</option>
                 <option value="My Company">My Company</option>
@@ -249,13 +249,13 @@ export const CreateAppsList: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700 mb-2">Order By</label>
               <input type="number" value={formData.order_by}
                 onChange={(e) => setFormData({ ...formData, order_by: parseInt(e.target.value) || 0 })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Code</label>
               <input type="text" value={formData.code}
                 onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 placeholder="Enter code" />
             </div>
           </div>
@@ -267,7 +267,7 @@ export const CreateAppsList: React.FC = () => {
                 type="file"
                 accept="image/*"
                 onChange={(e) => setIconFile(e.target.files?.[0] || null)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100"
               />
               {iconFile && <p className="text-xs text-gray-500 mt-1">Selected: {iconFile.name}</p>}
             </div>
@@ -277,7 +277,7 @@ export const CreateAppsList: React.FC = () => {
                 type="file"
                 accept="image/*"
                 onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100"
               />
               {logoFile && <p className="text-xs text-gray-500 mt-1">Selected: {logoFile.name}</p>}
             </div>
@@ -287,7 +287,7 @@ export const CreateAppsList: React.FC = () => {
                 type="file"
                 accept="image/*"
                 onChange={(e) => setNameImageFile(e.target.files?.[0] || null)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100"
               />
               {nameImageFile && <p className="text-xs text-gray-500 mt-1">Selected: {nameImageFile.name}</p>}
             </div>
@@ -302,7 +302,7 @@ export const CreateAppsList: React.FC = () => {
                   className="h-10 w-20 border border-gray-300 rounded-lg cursor-pointer" />
                 <input type="text" value={formData.background_color}
                   onChange={(e) => setFormData({ ...formData, background_color: e.target.value })}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                   placeholder="#ffffff" />
               </div>
             </div>
@@ -310,13 +310,13 @@ export const CreateAppsList: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700 mb-2">URL</label>
               <input type="url" value={formData.url}
                 onChange={(e) => setFormData({ ...formData, url: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 placeholder="https://example.com" />
             </div>
           </div>
 
           <div className="flex gap-3">
-            <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2">
+            <button type="submit" className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center gap-2">
               <Save size={20} />
               {editingId ? 'Update' : 'Create'}
             </button>
@@ -340,7 +340,7 @@ export const CreateAppsList: React.FC = () => {
                 type="text"
                 value={filterAppsName}
                 onChange={(e) => setFilterAppsName(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
                 placeholder="Search apps name..."
               />
             </div>

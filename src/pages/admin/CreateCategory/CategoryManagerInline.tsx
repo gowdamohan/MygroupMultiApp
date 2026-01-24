@@ -294,7 +294,7 @@ export const CategoryManagerInline: React.FC<CategoryManagerInlineProps> = ({ ap
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
       </div>
     );
   }
@@ -315,7 +315,7 @@ export const CategoryManagerInline: React.FC<CategoryManagerInlineProps> = ({ ap
 
       {/* Panel 2: Sub Apps */}
       <div className="flex flex-col gap-3">
-        <Panel title={`Sub Apps (${regularMainCategories.length}/${MAX_MAIN_CATEGORIES})`} headerColor="bg-blue-600 text-white" bgColor="bg-yellow-300"
+        <Panel title={`Sub Apps (${regularMainCategories.length}/${MAX_MAIN_CATEGORIES})`} headerColor="bg-primary-600 text-white" bgColor="bg-yellow-300"
           onAdd={canAddMainCategory ? () => openAddForm(null, 'subapp') : undefined} addLabel="Add Sub App">
           {regularMainCategories.map((cat) => (
             <div key={cat.id} className={`flex items-center justify-between px-2 py-1.5 rounded cursor-pointer ${selectedSubApp?.id === cat.id ? 'bg-yellow-400' : 'hover:bg-yellow-200'}`}>
@@ -432,30 +432,30 @@ export const CategoryManagerInline: React.FC<CategoryManagerInlineProps> = ({ ap
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Category Name *</label>
                   <input type="text" value={formData.category_name} onChange={(e) => setFormData({ ...formData, category_name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required />
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500" required />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Category Type</label>
                   <input type="text" value={formData.category_type} onChange={(e) => setFormData({ ...formData, category_type: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="e.g., product, service" />
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500" placeholder="e.g., product, service" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Sort Order</label>
                     <input type="number" value={formData.sort_order} onChange={(e) => setFormData({ ...formData, sort_order: parseInt(e.target.value) || 0 })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
                     <select value={formData.status} onChange={(e) => setFormData({ ...formData, status: parseInt(e.target.value) })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
                       <option value={1}>Active</option>
                       <option value={0}>Inactive</option>
                     </select>
                   </div>
                 </div>
                 <div className="flex gap-3 pt-4">
-                  <button type="submit" className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2">
+                  <button type="submit" className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center justify-center gap-2">
                     <Save size={18} /> {editingCategory ? 'Update' : 'Create'}
                   </button>
                   <button type="button" onClick={() => { setShowAddForm(false); setEditingCategory(null); }}

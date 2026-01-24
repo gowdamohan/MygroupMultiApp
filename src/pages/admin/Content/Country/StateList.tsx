@@ -217,7 +217,7 @@ export const StateList: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700 mb-2">Continent *</label>
               <select value={formData.continent_id}
                 onChange={(e) => setFormData({ ...formData, continent_id: e.target.value, country_id: '' })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required>
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500" required>
                 <option value="">Select Continent</option>
                 {continents.map(c => <option key={c.id} value={c.id}>{c.continent}</option>)}
               </select>
@@ -226,7 +226,7 @@ export const StateList: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700 mb-2">Country *</label>
               <select value={formData.country_id}
                 onChange={(e) => setFormData({ ...formData, country_id: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500" required
                 disabled={!formData.continent_id}>
                 <option value="">Select Country</option>
                 {filteredCountries.map(c => <option key={c.id} value={c.id}>{c.country}</option>)}
@@ -236,34 +236,34 @@ export const StateList: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700 mb-2">State Name *</label>
               <input type="text" value={formData.state}
                 onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 placeholder="Enter state name" required />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">State Code</label>
               <input type="text" value={formData.code}
                 onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 placeholder="State code" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Order</label>
               <input type="number" value={formData.order}
                 onChange={(e) => setFormData({ ...formData, order: parseInt(e.target.value) || 0 })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
               <select value={formData.status}
                 onChange={(e) => setFormData({ ...formData, status: parseInt(e.target.value) })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
                 <option value={1}>Active</option>
                 <option value={0}>Inactive</option>
               </select>
             </div>
           </div>
           <div className="flex gap-3">
-            <button type="submit" className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <button type="submit" className="flex items-center gap-2 px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">
               <Save size={18} />{editingId ? 'Update' : 'Create'}
             </button>
             {editingId && (
@@ -281,13 +281,13 @@ export const StateList: React.FC = () => {
           <div className="flex gap-3">
             <select value={filterContinentId}
               onChange={(e) => setFilterContinentId(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
               <option value="">All Continents</option>
               {continents.map(c => <option key={c.id} value={c.id}>{c.continent}</option>)}
             </select>
             <select value={filterCountryId}
               onChange={(e) => setFilterCountryId(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               disabled={!filterContinentId}>
               <option value="">All Countries</option>
               {filterCountries.map(c => <option key={c.id} value={c.id}>{c.country}</option>)}
