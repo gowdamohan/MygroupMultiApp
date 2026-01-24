@@ -360,7 +360,7 @@ export const CountryList: React.FC = () => {
                   </a>
                 )}
             </div>
-            <div>
+            {/* <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Currency Icon</label>
                 <input
                   ref={currencyIconInputRef}
@@ -374,6 +374,16 @@ export const CountryList: React.FC = () => {
                     View current icon
                   </a>
                 )}
+            </div> */}
+
+             <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Currency Icon</label>
+                <input
+                  type="text"
+                  value={formData.currency_icon}
+                  onChange={(e) => setFormData({ ...formData, currency_icon: e.target.value })}
+                  className="w-full px-4 py-2 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                />
             </div>
             <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Phone Code</label>
@@ -443,10 +453,12 @@ export const CountryList: React.FC = () => {
                 <th className="text-left py-3 px-4 font-semibold text-gray-900">Continent</th>
                 <th className="text-left py-3 px-4 font-semibold text-gray-900">Country</th>
                 <th className="text-left py-3 px-4 font-semibold text-gray-900">Code</th>
-                <th className="text-left py-3 px-4 font-semibold text-gray-900">Currency</th>
-                <th className="text-left py-3 px-4 font-semibold text-gray-900">Currency Name</th>
                 <th className="text-center py-3 px-4 font-semibold text-gray-900">Flag</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900">Currency Name</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900">Currency</th>
                 <th className="text-center py-3 px-4 font-semibold text-gray-900">Currency Icon</th>
+                <th className="text-center py-3 px-4 font-semibold text-gray-900">Phone Code</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900">Nationality</th>
                 <th className="text-center py-3 px-4 font-semibold text-gray-900">Order</th>
                 <th className="text-center py-3 px-4 font-semibold text-gray-900">Status</th>
                 <th className="text-right py-3 px-4 font-semibold text-gray-900">Actions</th>
@@ -461,10 +473,13 @@ export const CountryList: React.FC = () => {
                   <td className="py-3 px-4 text-gray-600">{country.continent?.continent || '-'}</td>
                   <td className="py-3 px-4 text-gray-900 font-medium">{country.country}</td>
                   <td className="py-3 px-4 text-gray-600">{country.code || '-'}</td>
-                  <td className="py-3 px-4 text-gray-900">{country.currency || '-'}</td>
-                  <td className="py-3 px-4 text-gray-900">{country.currency_name || '-'}</td>
                   <td className="py-3 px-4 text-center">{renderImage(country.country_flag, `${country.country} flag`)}</td>
-                  <td className="py-3 px-4 text-center">{renderImage(country.currency_icon, `${country.currency} icon`)}</td>
+                  <td className="py-3 px-4 text-gray-900">{country.currency_name || '-'}</td>
+                  <td className="py-3 px-4 text-gray-900">{country.currency || '-'}</td>
+                  {/* <td className="py-3 px-4 text-center">{renderImage(country.currency_icon, `${country.currency} icon`)}</td> */}
+                  <td className="py-3 px-4 text-center">{country.currency_icon}</td>
+                  <td className="py-3 px-4 text-center">{country.phone_code || '-'}</td>
+                  <td className="py-3 px-4 text-gray-900">{country.nationality || '-'}</td>
                   <td className="py-3 px-4 text-center text-gray-900">{country.order}</td>
                   <td className="py-3 px-4 text-center">
                     <button onClick={() => handleStatusToggle(country.id, country.status)}
