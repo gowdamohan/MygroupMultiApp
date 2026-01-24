@@ -179,10 +179,10 @@ export const EducationList: React.FC = () => {
                         className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
                         <Edit2 size={18} />
                       </button>
-                      <button onClick={() => handleDelete(education.id)}
+                      {/* <button onClick={() => handleDelete(education.id)}
                         className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
                         <Trash2 size={18} />
-                      </button>
+                      </button> */}
                     </div>
                   </td>
                 </tr>
