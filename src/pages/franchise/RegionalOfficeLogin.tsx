@@ -47,7 +47,6 @@ export const RegionalOfficeLogin: React.FC = () => {
   const [countries, setCountries] = useState<Country[]>([]);
   const [states, setStates] = useState<State[]>([]);
   const [selectedCountry, setSelectedCountry] = useState<string>('');
-  const [selectedState, setSelectedState] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [resetPasswordId, setResetPasswordId] = useState<number | null>(null);
   const [newPassword, setNewPassword] = useState('');
@@ -58,6 +57,8 @@ export const RegionalOfficeLogin: React.FC = () => {
 
   useEffect(() => {
     if (selectedCountry) {
+      setStates([]);
+      setStateRows([]);
       fetchStates(selectedCountry);
     } else {
       setStates([]);
@@ -68,8 +69,10 @@ export const RegionalOfficeLogin: React.FC = () => {
   useEffect(() => {
     if (states.length > 0) {
       fetchUsersAndBuildRows();
+    } else {
+      setStateRows([]);
     }
-  }, [states, selectedState]);
+  }, [states]);
 
   const fetchCountries = async () => {
     try {
@@ -104,13 +107,8 @@ export const RegionalOfficeLogin: React.FC = () => {
       });
       const users: RegionalOfficeUser[] = response.data;
 
-      // Filter states based on selected state
-      const filteredStates = selectedState 
-        ? states.filter(s => s.id.toString() === selectedState)
-        : states;
-
       // Build rows: one row per state
-      const rows: StateRow[] = filteredStates.map(state => {
+      const rows: StateRow[] = states.map(state => {
         const user = users.find(u => u.state_id === state.id);
         return {
           state_id: state.id,
@@ -262,7 +260,7 @@ export const RegionalOfficeLogin: React.FC = () => {
 
       {/* Filters */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4">
           {/* Country Filter */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -279,29 +277,6 @@ export const RegionalOfficeLogin: React.FC = () => {
                 {countries.map((country) => (
                   <option key={country.id} value={country.id}>
                     {country.country}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* State Filter */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Filter by State
-            </label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-              <select
-                value={selectedState}
-                onChange={(e) => setSelectedState(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                disabled={!selectedCountry}
-              >
-                <option value="">All States</option>
-                {states.map((state) => (
-                  <option key={state.id} value={state.id}>
-                    {state.state}
                   </option>
                 ))}
               </select>

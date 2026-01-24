@@ -352,7 +352,7 @@ export const updateCountryLocking = async (req, res) => {
 // Get all states
 export const getStates = async (req, res) => {
   try {
-    const { countryId } = req.query;
+    const countryId = req.query.countryId ?? req.query.country_id;
     const where = countryId ? { country_id: countryId } : {};
 
     const states = await State.findAll({
@@ -498,7 +498,7 @@ export const deleteState = async (req, res) => {
 // Get all districts
 export const getDistricts = async (req, res) => {
   try {
-    const { stateId } = req.query;
+    const stateId = req.query.stateId ?? req.query.state_id;
     const where = stateId ? { state_id: stateId } : {};
 
     const districts = await District.findAll({

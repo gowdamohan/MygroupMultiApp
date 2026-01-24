@@ -56,7 +56,6 @@ export const BranchOfficeLogin: React.FC = () => {
   const [districts, setDistricts] = useState<District[]>([]);
   const [selectedCountry, setSelectedCountry] = useState('');
   const [selectedState, setSelectedState] = useState('');
-  const [selectedDistrict, setSelectedDistrict] = useState('');
   const [districtRows, setDistrictRows] = useState<DistrictRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [resetPasswordId, setResetPasswordId] = useState<number | null>(null);
@@ -72,8 +71,8 @@ export const BranchOfficeLogin: React.FC = () => {
     if (selectedCountry) {
       fetchStates(selectedCountry);
       setSelectedState('');
-      setSelectedDistrict('');
       setDistricts([]);
+      setDistrictRows([]);
     } else {
       setStates([]);
       setDistricts([]);
@@ -84,21 +83,26 @@ export const BranchOfficeLogin: React.FC = () => {
   // Fetch districts when state changes
   useEffect(() => {
     if (selectedState) {
+      setDistrictRows([]);
       fetchDistricts(selectedState);
-      setSelectedDistrict('');
     } else {
       setDistricts([]);
+      setDistrictRows([]);
     }
   }, [selectedState]);
 
   // Fetch users and build rows when filters change
   useEffect(() => {
     if (selectedCountry && selectedState) {
+      if (districts.length === 0) {
+        setDistrictRows([]);
+        return;
+      }
       fetchUsersAndBuildRows();
     } else {
       setDistrictRows([]);
     }
-  }, [selectedCountry, selectedState, selectedDistrict]);
+  }, [selectedCountry, selectedState, districts]);
 
   const fetchCountries = async () => {
     try {
@@ -145,10 +149,7 @@ export const BranchOfficeLogin: React.FC = () => {
       const token = localStorage.getItem('accessToken');
 
       // Build query params
-      let queryParams = `country=${selectedCountry}&state=${selectedState}`;
-      if (selectedDistrict) {
-        queryParams += `&district=${selectedDistrict}`;
-      }
+      const queryParams = `country=${selectedCountry}&state=${selectedState}`;
 
       // Fetch users
       const response = await axios.get(
@@ -157,13 +158,8 @@ export const BranchOfficeLogin: React.FC = () => {
       );
       const users: BranchOfficeUser[] = response.data;
 
-      // Filter districts based on selected district filter
-      const filteredDistricts = selectedDistrict
-        ? districts.filter(d => d.id === parseInt(selectedDistrict))
-        : districts;
-
       // Build rows - one row per district
-      const rows: DistrictRow[] = filteredDistricts.map(district => {
+      const rows: DistrictRow[] = districts.map(district => {
         const user = users.find(u => u.district_id === district.id);
         return {
           district_id: district.id,
@@ -326,7 +322,7 @@ export const BranchOfficeLogin: React.FC = () => {
 
       {/* Filters */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Country Filter */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -366,29 +362,6 @@ export const BranchOfficeLogin: React.FC = () => {
                 {states.map((state) => (
                   <option key={state.id} value={state.id}>
                     {state.state}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* District Filter */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Filter by District
-            </label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-              <select
-                value={selectedDistrict}
-                onChange={(e) => setSelectedDistrict(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                disabled={!selectedState}
-              >
-                <option value="">All Districts</option>
-                {districts.map((district) => (
-                  <option key={district.id} value={district.id}>
-                    {district.district}
                   </option>
                 ))}
               </select>
