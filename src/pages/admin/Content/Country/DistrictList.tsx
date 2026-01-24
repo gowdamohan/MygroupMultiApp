@@ -395,9 +395,9 @@ export const DistrictList: React.FC = () => {
                       <button onClick={() => handleEdit(district)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg">
                         <Edit2 size={18} />
                       </button>
-                      <button onClick={() => handleDelete(district.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg">
+                      {/* <button onClick={() => handleDelete(district.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg">
                         <Trash2 size={18} />
-                      </button>
+                      </button> */}
                     </div>
                   </td>
                 </tr>

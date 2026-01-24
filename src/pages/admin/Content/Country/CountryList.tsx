@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Edit2, Trash2, Save, X, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
-import { API_BASE_URL } from '../../../../config/api.config';
+import { API_BASE_URL, getUploadUrl } from '../../../../config/api.config';
 
 interface Continent {
   id: number;
@@ -16,6 +16,8 @@ interface Country {
   country: string;
   code?: string;
   country_flag?: string;
+  currency_name?: string;
+  currency_icon?: string;
   currency?: string;
   phone_code?: string;
   nationality?: string;
@@ -34,6 +36,8 @@ export const CountryList: React.FC = () => {
     country: '',
     code: '',
     country_flag: '',
+    currency_name: '',
+    currency_icon: '',
     currency: '',
     phone_code: '',
     nationality: '',
@@ -47,6 +51,10 @@ export const CountryList: React.FC = () => {
   const [lockModalOpen, setLockModalOpen] = useState(false);
   const [selectedCountry, setSelectedCountry] = useState<Country | null>(null);
   const [lockSettings, setLockSettings] = useState({ lockStates: false, lockDistricts: false });
+  const [flagFile, setFlagFile] = useState<File | null>(null);
+  const [currencyIconFile, setCurrencyIconFile] = useState<File | null>(null);
+  const flagInputRef = useRef<HTMLInputElement>(null);
+  const currencyIconInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchContinents();
@@ -83,6 +91,30 @@ export const CountryList: React.FC = () => {
     }
   };
 
+  const resetFileInputs = () => {
+    if (flagInputRef.current) flagInputRef.current.value = '';
+    if (currencyIconInputRef.current) currencyIconInputRef.current.value = '';
+  };
+
+  const resetForm = () => {
+    setFormData({
+      continent_id: '',
+      country: '',
+      code: '',
+      country_flag: '',
+      currency_name: '',
+      currency_icon: '',
+      currency: '',
+      phone_code: '',
+      nationality: '',
+      order: 0,
+      status: 1
+    });
+    setFlagFile(null);
+    setCurrencyIconFile(null);
+    resetFileInputs();
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -95,33 +127,45 @@ export const CountryList: React.FC = () => {
 
     try {
       const token = localStorage.getItem('accessToken');
-      const payload = {
-        ...formData,
-        continent_id: parseInt(formData.continent_id)
+      const payload = new FormData();
+
+      payload.append('continent_id', formData.continent_id);
+      payload.append('country', formData.country.trim());
+      payload.append('code', formData.code || '');
+      payload.append('currency', formData.currency || '');
+      payload.append('currency_name', formData.currency_name || '');
+      payload.append('phone_code', formData.phone_code || '');
+      payload.append('nationality', formData.nationality || '');
+      payload.append('order', formData.order.toString());
+      payload.append('status', formData.status.toString());
+
+      if (flagFile) {
+        payload.append('country_flag', flagFile);
+      } else if (formData.country_flag) {
+        payload.append('country_flag', formData.country_flag);
+      }
+
+      if (currencyIconFile) {
+        payload.append('currency_icon', currencyIconFile);
+      } else if (formData.currency_icon) {
+        payload.append('currency_icon', formData.currency_icon);
+      }
+
+      const config = {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data'
+        }
       };
 
       if (editingId) {
-        await axios.put(`${API_BASE_URL}/admin/countries/${editingId}`, payload, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        await axios.put(`${API_BASE_URL}/admin/countries/${editingId}`, payload, config);
         setSuccess('Country updated successfully');
       } else {
-        await axios.post(`${API_BASE_URL}/admin/countries`, payload, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        await axios.post(`${API_BASE_URL}/admin/countries`, payload, config);
         setSuccess('Country created successfully');
       }
-      setFormData({
-        continent_id: '',
-        country: '',
-        code: '',
-        country_flag: '',
-        currency: '',
-        phone_code: '',
-        nationality: '',
-        order: 0,
-        status: 1
-      });
+      resetForm();
       setEditingId(null);
       fetchCountries();
     } catch (err: any) {
@@ -135,12 +179,17 @@ export const CountryList: React.FC = () => {
       country: country.country,
       code: country.code || '',
       country_flag: country.country_flag || '',
+      currency_name: country.currency_name || '',
+      currency_icon: country.currency_icon || '',
       currency: country.currency || '',
       phone_code: country.phone_code || '',
       nationality: country.nationality || '',
       order: country.order,
       status: country.status
     });
+    setFlagFile(null);
+    setCurrencyIconFile(null);
+    resetFileInputs();
     setEditingId(country.id);
     setError('');
     setSuccess('');
@@ -178,7 +227,7 @@ export const CountryList: React.FC = () => {
   };
 
   const handleCancel = () => {
-    setFormData({ continent_id: '', country: '', code: '', country_flag: '', currency: '', phone_code: '', nationality: '', order: 0, status: 1 });
+    resetForm();
     setEditingId(null);
     setError('');
     setSuccess('');
@@ -211,6 +260,22 @@ export const CountryList: React.FC = () => {
     }
   };
 
+  const renderImage = (path?: string, alt?: string) => {
+    if (!path) {
+      return <span className="text-gray-500">-</span>;
+    }
+    return (
+      <img
+        src={getUploadUrl(path)}
+        alt={alt || 'asset'}
+        className="h-8 w-8 rounded border border-gray-700 object-cover bg-gray-700"
+        onError={(e) => {
+          (e.target as HTMLImageElement).style.display = 'none';
+        }}
+      />
+    );
+  };
+
   if (loading) {
     return <div className="flex justify-center items-center h-64 text-white">Loading...</div>;
   }
@@ -224,13 +289,13 @@ export const CountryList: React.FC = () => {
       <AnimatePresence>
         {error && (
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-            className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+            className="bg-red-900/40 border border-red-700 text-red-100 px-4 py-3 rounded-lg">
             {error}
           </motion.div>
         )}
         {success && (
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-            className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg">
+            className="bg-emerald-900/40 border border-emerald-700 text-emerald-100 px-4 py-3 rounded-lg">
             {success}
           </motion.div>
         )}
@@ -241,7 +306,7 @@ export const CountryList: React.FC = () => {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Continent *</label>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Continent *</label>
               <select value={formData.continent_id}
                 onChange={(e) => setFormData({ ...formData, continent_id: e.target.value })}
                 className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -260,57 +325,87 @@ export const CountryList: React.FC = () => {
                 placeholder="Enter country name" required />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Country Code</label>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Country Code</label>
               <input type="text" value={formData.code}
                 onChange={(e) => setFormData({ ...formData, code: e.target.value })}
                 className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
                 placeholder="Country code (e.g., US, IN)" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Flag URL</label>
-              <input type="text" value={formData.country_flag}
-                onChange={(e) => setFormData({ ...formData, country_flag: e.target.value })}
-                className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
-                placeholder="Flag image URL" />
+                <label className="block text-sm font-medium text-gray-300 mb-2">Currency Code</label>
+                <input type="text" value={formData.currency}
+                  onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
+                  className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="Currency code (e.g., USD, INR)" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Currency</label>
-              <input type="text" value={formData.currency}
-                onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
-                className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
-                placeholder="Currency (e.g., USD, INR)" />
+                <label className="block text-sm font-medium text-gray-300 mb-2">Currency Name</label>
+                <input type="text" value={formData.currency_name}
+                  onChange={(e) => setFormData({ ...formData, currency_name: e.target.value })}
+                  className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="Currency name (e.g., US Dollar)" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Phone Code</label>
-              <input type="text" value={formData.phone_code}
-                onChange={(e) => setFormData({ ...formData, phone_code: e.target.value })}
-                className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
-                placeholder="Phone code (e.g., +1, +91)" />
+                <label className="block text-sm font-medium text-gray-300 mb-2">Flag Image</label>
+                <input
+                  ref={flagInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setFlagFile(e.target.files?.[0] || null)}
+                  className="w-full text-sm text-gray-300 file:mr-4 file:rounded-md file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:text-white file:hover:bg-blue-700 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+                {!flagFile && formData.country_flag && (
+                  <a href={getUploadUrl(formData.country_flag)} target="_blank" rel="noreferrer" className="text-xs text-blue-400 hover:text-blue-300 mt-1 inline-block">
+                    View current flag
+                  </a>
+                )}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Nationality</label>
-              <input type="text" value={formData.nationality}
-                onChange={(e) => setFormData({ ...formData, nationality: e.target.value })}
-                className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
-                placeholder="Nationality (e.g., American, Indian)" />
+                <label className="block text-sm font-medium text-gray-300 mb-2">Currency Icon</label>
+                <input
+                  ref={currencyIconInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setCurrencyIconFile(e.target.files?.[0] || null)}
+                  className="w-full text-sm text-gray-300 file:mr-4 file:rounded-md file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:text-white file:hover:bg-blue-700 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+                {!currencyIconFile && formData.currency_icon && (
+                  <a href={getUploadUrl(formData.currency_icon)} target="_blank" rel="noreferrer" className="text-xs text-blue-400 hover:text-blue-300 mt-1 inline-block">
+                    View current icon
+                  </a>
+                )}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Order</label>
-              <input type="number" value={formData.order}
-                onChange={(e) => setFormData({ ...formData, order: parseInt(e.target.value) || 0 })}
-                className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
-                placeholder="Display order" />
+                <label className="block text-sm font-medium text-gray-300 mb-2">Phone Code</label>
+                <input type="text" value={formData.phone_code}
+                  onChange={(e) => setFormData({ ...formData, phone_code: e.target.value })}
+                  className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="Phone code (e.g., +1, +91)" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Status</label>
-              <select value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: parseInt(e.target.value) })}
-                className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500">
-                <option value={1}>Active</option>
-                <option value={0}>Inactive</option>
-              </select>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Nationality</label>
+                <input type="text" value={formData.nationality}
+                  onChange={(e) => setFormData({ ...formData, nationality: e.target.value })}
+                  className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="Nationality (e.g., American, Indian)" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Order</label>
+                <input type="number" value={formData.order}
+                  onChange={(e) => setFormData({ ...formData, order: parseInt(e.target.value) || 0 })}
+                  className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="Display order" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Status</label>
+                <select value={formData.status}
+                  onChange={(e) => setFormData({ ...formData, status: parseInt(e.target.value) })}
+                  className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500">
+                  <option value={1}>Active</option>
+                  <option value={0}>Inactive</option>
+                </select>
+              </div>
             </div>
-          </div>
           <div className="flex gap-3">
             <button type="submit"
               className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
@@ -340,35 +435,43 @@ export const CountryList: React.FC = () => {
             </select>
           </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-600">
-                <th className="text-left py-3 px-4 font-semibold text-gray-300">ID</th>
-                <th className="text-left py-3 px-4 font-semibold text-gray-300">Continent</th>
-                <th className="text-left py-3 px-4 font-semibold text-gray-300">Country Name</th>
-                <th className="text-left py-3 px-4 font-semibold text-gray-300">Code</th>
-                <th className="text-center py-3 px-4 font-semibold text-gray-300">Order</th>
-                <th className="text-center py-3 px-4 font-semibold text-gray-300">Status</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-300">Actions</th>
+        <div className="overflow-x-auto rounded-lg border border-gray-800 bg-gray-900">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-800/80">
+              <tr className="border-b border-gray-700">
+                <th className="text-left py-3 px-4 font-semibold text-gray-200">ID</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-200">Continent</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-200">Country</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-200">Code</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-200">Currency</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-200">Currency Name</th>
+                <th className="text-center py-3 px-4 font-semibold text-gray-200">Flag</th>
+                <th className="text-center py-3 px-4 font-semibold text-gray-200">Currency Icon</th>
+                <th className="text-center py-3 px-4 font-semibold text-gray-200">Order</th>
+                <th className="text-center py-3 px-4 font-semibold text-gray-200">Status</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-200">Actions</th>
               </tr>
             </thead>
             <tbody>
               {countries
                 .filter(country => !filterContinentId || country.continent_id === parseInt(filterContinentId))
                 .map((country) => (
-                <tr key={country.id} className="border-b border-gray-700 hover:bg-gray-700">
+                <tr key={country.id} className="border-b border-gray-800 hover:bg-gray-800/70">
                   <td className="py-3 px-4 text-gray-200">{country.id}</td>
                   <td className="py-3 px-4 text-gray-400">{country.continent?.continent || '-'}</td>
                   <td className="py-3 px-4 text-gray-200">{country.country}</td>
                   <td className="py-3 px-4 text-gray-400">{country.code || '-'}</td>
-                  <td className="py-3 px-4 text-center text-gray-400">{country.order}</td>
+                  <td className="py-3 px-4 text-gray-200">{country.currency || '-'}</td>
+                  <td className="py-3 px-4 text-gray-200">{country.currency_name || '-'}</td>
+                  <td className="py-3 px-4 text-center">{renderImage(country.country_flag, `${country.country} flag`)}</td>
+                  <td className="py-3 px-4 text-center">{renderImage(country.currency_icon, `${country.currency} icon`)}</td>
+                  <td className="py-3 px-4 text-center text-gray-200">{country.order}</td>
                   <td className="py-3 px-4 text-center">
                     <button onClick={() => handleStatusToggle(country.id, country.status)}
-                      className={`px-3 py-1 rounded-full text-xs font-medium ${
+                      className={`px-3 py-1 rounded-full text-xs font-medium border ${
                         country.status === 1
-                          ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                          : 'bg-red-100 text-red-700 hover:bg-red-200'
+                          ? 'bg-green-900/40 text-green-200 border-green-600 hover:bg-green-800/60'
+                          : 'bg-red-900/40 text-red-200 border-red-600 hover:bg-red-800/60'
                       }`}>
                       {country.status === 1 ? 'Active' : 'Inactive'}
                     </button>
@@ -376,18 +479,18 @@ export const CountryList: React.FC = () => {
                   <td className="py-3 px-4">
                     <div className="flex justify-end gap-2">
                       <button onClick={() => handleLockClick(country)}
-                        className="p-2 text-purple-400 hover:bg-gray-700 rounded-lg transition-colors"
+                        className="p-2 text-purple-300 hover:bg-gray-700 rounded-lg transition-colors"
                         title="Lock Settings">
                         <Lock size={18} />
                       </button>
                       <button onClick={() => handleEdit(country)}
-                        className="p-2 text-blue-400 hover:bg-gray-700 rounded-lg transition-colors">
+                        className="p-2 text-blue-300 hover:bg-gray-700 rounded-lg transition-colors">
                         <Edit2 size={18} />
                       </button>
-                      <button onClick={() => handleDelete(country.id)}
+                      {/* <button onClick={() => handleDelete(country.id)}
                         className="p-2 text-red-400 hover:bg-gray-700 rounded-lg transition-colors">
                         <Trash2 size={18} />
-                      </button>
+                      </button> */}
                     </div>
                   </td>
                 </tr>

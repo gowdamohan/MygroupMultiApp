@@ -27,6 +27,14 @@ const Country = sequelize.define('country_tbl', {
     type: DataTypes.TEXT,
     allowNull: true
   },
+  currency_name: {
+    type: DataTypes.STRING(100),
+    allowNull: true
+  },
+  currency_icon: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
   currency: {
     type: DataTypes.STRING(45),
     allowNull: true

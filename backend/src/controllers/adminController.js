@@ -16,6 +16,18 @@ import {
   UserGroup,
   ClientRegistration
 } from '../models/index.js';
+import { deleteFile } from '../middleware/upload.js';
+
+const toIntOrDefault = (value, fallback) => {
+  if (value === undefined || value === null) return fallback;
+  const parsed = parseInt(value, 10);
+  return Number.isNaN(parsed) ? fallback : parsed;
+};
+
+const buildUploadPath = (file, subfolder = 'geo') => {
+  if (!file) return undefined;
+  return `/uploads/${subfolder}/${file.filename}`;
+};
 
 /**
  * ============================================
@@ -166,18 +178,35 @@ export const getCountries = async (req, res) => {
 // Create country
 export const createCountry = async (req, res) => {
   try {
-    const { continent_id, country, code, country_flag, currency, phone_code, nationality, order, status } = req.body;
-
-    const newCountry = await Country.create({
+    const {
       continent_id,
       country,
       code,
       country_flag,
       currency,
+      currency_name,
+      currency_icon,
       phone_code,
       nationality,
-      order: order || 0,
-      status: status !== undefined ? status : 1
+      order,
+      status
+    } = req.body;
+
+    const flagFile = req.files?.country_flag?.[0];
+    const currencyIconFile = req.files?.currency_icon?.[0];
+
+    const newCountry = await Country.create({
+      continent_id: toIntOrDefault(continent_id, null),
+      country,
+      code,
+      country_flag: buildUploadPath(flagFile) || country_flag || null,
+      currency,
+      currency_name,
+      currency_icon: buildUploadPath(currencyIconFile) || currency_icon || null,
+      phone_code,
+      nationality,
+      order: toIntOrDefault(order, 0),
+      status: status !== undefined ? toIntOrDefault(status, 1) : 1
     });
 
     res.status(201).json({
@@ -198,7 +227,19 @@ export const createCountry = async (req, res) => {
 export const updateCountry = async (req, res) => {
   try {
     const { id } = req.params;
-    const { continent_id, country, code, country_flag, currency, phone_code, nationality, order, status } = req.body;
+    const {
+      continent_id,
+      country,
+      code,
+      country_flag,
+      currency,
+      currency_name,
+      currency_icon,
+      phone_code,
+      nationality,
+      order,
+      status
+    } = req.body;
 
     const countryRecord = await Country.findByPk(id);
     if (!countryRecord) {
@@ -208,17 +249,36 @@ export const updateCountry = async (req, res) => {
       });
     }
 
-    await countryRecord.update({
-      continent_id,
-      country,
-      code,
-      country_flag,
-      currency,
-      phone_code,
-      nationality,
-      order,
-      status
-    });
+    const flagFile = req.files?.country_flag?.[0];
+    const currencyIconFile = req.files?.currency_icon?.[0];
+
+    const updates = {
+      continent_id: toIntOrDefault(continent_id, countryRecord.continent_id),
+      country: country ?? countryRecord.country,
+      code: code ?? countryRecord.code,
+      currency: currency ?? countryRecord.currency,
+      currency_name: currency_name ?? countryRecord.currency_name,
+      phone_code: phone_code ?? countryRecord.phone_code,
+      nationality: nationality ?? countryRecord.nationality,
+      order: order !== undefined ? toIntOrDefault(order, countryRecord.order) : countryRecord.order,
+      status: status !== undefined ? toIntOrDefault(status, countryRecord.status) : countryRecord.status
+    };
+
+    if (flagFile) {
+      deleteFile(countryRecord.country_flag);
+      updates.country_flag = buildUploadPath(flagFile);
+    } else if (country_flag !== undefined) {
+      updates.country_flag = country_flag;
+    }
+
+    if (currencyIconFile) {
+      deleteFile(countryRecord.currency_icon);
+      updates.currency_icon = buildUploadPath(currencyIconFile);
+    } else if (currency_icon !== undefined) {
+      updates.currency_icon = currency_icon;
+    }
+
+    await countryRecord.update(updates);
 
     res.json({
       success: true,
