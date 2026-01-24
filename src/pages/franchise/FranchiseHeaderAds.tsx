@@ -52,6 +52,26 @@ export const FranchiseHeaderAds: React.FC<FranchiseHeaderAdsProps> = ({
   const pricingFetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const hasFetchedInitialPricing = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const tableScrollRef = useRef<HTMLDivElement | null>(null);
+  const topScrollRef = useRef<HTMLDivElement | null>(null);
+  const topScrollContentRef = useRef<HTMLDivElement | null>(null);
+  const isSyncingScrollRef = useRef(false);
+
+  const syncScroll = useCallback((source: HTMLDivElement, target: HTMLDivElement) => {
+    if (isSyncingScrollRef.current) return;
+    isSyncingScrollRef.current = true;
+    target.scrollLeft = source.scrollLeft;
+    requestAnimationFrame(() => {
+      isSyncingScrollRef.current = false;
+    });
+  }, []);
+
+  const updateTopScrollWidth = useCallback(() => {
+    const tableEl = tableScrollRef.current;
+    const topContentEl = topScrollContentRef.current;
+    if (!tableEl || !topContentEl) return;
+    topContentEl.style.width = `${tableEl.scrollWidth}px`;
+  }, []);
 
   // Define fetchPricing first so it can be used in useEffects and useCallbacks
   const fetchPricing = useCallback(async (appId: number, categoryId: number, startDate: Date, endDate: Date, cancelPrevious: boolean = false) => {
@@ -149,6 +169,41 @@ export const FranchiseHeaderAds: React.FC<FranchiseHeaderAdsProps> = ({
       }
     };
   }, []);
+
+  useEffect(() => {
+    const tableEl = tableScrollRef.current;
+    const topEl = topScrollRef.current;
+    if (!tableEl || !topEl) return;
+
+    const handleTableScroll = () => syncScroll(tableEl, topEl);
+    const handleTopScroll = () => syncScroll(topEl, tableEl);
+
+    tableEl.addEventListener('scroll', handleTableScroll, { passive: true });
+    topEl.addEventListener('scroll', handleTopScroll, { passive: true });
+
+    return () => {
+      tableEl.removeEventListener('scroll', handleTableScroll);
+      topEl.removeEventListener('scroll', handleTopScroll);
+    };
+  }, [syncScroll]);
+
+  useEffect(() => {
+    updateTopScrollWidth();
+  }, [apps, appCategories, updateTopScrollWidth]);
+
+  useEffect(() => {
+    const handleResize = () => updateTopScrollWidth();
+    window.addEventListener('resize', handleResize);
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined' && tableScrollRef.current) {
+      resizeObserver = new ResizeObserver(() => updateTopScrollWidth());
+      resizeObserver.observe(tableScrollRef.current);
+    }
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      resizeObserver?.disconnect();
+    };
+  }, [updateTopScrollWidth]);
 
   // Only fetch pricing once all categories are loaded
   useEffect(() => {
@@ -547,6 +602,11 @@ export const FranchiseHeaderAds: React.FC<FranchiseHeaderAdsProps> = ({
     );
   }
 
+  const monthGroups = getMonthGroups();
+  const totalDateColumns = monthGroups.reduce((sum, group) => sum + Math.max(group.dates.length, 1), 0);
+  const appNameColumnWidth = 200;
+  const categoryColumnWidth = 180;
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
@@ -573,107 +633,147 @@ export const FranchiseHeaderAds: React.FC<FranchiseHeaderAdsProps> = ({
         )}
       </AnimatePresence>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto relative max-h-[600px]">
-        <table className="w-full border-collapse">
-          <thead className="sticky top-0 z-10">
-            <tr>
-              <th rowSpan={2} className="sticky left-0 z-20 bg-blue-600 border border-gray-300 px-4 py-2 text-sm font-bold text-white min-w-[150px]">
-                Category
-              </th>
-              {getMonthGroups().map((group, idx) => {
-                const colors = ['bg-blue-600', 'bg-indigo-600', 'bg-purple-600'];
-                const colorIndex = idx % colors.length;
-                const headerText = `${group.month} ${group.year}`;
-                const colSpan = group.dates.length > 0 ? group.dates.length : 1; // Minimum 1 to ensure header displays
-                return (
-                  <th key={`${group.month}-${group.year}-${idx}`} colSpan={colSpan} className={`border border-gray-300 px-2 py-2 text-sm font-bold text-white ${colors[colorIndex]}`}>
-                    {headerText}
-                  </th>
-                );
-              })}
-            </tr>
-            <tr>
-              {getMonthGroups().map((group, idx) => {
-                const colors = ['bg-blue-600', 'bg-indigo-600', 'bg-purple-600'];
-                const colorIndex = idx % colors.length;
-                if (group.dates.length === 0) {
-                  // If no dates in this month, add a placeholder cell to match colSpan
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+        <div ref={topScrollRef} className="overflow-x-auto overflow-y-hidden border-b border-gray-200">
+          <div ref={topScrollContentRef} className="h-4" />
+        </div>
+        <div ref={tableScrollRef} className="overflow-auto relative max-h-[600px]">
+          <table className="w-full border-collapse">
+            <thead className="sticky top-0 z-20">
+              <tr>
+                <th
+                  rowSpan={2}
+                  className="sticky top-0 left-0 z-30 bg-blue-600 border border-gray-300 px-4 py-2 text-sm font-bold text-white"
+                  style={{ width: appNameColumnWidth, minWidth: appNameColumnWidth }}
+                >
+                  App Name
+                </th>
+                <th
+                  rowSpan={2}
+                  className="sticky top-0 z-20 bg-blue-600 border border-gray-300 px-4 py-2 text-sm font-bold text-white"
+                  style={{ left: appNameColumnWidth, width: categoryColumnWidth, minWidth: categoryColumnWidth }}
+                >
+                  Category
+                </th>
+                {monthGroups.map((group, idx) => {
+                  const colors = ['bg-blue-600', 'bg-indigo-600', 'bg-purple-600'];
+                  const colorIndex = idx % colors.length;
+                  const headerText = `${group.month} ${group.year}`;
+                  const colSpan = group.dates.length > 0 ? group.dates.length : 1; // Minimum 1 to ensure header displays
                   return (
-                    <th key={`empty-${group.month}-${group.year}-${idx}`} className={`border border-gray-300 px-2 py-2 text-xs font-semibold text-white min-w-[50px] ${colors[colorIndex]}`}>
-                      &nbsp;
+                    <th key={`${group.month}-${group.year}-${idx}`} colSpan={colSpan} className={`border border-gray-300 px-2 py-2 text-sm font-bold text-white ${colors[colorIndex]}`}>
+                      {headerText}
                     </th>
                   );
-                }
-                return group.dates.map((dayInfo) => (
-                  <th key={dayInfo.date} className={`border border-gray-300 px-2 py-2 text-xs font-semibold text-white min-w-[50px] ${colors[colorIndex]}`}>
-                    {dayInfo.day}
-                  </th>
-                ));
-              })}
-            </tr>
-          </thead>
-          <tbody>
-            {apps.map((app) => {
-              const categories = appCategories[app.id] || [];
-              return (
-                <React.Fragment key={app.id}>
-                  <tr>
-                    <td colSpan={getMonthGroups().reduce((sum, g) => sum + Math.max(g.dates.length, 1), 0) + 1} 
-                      className="bg-blue-500 border border-gray-300 px-4 py-2 font-bold text-white">
-                      {app.name}
-                    </td>
-                  </tr>
-                  {categories.map((category) => {
-                    const key = `${app.id}-${category.id}`;
-                    const slot = selectedSlots[key];
-                    const total = calculateTotal(app.id, category.id);
-
+                })}
+              </tr>
+              <tr>
+                {monthGroups.map((group, idx) => {
+                  const colors = ['bg-blue-600', 'bg-indigo-600', 'bg-purple-600'];
+                  const colorIndex = idx % colors.length;
+                  if (group.dates.length === 0) {
+                    // If no dates in this month, add a placeholder cell to match colSpan
                     return (
-                      <tr key={category.id} className="hover:bg-gray-50">
-                        <td className="sticky left-0 z-10 bg-blue-100 border border-gray-300 px-4 py-2 font-medium text-gray-900">
-                          {category.category_name}
-                        </td>
-                        {getMonthGroups().map((group, groupIdx) => {
-                          if (group.dates.length === 0) {
-                            // Empty month - add placeholder cell to match header colSpan
-                            return (
-                              <td
-                                key={`empty-${group.month}-${group.year}-${groupIdx}`}
-                                className="border border-gray-300 px-2 py-2 text-center text-xs bg-gray-50"
-                              >
-                                &nbsp;
-                              </td>
-                            );
-                          }
-                          return group.dates.map((dayInfo) => {
-                            const pricing = getPricingForDate(app.id, category.id, dayInfo.date);
-                            const isBooked = pricing?.is_booked;
-                            const price = pricing?.price ?? 0;
-
-                            return (
-                              <td
-                                key={dayInfo.date}
-                                onClick={() => !isBooked && handleCellClick(app.id, category.id)}
-                                className={`border border-gray-300 px-2 py-2 text-center text-xs cursor-pointer transition-colors
-                                  ${isBooked ? 'bg-red-500 cursor-not-allowed' : 'bg-green-100 hover:bg-green-200'}
-                                `}
-                              >
-                                {!isBooked && (
-                                  <div className="font-semibold text-gray-900">₹{price}</div>
-                                )}
-                                {isBooked && <div className="text-white font-bold text-lg">✕</div>}
-                              </td>
-                            );
-                          });
-                        }).flat()}
-                      </tr>
+                      <th key={`empty-${group.month}-${group.year}-${idx}`} className={`border border-gray-300 px-2 py-2 text-xs font-semibold text-white min-w-[50px] ${colors[colorIndex]}`}>
+                        &nbsp;
+                      </th>
                     );
-                  })}
-                </React.Fragment>
-              );
-            })}
-          </tbody>
-        </table>
+                  }
+                  return group.dates.map((dayInfo) => (
+                    <th key={dayInfo.date} className={`border border-gray-300 px-2 py-2 text-xs font-semibold text-white min-w-[50px] ${colors[colorIndex]}`}>
+                      {dayInfo.day}
+                    </th>
+                  ));
+                })}
+              </tr>
+            </thead>
+            <tbody>
+              {apps.map((app) => {
+                const categories = appCategories[app.id] || [];
+
+                if (categories.length === 0) {
+                  return (
+                    <tr key={`${app.id}-empty`} className="hover:bg-gray-50">
+                      <td
+                        className="sticky left-0 z-10 bg-blue-500 border border-gray-300 px-4 py-2 font-bold text-white"
+                        style={{ width: appNameColumnWidth, minWidth: appNameColumnWidth }}
+                      >
+                        {app.name}
+                      </td>
+                      <td
+                        className="sticky z-0 bg-blue-100 border border-gray-300 px-4 py-2 font-medium text-gray-900"
+                        style={{ left: appNameColumnWidth, width: categoryColumnWidth, minWidth: categoryColumnWidth }}
+                      >
+                        No categories
+                      </td>
+                      <td colSpan={totalDateColumns} className="border border-gray-300 px-2 py-2 text-center text-xs text-gray-500">
+                        &nbsp;
+                      </td>
+                    </tr>
+                  );
+                }
+
+                return categories.map((category, categoryIndex) => {
+                  const key = `${app.id}-${category.id}`;
+                  const isFirstRow = categoryIndex === 0;
+
+                  return (
+                    <tr key={category.id} className="hover:bg-gray-50">
+                      {isFirstRow && (
+                        <td
+                          rowSpan={categories.length}
+                          className="sticky left-0 z-10 bg-blue-500 border border-gray-300 px-4 py-2 font-bold text-white align-top"
+                          style={{ width: appNameColumnWidth, minWidth: appNameColumnWidth }}
+                        >
+                          {app.name}
+                        </td>
+                      )}
+                      <td
+                        className="sticky z-0 bg-blue-100 border border-gray-300 px-4 py-2 font-medium text-gray-900"
+                        style={{ left: appNameColumnWidth, width: categoryColumnWidth, minWidth: categoryColumnWidth }}
+                      >
+                        {category.category_name}
+                      </td>
+                      {monthGroups.flatMap((group, groupIdx) => {
+                        if (group.dates.length === 0) {
+                          // Empty month - add placeholder cell to match header colSpan
+                          return [
+                            <td
+                              key={`empty-${group.month}-${group.year}-${groupIdx}`}
+                              className="border border-gray-300 px-2 py-2 text-center text-xs bg-gray-50"
+                            >
+                              &nbsp;
+                            </td>
+                          ];
+                        }
+                        return group.dates.map((dayInfo) => {
+                          const pricing = getPricingForDate(app.id, category.id, dayInfo.date);
+                          const isBooked = pricing?.is_booked;
+                          const price = pricing?.price ?? 0;
+
+                          return (
+                            <td
+                              key={`${dayInfo.date}-${groupIdx}`}
+                              onClick={() => !isBooked && handleCellClick(app.id, category.id)}
+                              className={`border border-gray-300 px-2 py-2 text-center text-xs cursor-pointer transition-colors
+                                ${isBooked ? 'bg-red-500 cursor-not-allowed' : 'bg-green-100 hover:bg-green-200'}
+                              `}
+                            >
+                              {!isBooked && (
+                                <div className="font-semibold text-gray-900">₹{price}</div>
+                              )}
+                              {isBooked && <div className="text-white font-bold text-lg">✕</div>}
+                            </td>
+                          );
+                        });
+                      })}
+                    </tr>
+                  );
+                });
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {showBookingModal && (

@@ -71,6 +71,7 @@ export const getPricing = async (req, res) => {
 
     // Get franchise holder's country_id if user is a franchise holder
     let countryId = null;
+    let franchiseHolderId = null;
     let pricingSlot = 'General'; // Default to General, can be made configurable
     
     if (req.user && req.user.id) {
@@ -78,8 +79,11 @@ export const getPricing = async (req, res) => {
       const franchiseHolder = await FranchiseHolder.findOne({
         where: { user_id: req.user.id }
       });
-      if (franchiseHolder && franchiseHolder.country) {
-        countryId = franchiseHolder.country;
+      if (franchiseHolder) {
+        franchiseHolderId = franchiseHolder.id;
+        if (franchiseHolder.country) {
+          countryId = franchiseHolder.country;
+        }
       }
     }
 
@@ -94,7 +98,8 @@ export const getPricing = async (req, res) => {
         as: 'headerAd',
         where: {
           app_id,
-          category_id
+          category_id,
+          ...(franchiseHolderId ? { franchise_holder_id: franchiseHolderId } : {})
         },
         attributes: []
       }],
@@ -327,7 +332,12 @@ export const saveHeaderAdsManagement = async (req, res) => {
 // Get header ads by group_name with priority (public endpoint for mobile)
 export const getHeaderAdsByGroup = async (req, res) => {
   try {
-    const { app_id, limit = 4 } = req.query;
+    const { app_id, limit = 4, franchise_holder_id } = req.query;
+    const limitValue = parseInt(limit, 10) || 4;
+    let franchiseHolderId = franchise_holder_id ? parseInt(franchise_holder_id, 10) : null;
+    if (Number.isNaN(franchiseHolderId)) {
+      franchiseHolderId = null;
+    }
     
     // Priority order: branch_ads1, regional_ads1, branch_ads2, head_office_ads1, corporate_ads1 (fallback)
     const groupNames = ['branch_ads1', 'regional_ads1', 'branch_ads2', 'head_office_ads1'];
@@ -343,9 +353,52 @@ export const getHeaderAdsByGroup = async (req, res) => {
       baseWhere.app_id = parseInt(app_id);
     }
 
+    // If franchise_holder_id is provided, fetch ads scoped to that franchise
+    if (franchiseHolderId) {
+      const scopedAds = await HeaderAdsManagement.findAll({
+        where: {
+          ...baseWhere,
+          franchise_holder_id: franchiseHolderId
+        },
+        include: [
+          {
+            model: GroupCreate,
+            as: 'app',
+            attributes: ['id', 'name']
+          },
+          {
+            model: AppCategory,
+            as: 'category',
+            attributes: ['id', 'category_name']
+          }
+        ],
+        order: [['created_at', 'DESC']],
+        limit: limitValue
+      });
+
+      const formattedAds = scopedAds.map(ad => {
+        const adJson = ad.toJSON();
+        return {
+          id: adJson.id,
+          app_id: adJson.app_id,
+          category_id: adJson.category_id,
+          file_path: adJson.file_path || adJson.file_url,
+          link_url: adJson.link_url,
+          group_name: adJson.group_name,
+          app: adJson.app,
+          category: adJson.category
+        };
+      });
+
+      return res.json({
+        success: true,
+        data: formattedAds
+      });
+    }
+
     // Fetch ads for each group in priority order
     for (const groupName of groupNames) {
-      if (ads.length >= limit) break;
+      if (ads.length >= limitValue) break;
       
       const groupAds = await HeaderAdsManagement.findAll({
         where: {
@@ -365,12 +418,12 @@ export const getHeaderAdsByGroup = async (req, res) => {
           }
         ],
         order: [['created_at', 'DESC']],
-        limit: limit - ads.length
+        limit: limitValue - ads.length
       });
 
       // Process and add ads
       for (const ad of groupAds) {
-        if (ads.length >= limit) break;
+        if (ads.length >= limitValue) break;
         const adJson = ad.toJSON();
         ads.push({
           id: adJson.id,
@@ -387,7 +440,7 @@ export const getHeaderAdsByGroup = async (req, res) => {
     }
 
     // Fill remaining slots with corporate_ads1 as fallback
-    if (ads.length < limit) {
+    if (ads.length < limitValue) {
       const corporateAds = await HeaderAdsManagement.findAll({
         where: {
           ...baseWhere,
@@ -406,11 +459,11 @@ export const getHeaderAdsByGroup = async (req, res) => {
           }
         ],
         order: [['created_at', 'DESC']],
-        limit: limit - ads.length
+        limit: limitValue - ads.length
       });
 
       for (const ad of corporateAds) {
-        if (ads.length >= limit) break;
+        if (ads.length >= limitValue) break;
         const adJson = ad.toJSON();
         ads.push({
           id: adJson.id,
