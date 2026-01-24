@@ -11,6 +11,9 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    define: {
+      global: 'window'
+    },
     resolve: {
       extensions: ['.js', '.jsx', '.ts', '.tsx', '.json'],
       alias: {
@@ -55,9 +58,17 @@ export default defineConfig(({ mode }) => {
         '@': path.resolve(__dirname, './src'),
       },
     },
+    optimizeDeps: {
+      include: ['jquery', 'react-summernote-lite']
+    },
     build: {
       target: 'esnext',
       outDir: 'build',
+      commonjsOptions: {
+        include: [/node_modules/, /react-summernote-lite/, /jquery/],
+        transformMixedEsModules: true,
+        requireReturnsDefault: 'auto'
+      }
     },
     server: {
       port: 3000,
