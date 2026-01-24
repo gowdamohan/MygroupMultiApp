@@ -13,6 +13,7 @@ import Education from './Education.js';
 import Profession from './Profession.js';
 import Language from './Language.js';
 import AppCategory from './AppCategory.js';
+import AppCategoryCustomForm from './AppCategoryCustomForm.js';
 import FranchiseHolder from './FranchiseHolder.js';
 import FooterPage from './FooterPage.js';
 import GalleryList from './GalleryList.js';
@@ -225,6 +226,26 @@ GroupCreate.hasMany(AppCategory, {
   as: 'categories'
 });
 AppCategory.belongsTo(GroupCreate, {
+  foreignKey: 'app_id',
+  as: 'app'
+});
+
+// AppCategory has many AppCategoryCustomForms
+AppCategory.hasMany(AppCategoryCustomForm, {
+  foreignKey: 'category_id',
+  as: 'customForms'
+});
+AppCategoryCustomForm.belongsTo(AppCategory, {
+  foreignKey: 'category_id',
+  as: 'category'
+});
+
+// GroupCreate has many AppCategoryCustomForms
+GroupCreate.hasMany(AppCategoryCustomForm, {
+  foreignKey: 'app_id',
+  as: 'categoryCustomForms'
+});
+AppCategoryCustomForm.belongsTo(GroupCreate, {
   foreignKey: 'app_id',
   as: 'app'
 });
@@ -680,6 +701,7 @@ export {
   Profession,
   Language,
   AppCategory,
+  AppCategoryCustomForm,
   FranchiseHolder,
   FooterPage,
   GalleryList,

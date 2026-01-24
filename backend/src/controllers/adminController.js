@@ -12,6 +12,7 @@ import {
   CreateDetails,
   Group,
   AppCategory,
+  AppCategoryCustomForm,
   User,
   UserGroup,
   ClientRegistration
@@ -1082,6 +1083,92 @@ export const deleteApp = async (req, res) => {
 
 /**
  * ============================================
+ * APP LOCKING MANAGEMENT
+ * ============================================
+ */
+
+// Get app locking settings
+export const getAppLocking = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const app = await GroupCreate.findByPk(id);
+    if (!app) {
+      return res.status(404).json({
+        success: false,
+        message: 'App not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        id: app.id,
+        name: app.name,
+        locking_json: app.locking_json || {
+          lockCategory: false,
+          lockSubCategory: false,
+          lockChildCategory: false,
+          customFormConfig: {}
+        }
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch app locking settings',
+      error: error.message
+    });
+  }
+};
+
+// Update app locking settings
+export const updateAppLocking = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { lockCategory, lockSubCategory, lockChildCategory, customFormConfig } = req.body;
+
+    const app = await GroupCreate.findByPk(id);
+    if (!app) {
+      return res.status(404).json({
+        success: false,
+        message: 'App not found'
+      });
+    }
+
+    // Only allow locking for "My Apps" type
+    if (app.apps_name !== 'My Apps') {
+      return res.status(400).json({
+        success: false,
+        message: 'Locking is only available for "My Apps" type applications'
+      });
+    }
+
+    await app.update({
+      locking_json: {
+        lockCategory: lockCategory || false,
+        lockSubCategory: lockSubCategory || false,
+        lockChildCategory: lockChildCategory || false,
+        customFormConfig: customFormConfig || {}
+      }
+    });
+
+    res.json({
+      success: true,
+      message: 'App locking settings updated successfully',
+      data: app
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update app locking settings',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * ============================================
  * APP CATEGORIES MANAGEMENT
  * ============================================
  */
@@ -1227,6 +1314,97 @@ export const deleteCategory = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to delete category',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * ============================================
+ * CATEGORY CUSTOM FORMS MANAGEMENT
+ * ============================================
+ */
+
+// Save or update custom form for a category
+export const saveCategoryCustomForm = async (req, res) => {
+  try {
+    const { categoryId } = req.params;
+    const { form_schema } = req.body;
+
+    const category = await AppCategory.findByPk(categoryId);
+    if (!category) {
+      return res.status(404).json({
+        success: false,
+        message: 'Category not found'
+      });
+    }
+
+    // Check if app has locking enabled
+    const app = await GroupCreate.findByPk(category.app_id);
+    if (!app || app.apps_name !== 'My Apps') {
+      return res.status(400).json({
+        success: false,
+        message: 'Custom forms are only available for "My Apps" type applications'
+      });
+    }
+
+    // Find or create custom form
+    let customForm = await AppCategoryCustomForm.findOne({
+      where: { category_id: categoryId }
+    });
+
+    if (customForm) {
+      await customForm.update({ form_schema });
+    } else {
+      customForm = await AppCategoryCustomForm.create({
+        app_id: category.app_id,
+        category_id: categoryId,
+        form_schema
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Custom form saved successfully',
+      data: customForm
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to save custom form',
+      error: error.message
+    });
+  }
+};
+
+// Get custom form for a category
+export const getCategoryCustomForm = async (req, res) => {
+  try {
+    const { categoryId } = req.params;
+
+    const customForm = await AppCategoryCustomForm.findOne({
+      where: { category_id: categoryId },
+      include: [
+        { model: AppCategory, as: 'category' },
+        { model: GroupCreate, as: 'app' }
+      ]
+    });
+
+    if (!customForm) {
+      return res.json({
+        success: true,
+        data: null
+      });
+    }
+
+    res.json({
+      success: true,
+      data: customForm
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch custom form',
       error: error.message
     });
   }

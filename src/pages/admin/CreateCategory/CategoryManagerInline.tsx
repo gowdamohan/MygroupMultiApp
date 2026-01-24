@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Save, X } from 'lucide-react';
+import { Plus, Edit2, Trash2, Save, X, Lock, FileText } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { API_BASE_URL } from '../../../config/api.config';
+import { CategoryCustomFormBuilder } from './CategoryCustomFormBuilder';
 
 interface Category {
   id: number;
@@ -20,6 +21,11 @@ interface App {
   id: number;
   name: string;
   apps_name: string;
+  locking_json?: {
+    lockSubCategory?: boolean;
+    lockChildCategory?: boolean;
+    customFormConfig?: any;
+  } | null;
 }
 
 interface CategoryManagerInlineProps {
@@ -33,6 +39,9 @@ export const CategoryManagerInline: React.FC<CategoryManagerInlineProps> = ({ ap
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [appLocking, setAppLocking] = useState<App['locking_json']>(null);
+  const [showFormBuilder, setShowFormBuilder] = useState(false);
+  const [selectedCategoryForForm, setSelectedCategoryForForm] = useState<{ id: number; name: string } | null>(null);
 
   // Multi-panel selection state
   const [selectedSubApp, setSelectedSubApp] = useState<Category | null>(null);
@@ -53,6 +62,7 @@ export const CategoryManagerInline: React.FC<CategoryManagerInlineProps> = ({ ap
 
   useEffect(() => {
     fetchCategories();
+    fetchAppLocking();
     // Reset selections when app changes
     setSelectedSubApp(null);
     setSelectedCategory(null);
@@ -74,6 +84,40 @@ export const CategoryManagerInline: React.FC<CategoryManagerInlineProps> = ({ ap
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchAppLocking = async () => {
+    if (app.apps_name !== 'My Apps') return;
+    try {
+      const token = localStorage.getItem('accessToken');
+      const response = await axios.get(`${API_BASE_URL}/admin/apps/${app.id}/locking`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.success) {
+        setAppLocking(response.data.data.locking_json);
+      }
+    } catch (err: any) {
+      // If endpoint doesn't exist or fails, set to null
+      setAppLocking(null);
+    }
+  };
+
+  // Helper functions to check if levels are locked
+  const isCategoryLocked = (): boolean => {
+    return app.apps_name === 'My Apps' && appLocking?.lockCategory === true;
+  };
+
+  const isSubCategoryLocked = (): boolean => {
+    return app.apps_name === 'My Apps' && appLocking?.lockSubCategory === true;
+  };
+
+  const isChildCategoryLocked = (): boolean => {
+    return app.apps_name === 'My Apps' && appLocking?.lockChildCategory === true;
+  };
+
+  const handleCustomFormClick = (category: Category) => {
+    setSelectedCategoryForForm({ id: category.id, name: category.category_name });
+    setShowFormBuilder(true);
   };
 
   const buildTree = (cats: Category[], parentId: number | null = null): Category[] => {
@@ -203,7 +247,7 @@ export const CategoryManagerInline: React.FC<CategoryManagerInlineProps> = ({ ap
           <div className="flex items-center gap-0.5">
             <button onClick={() => openAddForm(cat.id, 'child')} className="p-1 text-green-600 hover:bg-green-100 rounded"><Plus size={12} /></button>
             <button onClick={() => handleEditCategory(cat)} className="p-1 text-blue-600 hover:bg-blue-100 rounded"><Edit2 size={12} /></button>
-            <button onClick={() => handleDelete(cat.id)} className="p-1 text-red-600 hover:bg-red-100 rounded"><Trash2 size={12} /></button>
+            {/* <button onClick={() => handleDelete(cat.id)} className="p-1 text-red-600 hover:bg-red-100 rounded"><Trash2 size={12} /></button> */}
           </div>
         </div>
         {cat.children && cat.children.length > 0 && renderDeepChildren(cat.children, level + 1)}
@@ -263,7 +307,7 @@ export const CategoryManagerInline: React.FC<CategoryManagerInlineProps> = ({ ap
               <button onClick={() => handleSelectSubApp(cat)} className="flex-1 text-left font-medium text-sm">{cat.category_name}</button>
               <div className="flex gap-0.5">
                 <button onClick={() => handleEditCategory(cat)} className="p-1 text-blue-600 hover:bg-blue-100 rounded"><Edit2 size={12} /></button>
-                <button onClick={() => handleDelete(cat.id)} className="p-1 text-red-600 hover:bg-red-100 rounded"><Trash2 size={12} /></button>
+                {/* <button onClick={() => handleDelete(cat.id)} className="p-1 text-red-600 hover:bg-red-100 rounded"><Trash2 size={12} /></button> */}
               </div>
             </div>
           ))}
@@ -274,7 +318,7 @@ export const CategoryManagerInline: React.FC<CategoryManagerInlineProps> = ({ ap
               <button onClick={() => handleSelectSubApp(cat)} className="flex-1 text-left font-medium text-sm">{cat.category_name}</button>
               <div className="flex gap-0.5">
                 <button onClick={() => handleEditCategory(cat)} className="p-1 text-blue-600 hover:bg-blue-100 rounded"><Edit2 size={12} /></button>
-                <button onClick={() => handleDelete(cat.id)} className="p-1 text-red-600 hover:bg-red-100 rounded"><Trash2 size={12} /></button>
+                {/* <button onClick={() => handleDelete(cat.id)} className="p-1 text-red-600 hover:bg-red-100 rounded"><Trash2 size={12} /></button> */}
               </div>
             </div>
           ))}
@@ -282,37 +326,85 @@ export const CategoryManagerInline: React.FC<CategoryManagerInlineProps> = ({ ap
       </div>
 
       {/* Panel 3: Categories */}
-      <Panel title="Category" headerColor="bg-orange-500 text-white" bgColor="bg-orange-100"
-        onAdd={selectedSubApp ? () => openAddForm(selectedSubApp.id, 'category') : undefined} addLabel="Add Category">
+      <Panel 
+        title="Category" 
+        headerColor="bg-orange-500 text-white" 
+        bgColor="bg-orange-100"
+        onAdd={selectedSubApp && !isCategoryLocked() ? () => openAddForm(selectedSubApp.id, 'category') : undefined} 
+        addLabel={isCategoryLocked() ? "Locked" : "Add Category"}
+      >
         {selectedSubApp ? (categoryList.length > 0 ? categoryList.map((cat) => (
           <div key={cat.id} className={`flex items-center justify-between px-2 py-1.5 rounded cursor-pointer ${selectedCategory?.id === cat.id ? 'bg-orange-300' : 'hover:bg-orange-200'}`}>
             <button onClick={() => handleSelectCategory(cat)} className="flex-1 text-left font-medium text-sm">{cat.category_name}</button>
             <div className="flex gap-0.5">
+              {(isCategoryLocked() || isSubCategoryLocked()) && (
+                <button 
+                  onClick={() => handleCustomFormClick(cat)} 
+                  className="p-1 text-purple-600 hover:bg-purple-100 rounded" 
+                  title="Custom Form"
+                >
+                  <FileText size={12} />
+                </button>
+              )}
               <button onClick={() => handleEditCategory(cat)} className="p-1 text-blue-600 hover:bg-blue-100 rounded"><Edit2 size={12} /></button>
-              <button onClick={() => handleDelete(cat.id)} className="p-1 text-red-600 hover:bg-red-100 rounded"><Trash2 size={12} /></button>
+              {/* <button onClick={() => handleDelete(cat.id)} className="p-1 text-red-600 hover:bg-red-100 rounded"><Trash2 size={12} /></button> */}
             </div>
           </div>
         )) : <p className="text-gray-500 text-xs text-center py-4">No categories</p>) : <p className="text-gray-500 text-xs text-center py-4">Select a Sub App</p>}
+        {isCategoryLocked() && selectedSubApp && (
+          <div className="px-2 py-1 text-xs text-purple-600 flex items-center gap-1">
+            <Lock size={10} /> Category level is locked
+          </div>
+        )}
       </Panel>
 
       {/* Panel 4: Sub Categories */}
-      <Panel title="Sub Category" headerColor="bg-teal-500 text-white" bgColor="bg-teal-100"
-        onAdd={selectedCategory ? () => openAddForm(selectedCategory.id, 'subcategory') : undefined} addLabel="Add Sub Category">
+      <Panel 
+        title="Sub Category" 
+        headerColor="bg-teal-500 text-white" 
+        bgColor="bg-teal-100"
+        onAdd={selectedCategory && !isSubCategoryLocked() ? () => openAddForm(selectedCategory.id, 'subcategory') : undefined} 
+        addLabel={isSubCategoryLocked() ? "Locked" : "Add Sub Category"}
+      >
         {selectedCategory ? (subCategoryList.length > 0 ? subCategoryList.map((cat) => (
           <div key={cat.id} className={`flex items-center justify-between px-2 py-1.5 rounded cursor-pointer ${selectedSubCategory?.id === cat.id ? 'bg-teal-300' : 'hover:bg-teal-200'}`}>
             <button onClick={() => handleSelectSubCategory(cat)} className="flex-1 text-left font-medium text-sm">{cat.category_name}</button>
             <div className="flex gap-0.5">
+              {isChildCategoryLocked() && (
+                <button 
+                  onClick={() => handleCustomFormClick(cat)} 
+                  className="p-1 text-purple-600 hover:bg-purple-100 rounded" 
+                  title="Custom Form"
+                >
+                  <FileText size={12} />
+                </button>
+              )}
               <button onClick={() => handleEditCategory(cat)} className="p-1 text-blue-600 hover:bg-blue-100 rounded"><Edit2 size={12} /></button>
-              <button onClick={() => handleDelete(cat.id)} className="p-1 text-red-600 hover:bg-red-100 rounded"><Trash2 size={12} /></button>
+              {/* <button onClick={() => handleDelete(cat.id)} className="p-1 text-red-600 hover:bg-red-100 rounded"><Trash2 size={12} /></button> */}
             </div>
           </div>
         )) : <p className="text-gray-500 text-xs text-center py-4">No sub categories</p>) : <p className="text-gray-500 text-xs text-center py-4">Select a Category</p>}
+        {isSubCategoryLocked() && selectedCategory && (
+          <div className="px-2 py-1 text-xs text-purple-600 flex items-center gap-1">
+            <Lock size={10} /> Sub Category level is locked
+          </div>
+        )}
       </Panel>
 
       {/* Panel 5: Child Categories */}
-      <Panel title="Child Category" headerColor="bg-purple-500 text-white" bgColor="bg-purple-100"
-        onAdd={selectedSubCategory ? () => openAddForm(selectedSubCategory.id, 'child') : undefined} addLabel="Add Child">
+      <Panel 
+        title="Child Category" 
+        headerColor="bg-purple-500 text-white" 
+        bgColor="bg-purple-100"
+        onAdd={selectedSubCategory && !isChildCategoryLocked() ? () => openAddForm(selectedSubCategory.id, 'child') : undefined} 
+        addLabel={isChildCategoryLocked() ? "Locked" : "Add Child"}
+      >
         {selectedSubCategory ? (childCategoryList.length > 0 ? <div>{renderDeepChildren(childCategoryList)}</div> : <p className="text-gray-500 text-xs text-center py-4">No child categories</p>) : <p className="text-gray-500 text-xs text-center py-4">Select a Sub Category</p>}
+        {isChildCategoryLocked() && selectedSubCategory && (
+          <div className="px-2 py-1 text-xs text-purple-600 flex items-center gap-1">
+            <Lock size={10} /> Child Category level is locked
+          </div>
+        )}
       </Panel>
 
       {/* Add/Edit Modal */}
@@ -361,6 +453,20 @@ export const CategoryManagerInline: React.FC<CategoryManagerInlineProps> = ({ ap
           </div>
         )}
       </AnimatePresence>
+
+      {/* Custom Form Builder Modal */}
+      {showFormBuilder && selectedCategoryForForm && (
+        <CategoryCustomFormBuilder
+          categoryId={selectedCategoryForForm.id}
+          categoryName={selectedCategoryForForm.name}
+          appId={app.id}
+          onClose={() => {
+            setShowFormBuilder(false);
+            setSelectedCategoryForForm(null);
+            fetchCategories();
+          }}
+        />
+      )}
     </>
   );
 };

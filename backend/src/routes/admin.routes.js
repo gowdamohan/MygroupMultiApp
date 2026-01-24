@@ -33,10 +33,14 @@ import {
   createApp,
   updateApp,
   deleteApp,
+  getAppLocking,
+  updateAppLocking,
   getAppCategories,
   createCategory,
   updateCategory,
   deleteCategory,
+  saveCategoryCustomForm,
+  getCategoryCustomForm,
   getCorporateUser,
   createCorporateUser,
   updateCorporateUser,
@@ -178,6 +182,10 @@ router.post('/apps/:id/create-user', createAppUser);
 router.post('/apps/:id/custom-form', saveCustomForm);
 router.get('/apps/:id/custom-form', getCustomForm);
 
+// App locking management
+router.get('/apps/:id/locking', getAppLocking);
+router.put('/apps/:id/locking', updateAppLocking);
+
 /**
  * ============================================
  * APP CATEGORIES ROUTES
@@ -187,6 +195,8 @@ router.get('/apps/:appId/categories', getAppCategories);
 router.post('/categories', createCategory);
 router.put('/categories/:id', updateCategory);
 router.delete('/categories/:id', deleteCategory);
+router.post('/categories/:categoryId/custom-form', saveCategoryCustomForm);
+router.get('/categories/:categoryId/custom-form', getCategoryCustomForm);
 
 /**
  * ============================================

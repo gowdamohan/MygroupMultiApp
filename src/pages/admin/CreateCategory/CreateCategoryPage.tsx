@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Lock } from 'lucide-react';
 import axios from 'axios';
 import { API_BASE_URL } from '../../../config/api.config';
 import { CategoryManagerInline } from './CategoryManagerInline';
@@ -9,6 +10,12 @@ interface App {
   name: string;
   apps_name: string;
   order_by: number;
+  locking_json?: {
+    lockCategory?: boolean;
+    lockSubCategory?: boolean;
+    lockChildCategory?: boolean;
+    customFormConfig?: any;
+  } | null;
 }
 
 type TabType = 'myapps' | 'mycompany' | 'onlineapps';
@@ -18,7 +25,11 @@ export const CreateCategoryPage: React.FC = () => {
   const [apps, setApps] = useState<App[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [selectedApp, setSelectedApp] = useState<App | null>(null);
+  const [lockModalOpen, setLockModalOpen] = useState(false);
+  const [selectedAppForLock, setSelectedAppForLock] = useState<App | null>(null);
+  const [lockSettings, setLockSettings] = useState({ lockCategory: false, lockSubCategory: false, lockChildCategory: false });
 
   // Tab configuration
   const tabs: { id: TabType; label: string; appsNameFilter: string }[] = [
@@ -45,7 +56,27 @@ export const CreateCategoryPage: React.FC = () => {
         const filteredApps = response.data.data.filter(
           (app: App) => app.apps_name === currentTab?.appsNameFilter
         );
-        setApps(filteredApps);
+        // Fetch locking data for My Apps
+        if (activeTab === 'myapps') {
+          const appsWithLocking = await Promise.all(
+            filteredApps.map(async (app: App) => {
+              try {
+                const lockResponse = await axios.get(`${API_BASE_URL}/admin/apps/${app.id}/locking`, {
+                  headers: { Authorization: `Bearer ${token}` }
+                });
+                if (lockResponse.data.success) {
+                  return { ...app, locking_json: lockResponse.data.data.locking_json };
+                }
+              } catch (err) {
+                // If locking endpoint fails, app just won't have locking_json
+              }
+              return app;
+            })
+          );
+          setApps(appsWithLocking);
+        } else {
+          setApps(filteredApps);
+        }
       }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to fetch apps');
@@ -56,6 +87,35 @@ export const CreateCategoryPage: React.FC = () => {
 
   const handleAppClick = (app: App) => {
     setSelectedApp(app);
+  };
+
+  const handleLockClick = (app: App, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedAppForLock(app);
+    setLockSettings({
+      lockCategory: app.locking_json?.lockCategory || false,
+      lockSubCategory: app.locking_json?.lockSubCategory || false,
+      lockChildCategory: app.locking_json?.lockChildCategory || false
+    });
+    setLockModalOpen(true);
+  };
+
+  const handleLockSave = async () => {
+    if (!selectedAppForLock) return;
+    try {
+      const token = localStorage.getItem('accessToken');
+      await axios.put(
+        `${API_BASE_URL}/admin/apps/${selectedAppForLock.id}/locking`,
+        lockSettings,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setSuccess('Locking settings updated successfully');
+      setLockModalOpen(false);
+      fetchApps();
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to update locking settings');
+    }
   };
 
   return (
@@ -84,7 +144,7 @@ export const CreateCategoryPage: React.FC = () => {
         ))}
       </div>
 
-      {/* Error Message */}
+      {/* Messages */}
       <AnimatePresence mode="wait">
         {error && (
           <motion.div
@@ -94,6 +154,16 @@ export const CreateCategoryPage: React.FC = () => {
             className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg"
           >
             {error}
+          </motion.div>
+        )}
+        {success && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg"
+          >
+            {success}
           </motion.div>
         )}
       </AnimatePresence>
@@ -114,15 +184,28 @@ export const CreateCategoryPage: React.FC = () => {
               <p className="text-gray-400 text-center text-xs py-4">No apps found</p>
             ) : (
               apps.map((app) => (
-                <button
+                <div
                   key={app.id}
-                  onClick={() => handleAppClick(app)}
-                  className={`w-full text-left px-3 py-2 text-white text-sm rounded transition-colors ${
+                  className={`w-full flex items-center justify-between px-3 py-2 text-white text-sm rounded transition-colors ${
                     selectedApp?.id === app.id ? 'bg-green-600' : 'hover:bg-gray-700'
                   }`}
                 >
-                  {app.name}
-                </button>
+                  <button
+                    onClick={() => handleAppClick(app)}
+                    className="flex-1 text-left"
+                  >
+                    {app.name}
+                  </button>
+                  {activeTab === 'myapps' && (
+                    <button
+                      onClick={(e) => handleLockClick(app, e)}
+                      className="p-1 text-purple-300 hover:bg-gray-600 rounded transition-colors ml-2"
+                      title="Lock Settings"
+                    >
+                      <Lock size={16} />
+                    </button>
+                  )}
+                </div>
               ))
             )}
           </div>
@@ -137,6 +220,82 @@ export const CreateCategoryPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Lock Settings Modal */}
+      <AnimatePresence>
+        {lockModalOpen && selectedAppForLock && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            onClick={() => setLockModalOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md border border-gray-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-xl font-semibold mb-4 text-gray-900">Lock Settings - {selectedAppForLock.name}</h3>
+              <p className="text-sm text-gray-600 mb-4">Lock category levels to prevent adding children at those levels.</p>
+              <div className="space-y-4">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={lockSettings.lockCategory}
+                    onChange={(e) => setLockSettings({ ...lockSettings, lockCategory: e.target.checked })}
+                    className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                  />
+                  <div>
+                    <span className="text-gray-700 font-medium">Lock Category Level</span>
+                    <p className="text-xs text-gray-500">Prevents adding Categories under Sub Apps</p>
+                  </div>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={lockSettings.lockSubCategory}
+                    onChange={(e) => setLockSettings({ ...lockSettings, lockSubCategory: e.target.checked })}
+                    className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                  />
+                  <div>
+                    <span className="text-gray-700 font-medium">Lock Sub Category Level</span>
+                    <p className="text-xs text-gray-500">Prevents adding Sub Categories under Categories</p>
+                  </div>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={lockSettings.lockChildCategory}
+                    onChange={(e) => setLockSettings({ ...lockSettings, lockChildCategory: e.target.checked })}
+                    className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                  />
+                  <div>
+                    <span className="text-gray-700 font-medium">Lock Child Category Level</span>
+                    <p className="text-xs text-gray-500">Prevents adding Child Categories under Sub Categories</p>
+                  </div>
+                </label>
+              </div>
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={handleLockSave}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Save
+                </button>
+                <button
+                  onClick={() => setLockModalOpen(false)}
+                  className="flex-1 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
