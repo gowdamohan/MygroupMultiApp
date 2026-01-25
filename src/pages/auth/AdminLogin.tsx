@@ -58,7 +58,7 @@ export const AdminLogin: React.FC = () => {
         <div className="relative z-10 flex flex-col justify-center px-12 py-16 w-full max-w-lg mx-auto">
           {/* Logo */}
           <div className="flex items-center gap-3 mb-10">
-            <img width="100" src="../backend/public/uploads/logo.png" alt="Logo"/>
+            <img width="100" src={`${import.meta.env.VITE_BACKEND_URL}/backend/public/uploads/logo.png`} alt="Logo"/>
             <div>
               <h2 className="text-white" style={{ fontSize: '28px', lineHeight: '36px', fontWeight: 700 }}>My Group</h2>
               <p className="text-primary-200 text-sm">Admin Portal</p>
