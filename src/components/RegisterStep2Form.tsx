@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { API_BASE_URL } from '../config/api.config';
+import { API_BASE_URL, getUploadUrl } from '../config/api.config';
+
 
 interface FormField {
   id: number;
@@ -116,6 +117,22 @@ export const RegisterStep2Form: React.FC<RegisterStep2FormProps> = ({
     } catch (err) {
       console.error('Error fetching states:', err);
     }
+  };
+
+  const renderImage = (path?: string, alt?: string) => {
+    if (!path) {
+      return <span className="text-gray-500">-</span>;
+    }
+    return (
+      <img
+        src={getUploadUrl(path)}
+        alt={alt || 'asset'}
+        className="h-8 w-8 rounded border border-gray-300 object-cover bg-gray-100"
+        onError={(e) => {
+          (e.target as HTMLImageElement).style.display = 'none';
+        }}
+      />
+    );
   };
 
   const fetchDistricts = async (stateId: string) => {
@@ -237,7 +254,7 @@ export const RegisterStep2Form: React.FC<RegisterStep2FormProps> = ({
             <option value="">Code</option>
             {countries.map((country: any) => (
               <option key={country.id} value={country.phone_code}>
-                {country.country_flag} {country.phone_code}
+               {renderImage(country.country_flag, `${country.country} flag`)} {country.phone_code}
               </option>
             ))}
           </select>
