@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { User, Moon, Sun, ChevronLeft, ChevronRight, X, Settings, LogOut, Camera, MapPin, Building2, Phone, Mail, Key, Shield, HelpCircle, MessageCircle, Share2, Download, MoreHorizontal } from 'lucide-react';
+import { User, Moon, Sun, ChevronLeft, ChevronRight, X, MoreHorizontal } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
 import { authAPI } from '../../services/api';
+import UserProfileModal from './UserProfileModal';
+import AppSettingsModal from './AppSettingsModal';
 
 export interface TopIcon {
   id: number;
@@ -603,160 +605,28 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
       {/* User Profile Modal */}
       <AnimatePresence>
         {showProfileModal && (
-          <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/50">
-            <motion.div
-              initial={{ opacity: 0, y: 100 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 100 }}
-              transition={{ duration: 0.3 }}
-              className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto"
-            >
-              {/* Modal Header */}
-              <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-gray-900">Profile</h2>
-                <button
-                  onClick={() => setShowProfileModal(false)}
-                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-                >
-                  <X size={20} className="text-gray-600" />
-                </button>
-              </div>
-
-              {/* Modal Content */}
-              <div className="p-4 space-y-4">
-                {/* Profile Header */}
-                <div className="flex flex-col items-center py-4">
-                  <div className="relative">
-                    {userProfile?.profile_img ? (
-                      <img
-                        src={`${BACKEND_URL}${userProfile.profile_img}`}
-                        alt="Profile"
-                        className="w-24 h-24 rounded-full object-cover border-4 border-teal-500"
-                      />
-                    ) : (
-                      <div className="w-24 h-24 rounded-full bg-teal-500 flex items-center justify-center border-4 border-teal-500">
-                        <User size={48} className="text-white" />
-                      </div>
-                    )}
-                    <button className="absolute bottom-0 right-0 p-2 bg-teal-500 rounded-full hover:bg-teal-600 transition-colors">
-                      <Camera size={16} className="text-white" />
-                    </button>
-                  </div>
-                  <h3 className="text-xl font-semibold text-gray-900 mt-4">
-                    {userProfile?.first_name && userProfile?.last_name
-                      ? `${userProfile.first_name} ${userProfile.last_name}`
-                      : userProfile?.username || 'User'}
-                  </h3>
-                  {userProfile?.email && (
-                    <p className="text-sm text-gray-600 mt-1">{userProfile.email}</p>
-                  )}
-                  {userProfile?.identification_code && (
-                    <p className="text-xs text-gray-500 mt-1">ID: {userProfile.identification_code}</p>
-                  )}
-                </div>
-
-                {/* Profile Actions */}
-                <div className="space-y-2">
-                  <button className="w-full flex items-center gap-3 px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left">
-                    <User size={20} className="text-gray-700" />
-                    <span className="text-gray-900">Edit Profile</span>
-                  </button>
-                  <button className="w-full flex items-center gap-3 px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left">
-                    <MapPin size={20} className="text-gray-700" />
-                    <span className="text-gray-900">Location Settings</span>
-                  </button>
-                  <button className="w-full flex items-center gap-3 px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left">
-                    <Shield size={20} className="text-gray-700" />
-                    <span className="text-gray-900">Privacy & Security</span>
-                  </button>
-                  <button className="w-full flex items-center gap-3 px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left">
-                    <HelpCircle size={20} className="text-gray-700" />
-                    <span className="text-gray-900">Help & Support</span>
-                  </button>
-                  {isLoggedIn && (
-                    <button
-                      onClick={handleLogout}
-                      className="w-full flex items-center gap-3 px-4 py-3 bg-red-50 hover:bg-red-100 rounded-lg transition-colors text-left mt-4"
-                    >
-                      <LogOut size={20} className="text-red-600" />
-                      <span className="text-red-600 font-semibold">Logout</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          </div>
+          <UserProfileModal
+            isOpen={showProfileModal}
+            onClose={() => setShowProfileModal(false)}
+            userProfile={userProfile}
+            isLoggedIn={isLoggedIn}
+            onLogout={handleLogout}
+            appLogo={displayLogo}
+            appName={appInfo?.apps_name || appInfo?.name || appName || 'My Group'}
+          />
         )}
       </AnimatePresence>
 
       {/* App Settings Modal */}
       <AnimatePresence>
         {showAppSettingsModal && (
-          <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/50">
-            <motion.div
-              initial={{ opacity: 0, y: 100 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 100 }}
-              transition={{ duration: 0.3 }}
-              className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto"
-            >
-              {/* Modal Header */}
-              <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  {displayLogo ? (
-                    <img
-                      src={displayLogo.startsWith('http') ? displayLogo : `${BACKEND_URL}${displayLogo}`}
-                      alt="App"
-                      className="w-8 h-8 rounded-full object-contain"
-                    />
-                  ) : displayIcon ? (
-                    <img
-                      src={displayIcon.startsWith('http') ? displayIcon : `${BACKEND_URL}${displayIcon}`}
-                      alt="App"
-                      className="w-8 h-8 rounded-full object-contain"
-                    />
-                  ) : (
-                    <div className="w-8 h-8 rounded-full bg-teal-500 flex items-center justify-center text-white font-bold text-sm">
-                      {(appInfo?.apps_name || appInfo?.name || appName || 'A').charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                  <h2 className="text-lg font-semibold text-gray-900">
-                    {appInfo?.apps_name || appInfo?.name || appName || 'App'} Settings
-                  </h2>
-                </div>
-                <button
-                  onClick={() => setShowAppSettingsModal(false)}
-                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-                >
-                  <X size={20} className="text-gray-600" />
-                </button>
-              </div>
-
-              {/* Modal Content */}
-              <div className="p-4 space-y-2">
-                <button className="w-full flex items-center gap-3 px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left">
-                  <Settings size={20} className="text-gray-700" />
-                  <span className="text-gray-900">App Preferences</span>
-                </button>
-                <button className="w-full flex items-center gap-3 px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left">
-                  <MessageCircle size={20} className="text-gray-700" />
-                  <span className="text-gray-900">Notifications</span>
-                </button>
-                <button className="w-full flex items-center gap-3 px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left">
-                  <Share2 size={20} className="text-gray-700" />
-                  <span className="text-gray-900">Share App</span>
-                </button>
-                <button className="w-full flex items-center gap-3 px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left">
-                  <Download size={20} className="text-gray-700" />
-                  <span className="text-gray-900">Download Content</span>
-                </button>
-                <button className="w-full flex items-center gap-3 px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left">
-                  <HelpCircle size={20} className="text-gray-700" />
-                  <span className="text-gray-900">About {appInfo?.apps_name || appInfo?.name || appName}</span>
-                </button>
-              </div>
-            </motion.div>
-          </div>
+          <AppSettingsModal
+            isOpen={showAppSettingsModal}
+            onClose={() => setShowAppSettingsModal(false)}
+            appLogo={displayLogo}
+            appIcon={displayIcon}
+            appName={appInfo?.apps_name || appInfo?.name || appName || 'App'}
+          />
         )}
       </AnimatePresence>
 
