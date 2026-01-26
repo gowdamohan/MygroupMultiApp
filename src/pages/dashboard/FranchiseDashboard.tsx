@@ -4,13 +4,17 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Users, Building2, MapPin, TrendingUp, LogOut,
   ChevronDown, ChevronRight, Menu, X, Search, Bell, Settings,
-  User, Lock, FileText, Wallet, Truck, Calculator, Database,
+  User, Lock, Wallet, Truck, Calculator, Database,
   Clock, BarChart3, DollarSign, Package, Shield, Mail
 } from 'lucide-react';
 import { RegionalOfficeLogin } from '../franchise/RegionalOfficeLogin';
 import { BranchOfficeLogin } from '../franchise/BranchOfficeLogin';
 import { Accounts } from '../franchise/Accounts';
 import { FranchiseHeaderAds } from '../franchise/FranchiseHeaderAds';
+import { FranchiseAdminDetails } from '../franchise/FranchiseAdminDetails';
+import { FranchiseOfficeAddress } from '../franchise/FranchiseOfficeAddress';
+import { FranchiseChangePassword } from '../franchise/FranchiseChangePassword';
+import { FranchiseOfferAds } from '../franchise/FranchiseOfferAds';
 import axios from 'axios';
 import { API_BASE_URL } from '../../config/api.config';
 
@@ -77,6 +81,38 @@ export const FranchiseDashboard: React.FC = () => {
 
     return () => clearInterval(timer);
   }, [navigate]);
+
+  // Sync active menu and expanded menus from current path
+  useEffect(() => {
+    const path = location.pathname;
+    const pathToMenuId: Record<string, string> = {
+      '/dashboard/franchise': 'dashboard',
+      '/franchise/create-regional-office-login': 'regional-office-login',
+      '/franchise/create-branch-office-login': 'branch-office-login',
+      '/franchise/franchise-offer-ads': 'offer-ads',
+      '/franchise/create-header-ads-head-office': 'header-ads',
+      '/franchise/create-header-ads-branch-office': 'header-ads-1',
+      '/franchise/create-header-ads-2': 'header-ads-2',
+      '/franchise/admin-details': 'admin-details',
+      '/franchise/office-address': 'office-address',
+      '/franchise/change-password': 'change-password',
+      '/franchise/accounts': 'accounts',
+      '/franchise/wallet': 'franchise-wallet',
+      '/franchise/shipping-details': 'shipping-details',
+      '/franchise/client-database': 'client-database',
+      '/franchise/public-database': 'public-database'
+    };
+    const menuId = pathToMenuId[path];
+    if (menuId) {
+      setActiveMenu(menuId);
+      if (['admin-details', 'office-address', 'change-password'].includes(menuId)) {
+        setExpandedMenus(prev => prev.includes('profile') ? prev : [...prev, 'profile']);
+      }
+      if (['header-ads', 'header-ads-1', 'header-ads-2'].includes(menuId)) {
+        setExpandedMenus(prev => prev.includes('advertisement') ? prev : [...prev, 'advertisement']);
+      }
+    }
+  }, [location.pathname]);
 
   const fetchUserProfile = async () => {
     try {
@@ -155,7 +191,6 @@ export const FranchiseDashboard: React.FC = () => {
       children: [
         { id: 'admin-details', label: 'Admin Details', icon: User, path: '/franchise/admin-details' },
         { id: 'office-address', label: 'Office Address', icon: MapPin, path: '/franchise/office-address' },
-        { id: 'terms', label: 'Terms and Conditions', icon: FileText, path: '/franchise/terms-conditions-view' },
         { id: 'change-password', label: 'Change Password', icon: Lock, path: '/franchise/change-password' }
       ]
     },
@@ -296,6 +331,10 @@ export const FranchiseDashboard: React.FC = () => {
       return <Accounts />;
     }
 
+    if (path === '/franchise/franchise-offer-ads') {
+      return <FranchiseOfferAds />;
+    }
+
     if (path === '/franchise/create-header-ads-head-office') {
       return <FranchiseHeaderAds officeLevel="head_office" adSlot="ads1" />;
     }
@@ -306,6 +345,18 @@ export const FranchiseDashboard: React.FC = () => {
 
     if (path === '/franchise/create-header-ads-2') {
       return <FranchiseHeaderAds officeLevel={userRole} adSlot="ads2" />;
+    }
+
+    if (path === '/franchise/admin-details') {
+      return <FranchiseAdminDetails />;
+    }
+
+    if (path === '/franchise/office-address') {
+      return <FranchiseOfficeAddress />;
+    }
+
+    if (path === '/franchise/change-password') {
+      return <FranchiseChangePassword />;
     }
 
     // Default dashboard view

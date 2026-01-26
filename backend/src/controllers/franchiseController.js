@@ -1,4 +1,4 @@
-import { User, Group, UserGroup, FranchiseHolder, Country, State, District } from '../models/index.js';
+import { User, Group, UserGroup, FranchiseHolder, Country, State, District, FranchiseOfficeAddress } from '../models/index.js';
 import { Op } from 'sequelize';
 
 // Get all head office users with country filter
@@ -353,16 +353,17 @@ export const getRegionalOfficeUsers = async (req, res) => {
 export const createRegionalOfficeUser = async (req, res) => {
   try {
     const { first_name, phone, email, username, country, state } = req.body;
+    const usernameLower = (username || '').toString().trim().toLowerCase();
 
     // Validate required fields
-    if (!first_name || !phone || !email || !username || !country || !state) {
+    if (!first_name || !phone || !email || !usernameLower || !country || !state) {
       return res.status(400).json({ message: 'All fields are required' });
     }
 
     // Check if username or email already exists
     const existingUser = await User.findOne({
       where: {
-        [Op.or]: [{ username }, { email }]
+        [Op.or]: [{ username: usernameLower }, { email }]
       }
     });
 
@@ -376,12 +377,12 @@ export const createRegionalOfficeUser = async (req, res) => {
       return res.status(404).json({ message: 'Regional office group not found' });
     }
 
-    // Create user with default password '123456'
+    // Create user with default password '123456' (username stored lowercase)
     const user = await User.create({
       first_name,
       phone,
       email,
-      username,
+      username: usernameLower,
       password: '123456', // Will be hashed by User model hook
       active: 1 // Active by default
     });
@@ -430,6 +431,9 @@ export const updateRegionalOfficeUser = async (req, res) => {
   try {
     const { id } = req.params;
     const { first_name, phone, email, username, country, state } = req.body;
+    const usernameLower = username !== undefined && username !== null
+      ? (username).toString().trim().toLowerCase()
+      : null;
 
     // Find user
     const user = await User.findByPk(id);
@@ -438,12 +442,12 @@ export const updateRegionalOfficeUser = async (req, res) => {
     }
 
     // Check if username or email already exists (excluding current user)
-    if (username || email) {
+    if (usernameLower !== null || email) {
       const existingUser = await User.findOne({
         where: {
           id: { [Op.ne]: id },
           [Op.or]: [
-            username ? { username } : null,
+            usernameLower !== null ? { username: usernameLower } : null,
             email ? { email } : null
           ].filter(Boolean)
         }
@@ -454,12 +458,12 @@ export const updateRegionalOfficeUser = async (req, res) => {
       }
     }
 
-    // Update user
+    // Update user (enforce lowercase username)
     await user.update({
       first_name: first_name || user.first_name,
       phone: phone || user.phone,
       email: email || user.email,
-      username: username || user.username
+      username: usernameLower !== null ? usernameLower : (user.username || '').toString().toLowerCase()
     });
 
     // Update franchise holder if country or state is provided
@@ -654,14 +658,15 @@ export const getBranchOfficeUsers = async (req, res) => {
 export const createBranchOfficeUser = async (req, res) => {
   try {
     const { first_name, phone, email, username, country, state, district } = req.body;
+    const usernameLower = (username || '').toString().trim().toLowerCase();
 
     // Validate required fields
-    if (!first_name || !phone || !email || !username || !country || !state || !district) {
+    if (!first_name || !phone || !email || !usernameLower || !country || !state || !district) {
       return res.status(400).json({ message: 'All fields are required' });
     }
 
     // Check if username already exists
-    const existingUser = await User.findOne({ where: { username } });
+    const existingUser = await User.findOne({ where: { username: usernameLower } });
     if (existingUser) {
       return res.status(400).json({ message: 'Username already exists' });
     }
@@ -672,12 +677,12 @@ export const createBranchOfficeUser = async (req, res) => {
       return res.status(404).json({ message: 'Branch office group not found' });
     }
 
-    // Create user with default password
+    // Create user with default password (username stored lowercase)
     const user = await User.create({
       first_name,
       phone,
       email,
-      username,
+      username: usernameLower,
       password: '123456', // Default password
       active: 1
     });
@@ -708,9 +713,10 @@ export const updateBranchOfficeUser = async (req, res) => {
   try {
     const { id } = req.params;
     const { first_name, phone, email, username } = req.body;
+    const usernameLower = (username || '').toString().trim().toLowerCase();
 
     // Validate required fields
-    if (!first_name || !phone || !email || !username) {
+    if (!first_name || !phone || !email || !usernameLower) {
       return res.status(400).json({ message: 'All fields are required' });
     }
 
@@ -723,7 +729,7 @@ export const updateBranchOfficeUser = async (req, res) => {
     // Check if username is taken by another user
     const existingUser = await User.findOne({
       where: {
-        username,
+        username: usernameLower,
         id: { [Op.ne]: id }
       }
     });
@@ -731,12 +737,12 @@ export const updateBranchOfficeUser = async (req, res) => {
       return res.status(400).json({ message: 'Username already exists' });
     }
 
-    // Update user
+    // Update user (enforce lowercase username)
     await user.update({
       first_name,
       phone,
       email,
-      username
+      username: usernameLower
     });
 
     res.json({ message: 'Branch office user updated successfully', user });
@@ -787,6 +793,89 @@ export const toggleBranchOfficeStatus = async (req, res) => {
   } catch (error) {
     console.error('Error toggling status:', error);
     res.status(500).json({ message: 'Error toggling status', error: error.message });
+  }
+};
+
+// ==================== FRANCHISE OFFICE ADDRESS ====================
+// Office address is stored per group_id (from groups table: head_office, regional, branch).
+
+export const getOfficeAddress = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+    const userGroup = await UserGroup.findOne({
+      where: { user_id: userId },
+      include: [{ model: Group, as: 'group', attributes: ['id'] }]
+    });
+    const groupId = userGroup?.group?.id;
+    if (!groupId) {
+      return res.status(400).json({ message: 'User has no franchise group' });
+    }
+    const record = await FranchiseOfficeAddress.findOne({
+      where: { group_id: groupId }
+    });
+    res.json({
+      success: true,
+      data: record ? {
+        id: record.id,
+        phone: record.phone,
+        email: record.email,
+        address_html: record.address_html
+      } : { phone: '', email: '', address_html: '' }
+    });
+  } catch (error) {
+    console.error('Error fetching franchise office address:', error);
+    res.status(500).json({ message: 'Error fetching office address', error: error.message });
+  }
+};
+
+export const updateOfficeAddress = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+    const userGroup = await UserGroup.findOne({
+      where: { user_id: userId },
+      include: [{ model: Group, as: 'group', attributes: ['id'] }]
+    });
+    const groupId = userGroup?.group?.id;
+    if (!groupId) {
+      return res.status(400).json({ message: 'User has no franchise group' });
+    }
+    const { phone, email, address_html } = req.body;
+    let record = await FranchiseOfficeAddress.findOne({
+      where: { group_id: groupId }
+    });
+    if (!record) {
+      record = await FranchiseOfficeAddress.create({
+        group_id: groupId,
+        phone: phone || '',
+        email: email || '',
+        address_html: address_html || ''
+      });
+    } else {
+      await record.update({
+        phone: phone !== undefined ? phone : record.phone,
+        email: email !== undefined ? email : record.email,
+        address_html: address_html !== undefined ? address_html : record.address_html
+      });
+    }
+    res.json({
+      success: true,
+      message: 'Office address updated successfully',
+      data: {
+        id: record.id,
+        phone: record.phone,
+        email: record.email,
+        address_html: record.address_html
+      }
+    });
+  } catch (error) {
+    console.error('Error updating franchise office address:', error);
+    res.status(500).json({ message: 'Error updating office address', error: error.message });
   }
 };
 

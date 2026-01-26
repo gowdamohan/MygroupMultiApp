@@ -12,6 +12,7 @@ interface State {
   id: number;
   state: string;
   country_id: number;
+  country?: { id: number; country: string; code?: string };
 }
 
 interface RegionalOfficeUser {
@@ -46,7 +47,7 @@ export const RegionalOfficeLogin: React.FC = () => {
   const [stateRows, setStateRows] = useState<StateRow[]>([]);
   const [countries, setCountries] = useState<Country[]>([]);
   const [states, setStates] = useState<State[]>([]);
-  const [selectedCountry, setSelectedCountry] = useState<string>('');
+  const [selectedCountry, setSelectedCountry] = useState<string>(''); // '' = All (default)
   const [loading, setLoading] = useState(false);
   const [resetPasswordId, setResetPasswordId] = useState<number | null>(null);
   const [newPassword, setNewPassword] = useState('');
@@ -56,14 +57,8 @@ export const RegionalOfficeLogin: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (selectedCountry) {
-      setStates([]);
-      setStateRows([]);
-      fetchStates(selectedCountry);
-    } else {
-      setStates([]);
-      setStateRows([]);
-    }
+    setStateRows([]);
+    fetchStates(selectedCountry);
   }, [selectedCountry]);
 
   useEffect(() => {
@@ -89,12 +84,16 @@ export const RegionalOfficeLogin: React.FC = () => {
   const fetchStates = async (countryId: string) => {
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await axios.get(`${API_BASE_URL}/admin/states?country_id=${countryId}`, {
+      const url = countryId
+        ? `${API_BASE_URL}/admin/states?country_id=${countryId}`
+        : `${API_BASE_URL}/admin/states`;
+      const response = await axios.get(url, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setStates(response.data.data || []);
     } catch (error) {
       console.error('Error fetching states:', error);
+      setStates([]);
     }
   };
 
@@ -107,9 +106,12 @@ export const RegionalOfficeLogin: React.FC = () => {
       });
       const users: RegionalOfficeUser[] = response.data;
 
-      // Build rows: one row per state
+      // Build rows: one row per state. Username format: <country_code>_<state_name>
       const rows: StateRow[] = states.map(state => {
         const user = users.find(u => u.state_id === state.id);
+        const countryCode = (state as any).country?.code ?? state.country_id ?? '';
+        const stateNameNorm = (state.state || '').replace(/\s+/g, '_');
+        const defaultUsername = `${countryCode}_${stateNameNorm}`.toLowerCase();
         return {
           state_id: state.id,
           state_name: state.state,
@@ -125,7 +127,7 @@ export const RegionalOfficeLogin: React.FC = () => {
             first_name: '',
             phone: '',
             email: '',
-            username: `my_${state.state.toLowerCase().replace(/\s+/g, '_')}`
+            username: defaultUsername
           }
         };
       });
@@ -161,6 +163,7 @@ export const RegionalOfficeLogin: React.FC = () => {
       const token = localStorage.getItem('accessToken');
       const payload = {
         ...row.formData,
+        username: (row.formData.username || '').trim().toLowerCase(),
         country: selectedCountry,
         state: stateId.toString()
       };
@@ -264,7 +267,7 @@ export const RegionalOfficeLogin: React.FC = () => {
           {/* Country Filter */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Select Country <span className="text-red-500">*</span>
+              Select Country
             </label>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
@@ -273,7 +276,7 @@ export const RegionalOfficeLogin: React.FC = () => {
                 onChange={(e) => setSelectedCountry(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
-                <option value="">Select Country</option>
+                <option value="">All</option>
                 {countries.map((country) => (
                   <option key={country.id} value={country.id}>
                     {country.country}
@@ -285,11 +288,7 @@ export const RegionalOfficeLogin: React.FC = () => {
         </div>
       </div>
 
-      {!selectedCountry ? (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
-          <p className="text-gray-500">Please select a country to view states</p>
-        </div>
-      ) : (
+      {(
         <>
           {/* Users Table */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">

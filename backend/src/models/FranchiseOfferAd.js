@@ -17,7 +17,18 @@ const FranchiseOfferAd = sequelize.define('franchise_offer_ads', {
   },
   group_id: {
     type: DataTypes.INTEGER,
-    allowNull: true
+    allowNull: true,
+    comment: '1 = regional (state), 2 = branch (district)'
+  },
+  state_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: { model: 'state_tbl', key: 'id' }
+  },
+  district_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: { model: 'district_tbl', key: 'id' }
   }
 }, {
   timestamps: false,

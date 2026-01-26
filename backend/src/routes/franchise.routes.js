@@ -14,8 +14,11 @@ import {
   createBranchOfficeUser,
   updateBranchOfficeUser,
   resetBranchOfficePassword,
-  toggleBranchOfficeStatus
+  toggleBranchOfficeStatus,
+  getOfficeAddress,
+  updateOfficeAddress
 } from '../controllers/franchiseController.js';
+import { authenticate } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -39,6 +42,10 @@ router.post('/branch-office-users', createBranchOfficeUser);
 router.put('/branch-office-users/:id', updateBranchOfficeUser);
 router.post('/branch-office-users/:id/reset-password', resetBranchOfficePassword);
 router.patch('/branch-office-users/:id/toggle-status', toggleBranchOfficeStatus);
+
+// Franchise office address (authenticated)
+router.get('/office-address', authenticate, getOfficeAddress);
+router.put('/office-address', authenticate, updateOfficeAddress);
 
 export default router;
 

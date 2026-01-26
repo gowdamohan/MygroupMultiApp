@@ -59,6 +59,7 @@ import FooterLink from './FooterLink.js';
 import FooterFaq from './FooterFaq.js';
 import FooterPageImage from './FooterPageImage.js';
 import FranchiseOfferAd from './FranchiseOfferAd.js';
+import FranchiseOfficeAddress from './FranchiseOfficeAddress.js';
 
 // ============================================
 // USER ASSOCIATIONS
@@ -295,6 +296,16 @@ FranchiseHolder.belongsTo(State, {
 FranchiseHolder.belongsTo(District, {
   foreignKey: 'district',
   as: 'districtData'
+});
+
+// Group has one FranchiseOfficeAddress (per franchise group: head_office, regional, branch)
+Group.hasOne(FranchiseOfficeAddress, {
+  foreignKey: 'group_id',
+  as: 'franchiseOfficeAddress'
+});
+FranchiseOfficeAddress.belongsTo(Group, {
+  foreignKey: 'group_id',
+  as: 'group'
 });
 
 // ============================================
@@ -795,6 +806,7 @@ export {
   FooterLink,
   FooterFaq,
   FooterPageImage,
-  FranchiseOfferAd
+  FranchiseOfferAd,
+  FranchiseOfficeAddress
 };
 

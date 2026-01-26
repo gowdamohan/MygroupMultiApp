@@ -18,6 +18,7 @@ interface District {
   id: number;
   district: string;
   state_id: number;
+  state?: { id: number; state: string; code?: string; country_id?: number; country?: { id: number; code?: string } };
 }
 
 interface BranchOfficeUser {
@@ -54,8 +55,8 @@ export const BranchOfficeLogin: React.FC = () => {
   const [countries, setCountries] = useState<Country[]>([]);
   const [states, setStates] = useState<State[]>([]);
   const [districts, setDistricts] = useState<District[]>([]);
-  const [selectedCountry, setSelectedCountry] = useState('');
-  const [selectedState, setSelectedState] = useState('');
+  const [selectedCountry, setSelectedCountry] = useState(''); // '' = All
+  const [selectedState, setSelectedState] = useState(''); // '' = All
   const [districtRows, setDistrictRows] = useState<DistrictRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [resetPasswordId, setResetPasswordId] = useState<number | null>(null);
@@ -66,43 +67,28 @@ export const BranchOfficeLogin: React.FC = () => {
     fetchCountries();
   }, []);
 
-  // Fetch states when country changes
+  // Fetch states when country changes (empty = All states)
   useEffect(() => {
-    if (selectedCountry) {
-      fetchStates(selectedCountry);
-      setSelectedState('');
-      setDistricts([]);
-      setDistrictRows([]);
-    } else {
-      setStates([]);
-      setDistricts([]);
-      setDistrictRows([]);
-    }
+    setSelectedState('');
+    setDistricts([]);
+    setDistrictRows([]);
+    fetchStates(selectedCountry);
   }, [selectedCountry]);
 
-  // Fetch districts when state changes
+  // Fetch districts when state changes (empty = All districts)
   useEffect(() => {
-    if (selectedState) {
-      setDistrictRows([]);
-      fetchDistricts(selectedState);
-    } else {
-      setDistricts([]);
-      setDistrictRows([]);
-    }
+    setDistrictRows([]);
+    fetchDistricts(selectedState);
   }, [selectedState]);
 
-  // Fetch users and build rows when filters change
+  // Fetch users and build rows when districts change
   useEffect(() => {
-    if (selectedCountry && selectedState) {
-      if (districts.length === 0) {
-        setDistrictRows([]);
-        return;
-      }
-      fetchUsersAndBuildRows();
-    } else {
+    if (districts.length === 0) {
       setDistrictRows([]);
+      return;
     }
-  }, [selectedCountry, selectedState, districts]);
+    fetchUsersAndBuildRows();
+  }, [districts]);
 
   const fetchCountries = async () => {
     try {
@@ -120,9 +106,10 @@ export const BranchOfficeLogin: React.FC = () => {
   const fetchStates = async (countryId: string) => {
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await axios.get(`${API_BASE_URL}/admin/states?country_id=${countryId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const url = countryId
+        ? `${API_BASE_URL}/admin/states?country_id=${countryId}`
+        : `${API_BASE_URL}/admin/states`;
+      const response = await axios.get(url, { headers: { Authorization: `Bearer ${token}` } });
       setStates(response.data.data || []);
     } catch (error) {
       console.error('Error fetching states:', error);
@@ -133,9 +120,10 @@ export const BranchOfficeLogin: React.FC = () => {
   const fetchDistricts = async (stateId: string) => {
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await axios.get(`${API_BASE_URL}/admin/districts?state_id=${stateId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const url = stateId
+        ? `${API_BASE_URL}/admin/districts?state_id=${stateId}`
+        : `${API_BASE_URL}/admin/districts`;
+      const response = await axios.get(url, { headers: { Authorization: `Bearer ${token}` } });
       setDistricts(response.data.data || []);
     } catch (error) {
       console.error('Error fetching districts:', error);
@@ -147,25 +135,30 @@ export const BranchOfficeLogin: React.FC = () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
+      const params = new URLSearchParams();
+      if (selectedCountry) params.set('country', selectedCountry);
+      if (selectedState) params.set('state', selectedState);
+      const query = params.toString();
+      const url = query
+        ? `${API_BASE_URL}/franchise/branch-office-users?${query}`
+        : `${API_BASE_URL}/franchise/branch-office-users`;
 
-      // Build query params
-      const queryParams = `country=${selectedCountry}&state=${selectedState}`;
-
-      // Fetch users
-      const response = await axios.get(
-        `${API_BASE_URL}/franchise/branch-office-users?${queryParams}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const response = await axios.get(url, { headers: { Authorization: `Bearer ${token}` } });
       const users: BranchOfficeUser[] = response.data;
 
-      // Build rows - one row per district
+      // Build rows - one row per district. Username: <country_code><state_code>_<district_name>
       const rows: DistrictRow[] = districts.map(district => {
         const user = users.find(u => u.district_id === district.id);
+        const stateData = (district as any).state;
+        const countryCode = stateData?.country?.code ?? '';
+        const stateCode = stateData?.code ?? '';
+        const districtNorm = (district.district || '').replace(/\s+/g, '_');
+        const defaultUsername = `${countryCode}${stateCode}_${districtNorm}`.toLowerCase();
         return {
           district_id: district.id,
           district_name: district.district,
-          state_id: parseInt(selectedState),
-          country_id: parseInt(selectedCountry),
+          state_id: district.state_id,
+          country_id: stateData?.country_id ?? (district as any).state?.country?.id ?? 0,
           user: user,
           isEditing: false,
           formData: user ? {
@@ -177,7 +170,7 @@ export const BranchOfficeLogin: React.FC = () => {
             first_name: '',
             phone: '',
             email: '',
-            username: `my_${district.district.toLowerCase().replace(/\s+/g, '_')}`
+            username: defaultUsername
           }
         };
       });
@@ -219,11 +212,12 @@ export const BranchOfficeLogin: React.FC = () => {
     try {
       const token = localStorage.getItem('accessToken');
 
+      const usernameLower = (username || '').trim().toLowerCase();
       if (row.user) {
         // Update existing user
         await axios.put(
           `${API_BASE_URL}/franchise/branch-office-users/${row.user.id}`,
-          { first_name, phone, email, username },
+          { first_name, phone, email, username: usernameLower },
           { headers: { Authorization: `Bearer ${token}` } }
         );
         alert('User updated successfully');
@@ -235,7 +229,7 @@ export const BranchOfficeLogin: React.FC = () => {
             first_name,
             phone,
             email,
-            username,
+            username: usernameLower,
             country: row.country_id,
             state: row.state_id,
             district: row.district_id
@@ -326,7 +320,7 @@ export const BranchOfficeLogin: React.FC = () => {
           {/* Country Filter */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Select Country <span className="text-red-500">*</span>
+              Select Country
             </label>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
@@ -335,7 +329,7 @@ export const BranchOfficeLogin: React.FC = () => {
                 onChange={(e) => setSelectedCountry(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
-                <option value="">Select Country</option>
+                <option value="">All</option>
                 {countries.map((country) => (
                   <option key={country.id} value={country.id}>
                     {country.country}
@@ -348,7 +342,7 @@ export const BranchOfficeLogin: React.FC = () => {
           {/* State Filter */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Select State <span className="text-red-500">*</span>
+              Select State
             </label>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
@@ -356,9 +350,8 @@ export const BranchOfficeLogin: React.FC = () => {
                 value={selectedState}
                 onChange={(e) => setSelectedState(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                disabled={!selectedCountry}
               >
-                <option value="">Select State</option>
+                <option value="">All</option>
                 {states.map((state) => (
                   <option key={state.id} value={state.id}>
                     {state.state}
@@ -370,11 +363,7 @@ export const BranchOfficeLogin: React.FC = () => {
         </div>
       </div>
 
-      {!selectedCountry || !selectedState ? (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
-          <p className="text-gray-500">Please select country and state to view districts</p>
-        </div>
-      ) : (
+      {(
         <>
           {/* Users Table */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
