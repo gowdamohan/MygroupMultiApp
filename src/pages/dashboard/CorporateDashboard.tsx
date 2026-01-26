@@ -553,7 +553,7 @@ export const CorporateDashboard: React.FC = () => {
             </button>
 
             {/* User Menu */}
-            <div className="flex items-center gap-3 pl-4 border-l border-gray-200">
+            {/* <div className="flex items-center gap-3 pl-4 border-l border-gray-200">
               <div className="text-right hidden sm:block">
                 <div className="text-sm font-medium text-gray-900">
                   {user?.first_name} {user?.last_name}
@@ -563,7 +563,7 @@ export const CorporateDashboard: React.FC = () => {
               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center text-white font-medium">
                 {user?.first_name?.[0]}{user?.last_name?.[0]}
               </div>
-            </div>
+            </div> */}
           </div>
         </header>
 

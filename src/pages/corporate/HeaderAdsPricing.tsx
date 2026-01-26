@@ -2,14 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Calendar, Save, ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion } from 'motion/react';
 import axios from 'axios';
-import { API_BASE_URL } from '../../config/api.config';
+import { API_BASE_URL, getUploadUrl} from '../../config/api.config';
 
 interface Country {
   id: number;
   name: string;
   currency_code: string;
   currency_symbol: string;
-  flag_icon: string;
+  flag_icon?: string | null;
 }
 
 interface App {
@@ -78,6 +78,7 @@ export const HeaderAdsPricing: React.FC = () => {
   const [showMasterPriceDialog, setShowMasterPriceDialog] = useState(false);
   const [masterPriceDialogData, setMasterPriceDialogData] = useState<MasterPriceDialogData | null>(null);
   const [newMasterPrice, setNewMasterPrice] = useState('');
+  const [flagImageError, setFlagImageError] = useState(false);
 
   useEffect(() => {
     fetchCountries();
@@ -104,6 +105,10 @@ export const HeaderAdsPricing: React.FC = () => {
       fetchPricing();
     }
   }, [selectedCountryId, selectedSlot, selectedAppId, selectedCategoryId, currentMonth]);
+
+  useEffect(() => {
+    setFlagImageError(false);
+  }, [selectedCountryId]);
 
   const fetchCountries = async () => {
     try {
@@ -287,6 +292,68 @@ export const HeaderAdsPricing: React.FC = () => {
     return days;
   };
 
+  /** Resolve flag/icon URL: supports relative path, absolute path, or full URL (getUploadUrl handles all). */
+  const getFlagImageUrl = (path?: string | null): string => {
+    if (!path || typeof path !== 'string') return '';
+    const trimmed = path.trim();
+    return trimmed ? getUploadUrl(trimmed) : '';
+  };
+
+  /** Whether the value looks like an image path/URL (not an emoji or placeholder). */
+  const isImagePath = (path?: string | null) => {
+    if (!path || typeof path !== 'string') return false;
+    const p = path.trim();
+    return (
+      p.startsWith('/') ||
+      p.startsWith('http://') ||
+      p.startsWith('https://') ||
+      p.startsWith('data:') ||
+      /\.(png|svg|jpe?g|gif|webp)(\?|$)/i.test(p) ||
+      p.includes('uploads/')
+    );
+  };
+
+  const renderImage = (path?: string | null, alt?: string) => {
+    if (!path || !isImagePath(path)) {
+      return <span className="text-gray-500">-</span>;
+    }
+    const src = getFlagImageUrl(path);
+    if (!src) return <span className="text-gray-500">-</span>;
+    return (
+      <img
+        src={src}
+        alt={alt || 'asset'}
+        className="h-8 w-8 rounded border border-gray-300 object-cover bg-gray-100"
+        onError={(e) => {
+          (e.target as HTMLImageElement).style.display = 'none';
+        }}
+      />
+    );
+  };
+
+  /** Render country flag in "My Coins" section: uses flag_icon (PNG/SVG/URL), with fallback on error. */
+  const renderCountryFlag = (country: Country | undefined) => {
+    const fallback = (
+      <span className="inline-flex h-8 w-8 items-center justify-center rounded border border-white/30 bg-white/10 text-lg" title={country?.name}>
+        🏳️
+      </span>
+    );
+    if (!country) return fallback;
+    if (flagImageError) return fallback;
+    const path = country.flag_icon?.trim();
+    if (!path || !isImagePath(path)) return fallback;
+    const src = getFlagImageUrl(path);
+    if (!src) return fallback;
+    return (
+      <img
+        src={src}
+        alt={`${country.name} flag`}
+        className="h-8 w-8 rounded border border-white/30 object-contain bg-white/10 flex-shrink-0"
+        onError={() => setFlagImageError(true)}
+      />
+    );
+  };
+
   const getPriceForDate = (date: Date): number => {
     const dateStr = formatDate(date);
     const slavePricing = pricingData.slaves.find(s => {
@@ -352,8 +419,10 @@ export const HeaderAdsPricing: React.FC = () => {
           <div className="bg-white/20 rounded px-4 py-2 text-center">
             <div className="text-sm font-medium">My Coins pricing value</div>
           </div>
-          <div className="bg-purple-600 rounded px-4 py-2 flex items-center justify-between">
-            <span className="text-sm">{selectedCountry?.flag_icon || '🏳️'}</span>
+          <div className="bg-purple-600 rounded px-4 py-2 flex items-center justify-between gap-3">
+            <span className="flex items-center flex-shrink-0">
+              {renderCountryFlag(selectedCountry)}
+            </span>
             <select
               value={selectedCountryId}
               onChange={(e) => setSelectedCountryId(e.target.value)}
