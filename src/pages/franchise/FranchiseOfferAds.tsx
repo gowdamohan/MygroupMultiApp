@@ -1,40 +1,78 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Upload, Trash2, MapPin, Building2, Link2, FileImage, Plus } from 'lucide-react';
+import { MapPin, Building2, Upload, Loader2 } from 'lucide-react';
 import { API_BASE_URL } from '../../config/api.config';
+
+type TabType = 'regional' | 'branch';
+type AdType = 'ads1' | 'ads2';
 
 interface OfferAd {
   id: number;
   image_path: string | null;
-  image_url: string;
+  image_url: string | null;
   group_name: string;
+  type: AdType | null;
+  slot: number | null;
+  signed_url?: string | null;
 }
 
-type TabType = 'regional' | 'branch';
-type AddMode = 'url' | 'file';
+interface RowState {
+  file: File | null;
+  displayUrl: string | null;
+  saving: boolean;
+}
+
+const SLOTS = [1, 2, 3] as const;
 
 export const FranchiseOfferAds: React.FC = () => {
   const [tab, setTab] = useState<TabType>('regional');
   const [ads, setAds] = useState<OfferAd[]>([]);
   const [loading, setLoading] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [addMode, setAddMode] = useState<AddMode>('file');
-  const [files, setFiles] = useState<File[]>([]);
-  const [urls, setUrls] = useState<string[]>(['']);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const fileInputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
 
   const groupName = tab;
 
+  const getRowKey = (adType: AdType, slot: number) => `${adType}-${slot}`;
+
+  const [rowState, setRowState] = useState<{ [key: string]: RowState }>(() => {
+    const init: { [key: string]: RowState } = {};
+    (['ads1', 'ads2'] as const).forEach(adType => {
+      SLOTS.forEach(slot => {
+        init[getRowKey(adType, slot)] = { file: null, displayUrl: null, saving: false };
+      });
+    });
+    return init;
+  });
+
   const fetchAds = () => {
     const token = localStorage.getItem('accessToken');
-    const params: Record<string, string> = { limit: '100', group_name: groupName };
     setLoading(true);
     axios.get(`${API_BASE_URL}/franchise-offer-ads`, {
       headers: { Authorization: `Bearer ${token}` },
-      params
+      params: { group_name: groupName, limit: 100 }
     })
       .then(res => {
-        if (res.data.success) setAds(res.data.data || []);
+        if (res.data.success) {
+          const list = res.data.data || [];
+          setAds(list);
+          setRowState(prev => {
+            const next = { ...prev };
+            (['ads1', 'ads2'] as const).forEach(adType => {
+              SLOTS.forEach(slot => {
+                const key = getRowKey(adType, slot);
+                const ad = list.find((a: OfferAd) => a.type === adType && a.slot === slot);
+                next[key] = {
+                  ...prev[key],
+                  file: null,
+                  displayUrl: ad ? (ad.signed_url || ad.image_url || null) : null,
+                  saving: false
+                };
+              });
+            });
+            return next;
+          });
+        }
       })
       .catch(() => setAds([]))
       .finally(() => setLoading(false));
@@ -44,95 +82,132 @@ export const FranchiseOfferAds: React.FC = () => {
     fetchAds();
   }, [tab]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const list = e.target.files ? Array.from(e.target.files) : [];
-    setFiles(prev => [...prev, ...list]);
+  const setFileForRow = (adType: AdType, slot: number, file: File | null) => {
+    const key = getRowKey(adType, slot);
+    setRowState(prev => ({
+      ...prev,
+      [key]: { ...prev[key], file, saving: prev[key].saving }
+    }));
   };
 
-  const removeFile = (index: number) => {
-    setFiles(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const addUrlField = () => setUrls(prev => [...prev, '']);
-  const setUrlAt = (index: number, value: string) => {
-    setUrls(prev => prev.map((u, i) => (i === index ? value : u)));
-  };
-  const removeUrlAt = (index: number) => {
-    setUrls(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const handleUploadByUrl = async () => {
-    const imageUrls = urls.map(u => u.trim()).filter(Boolean);
-    if (imageUrls.length === 0) {
-      setMessage({ type: 'error', text: 'Please enter at least one image URL.' });
+  const handleSaveRow = async (adType: AdType, slot: number) => {
+    const key = getRowKey(adType, slot);
+    const state = rowState[key];
+    const token = localStorage.getItem('accessToken');
+    if (!state.file) {
+      setMessage({ type: 'error', text: 'Select an image file to upload for this row.' });
       return;
     }
 
-    setUploading(true);
+    setRowState(prev => ({ ...prev, [key]: { ...prev[key], saving: true } }));
     setMessage(null);
-    const token = localStorage.getItem('accessToken');
-    try {
-      const res = await axios.post(
-        `${API_BASE_URL}/franchise-offer-ads/by-url`,
-        { group_name: groupName, image_urls: imageUrls },
-        { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
-      );
-      setMessage({ type: 'success', text: res.data.message || 'URLs added successfully.' });
-      setUrls(['']);
-      fetchAds();
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err.response?.data?.message || 'Failed to add URLs.' });
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const handleUploadFiles = async () => {
-    if (files.length === 0) {
-      setMessage({ type: 'error', text: 'Please select at least one image.' });
-      return;
-    }
-
-    setUploading(true);
-    setMessage(null);
-    const token = localStorage.getItem('accessToken');
-    const formData = new FormData();
-    formData.append('group_name', groupName);
-    files.forEach(f => formData.append('images', f));
 
     try {
-      const res = await axios.post(`${API_BASE_URL}/franchise-offer-ads`, formData, {
+      const formData = new FormData();
+      formData.append('group_name', groupName);
+      formData.append('type', adType);
+      formData.append('slot', String(slot));
+      formData.append('image', state.file);
+      const res = await axios.post(`${API_BASE_URL}/franchise-offer-ads/save-row`, formData, {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
       });
-      setMessage({ type: 'success', text: res.data.message || 'Uploaded successfully.' });
-      setFiles([]);
-      fetchAds();
+      if (res.data.success) {
+        setMessage({ type: 'success', text: 'Saved.' });
+        setFileForRow(adType, slot, null);
+        fetchAds();
+      } else throw new Error(res.data.message);
     } catch (err: any) {
-      setMessage({ type: 'error', text: err.response?.data?.message || 'Upload failed.' });
+      setMessage({ type: 'error', text: err.response?.data?.message || 'Save failed.' });
     } finally {
-      setUploading(false);
+      setRowState(prev => ({ ...prev, [key]: { ...prev[key], saving: false } }));
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!window.confirm('Delete this image?')) return;
-    const token = localStorage.getItem('accessToken');
-    try {
-      await axios.delete(`${API_BASE_URL}/franchise-offer-ads/${id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setMessage({ type: 'success', text: 'Deleted.' });
-      fetchAds();
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err.response?.data?.message || 'Delete failed.' });
-    }
-  };
+  const renderSectionTable = (adType: AdType, title: string) => (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <h3 className="text-lg font-semibold text-gray-900 px-4 py-3 border-b border-gray-200 bg-gray-50">
+        {title}
+      </h3>
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr className="bg-gray-100">
+              <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700 w-12">#</th>
+              <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700">File Upload</th>
+              <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700 w-28">Save</th>
+            </tr>
+          </thead>
+          <tbody>
+            {SLOTS.map(slot => {
+              const key = getRowKey(adType, slot);
+              const state = rowState[key];
+              const hasFile = !!state.file;
+              return (
+                <tr key={slot} className="hover:bg-gray-50/50">
+                  <td className="border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700">{slot}</td>
+                  <td className="border border-gray-300 px-3 py-2">
+                    <input
+                      ref={el => { fileInputRefs.current[key] = el; }}
+                      type="file"
+                      accept="image/jpeg,image/png,image/gif,image/webp"
+                      className="block w-full text-sm text-gray-500 file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:bg-primary-50 file:text-primary-700 file:text-sm"
+                      onChange={e => {
+                        const f = e.target.files?.[0] ?? null;
+                        setFileForRow(adType, slot, f);
+                      }}
+                    />
+                    {state.file && (
+                      <span className="text-xs text-gray-500 mt-0.5 block truncate">{state.file.name}</span>
+                    )}
+                  </td>
+                  <td className="border border-gray-300 px-3 py-2">
+                    <button
+                      type="button"
+                      onClick={() => handleSaveRow(adType, slot)}
+                      disabled={state.saving || !hasFile}
+                      className="flex items-center justify-center gap-1 w-full px-3 py-2 text-sm font-medium rounded-lg bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {state.saving ? <Loader2 className="animate-spin" size={16} /> : 'Save'}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="px-4 py-2 bg-gray-50 border-t border-gray-200 flex flex-wrap gap-4">
+        {SLOTS.map(slot => {
+          const key = getRowKey(adType, slot);
+          const state = rowState[key];
+          const src = state.displayUrl || (state.file ? URL.createObjectURL(state.file) : null);
+          return (
+            <div key={slot} className="flex flex-col items-center">
+              <span className="text-xs text-gray-500 mb-1">Slot {slot}</span>
+              {src ? (
+                <img
+                  src={src}
+                  alt={`Slot ${slot}`}
+                  className="w-16 h-16 object-cover rounded border border-gray-200"
+                  onError={e => { (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><rect fill="%23f3f4f6" width="64" height="64"/><text x="32" y="34" fill="%239ca3af" font-size="10" text-anchor="middle">Error</text></svg>'; }}
+                />
+              ) : (
+                <div className="w-16 h-16 rounded border border-dashed border-gray-300 bg-gray-100 flex items-center justify-center text-xs text-gray-400">
+                  —
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">Offer Ads</h2>
-        <p className="text-gray-600 mt-1">Add images for Regional or Branch via URL or file upload. Stored in franchise_offer_ads (group_name: regional / branch).</p>
+        <h2 className="text-2xl font-bold text-gray-900">Franchise Offer Ads</h2>
+        <p className="text-gray-600 mt-1">Manage offer ads for Regional or Branch. Each section has 3 slots: upload an image per row, then Save. Display uses signed URLs.</p>
       </div>
 
       <div className="flex gap-2 mb-6 border-b border-gray-200">
@@ -162,128 +237,20 @@ export const FranchiseOfferAds: React.FC = () => {
         </div>
       )}
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">Add images (group: {groupName})</h3>
-        <p className="text-sm text-gray-500 mb-4">Choose how to add images for this group.</p>
-
-        <div className="flex gap-2 mb-4 border-b border-gray-100 pb-4">
-          <button
-            type="button"
-            onClick={() => setAddMode('url')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-              addMode === 'url' ? 'bg-primary-50 text-primary-700 border border-primary-200' : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-transparent'
-            }`}
-          >
-            <Link2 size={18} />
-            URL Input
-          </button>
-          <button
-            type="button"
-            onClick={() => setAddMode('file')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-              addMode === 'file' ? 'bg-primary-50 text-primary-700 border border-primary-200' : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-transparent'
-            }`}
-          >
-            <FileImage size={18} />
-            File Upload
-          </button>
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="animate-spin text-primary-600" size={32} />
         </div>
-
-        {addMode === 'url' && (
-          <div className="space-y-3">
-            <p className="text-sm text-gray-600">Enter one or more image URLs. Each URL will be saved for group &quot;{groupName}&quot;.</p>
-            {urls.map((url, i) => (
-              <div key={i} className="flex gap-2 items-center">
-                <input
-                  type="url"
-                  value={url}
-                  onChange={e => setUrlAt(i, e.target.value)}
-                  placeholder="https://example.com/image.jpg"
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                />
-                {urls.length > 1 ? (
-                  <button type="button" onClick={() => removeUrlAt(i)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg" title="Remove">×</button>
-                ) : null}
-              </div>
-            ))}
-            <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={addUrlField} className="flex items-center gap-1 px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">
-                <Plus size={16} /> Add URL
-              </button>
-              <button
-                type="button"
-                onClick={handleUploadByUrl}
-                disabled={uploading || !urls.some(u => u.trim())}
-                className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {uploading ? 'Adding...' : 'Add by URL'}
-              </button>
-            </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="lg:col-span-1">
+            {renderSectionTable('ads1', 'Ads1 (Div1)')}
           </div>
-        )}
-
-        {addMode === 'file' && (
-          <div className="space-y-3">
-            <p className="text-sm text-gray-600">Select one or more image files to upload for group &quot;{groupName}&quot;.</p>
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/gif,image/webp"
-              multiple
-              onChange={handleFileChange}
-              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100"
-            />
-            {files.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {files.map((f, i) => (
-                  <span key={i} className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 rounded text-sm">
-                    {f.name}
-                    <button type="button" onClick={() => removeFile(i)} className="text-red-600 hover:text-red-800">&times;</button>
-                  </span>
-                ))}
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={handleUploadFiles}
-              disabled={uploading || files.length === 0}
-              className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Upload size={18} />
-              {uploading ? 'Uploading...' : 'Upload'}
-            </button>
+          <div className="lg:col-span-1">
+            {renderSectionTable('ads2', 'Ads2 (Div2)')}
           </div>
-        )}
-      </div>
-
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Images for {groupName}</h3>
-        {loading ? (
-          <p className="text-gray-500">Loading...</p>
-        ) : ads.length === 0 ? (
-          <p className="text-gray-500">No images yet. Add using URL Input or File Upload above.</p>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {ads.map(ad => (
-              <div key={ad.id} className="relative group rounded-lg overflow-hidden border border-gray-200">
-                <img
-                  src={ad.image_url || '#'}
-                  alt="Offer"
-                  className="w-full aspect-square object-cover"
-                  onError={e => { (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="%23eee" width="100" height="100"/><text x="50" y="50" fill="%23999" text-anchor="middle" dy=".3em" font-size="12">No image</text></svg>'; }}
-                />
-                <button
-                  type="button"
-                  onClick={() => handleDelete(ad.id)}
-                  className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
-                  title="Delete"
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };
