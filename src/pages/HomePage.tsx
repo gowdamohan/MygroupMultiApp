@@ -12,7 +12,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { MobileHomePage } from './mobile/MobileHomePage';
 import { API_BASE_URL } from '../config/api.config';
-import { MobileStandardLayout } from './mobile/MobileStandardLayout';
 
 type CategoryFilter = 'all' | 'admin' | 'company' | 'media';
 
@@ -153,9 +152,9 @@ export const HomePage: React.FC = () => {
     setCurrentSlide((prev) => (prev - 1 + heroSlides.length) % heroSlides.length);
   };
 
-  // If mobile, render standardized mobile layout with default app name
+  // If mobile, render the redesigned mobile home page
   if (isMobile) {
-    return <MobileStandardLayout appName="mymedia" />;
+    return <MobileHomePage />;
   }
 
   return (

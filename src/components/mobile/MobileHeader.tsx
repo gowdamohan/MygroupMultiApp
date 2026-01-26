@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { User, Moon, Sun, ChevronLeft, ChevronRight, X, Settings, LogOut, Camera, MapPin, Building2, Phone, Mail, Key, Shield, HelpCircle, MessageCircle, Share2, Download } from 'lucide-react';
+import { User, Moon, Sun, ChevronLeft, ChevronRight, X, Settings, LogOut, Camera, MapPin, Building2, Phone, Mail, Key, Shield, HelpCircle, MessageCircle, Share2, Download, MoreHorizontal } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
@@ -10,6 +10,9 @@ export interface TopIcon {
   icon: string;
   name: string;
   url: string;
+  logo?: string;
+  background_color?: string;
+  apps_name?: string;
 }
 
 interface Ad {
@@ -37,6 +40,10 @@ interface UserProfile {
   phone?: string;
   profile_img?: string;
   identification_code?: string;
+}
+
+interface GroupedApps {
+  [key: string]: TopIcon[];
 }
 
 interface MobileHeaderProps {
@@ -82,9 +89,12 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
   // Internal state for modals and user profile
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showAppSettingsModal, setShowAppSettingsModal] = useState(false);
+  const [showMoreAppsModal, setShowMoreAppsModal] = useState(false);
   const [topIcons, setTopIcons] = useState<TopIcon[]>([]);
+  const [allGroupedApps, setAllGroupedApps] = useState<GroupedApps>({});
   const [ads, setAds] = useState<Ad[]>([]);
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
+  const [selectedApp, setSelectedApp] = useState<TopIcon | null>(null);
   const [currentAdIndex, setCurrentAdIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [internalUserProfile, setInternalUserProfile] = useState<UserProfile | null>(null);
@@ -145,33 +155,103 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
     return null;
   }, [appName]);
 
-  // Fetch top icons
+  // Fetch top icons for "My Apps" category only (horizontal scroll)
+  // Also fetch all grouped apps for the "More" modal
   const fetchTopIcons = useCallback(async (id?: number) => {
     try {
-      if (id) {
-        const response = await axios.get(`${API_BASE_URL}/apps/${id}/top-icons`);
-        if (response.data.success && response.data.data && response.data.data.length > 0) {
-          setTopIcons(response.data.data);
-          return;
-        }
-      }
-      // Fallback: Fetch from home/mobile-data for all apps
-      const fallbackResponse = await axios.get(`${API_BASE_URL}/home/mobile-data`);
-      if (fallbackResponse.data.success) {
-        const myApps = fallbackResponse.data.data?.topIcon?.myapps || [];
-        const formattedIcons = myApps.map((app: any) => ({
+      // Fetch from home/mobile-data for all apps
+      const response = await axios.get(`${API_BASE_URL}/home/mobile-data`);
+      if (response.data.success) {
+        const topIconData = response.data.data?.topIcon || {};
+
+        // Get My Apps for the top horizontal scroll (Section A)
+        const myApps = topIconData.myapps || [];
+        const formattedIcons: TopIcon[] = myApps.map((app: any) => ({
           id: app.id,
           name: app.name,
           icon: app.icon || '',
-          url: `/mobile/${app.name?.toLowerCase().replace(/\s+/g, '') || app.name}`
+          logo: app.logo || '',
+          url: `/mobile/${app.name?.toLowerCase().replace(/\s+/g, '') || app.name}`,
+          background_color: app.background_color || '#ffffff',
+          apps_name: 'My Apps'
         }));
         setTopIcons(formattedIcons);
+
+        // Set first app as selected if none selected and we have apps
+        if (formattedIcons.length > 0 && !selectedApp) {
+          // Find the app that matches appName or use first one
+          const matchingApp = formattedIcons.find(
+            app => app.name.toLowerCase().replace(/\s+/g, '') === appName?.toLowerCase()
+          );
+          setSelectedApp(matchingApp || formattedIcons[0]);
+        }
+
+        // Store all grouped apps for "More" modal
+        const grouped: GroupedApps = {};
+
+        // My Apps
+        if (myApps.length > 0) {
+          grouped['My Apps'] = myApps.map((app: any) => ({
+            id: app.id,
+            name: app.name,
+            icon: app.icon || '',
+            logo: app.logo || '',
+            url: `/mobile/${app.name?.toLowerCase().replace(/\s+/g, '') || app.name}`,
+            background_color: app.background_color || '#ffffff',
+            apps_name: 'My Apps'
+          }));
+        }
+
+        // My Company
+        const myCompany = topIconData.myCompany || [];
+        if (myCompany.length > 0) {
+          grouped['My Company'] = myCompany.map((app: any) => ({
+            id: app.id,
+            name: app.name,
+            icon: app.icon || '',
+            logo: app.logo || '',
+            url: `/mobile/${app.name?.toLowerCase().replace(/\s+/g, '') || app.name}`,
+            background_color: app.background_color || '#ffffff',
+            apps_name: 'My Company'
+          }));
+        }
+
+        // Online Apps
+        const online = topIconData.online || [];
+        if (online.length > 0) {
+          grouped['Online Apps'] = online.map((app: any) => ({
+            id: app.id,
+            name: app.name,
+            icon: app.icon || '',
+            logo: app.logo || '',
+            url: `/mobile/${app.name?.toLowerCase().replace(/\s+/g, '') || app.name}`,
+            background_color: app.background_color || '#ffffff',
+            apps_name: 'Online Apps'
+          }));
+        }
+
+        // Offline Apps
+        const offline = topIconData.offline || [];
+        if (offline.length > 0) {
+          grouped['Offline Apps'] = offline.map((app: any) => ({
+            id: app.id,
+            name: app.name,
+            icon: app.icon || '',
+            logo: app.logo || '',
+            url: `/mobile/${app.name?.toLowerCase().replace(/\s+/g, '') || app.name}`,
+            background_color: app.background_color || '#ffffff',
+            apps_name: 'Offline Apps'
+          }));
+        }
+
+        setAllGroupedApps(grouped);
       }
     } catch (error) {
       console.error('Error fetching top icons:', error);
       setTopIcons([]);
+      setAllGroupedApps({});
     }
-  }, []);
+  }, [appName, selectedApp]);
 
   // Fetch ads/carousel by group_name with priority
   const fetchAds = useCallback(async (id?: number) => {
@@ -282,140 +362,181 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
   return (
     <>
       <div className="fixed top-0 left-0 right-0 z-50">
-        {/* Top Icon Navigation */}
+        {/* Section A: Top Navigation Bar with Icons */}
         {showTopIcons && (
           <div className="bg-teal-600 px-2 py-2">
-            <div className="flex gap-3 overflow-x-auto scrollbar-hide">
-              {topIcons.length > 0 ? (
-                topIcons.map((icon) => (
-                  <a
-                    key={icon.id}
-                    href={icon.url || `/mobile/${icon.name.toLowerCase().replace(/\s+/g, '')}`}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      if (onTopIconClick) {
-                        onTopIconClick(icon);
-                      } else {
-                        window.location.href = icon.url || `/mobile/${icon.name.toLowerCase().replace(/\s+/g, '')}`;
-                      }
-                    }}
-                    className="flex flex-col items-center min-w-[50px] cursor-pointer"
-                  >
-                    {icon.icon ? (
-                      <img
-                        src={`${BACKEND_URL}${icon.icon}`}
-                        alt={icon.name}
-                        className="w-8 h-8 object-contain"
-                      />
-                    ) : (
-                      <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
-                        <span className="text-white font-bold text-xs">
-                          {icon.name?.charAt(0) || 'A'}
-                        </span>
-                      </div>
-                    )}
-                    <span className="text-xs text-white mt-1 truncate max-w-[50px]">
-                      {icon.name}
-                    </span>
-                  </a>
-                ))
-              ) : (
-                ['More', 'Mychat', 'Mydiary', 'Mymedia', 'Myjoy', 'Mybank', 'Myshop'].map((name) => {
-                  const fallbackUrl = `/mobile/${name.toLowerCase()}`;
-                  return (
+            <div className="flex items-center">
+              {/* Fixed "More" Icon on the Left */}
+              <button
+                onClick={() => setShowMoreAppsModal(true)}
+                className="flex flex-col items-center min-w-[50px] cursor-pointer mr-2 flex-shrink-0"
+              >
+                <div className="w-8 h-8 rounded-full bg-white/30 flex items-center justify-center">
+                  <MoreHorizontal size={18} className="text-white" />
+                </div>
+                <span className="text-xs text-white mt-1">More</span>
+              </button>
+
+              {/* Divider */}
+              <div className="w-px h-10 bg-white/30 mr-2 flex-shrink-0" />
+
+              {/* Horizontally Scrollable Top Icons (My Apps) */}
+              <div className="flex gap-3 overflow-x-auto scrollbar-hide flex-1">
+                {topIcons.length > 0 ? (
+                  topIcons.map((icon) => (
                     <a
-                      key={name}
-                      href={fallbackUrl}
+                      key={icon.id}
+                      href={icon.url || `/mobile/${icon.name.toLowerCase().replace(/\s+/g, '')}`}
                       onClick={(e) => {
                         e.preventDefault();
+                        setSelectedApp(icon);
                         if (onTopIconClick) {
-                          onTopIconClick({
-                            id: 0,
-                            name: name,
-                            icon: '',
-                            url: fallbackUrl
-                          });
+                          onTopIconClick(icon);
                         } else {
-                          window.location.href = fallbackUrl;
+                          window.location.href = icon.url || `/mobile/${icon.name.toLowerCase().replace(/\s+/g, '')}`;
                         }
                       }}
-                      className="flex flex-col items-center min-w-[50px] cursor-pointer"
+                      className={`flex flex-col items-center min-w-[50px] cursor-pointer ${
+                        selectedApp?.id === icon.id ? 'opacity-100' : 'opacity-80'
+                      }`}
                     >
-                      <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
-                        <span className="text-white font-bold text-xs">
-                          {name.charAt(0)}
-                        </span>
-                      </div>
+                      {icon.icon ? (
+                        <img
+                          src={icon.icon.startsWith('http') ? icon.icon : `${BACKEND_URL}${icon.icon}`}
+                          alt={icon.name}
+                          className="w-8 h-8 object-contain rounded-full"
+                        />
+                      ) : icon.logo ? (
+                        <img
+                          src={icon.logo.startsWith('http') ? icon.logo : `${BACKEND_URL}${icon.logo}`}
+                          alt={icon.name}
+                          className="w-8 h-8 object-contain rounded-full"
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
+                          <span className="text-white font-bold text-xs">
+                            {icon.name?.charAt(0) || 'A'}
+                          </span>
+                        </div>
+                      )}
                       <span className="text-xs text-white mt-1 truncate max-w-[50px]">
-                        {name}
+                        {icon.name}
                       </span>
                     </a>
-                  );
-                })
-              )}
+                  ))
+                ) : (
+                  // Fallback placeholder icons
+                  ['Mychat', 'Mydiary', 'Mymedia', 'Myjoy', 'Mybank', 'Myshop'].map((name) => {
+                    const fallbackUrl = `/mobile/${name.toLowerCase()}`;
+                    return (
+                      <a
+                        key={name}
+                        href={fallbackUrl}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          const fallbackIcon: TopIcon = { id: 0, name, icon: '', url: fallbackUrl };
+                          setSelectedApp(fallbackIcon);
+                          if (onTopIconClick) {
+                            onTopIconClick(fallbackIcon);
+                          } else {
+                            window.location.href = fallbackUrl;
+                          }
+                        }}
+                        className="flex flex-col items-center min-w-[50px] cursor-pointer"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
+                          <span className="text-white font-bold text-xs">
+                            {name.charAt(0)}
+                          </span>
+                        </div>
+                        <span className="text-xs text-white mt-1 truncate max-w-[50px]">
+                          {name}
+                        </span>
+                      </a>
+                    );
+                  })
+                )}
+              </div>
             </div>
           </div>
         )}
 
-        {/* Main Header Bar */}
-        <div className="bg-white border-b border-teal-500">
+        {/* Section B: User & App Info Bar */}
+        <div className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-teal-500'} border-b`}>
           <div className="flex items-center justify-between px-4 py-3">
-            {/* Left: User Profile Icon */}
+            {/* Left: Logged-in User Profile Icon */}
             {showProfileButton && (
               <button
                 onClick={handleProfileClick}
-                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                className={`p-2 ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} rounded-full transition-colors`}
               >
                 {userProfile?.profile_img ? (
                   <img
-                    src={`${BACKEND_URL}${userProfile.profile_img}`}
+                    src={userProfile.profile_img.startsWith('http') ? userProfile.profile_img : `${BACKEND_URL}${userProfile.profile_img}`}
                     alt="Profile"
-                    className="w-8 h-8 rounded-full object-cover"
+                    className="w-8 h-8 rounded-full object-cover border-2 border-teal-500"
                   />
                 ) : (
-                  <User size={24} className="text-gray-700" />
+                  <div className="w-8 h-8 rounded-full bg-teal-500 flex items-center justify-center">
+                    <User size={18} className="text-white" />
+                  </div>
                 )}
               </button>
             )}
 
-            {/* Right: Dark Mode Toggle & App Name with Icon */}
-            <div className="flex items-center gap-2">
+            {/* Right: Dark Mode Toggle & Currently Selected App Logo */}
+            <div className="flex items-center gap-3">
+              {/* Dark Mode Toggle */}
               {showDarkModeToggle && onDarkModeToggle && (
                 <button
                   onClick={onDarkModeToggle}
-                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                  className={`p-2 ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} rounded-full transition-colors`}
                 >
                   {darkMode ? (
-                    <Sun size={20} className="text-gray-700" />
+                    <Sun size={20} className="text-yellow-400" />
                   ) : (
                     <Moon size={20} className="text-gray-700" />
                   )}
                 </button>
               )}
-              {/* App Name with Icon - Clickable */}
+
+              {/* Currently Selected App Logo */}
               <button
                 onClick={handleAppNameClick}
-                className="flex items-center gap-2 hover:bg-gray-100 rounded-lg px-2 py-1 transition-colors"
+                className={`flex items-center gap-2 ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} rounded-lg px-2 py-1 transition-colors`}
               >
-                {displayLogo ? (
+                {/* Show selected app logo or fallback to app info */}
+                {selectedApp?.logo ? (
+                  <img
+                    src={selectedApp.logo.startsWith('http') ? selectedApp.logo : `${BACKEND_URL}${selectedApp.logo}`}
+                    alt={selectedApp.name || 'App'}
+                    className="w-8 h-8 rounded-full object-contain"
+                  />
+                ) : selectedApp?.icon ? (
+                  <img
+                    src={selectedApp.icon.startsWith('http') ? selectedApp.icon : `${BACKEND_URL}${selectedApp.icon}`}
+                    alt={selectedApp.name || 'App'}
+                    className="w-8 h-8 rounded-full object-contain"
+                  />
+                ) : displayLogo ? (
                   <img
                     src={displayLogo.startsWith('http') ? displayLogo : `${BACKEND_URL}${displayLogo}`}
-                    alt={appInfo?.apps_name || appInfo?.name || 'App'}
+                    alt={appInfo?.name || 'App'}
                     className="w-8 h-8 rounded-full object-contain"
                   />
                 ) : displayIcon ? (
                   <img
                     src={displayIcon.startsWith('http') ? displayIcon : `${BACKEND_URL}${displayIcon}`}
-                    alt={appInfo?.apps_name || appInfo?.name || 'App'}
+                    alt={appInfo?.name || 'App'}
                     className="w-8 h-8 rounded-full object-contain"
                   />
                 ) : (
                   <div className="w-8 h-8 rounded-full bg-teal-500 flex items-center justify-center text-white font-bold text-sm">
-                    {(appInfo?.apps_name || appInfo?.name || appName || 'M').charAt(0).toUpperCase()}
+                    {(selectedApp?.name || appInfo?.name || appName || 'M').charAt(0).toUpperCase()}
                   </div>
                 )}
-                <span className="text-sm font-semibold text-gray-900">
-                  {appInfo?.apps_name || appInfo?.name || appName || 'App'}
+                <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  {selectedApp?.name || appInfo?.name || appName || 'App'}
                 </span>
               </button>
             </div>
@@ -636,6 +757,117 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* More Apps Slide-in Modal (Right to Left) */}
+      <AnimatePresence>
+        {showMoreAppsModal && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className="fixed inset-0 z-[100] bg-black/50"
+              onClick={() => setShowMoreAppsModal(false)}
+            />
+
+            {/* Slide-in Panel */}
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className={`fixed top-0 right-0 bottom-0 z-[101] w-[85%] max-w-sm ${
+                darkMode ? 'bg-gray-900' : 'bg-white'
+              } shadow-2xl overflow-y-auto`}
+            >
+              {/* Modal Header */}
+              <div className={`sticky top-0 ${darkMode ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'} border-b px-4 py-4 flex items-center justify-between`}>
+                <h2 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>All Apps</h2>
+                <button
+                  onClick={() => setShowMoreAppsModal(false)}
+                  className={`p-2 ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-100'} rounded-full transition-colors`}
+                >
+                  <X size={20} className={darkMode ? 'text-gray-400' : 'text-gray-600'} />
+                </button>
+              </div>
+
+              {/* Grouped Apps List */}
+              <div className="p-4 space-y-6">
+                {Object.entries(allGroupedApps).map(([groupName, apps]) => (
+                  <div key={groupName}>
+                    {/* Group Header */}
+                    <h3 className={`text-sm font-semibold uppercase tracking-wider mb-3 ${
+                      darkMode ? 'text-gray-400' : 'text-gray-500'
+                    }`}>
+                      {groupName}
+                    </h3>
+
+                    {/* Apps Grid */}
+                    <div className="grid grid-cols-3 gap-3">
+                      {apps.map((app) => (
+                        <a
+                          key={app.id}
+                          href={app.url}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setSelectedApp(app);
+                            setShowMoreAppsModal(false);
+                            if (onTopIconClick) {
+                              onTopIconClick(app);
+                            } else {
+                              window.location.href = app.url;
+                            }
+                          }}
+                          className={`flex flex-col items-center p-3 rounded-xl transition-colors ${
+                            selectedApp?.id === app.id
+                              ? darkMode ? 'bg-teal-900/50' : 'bg-teal-50'
+                              : darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-50'
+                          }`}
+                        >
+                          {app.icon ? (
+                            <img
+                              src={app.icon.startsWith('http') ? app.icon : `${BACKEND_URL}${app.icon}`}
+                              alt={app.name}
+                              className="w-12 h-12 object-contain rounded-xl"
+                            />
+                          ) : app.logo ? (
+                            <img
+                              src={app.logo.startsWith('http') ? app.logo : `${BACKEND_URL}${app.logo}`}
+                              alt={app.name}
+                              className="w-12 h-12 object-contain rounded-xl"
+                            />
+                          ) : (
+                            <div
+                              className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg"
+                              style={{ backgroundColor: app.background_color || '#14b8a6' }}
+                            >
+                              {app.name?.charAt(0) || 'A'}
+                            </div>
+                          )}
+                          <span className={`text-xs mt-2 text-center truncate w-full ${
+                            darkMode ? 'text-gray-300' : 'text-gray-700'
+                          }`}>
+                            {app.name}
+                          </span>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+
+                {/* Empty State */}
+                {Object.keys(allGroupedApps).length === 0 && (
+                  <div className={`text-center py-8 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                    <p>No apps available</p>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
     </>

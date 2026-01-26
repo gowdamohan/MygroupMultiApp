@@ -154,6 +154,14 @@ export const MobileHomePage: React.FC = () => {
     document.body.classList.toggle('dark-mode');
   };
 
+  // Handle top icon click from MobileHeader
+  const handleTopIconClick = (icon: TopIcon) => {
+    // Navigate to the app page
+    if (icon.url) {
+      window.location.href = icon.url;
+    }
+  };
+
   const handleLogout = async () => {
     try {
       // Call logout API if available
@@ -252,9 +260,9 @@ export const MobileHomePage: React.FC = () => {
         // Refresh profile to get updated location data with associations
         await fetchUserProfile();
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating location:', error);
-      if (error.response?.status === 429) {
+      if (error?.response?.status === 429) {
         alert('Too many requests. Please wait a moment and try again.');
       } else {
         alert('Failed to update location');
@@ -345,29 +353,181 @@ export const MobileHomePage: React.FC = () => {
 
       {/* Main Content - Add padding-top to account for fixed header */}
       <div style={{ paddingTop: `${getMobileHeaderHeight(true, true, true)}px` }}>
-        {/* My Apps Section */}
-        <section className="min-h-screen flex flex-col items-center justify-center px-4 py-12"
+
+        {/* Section 1: My Apps (Vertical, one per row) */}
+        <section className="py-8 px-4"
           style={{ background: 'linear-gradient(-45deg, #ac32e4, #7918f2, #4801ff)' }}>
-          <div className="flex flex-col gap-4 w-full max-w-md">
-            <h2 className="text-2xl font-bold text-white text-center mb-4">My Apps</h2>
+          <h2 className="text-2xl font-bold text-white text-center mb-6">My Apps</h2>
+          <div className="flex flex-col gap-3 w-full max-w-md mx-auto">
             {homeData.topIcon.myapps.map((app) => (
               <Link
                 key={app.id}
-                to={app.url || '#'}
-                className="flex items-center justify-center gap-3 bg-transparent border-2 border-white rounded-full py-3 px-6 text-white font-medium hover:bg-white hover:text-purple-600 transition-all duration-300"
+                to={app.url || `/mobile/${app.name?.toLowerCase().replace(/\s+/g, '')}`}
+                className="flex items-center gap-4 bg-white/10 backdrop-blur-sm border border-white/30 rounded-xl py-4 px-5 text-white hover:bg-white/20 transition-all duration-300"
               >
                 <img
-                  src={`${app.icon}`}
+                  src={app.icon?.startsWith('http') ? app.icon : `${BACKEND_URL}${app.icon}`}
                   alt={app.name}
-                  className="w-5 h-5 object-contain"
+                  className="w-10 h-10 object-contain rounded-lg"
                 />
-                <span>{app.name}</span>
+                <span className="font-medium">{app.name}</span>
               </Link>
             ))}
           </div>
         </section>
 
-        {/* Testimonials Section */}
+        {/* Section 2: About Us Slider */}
+        {homeData.aboutUs && homeData.aboutUs.length > 0 && (
+          <section className={`py-8 px-4 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+            <h2 className={`text-xl font-bold text-center mb-6 ${darkMode ? 'text-white' : 'text-gray-900'}`}>About Us</h2>
+            <div className="relative overflow-hidden">
+              <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-4">
+                {homeData.aboutUs.map((item, index) => (
+                  <div
+                    key={index}
+                    className={`flex-shrink-0 w-72 rounded-xl overflow-hidden shadow-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}
+                  >
+                    {item.image && (
+                      <img
+                        src={item.image.startsWith('http') ? item.image : `${BACKEND_URL}${item.image}`}
+                        alt={item.title}
+                        className="w-full h-40 object-cover"
+                      />
+                    )}
+                    <div className="p-4">
+                      <h3 className={`font-semibold mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{item.title}</h3>
+                      <p className={`text-sm line-clamp-2 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>{item.content}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Section 3: My Company (2-column grid) */}
+        {homeData.topIcon.myCompany && homeData.topIcon.myCompany.length > 0 && (
+          <section className={`py-8 px-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+            <h2 className={`text-xl font-bold text-center mb-6 ${darkMode ? 'text-white' : 'text-gray-900'}`}>My Company</h2>
+            <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
+              {homeData.topIcon.myCompany.map((app) => (
+                <Link
+                  key={app.id}
+                  to={app.url || `/mobile/${app.name?.toLowerCase().replace(/\s+/g, '')}`}
+                  className={`flex flex-col items-center p-4 rounded-xl transition-all duration-300 ${
+                    darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-100 shadow-md'
+                  }`}
+                >
+                  <img
+                    src={app.icon?.startsWith('http') ? app.icon : `${BACKEND_URL}${app.icon}`}
+                    alt={app.name}
+                    className="w-14 h-14 object-contain rounded-xl mb-2"
+                  />
+                  <span className={`text-sm font-medium text-center ${darkMode ? 'text-white' : 'text-gray-900'}`}>{app.name}</span>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Section 4: Main Ads Carousel */}
+        {homeData.mainAds && (homeData.mainAds.ads1 || homeData.mainAds.ads2 || homeData.mainAds.ads3) && (
+          <section className={`py-8 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+            <h2 className={`text-xl font-bold text-center mb-6 px-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>Featured</h2>
+            <div className="relative overflow-hidden">
+              <div className="flex gap-4 overflow-x-auto scrollbar-hide px-4 pb-4">
+                {homeData.mainAds.ads1 && (
+                  <a
+                    href={homeData.mainAds.ads1_url || '#'}
+                    className="flex-shrink-0 w-80 rounded-xl overflow-hidden shadow-lg"
+                  >
+                    <img
+                      src={homeData.mainAds.ads1.startsWith('http') ? homeData.mainAds.ads1 : `${BACKEND_URL}${homeData.mainAds.ads1}`}
+                      alt="Advertisement 1"
+                      className="w-full h-44 object-cover"
+                    />
+                  </a>
+                )}
+                {homeData.mainAds.ads2 && (
+                  <a
+                    href={homeData.mainAds.ads2_url || '#'}
+                    className="flex-shrink-0 w-80 rounded-xl overflow-hidden shadow-lg"
+                  >
+                    <img
+                      src={homeData.mainAds.ads2.startsWith('http') ? homeData.mainAds.ads2 : `${BACKEND_URL}${homeData.mainAds.ads2}`}
+                      alt="Advertisement 2"
+                      className="w-full h-44 object-cover"
+                    />
+                  </a>
+                )}
+                {homeData.mainAds.ads3 && (
+                  <a
+                    href={homeData.mainAds.ads3_url || '#'}
+                    className="flex-shrink-0 w-80 rounded-xl overflow-hidden shadow-lg"
+                  >
+                    <img
+                      src={homeData.mainAds.ads3.startsWith('http') ? homeData.mainAds.ads3 : `${BACKEND_URL}${homeData.mainAds.ads3}`}
+                      alt="Advertisement 3"
+                      className="w-full h-44 object-cover"
+                    />
+                  </a>
+                )}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Section 5: Online Apps (2-column grid) */}
+        {homeData.topIcon.online && homeData.topIcon.online.length > 0 && (
+          <section className={`py-8 px-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+            <h2 className={`text-xl font-bold text-center mb-6 ${darkMode ? 'text-white' : 'text-gray-900'}`}>Online Apps</h2>
+            <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
+              {homeData.topIcon.online.map((app) => (
+                <Link
+                  key={app.id}
+                  to={app.url || `/mobile/${app.name?.toLowerCase().replace(/\s+/g, '')}`}
+                  className={`flex flex-col items-center p-4 rounded-xl transition-all duration-300 ${
+                    darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-100 shadow-md'
+                  }`}
+                >
+                  <img
+                    src={app.icon?.startsWith('http') ? app.icon : `${BACKEND_URL}${app.icon}`}
+                    alt={app.name}
+                    className="w-14 h-14 object-contain rounded-xl mb-2"
+                  />
+                  <span className={`text-sm font-medium text-center ${darkMode ? 'text-white' : 'text-gray-900'}`}>{app.name}</span>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Section 6: Offline Apps (2-column grid) */}
+        {homeData.topIcon.offline && homeData.topIcon.offline.length > 0 && (
+          <section className={`py-8 px-4 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+            <h2 className={`text-xl font-bold text-center mb-6 ${darkMode ? 'text-white' : 'text-gray-900'}`}>Offline Apps</h2>
+            <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
+              {homeData.topIcon.offline.map((app) => (
+                <Link
+                  key={app.id}
+                  to={app.url || `/mobile/${app.name?.toLowerCase().replace(/\s+/g, '')}`}
+                  className={`flex flex-col items-center p-4 rounded-xl transition-all duration-300 ${
+                    darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-50 hover:bg-gray-100 shadow-md'
+                  }`}
+                >
+                  <img
+                    src={app.icon?.startsWith('http') ? app.icon : `${BACKEND_URL}${app.icon}`}
+                    alt={app.name}
+                    className="w-14 h-14 object-contain rounded-xl mb-2"
+                  />
+                  <span className={`text-sm font-medium text-center ${darkMode ? 'text-white' : 'text-gray-900'}`}>{app.name}</span>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Section 7: Testimonials Carousel */}
         <section className="py-16 bg-gray-50">
           <div className="px-4">
             <h2 className="text-3xl font-bold text-center text-gray-900 mb-12">What Our Clients Say</h2>
@@ -410,78 +570,106 @@ export const MobileHomePage: React.FC = () => {
           </div>
         </section>
 
-        {/* Footer */}
-        <footer className="bg-gray-900 text-white py-12">
+        {/* Section 8: Footer with 6 columns + Social Media */}
+        <footer className="bg-gray-900 text-white py-10">
           <div className="px-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8">
-              {/* Know Us */}
+            {/* 6-Column Grid for Mobile (2 cols) and Desktop (6 cols) */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
+              {/* Column 1: Know Us */}
               <div>
-                <h3 className="font-bold text-lg mb-4">Know Us</h3>
-                <ul className="space-y-2 text-sm">
-                  <li><Link to="/" className="hover:text-purple-400 transition-colors">Home</Link></li>
-                  <li><Link to="/about" className="hover:text-purple-400 transition-colors">About Us</Link></li>
-                  <li><Link to="/clients" className="hover:text-purple-400 transition-colors">Clients</Link></li>
-                  <li><Link to="/milestones" className="hover:text-purple-400 transition-colors">Milestones</Link></li>
-                  <li><Link to="/testimonials" className="hover:text-purple-400 transition-colors">Testimonials</Link></li>
-                  <li><Link to="/sitemap" className="hover:text-purple-400 transition-colors">Sitemap</Link></li>
+                <h3 className="font-bold text-sm mb-3 text-teal-400">Know Us</h3>
+                <ul className="space-y-1.5 text-xs">
+                  <li><Link to="/" className="hover:text-teal-400 transition-colors">Home</Link></li>
+                  <li><Link to="/about" className="hover:text-teal-400 transition-colors">About Us</Link></li>
+                  <li><Link to="/clients" className="hover:text-teal-400 transition-colors">Clients</Link></li>
+                  <li><Link to="/milestones" className="hover:text-teal-400 transition-colors">Milestones</Link></li>
+                  <li><Link to="/testimonials" className="hover:text-teal-400 transition-colors">Testimonials</Link></li>
+                  <li><Link to="/sitemap" className="hover:text-teal-400 transition-colors">Sitemap</Link></li>
                 </ul>
               </div>
 
-              {/* Media */}
+              {/* Column 2: Media */}
               <div>
-                <h3 className="font-bold text-lg mb-4">Media</h3>
-                <ul className="space-y-2 text-sm">
-                  <li><Link to="/newsroom" className="hover:text-purple-400 transition-colors">Newsroom</Link></li>
-                  <li><Link to="/gallery" className="hover:text-purple-400 transition-colors">Gallery</Link></li>
-                  <li><Link to="/awards" className="hover:text-purple-400 transition-colors">Awards</Link></li>
-                  <li><Link to="/events" className="hover:text-purple-400 transition-colors">Events</Link></li>
+                <h3 className="font-bold text-sm mb-3 text-teal-400">Media</h3>
+                <ul className="space-y-1.5 text-xs">
+                  <li><Link to="/newsroom" className="hover:text-teal-400 transition-colors">Newsroom</Link></li>
+                  <li><Link to="/gallery" className="hover:text-teal-400 transition-colors">Gallery</Link></li>
+                  <li><Link to="/awards" className="hover:text-teal-400 transition-colors">Awards</Link></li>
+                  <li><Link to="/events" className="hover:text-teal-400 transition-colors">Events</Link></li>
                 </ul>
               </div>
 
-              {/* Opportunity */}
+              {/* Column 3: Opportunity */}
               <div>
-                <h3 className="font-bold text-lg mb-4">Opportunity</h3>
-                <ul className="space-y-2 text-sm">
-                  <li><Link to="/careers" className="hover:text-purple-400 transition-colors">Careers</Link></li>
-                  <li><Link to="/jobs" className="hover:text-purple-400 transition-colors">My Jobs</Link></li>
-                  <li><Link to="/franchise" className="hover:text-purple-400 transition-colors">Apply for Franchise</Link></li>
-                  <li><Link to="/employers" className="hover:text-purple-400 transition-colors">Employers Words</Link></li>
-                  <li><Link to="/advertise" className="hover:text-purple-400 transition-colors">Advertise With Us</Link></li>
+                <h3 className="font-bold text-sm mb-3 text-teal-400">Opportunity</h3>
+                <ul className="space-y-1.5 text-xs">
+                  <li><Link to="/careers" className="hover:text-teal-400 transition-colors">Careers</Link></li>
+                  <li><Link to="/jobs" className="hover:text-teal-400 transition-colors">My Jobs</Link></li>
+                  <li><Link to="/franchise" className="hover:text-teal-400 transition-colors">Franchise</Link></li>
+                  <li><Link to="/advertise" className="hover:text-teal-400 transition-colors">Advertise</Link></li>
                 </ul>
               </div>
 
-              {/* Our Policy */}
+              {/* Column 4: Our Policy */}
               <div>
-                <h3 className="font-bold text-lg mb-4">Our Policy</h3>
-                <ul className="space-y-2 text-sm">
-                  <li><Link to="/privacy" className="hover:text-purple-400 transition-colors">Privacy Policy</Link></li>
-                  <li><Link to="/terms" className="hover:text-purple-400 transition-colors">Terms and Conditions</Link></li>
-                  <li><Link to="/faq" className="hover:text-purple-400 transition-colors">FAQ's</Link></li>
+                <h3 className="font-bold text-sm mb-3 text-teal-400">Our Policy</h3>
+                <ul className="space-y-1.5 text-xs">
+                  <li><Link to="/privacy" className="hover:text-teal-400 transition-colors">Privacy Policy</Link></li>
+                  <li><Link to="/terms" className="hover:text-teal-400 transition-colors">Terms</Link></li>
+                  <li><Link to="/faq" className="hover:text-teal-400 transition-colors">FAQ's</Link></li>
+                  <li><Link to="/refund" className="hover:text-teal-400 transition-colors">Refund Policy</Link></li>
                 </ul>
               </div>
 
-              {/* Support & Logins */}
+              {/* Column 5: Support */}
               <div>
-                <h3 className="font-bold text-lg mb-4">Support</h3>
-                <ul className="space-y-2 text-sm">
-                  <li><Link to="/contact" className="hover:text-purple-400 transition-colors">Contact Us</Link></li>
-                  <li><Link to="/enquiry" className="hover:text-purple-400 transition-colors">Enquiry Now</Link></li>
-                  <li><Link to="/support" className="hover:text-purple-400 transition-colors">Technical Support</Link></li>
-                  <li><Link to="/chat" className="hover:text-purple-400 transition-colors">Chat with Us</Link></li>
-                  <li><Link to="/feedback" className="hover:text-purple-400 transition-colors">Feedback</Link></li>
+                <h3 className="font-bold text-sm mb-3 text-teal-400">Support</h3>
+                <ul className="space-y-1.5 text-xs">
+                  <li><Link to="/contact" className="hover:text-teal-400 transition-colors">Contact Us</Link></li>
+                  <li><Link to="/enquiry" className="hover:text-teal-400 transition-colors">Enquiry</Link></li>
+                  <li><Link to="/support" className="hover:text-teal-400 transition-colors">Tech Support</Link></li>
+                  <li><Link to="/feedback" className="hover:text-teal-400 transition-colors">Feedback</Link></li>
                 </ul>
-                <h3 className="font-bold text-lg mb-4 mt-6">Logins</h3>
-                <ul className="space-y-2 text-sm">
-                  <li><Link to="/client-login" className="hover:text-purple-400 transition-colors">Client Login</Link></li>
-                  <li><Link to="/franchise-login" className="hover:text-purple-400 transition-colors">Franchise Login</Link></li>
-                  <li><Link to="/reporter-login" className="hover:text-purple-400 transition-colors">Reporters Login</Link></li>
-                  <li><Link to="/labor-login" className="hover:text-purple-400 transition-colors">My Labor</Link></li>
+              </div>
+
+              {/* Column 6: Logins */}
+              <div>
+                <h3 className="font-bold text-sm mb-3 text-teal-400">Logins</h3>
+                <ul className="space-y-1.5 text-xs">
+                  <li><Link to="/client-login" className="hover:text-teal-400 transition-colors">Client Login</Link></li>
+                  <li><Link to="/franchise-login" className="hover:text-teal-400 transition-colors">Franchise</Link></li>
+                  <li><Link to="/reporter-login" className="hover:text-teal-400 transition-colors">Reporters</Link></li>
+                  <li><Link to="/labor-login" className="hover:text-teal-400 transition-colors">My Labor</Link></li>
                 </ul>
               </div>
             </div>
 
-            <div className="border-t border-gray-700 mt-8 pt-8 text-center text-sm text-gray-400">
-              <p>&copy; 2024 Multi-Tenant Platform. All rights reserved.</p>
+            {/* Social Media Row */}
+            <div className="border-t border-gray-700 mt-8 pt-6">
+              <div className="flex justify-center gap-4 mb-4">
+                {homeData.socialLink && homeData.socialLink.map((social, index) => (
+                  <a
+                    key={index}
+                    href={social.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-10 h-10 rounded-full bg-gray-800 hover:bg-teal-600 flex items-center justify-center transition-colors"
+                  >
+                    {social.icon ? (
+                      <img
+                        src={social.icon.startsWith('http') ? social.icon : `${BACKEND_URL}${social.icon}`}
+                        alt={social.platform}
+                        className="w-5 h-5"
+                      />
+                    ) : (
+                      <span className="text-xs font-bold">{social.platform?.charAt(0).toUpperCase()}</span>
+                    )}
+                  </a>
+                ))}
+              </div>
+              <p className="text-center text-xs text-gray-400">
+                &copy; {new Date().getFullYear()} {homeData.copyRight?.company_name || 'Multi-Tenant Platform'}. All rights reserved.
+              </p>
             </div>
           </div>
         </footer>
