@@ -1,68 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Upload, Trash2, MapPin, Building2 } from 'lucide-react';
+import { Upload, Trash2, MapPin, Building2, Link2, FileImage, Plus } from 'lucide-react';
 import { API_BASE_URL } from '../../config/api.config';
-
-interface State {
-  id: number;
-  state: string;
-  code?: string;
-  country_id?: number;
-}
-
-interface District {
-  id: number;
-  district: string;
-  code?: string;
-  state_id: number;
-}
 
 interface OfferAd {
   id: number;
-  image_path: string;
+  image_path: string | null;
   image_url: string;
-  group_id: number;
-  state_id: number | null;
-  district_id: number | null;
+  group_name: string;
 }
 
 type TabType = 'regional' | 'branch';
+type AddMode = 'url' | 'file';
 
 export const FranchiseOfferAds: React.FC = () => {
   const [tab, setTab] = useState<TabType>('regional');
-  const [states, setStates] = useState<State[]>([]);
-  const [districts, setDistricts] = useState<District[]>([]);
-  const [selectedState, setSelectedState] = useState<string>('');
-  const [selectedDistrict, setSelectedDistrict] = useState<string>('');
   const [ads, setAds] = useState<OfferAd[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [addMode, setAddMode] = useState<AddMode>('file');
   const [files, setFiles] = useState<File[]>([]);
+  const [urls, setUrls] = useState<string[]>(['']);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  useEffect(() => {
-    const token = localStorage.getItem('accessToken');
-    axios.get(`${API_BASE_URL}/admin/states`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(res => setStates(res.data.data || []))
-      .catch(() => setStates([]));
-  }, []);
-
-  useEffect(() => {
-    if (!selectedState) {
-      setDistricts([]);
-      setSelectedDistrict('');
-      return;
-    }
-    const token = localStorage.getItem('accessToken');
-    axios.get(`${API_BASE_URL}/admin/districts?state_id=${selectedState}`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(res => setDistricts(res.data.data || []))
-      .catch(() => setDistricts([]));
-    setSelectedDistrict('');
-  }, [selectedState]);
+  const groupName = tab;
 
   const fetchAds = () => {
     const token = localStorage.getItem('accessToken');
-    const params: Record<string, string> = { limit: '100', group_id: tab === 'regional' ? '1' : '2' };
+    const params: Record<string, string> = { limit: '100', group_name: groupName };
     setLoading(true);
     axios.get(`${API_BASE_URL}/franchise-offer-ads`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -88,15 +53,41 @@ export const FranchiseOfferAds: React.FC = () => {
     setFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleUpload = async () => {
-    if (tab === 'regional' && !selectedState) {
-      setMessage({ type: 'error', text: 'Please select a state.' });
+  const addUrlField = () => setUrls(prev => [...prev, '']);
+  const setUrlAt = (index: number, value: string) => {
+    setUrls(prev => prev.map((u, i) => (i === index ? value : u)));
+  };
+  const removeUrlAt = (index: number) => {
+    setUrls(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleUploadByUrl = async () => {
+    const imageUrls = urls.map(u => u.trim()).filter(Boolean);
+    if (imageUrls.length === 0) {
+      setMessage({ type: 'error', text: 'Please enter at least one image URL.' });
       return;
     }
-    if (tab === 'branch' && !selectedDistrict) {
-      setMessage({ type: 'error', text: 'Please select a district.' });
-      return;
+
+    setUploading(true);
+    setMessage(null);
+    const token = localStorage.getItem('accessToken');
+    try {
+      const res = await axios.post(
+        `${API_BASE_URL}/franchise-offer-ads/by-url`,
+        { group_name: groupName, image_urls: imageUrls },
+        { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+      );
+      setMessage({ type: 'success', text: res.data.message || 'URLs added successfully.' });
+      setUrls(['']);
+      fetchAds();
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.response?.data?.message || 'Failed to add URLs.' });
+    } finally {
+      setUploading(false);
     }
+  };
+
+  const handleUploadFiles = async () => {
     if (files.length === 0) {
       setMessage({ type: 'error', text: 'Please select at least one image.' });
       return;
@@ -106,9 +97,7 @@ export const FranchiseOfferAds: React.FC = () => {
     setMessage(null);
     const token = localStorage.getItem('accessToken');
     const formData = new FormData();
-    formData.append('group_id', tab === 'regional' ? '1' : '2');
-    if (tab === 'regional') formData.append('state_id', selectedState);
-    else formData.append('district_id', selectedDistrict);
+    formData.append('group_name', groupName);
     files.forEach(f => formData.append('images', f));
 
     try {
@@ -143,27 +132,27 @@ export const FranchiseOfferAds: React.FC = () => {
     <div className="p-6">
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-gray-900">Offer Ads</h2>
-        <p className="text-gray-600 mt-1">Upload images by region (state) or branch (district). Stored on Wasabi.</p>
+        <p className="text-gray-600 mt-1">Add images for Regional or Branch via URL or file upload. Stored in franchise_offer_ads (group_name: regional / branch).</p>
       </div>
 
       <div className="flex gap-2 mb-6 border-b border-gray-200">
         <button
-          onClick={() => { setTab('regional'); setMessage(null); setSelectedState(''); setSelectedDistrict(''); }}
+          onClick={() => { setTab('regional'); setMessage(null); }}
           className={`px-4 py-2 font-medium rounded-t-lg flex items-center gap-2 ${
             tab === 'regional' ? 'bg-primary-50 text-primary-700 border-b-2 border-primary-600' : 'text-gray-600 hover:bg-gray-50'
           }`}
         >
           <MapPin size={18} />
-          Regional (by State)
+          Regional
         </button>
         <button
-          onClick={() => { setTab('branch'); setMessage(null); setSelectedState(''); setSelectedDistrict(''); }}
+          onClick={() => { setTab('branch'); setMessage(null); }}
           className={`px-4 py-2 font-medium rounded-t-lg flex items-center gap-2 ${
             tab === 'branch' ? 'bg-primary-50 text-primary-700 border-b-2 border-primary-600' : 'text-gray-600 hover:bg-gray-50'
           }`}
         >
           <Building2 size={18} />
-          Branch (by District)
+          Branch
         </button>
       </div>
 
@@ -174,72 +163,104 @@ export const FranchiseOfferAds: React.FC = () => {
       )}
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Upload images</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">State</label>
-            <select
-              value={selectedState}
-              onChange={e => setSelectedState(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            >
-              <option value="">Select state</option>
-              {states.map(s => (
-                <option key={s.id} value={s.id}>{s.state}</option>
-              ))}
-            </select>
-          </div>
-          {tab === 'branch' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">District</label>
-              <select
-                value={selectedDistrict}
-                onChange={e => setSelectedDistrict(e.target.value)}
-                disabled={!selectedState}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:bg-gray-100"
-              >
-                <option value="">Select district</option>
-                {districts.map(d => (
-                  <option key={d.id} value={d.id}>{d.district}</option>
-                ))}
-              </select>
-            </div>
-          )}
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">Add images (group: {groupName})</h3>
+        <p className="text-sm text-gray-500 mb-4">Choose how to add images for this group.</p>
+
+        <div className="flex gap-2 mb-4 border-b border-gray-100 pb-4">
+          <button
+            type="button"
+            onClick={() => setAddMode('url')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+              addMode === 'url' ? 'bg-primary-50 text-primary-700 border border-primary-200' : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-transparent'
+            }`}
+          >
+            <Link2 size={18} />
+            URL Input
+          </button>
+          <button
+            type="button"
+            onClick={() => setAddMode('file')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+              addMode === 'file' ? 'bg-primary-50 text-primary-700 border border-primary-200' : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-transparent'
+            }`}
+          >
+            <FileImage size={18} />
+            File Upload
+          </button>
         </div>
-        <input
-          type="file"
-          accept="image/jpeg,image/png,image/gif,image/webp"
-          multiple
-          onChange={handleFileChange}
-          className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100"
-        />
-        {files.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {files.map((f, i) => (
-              <span key={i} className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 rounded text-sm">
-                {f.name}
-                <button type="button" onClick={() => removeFile(i)} className="text-red-600 hover:text-red-800">&times;</button>
-              </span>
+
+        {addMode === 'url' && (
+          <div className="space-y-3">
+            <p className="text-sm text-gray-600">Enter one or more image URLs. Each URL will be saved for group &quot;{groupName}&quot;.</p>
+            {urls.map((url, i) => (
+              <div key={i} className="flex gap-2 items-center">
+                <input
+                  type="url"
+                  value={url}
+                  onChange={e => setUrlAt(i, e.target.value)}
+                  placeholder="https://example.com/image.jpg"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                />
+                {urls.length > 1 ? (
+                  <button type="button" onClick={() => removeUrlAt(i)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg" title="Remove">×</button>
+                ) : null}
+              </div>
             ))}
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={addUrlField} className="flex items-center gap-1 px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">
+                <Plus size={16} /> Add URL
+              </button>
+              <button
+                type="button"
+                onClick={handleUploadByUrl}
+                disabled={uploading || !urls.some(u => u.trim())}
+                className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {uploading ? 'Adding...' : 'Add by URL'}
+              </button>
+            </div>
           </div>
         )}
-        <button
-          type="button"
-          onClick={handleUpload}
-          disabled={uploading || files.length === 0}
-          className="mt-4 flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <Upload size={18} />
-          {uploading ? 'Uploading...' : 'Upload'}
-        </button>
+
+        {addMode === 'file' && (
+          <div className="space-y-3">
+            <p className="text-sm text-gray-600">Select one or more image files to upload for group &quot;{groupName}&quot;.</p>
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/gif,image/webp"
+              multiple
+              onChange={handleFileChange}
+              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100"
+            />
+            {files.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {files.map((f, i) => (
+                  <span key={i} className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 rounded text-sm">
+                    {f.name}
+                    <button type="button" onClick={() => removeFile(i)} className="text-red-600 hover:text-red-800">&times;</button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={handleUploadFiles}
+              disabled={uploading || files.length === 0}
+              className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Upload size={18} />
+              {uploading ? 'Uploading...' : 'Upload'}
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Uploaded images</h3>
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Images for {groupName}</h3>
         {loading ? (
           <p className="text-gray-500">Loading...</p>
         ) : ads.length === 0 ? (
-          <p className="text-gray-500">No images yet. Upload using the form above.</p>
+          <p className="text-gray-500">No images yet. Add using URL Input or File Upload above.</p>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
             {ads.map(ad => (

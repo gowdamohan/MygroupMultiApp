@@ -2,23 +2,23 @@ import FranchiseOfferAd from '../models/FranchiseOfferAd.js';
 import { uploadFile } from '../services/wasabiService.js';
 
 /**
- * Get franchise offer ads for carousel or management.
- * Query: group_id (optional), limit (default 4). No country/state filters.
+ * Get franchise offer ads. Query: group_name (optional, "regional" | "branch"), limit (default 4).
  */
 export const getOfferAds = async (req, res) => {
   try {
-    const { group_id, limit = 4 } = req.query;
+    const { group_name, limit = 4 } = req.query;
     const limitNum = Math.min(parseInt(limit, 10) || 4, 100);
 
     const where = {};
-    const gid = parseInt(group_id, 10);
-    if (!Number.isNaN(gid)) where.group_id = gid;
+    if (group_name === 'regional' || group_name === 'branch') {
+      where.group_name = group_name;
+    }
 
     const ads = await FranchiseOfferAd.findAll({
       where: Object.keys(where).length ? where : undefined,
       limit: limitNum,
       order: [['id', 'ASC']],
-      attributes: ['id', 'image_path', 'image_url', 'group_id', 'state_id', 'district_id']
+      attributes: ['id', 'image_path', 'image_url', 'group_name']
     });
 
     res.json({
@@ -35,35 +35,21 @@ export const getOfferAds = async (req, res) => {
 };
 
 /**
- * Upload multiple offer ad images to Wasabi and save to franchise_offer_ads.
- * Body (form): group_id (1=regional, 2=branch), state_id (for regional), district_id (for branch).
- * Files: images (multiple).
+ * Create offer ads via file upload (multipart). group_name + images.
  */
 export const createOfferAds = async (req, res) => {
   try {
-    const groupId = parseInt(req.body.group_id, 10);
-    const stateId = req.body.state_id ? parseInt(req.body.state_id, 10) : null;
-    const districtId = req.body.district_id ? parseInt(req.body.district_id, 10) : null;
-
-    if (![1, 2].includes(groupId)) {
-      return res.status(400).json({ success: false, message: 'group_id must be 1 (regional) or 2 (branch)' });
-    }
-    if (groupId === 1 && !stateId) {
-      return res.status(400).json({ success: false, message: 'state_id required for regional offer ads' });
-    }
-    if (groupId === 2 && !districtId) {
-      return res.status(400).json({ success: false, message: 'district_id required for branch offer ads' });
+    const groupName = (req.body.group_name || '').toString().trim().toLowerCase();
+    if (groupName !== 'regional' && groupName !== 'branch') {
+      return res.status(400).json({ success: false, message: 'group_name must be "regional" or "branch"' });
     }
 
     const files = req.files?.images || (req.file ? [req.file] : []);
     if (!files.length) {
-      return res.status(400).json({ success: false, message: 'At least one image is required' });
+      return res.status(400).json({ success: false, message: 'At least one image file is required' });
     }
 
-    const folder = groupId === 1
-      ? `franchise_offer_ads/regional/${stateId}`
-      : `franchise_offer_ads/branch/${districtId}`;
-
+    const folder = `franchise_offer_ads/${groupName}`;
     const created = [];
     for (const file of files) {
       const uploadResult = await uploadFile(file.buffer, file.originalname, file.mimetype, folder);
@@ -71,9 +57,7 @@ export const createOfferAds = async (req, res) => {
       const ad = await FranchiseOfferAd.create({
         image_path: uploadResult.fileName,
         image_url: uploadResult.publicUrl,
-        group_id: groupId,
-        state_id: groupId === 1 ? stateId : null,
-        district_id: groupId === 2 ? districtId : null
+        group_name: groupName
       });
       created.push(ad);
     }
@@ -88,6 +72,48 @@ export const createOfferAds = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to upload offer ads'
+    });
+  }
+};
+
+/**
+ * Create offer ads via URL input (JSON). group_name + image_urls[].
+ */
+export const createOfferAdsByUrl = async (req, res) => {
+  try {
+    const groupName = (req.body.group_name || '').toString().trim().toLowerCase();
+    if (groupName !== 'regional' && groupName !== 'branch') {
+      return res.status(400).json({ success: false, message: 'group_name must be "regional" or "branch"' });
+    }
+
+    const imageUrls = Array.isArray(req.body.image_urls)
+      ? req.body.image_urls.map(u => String(u).trim()).filter(Boolean)
+      : [];
+
+    if (!imageUrls.length) {
+      return res.status(400).json({ success: false, message: 'At least one image URL is required' });
+    }
+
+    const created = [];
+    for (const url of imageUrls) {
+      const ad = await FranchiseOfferAd.create({
+        image_path: null,
+        image_url: url,
+        group_name: groupName
+      });
+      created.push(ad);
+    }
+
+    res.status(201).json({
+      success: true,
+      message: `${created.length} image URL(s) added`,
+      data: created
+    });
+  } catch (error) {
+    console.error('Error creating franchise offer ads by URL:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to add offer ads by URL'
     });
   }
 };

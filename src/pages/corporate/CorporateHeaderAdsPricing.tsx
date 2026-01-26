@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
@@ -89,6 +89,28 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
   // Price card edit modal
   const [priceCardModal, setPriceCardModal] = useState<PriceCardEditModal | null>(null);
   const [priceCardValue, setPriceCardValue] = useState('');
+
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  const topScrollRef = useRef<HTMLDivElement>(null);
+  const isSyncingScroll = useRef(false);
+
+  const syncScrollFromMain = useCallback(() => {
+    if (isSyncingScroll.current) return;
+    isSyncingScroll.current = true;
+    if (tableScrollRef.current && topScrollRef.current) {
+      topScrollRef.current.scrollLeft = tableScrollRef.current.scrollLeft;
+    }
+    requestAnimationFrame(() => { isSyncingScroll.current = false; });
+  }, []);
+
+  const syncScrollFromTop = useCallback(() => {
+    if (isSyncingScroll.current) return;
+    isSyncingScroll.current = true;
+    if (tableScrollRef.current && topScrollRef.current) {
+      tableScrollRef.current.scrollLeft = topScrollRef.current.scrollLeft;
+    }
+    requestAnimationFrame(() => { isSyncingScroll.current = false; });
+  }, []);
 
   useEffect(() => {
     fetchCountries();
@@ -457,6 +479,10 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
     return filterCategoryId === 'all' ? cats : cats.filter((c) => c.id === filterCategoryId);
   };
 
+  const monthGroups = getMonthGroups();
+  const totalDateCols = monthGroups.reduce((sum, g) => sum + Math.max(g.dates.length, 1), 0);
+  const tableMinWidthPx = 200 + 52 * totalDateCols;
+
   // Render price card
   const renderPriceCard = (
     pricing_slot: 'General' | 'Capitals',
@@ -636,19 +662,35 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
         </button>
       </div>
 
-      {/* Pricing Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-auto" style={{ maxHeight: '600px' }}>
-        <table className="w-full border-collapse">
-          <thead className="sticky top-0 z-20 bg-white">
-            <tr>
-              <th rowSpan={2} className="bg-blue-600 border border-gray-300 px-4 py-2 text-sm font-bold text-white min-w-[150px]">
-                Category
-              </th>
-              {getMonthGroups().map((group, idx) => {
+      {/* Pricing Table with top + bottom scrollbars, sticky first column */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+        {/* Top horizontal scrollbar (synced with main) */}
+        <div
+          ref={topScrollRef}
+          onScroll={syncScrollFromTop}
+          className="overflow-x-auto overflow-y-hidden border-b border-gray-200"
+          style={{ maxHeight: '16px' }}
+        >
+          <div style={{ minWidth: tableMinWidthPx, height: 1 }} />
+        </div>
+        {/* Main scroll area: vertical + horizontal */}
+        <div
+          ref={tableScrollRef}
+          onScroll={syncScrollFromMain}
+          className="overflow-auto"
+          style={{ maxHeight: '600px' }}
+        >
+          <table className="w-full border-collapse" style={{ minWidth: tableMinWidthPx }}>
+            <thead className="sticky top-0 z-20 bg-white">
+              <tr>
+                <th rowSpan={2} className="sticky left-0 z-30 bg-blue-600 border border-gray-300 px-4 py-2 text-sm font-bold text-white min-w-[180px] shadow-[2px_0_4px_rgba(0,0,0,0.08)]">
+                  Category
+                </th>
+                {monthGroups.map((group, idx) => {
                 const colors = ['bg-blue-600', 'bg-indigo-600', 'bg-purple-600', 'bg-pink-600', 'bg-yellow-600', 'bg-green-600', 'bg-red-600'];
                 const colorIndex = idx % colors.length;
                 const headerText = `${group.month} ${group.year}`;
-                const colSpan = group.dates.length > 0 ? group.dates.length : 1; // Minimum 1 to ensure header displays
+                const colSpan = group.dates.length > 0 ? group.dates.length : 1;
                 return (
                   <th key={`${group.month}-${group.year}-${idx}`} colSpan={colSpan} className={`border border-gray-300 px-2 py-2 text-sm font-bold text-white ${colors[colorIndex]}`}>
                     {headerText}
@@ -657,13 +699,12 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
               })}
             </tr>
             <tr>
-              {getMonthGroups().map((group, idx) => {
+              {monthGroups.map((group, idx) => {
                 const colors = ['bg-blue-600', 'bg-indigo-600', 'bg-purple-600', 'bg-pink-600', 'bg-yellow-600', 'bg-green-600', 'bg-red-600'];
                 const colorIndex = idx % colors.length;
                 if (group.dates.length === 0) {
-                  // If no dates in this month, add a placeholder cell to match colSpan
                   return (
-                    <th key={`empty-${group.month}-${group.year}-${idx}`} className={`border border-gray-300 px-2 py-2 text-xs font-semibold text-white min-w-[50px] ${colors[colorIndex]}`}>
+                    <th key={`empty-${group.month}-${group.year}-${idx}`} className={`border border-gray-300 px-2 py-2 text-xs font-semibold text-white min-w-[52px] ${colors[colorIndex]}`}>
                       &nbsp;
                     </th>
                   );
@@ -671,7 +712,7 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
                 return group.dates.map((dayInfo) => {
                   const dayName = new Date(dayInfo.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' });
                   return (
-                    <th key={dayInfo.date} className={`border border-gray-300 px-2 py-2 text-xs font-semibold text-white min-w-[50px] ${colors[colorIndex]}`}>
+                    <th key={dayInfo.date} className={`border border-gray-300 px-2 py-2 text-xs font-semibold text-white min-w-[52px] ${colors[colorIndex]}`}>
                       <div>{dayName}</div>
                       <div>{dayInfo.day}</div>
                     </th>
@@ -686,17 +727,17 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
               return (
                 <React.Fragment key={app.id}>
                   <tr>
-                    <td colSpan={getMonthGroups().reduce((sum, g) => sum + Math.max(g.dates.length, 1), 0) + 1} 
-                      className="bg-blue-500 border border-gray-300 px-4 py-2 font-bold text-white">
+                    <td className="sticky left-0 z-10 bg-blue-500 border border-gray-300 px-4 py-2 font-bold text-white shadow-[2px_0_4px_rgba(0,0,0,0.08)]">
                       {app.name}
                     </td>
+                    <td colSpan={totalDateCols} className="bg-blue-500 border border-gray-300" />
                   </tr>
                   {categories.map((category) => (
                     <tr key={category.id} className="hover:bg-gray-50">
-                      <td className="bg-blue-100 border border-gray-300 px-4 py-2 font-medium text-gray-900">
+                      <td className="sticky left-0 z-10 bg-blue-100 border border-gray-300 px-4 py-2 font-medium text-gray-900 shadow-[2px_0_4px_rgba(0,0,0,0.08)]">
                         {category.category_name}
                       </td>
-                      {getMonthGroups().map((group, groupIdx) => {
+                      {monthGroups.map((group, groupIdx) => {
                         if (group.dates.length === 0) {
                           // Empty month - add placeholder cell to match header colSpan
                           return (
@@ -736,7 +777,8 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
               );
             })}
           </tbody>
-        </table>
+          </table>
+        </div>
       </div>
 
       {/* Cell Edit Modal */}
