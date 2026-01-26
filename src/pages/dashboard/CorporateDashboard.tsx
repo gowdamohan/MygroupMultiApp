@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import axios from 'axios';
+import { API_BASE_URL, getUploadUrl } from '../../config/api.config';
 import { HeadOfficeLogin } from '../corporate/HeadOfficeLogin';
 import { FooterPageManager } from '../corporate/FooterPageManager';
 import { FooterPageListManager } from '../corporate/FooterPageListManager';
@@ -10,12 +12,14 @@ import { HeaderAds } from '../corporate/HeaderAds';
 import { CompanyHeaderAds } from '../corporate/CompanyHeaderAds';
 import { ApplicationDetails } from '../corporate/ApplicationDetails';
 import { TermsConditions } from '../corporate/TermsConditions';
+import { UserTermsConditions } from '../corporate/UserTermsConditions';
 import { FooterFaqManager } from '../corporate/FooterFaqManager';
 import { HeaderAdsPricing } from '../corporate/HeaderAdsPricing';
 import { CorporateHeaderAdsPricing } from '../corporate/CorporateHeaderAdsPricing';
+import { ChangePassword } from '../corporate/ChangePassword';
 import {
   LayoutDashboard, Users, Building2, MapPin, Globe, FileText,
-  LogOut, ChevronDown, ChevronRight, Menu, X, Search, Bell,
+  LogOut, ChevronDown, ChevronRight, Menu, X,
   Settings, Shield, Award, Newspaper, Calendar, Briefcase,
   UserCheck, MessageSquare, Mail, FileCheck, Lock, Copyright,
   Clock, TrendingUp, BarChart3, DollarSign, Image, Megaphone,
@@ -58,6 +62,8 @@ export const CorporateDashboard: React.FC = () => {
     regionalOfficeAds: [],
     branchOfficeAds: []
   });
+  const [offerAds, setOfferAds] = useState<Array<{ id: number; image_path?: string; image_url?: string; group_id?: number }>>([]);
+  const [carouselSlide, setCarouselSlide] = useState(0);
 
   useEffect(() => {
     const userData = localStorage.getItem('user');
@@ -74,6 +80,30 @@ export const CorporateDashboard: React.FC = () => {
 
     return () => clearInterval(timer);
   }, [navigate]);
+
+  useEffect(() => {
+    const fetchOfferAds = async () => {
+      try {
+        const token = localStorage.getItem('accessToken');
+        const res = await axios.get(`${API_BASE_URL}/franchise-offer-ads?limit=4`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.data?.success && Array.isArray(res.data.data)) {
+          setOfferAds(res.data.data);
+        }
+      } catch (e) {
+        console.error('Failed to fetch franchise offer ads', e);
+      }
+    };
+    fetchOfferAds();
+  }, []);
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      setCarouselSlide((prev) => (prev === 0 ? 1 : 0));
+    }, 4000);
+    return () => clearInterval(t);
+  }, []);
 
   const menuItems: MenuItem[] = [
     {
@@ -141,6 +171,7 @@ export const CorporateDashboard: React.FC = () => {
         { id: 'social-media', label: 'Social Media Link', icon: Share2, path: '/corporate/footer/social-media' },
         { id: 'footer-terms', label: 'Terms And Conditions', icon: Scale, path: '/corporate/footer/terms' },
         { id: 'privacy-policy', label: 'Privacy and Policy', icon: ShieldCheck, path: '/corporate/footer/privacy' },
+        { id: 'user-terms', label: 'User Terms and Conditions', icon: FileCheck, path: '/corporate/footer/user-terms' },
         { id: 'faq', label: 'FAQ', icon: HelpCircle, path: '/corporate/footer/faq' }
       ]
     },
@@ -257,6 +288,8 @@ export const CorporateDashboard: React.FC = () => {
         return <FooterPageManager pageType="terms" pageTitle="Terms and Conditions" />;
       case '/corporate/footer/privacy':
         return <FooterPageManager pageType="privacy_policy" pageTitle="Privacy Policy" />;
+      case '/corporate/footer/user-terms':
+        return <UserTermsConditions />;
       case '/corporate/footer/faq':
         return <FooterFaqManager />;
       case '/corporate/public-database':
@@ -274,7 +307,7 @@ export const CorporateDashboard: React.FC = () => {
       case '/corporate/chat':
         return <div className="p-6"><h2 className="text-2xl font-bold">Chat with Us</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
       case '/corporate/change-password':
-        return <div className="p-6"><h2 className="text-2xl font-bold">Change Password</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
+        return <ChangePassword />;
       default:
         return renderDashboard();
     }
@@ -516,54 +549,71 @@ export const CorporateDashboard: React.FC = () => {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6">
-          <div className="flex items-center gap-4">
+        <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 lg:px-6 gap-4">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
             {!sidebarOpen && (
               <button
                 onClick={() => setSidebarOpen(true)}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors hidden lg:block"
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors hidden lg:block shrink-0"
               >
                 <Menu size={20} />
               </button>
             )}
             <button
               onClick={() => setMobileSidebarOpen(true)}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors lg:hidden"
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors lg:hidden shrink-0"
             >
               <Menu size={20} />
             </button>
-            <h1 className="text-xl font-bold text-gray-900">Corporate Dashboard</h1>
+            {/* Carousel: 2 slides, 2 images per slide (4 images total); default placeholders when empty */}
+            <div className="flex-1 min-w-0 max-w-2xl overflow-hidden">
+              <div className="relative h-12 flex items-center">
+                <AnimatePresence mode="wait">
+                  {[0, 1].map((slideIndex) => (
+                    slideIndex === carouselSlide && (
+                      <motion.div
+                        key={slideIndex}
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                        transition={{ duration: 0.3 }}
+                        className="absolute inset-0 flex gap-2 items-center justify-center"
+                      >
+                        {[0, 1].map((i) => {
+                          const ad = offerAds[slideIndex * 2 + i];
+                          const src = ad ? (ad.image_url || (ad.image_path ? getUploadUrl(ad.image_path) : '')) : '';
+                          const key = ad ? ad.id : `placeholder-${slideIndex}-${i}`;
+                          return (
+                            <div
+                              key={key}
+                              className="h-10 w-24 shrink-0 rounded-lg overflow-hidden bg-gray-100 border border-gray-200 flex items-center justify-center"
+                            >
+                              {src ? (
+                                <img src={src} alt="" className="h-full w-full object-cover" />
+                              ) : (
+                                <div className="h-full w-full flex items-center justify-center text-gray-400 text-xs">Ad</div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </motion.div>
+                    )
+                  ))}
+                </AnimatePresence>
+              </div>
+            </div>
           </div>
 
-          <div className="flex items-center gap-4">
-            {/* Search */}
-            <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-lg">
-              <Search size={18} className="text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search..."
-                className="bg-transparent border-none outline-none text-sm w-64"
-              />
+          <div className="flex items-center gap-3 shrink-0 pl-2 border-l border-gray-200">
+            <div className="text-right">
+              <div className="text-xs font-medium text-gray-500">Corporate</div>
+              <div className="text-sm font-semibold text-gray-900">
+                {user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email || 'User' : '—'}
+              </div>
             </div>
-
-            {/* Notifications */}
-            <button className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors">
-              <Bell size={20} className="text-gray-600" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-            </button>
-
-            {/* User Menu */}
-            {/* <div className="flex items-center gap-3 pl-4 border-l border-gray-200">
-              <div className="text-right hidden sm:block">
-                <div className="text-sm font-medium text-gray-900">
-                  {user?.first_name} {user?.last_name}
-                </div>
-                <div className="text-xs text-gray-500">Corporate Admin</div>
-              </div>
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center text-white font-medium">
-                {user?.first_name?.[0]}{user?.last_name?.[0]}
-              </div>
-            </div> */}
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center text-white text-sm font-medium shrink-0">
+              {user?.first_name?.[0] || user?.email?.[0] || 'U'}
+            </div>
           </div>
         </header>
 

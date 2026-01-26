@@ -23,6 +23,7 @@ import HeaderAdsManagementCorporate from './HeaderAdsManagementCorporate.js';
 import CompanyAdsManagement from './CompanyAdsManagement.js';
 import ApplicationsManagement from './ApplicationsManagement.js';
 import FranchiseTermsConditions from './FranchiseTermsConditions.js';
+import UserTermsConditions from './UserTermsConditions.js';
 import TncDetails from './TncDetails.js';
 import ClientRegisterOtp from './ClientRegisterOtp.js';
 import ClientRegistration from './ClientRegistration.js';
@@ -57,6 +58,7 @@ import WalletTransaction from './WalletTransaction.js';
 import FooterLink from './FooterLink.js';
 import FooterFaq from './FooterFaq.js';
 import FooterPageImage from './FooterPageImage.js';
+import FranchiseOfferAd from './FranchiseOfferAd.js';
 
 // ============================================
 // USER ASSOCIATIONS
@@ -758,6 +760,7 @@ export {
   CompanyAdsManagement,
   ApplicationsManagement,
   FranchiseTermsConditions,
+  UserTermsConditions,
   TncDetails,
   ClientRegisterOtp,
   ClientRegistration,
@@ -791,6 +794,7 @@ export {
   WalletTransaction,
   FooterLink,
   FooterFaq,
-  FooterPageImage
+  FooterPageImage,
+  FranchiseOfferAd
 };
 

@@ -20,6 +20,7 @@ export const FooterFaqManager: React.FC = () => {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [formResetKey, setFormResetKey] = useState(0);
   const [formData, setFormData] = useState({
     question: '',
     answer: '',
@@ -59,6 +60,7 @@ export const FooterFaqManager: React.FC = () => {
     });
     setEditingId(null);
     setShowForm(false);
+    setFormResetKey((k) => k + 1);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -172,7 +174,7 @@ export const FooterFaqManager: React.FC = () => {
               <input
                 type="text"
                 value={formData.question}
-                onChange={(e) => setFormData({ ...formData, question: e.target.value })}
+                onChange={(e) => setFormData((prev) => ({ ...prev, question: e.target.value }))}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
               />
@@ -184,8 +186,9 @@ export const FooterFaqManager: React.FC = () => {
               </label>
               <div className="border border-gray-300 rounded-lg overflow-hidden">
                 <SummernoteEditor
+                  key={formResetKey}
                   value={formData.answer}
-                  onChange={(value) => setFormData({ ...formData, answer: value })}
+                  onChange={(value) => setFormData((prev) => ({ ...prev, answer: value }))}
                   placeholder="Enter the answer..."
                   height={240}
                 />
@@ -198,7 +201,7 @@ export const FooterFaqManager: React.FC = () => {
                 <input
                   type="number"
                   value={formData.order_index}
-                  onChange={(e) => setFormData({ ...formData, order_index: Number(e.target.value) })}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, order_index: Number(e.target.value) }))}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
@@ -207,7 +210,7 @@ export const FooterFaqManager: React.FC = () => {
                   id="faq-active"
                   type="checkbox"
                   checked={formData.is_active}
-                  onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, is_active: e.target.checked }))}
                   className="h-4 w-4 text-blue-600 border-gray-300 rounded"
                 />
                 <label htmlFor="faq-active" className="text-sm text-gray-700">

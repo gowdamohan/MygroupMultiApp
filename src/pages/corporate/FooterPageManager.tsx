@@ -40,6 +40,7 @@ export const FooterPageManager: React.FC<FooterPageManagerProps> = ({ pageType, 
   const [pageImages, setPageImages] = useState<FooterPageImage[]>([]);
   const [imageUpload, setImageUpload] = useState<File | null>(null);
   const [imagesLoading, setImagesLoading] = useState(false);
+  const [formResetKey, setFormResetKey] = useState(0);
   const [formData, setFormData] = useState<FooterPageData>({
     footer_page_type: pageType,
     title: '',
@@ -287,7 +288,21 @@ export const FooterPageManager: React.FC<FooterPageManagerProps> = ({ pageType, 
       });
 
       setSuccess('Page saved successfully!');
-      fetchPageData();
+      setFormData({
+        footer_page_type: pageType,
+        title: '',
+        tag_line: '',
+        image: null,
+        content: '',
+        url: '',
+        group_name,
+        event_date: '',
+        year: '',
+        image_url: ''
+      });
+      setImageUpload(null);
+      setPageImages([]);
+      setFormResetKey((k) => k + 1);
     } catch (error: any) {
       setError(error.response?.data?.message || 'Error saving page');
     } finally {
@@ -333,7 +348,7 @@ export const FooterPageManager: React.FC<FooterPageManagerProps> = ({ pageType, 
                   <input
                     type="text"
                     value={formData.title}
-                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     required
                   />
@@ -348,7 +363,7 @@ export const FooterPageManager: React.FC<FooterPageManagerProps> = ({ pageType, 
                   <input
                     type="text"
                     value={formData.tag_line}
-                    onChange={(e) => setFormData({ ...formData, tag_line: e.target.value })}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, tag_line: e.target.value }))}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     maxLength={100}
                   />
@@ -363,7 +378,7 @@ export const FooterPageManager: React.FC<FooterPageManagerProps> = ({ pageType, 
                   <input
                     type="date"
                     value={formData.event_date || ''}
-                    onChange={(e) => setFormData({ ...formData, event_date: e.target.value })}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, event_date: e.target.value }))}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     required
                   />
@@ -377,7 +392,7 @@ export const FooterPageManager: React.FC<FooterPageManagerProps> = ({ pageType, 
                   </label>
                   <select
                     value={formData.year || ''}
-                    onChange={(e) => setFormData({ ...formData, year: e.target.value })}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, year: e.target.value }))}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     required
                   >
@@ -402,7 +417,7 @@ export const FooterPageManager: React.FC<FooterPageManagerProps> = ({ pageType, 
                     ? resolveImageSrc(formData.image_url || formData.image)
                     : formData.image
                 }
-                onChange={(file) => setFormData({ ...formData, image: file })}
+                onChange={(file) => setFormData((prev) => ({ ...prev, image: file }))}
                 accept="image/*"
                 preview={true}
               />
@@ -416,8 +431,9 @@ export const FooterPageManager: React.FC<FooterPageManagerProps> = ({ pageType, 
               </label>
               <div className="border border-gray-300 rounded-lg overflow-hidden">
                 <SummernoteEditor
+                  key={formResetKey}
                   value={formData.content}
-                  onChange={(value) => setFormData({ ...formData, content: value })}
+                  onChange={(value) => setFormData((prev) => ({ ...prev, content: value }))}
                   placeholder={`Enter ${currentConfig.contentLabel?.toLowerCase() || 'content'}...`}
                   height={280}
                 />
@@ -433,7 +449,7 @@ export const FooterPageManager: React.FC<FooterPageManagerProps> = ({ pageType, 
               <input
                 type="url"
                 value={formData.url}
-                onChange={(e) => setFormData({ ...formData, url: e.target.value })}
+                onChange={(e) => setFormData((prev) => ({ ...prev, url: e.target.value }))}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="https://example.com"
               />
