@@ -27,6 +27,17 @@ const fileFilter = (req, file, cb) => {
   cb(new Error('Only image files are allowed (jpeg, jpg, png, gif, svg, webp)'));
 };
 
+// Category images: JPEG, JPG, PNG, GIF, WEBP only (no SVG)
+const categoryImageFileFilter = (req, file, cb) => {
+  const allowedTypes = /jpeg|jpg|png|gif|webp/;
+  const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+  const mimetype = /image\/(jpeg|jpg|png|gif|webp)/.test(file.mimetype);
+  if (mimetype && extname) {
+    return cb(null, true);
+  }
+  cb(new Error('Only image files are allowed (JPEG, JPG, PNG, GIF, WEBP). Max 5MB.'));
+};
+
 const createStorage = (subfolder = 'apps') => {
   const dir = path.join(uploadsRoot, subfolder);
   ensureDir(dir);
@@ -62,6 +73,21 @@ export const uploadCountryAssets = createUploader([
   { name: 'country_flag', maxCount: 1 },
   { name: 'currency_icon', maxCount: 1 }
 ], 'geo');
+
+// Middleware for uploading a single category image to disk (legacy)
+const categoryImageStorage = createStorage('category-images');
+export const uploadCategoryImageDisk = multer({
+  storage: categoryImageStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: categoryImageFileFilter
+}).single('category_image');
+
+// Middleware for category image upload to Wasabi (memory buffer)
+export const uploadCategoryImage = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: categoryImageFileFilter
+}).single('category_image');
 
 // Helper function to delete old files
 export const deleteFile = (filePath) => {

@@ -3,6 +3,7 @@ import { X, Save, Edit2, Trash2, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
 import { API_BASE_URL } from '../../../config/api.config';
+import { CategoryImageUpload } from '../CreateCategory/CategoryImageUpload';
 
 interface Category {
   id: number;
@@ -230,35 +231,32 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({ appId, onClose }) 
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Category Image URL</label>
-                  <input
-                    type="text"
-                    value={formData.category_image}
-                    onChange={(e) => setFormData({ ...formData, category_image: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
-                    placeholder="Image URL"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Sort Order</label>
-                  <input
-                    type="number"
-                    value={formData.sort_order}
-                    onChange={(e) => setFormData({ ...formData, sort_order: parseInt(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: parseInt(e.target.value) })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm">
-                    <option value={1}>Active</option>
-                    <option value={0}>Inactive</option>
-                  </select>
+              <div className="space-y-3">
+                <CategoryImageUpload
+                  value={formData.category_image}
+                  onChange={(url) => setFormData({ ...formData, category_image: url })}
+                  label="Category Image"
+                />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Sort Order</label>
+                    <input
+                      type="number"
+                      value={formData.sort_order}
+                      onChange={(e) => setFormData({ ...formData, sort_order: parseInt(e.target.value) || 0 })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                    <select
+                      value={formData.status}
+                      onChange={(e) => setFormData({ ...formData, status: parseInt(e.target.value) })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm">
+                      <option value={1}>Active</option>
+                      <option value={0}>Inactive</option>
+                    </select>
+                  </div>
                 </div>
               </div>
               <div className="flex gap-2">

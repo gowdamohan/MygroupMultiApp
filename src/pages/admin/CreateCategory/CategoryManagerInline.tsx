@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { API_BASE_URL } from '../../../config/api.config';
 import { CategoryCustomFormBuilder } from './CategoryCustomFormBuilder';
+import { CategoryImageUpload } from './CategoryImageUpload';
 
 interface Category {
   id: number;
@@ -438,6 +439,13 @@ export const CategoryManagerInline: React.FC<CategoryManagerInlineProps> = ({ ap
                   <label className="block text-sm font-medium text-gray-700 mb-1">Category Type</label>
                   <input type="text" value={formData.category_type} onChange={(e) => setFormData({ ...formData, category_type: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500" placeholder="e.g., product, service" />
+                </div>
+                <div>
+                  <CategoryImageUpload
+                    value={formData.category_image}
+                    onChange={(url) => setFormData({ ...formData, category_image: url })}
+                    label="Category Image"
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>

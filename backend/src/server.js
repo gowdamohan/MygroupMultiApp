@@ -162,12 +162,17 @@ app.use((req, res) => {
   });
 });
 
-// Error handler
+// Error handler (normalize multer errors to 400)
 app.use((err, req, res, next) => {
   console.error('Error:', err);
-  res.status(err.status || 500).json({
+  const isMulter = err.code === 'LIMIT_FILE_SIZE' || err.code === 'LIMIT_UNEXPECTED_FILE' || err.name === 'MulterError';
+  const status = err.status || (isMulter ? 400 : 500);
+  const message = isMulter && err.code === 'LIMIT_FILE_SIZE'
+    ? 'File too large. Maximum size is 5MB.'
+    : (err.message || 'Internal server error');
+  res.status(status).json({
     success: false,
-    message: err.message || 'Internal server error',
+    message,
     ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
   });
 });

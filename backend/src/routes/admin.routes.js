@@ -36,6 +36,7 @@ import {
   getAppLocking,
   updateAppLocking,
   getAppCategories,
+  uploadCategoryImage,
   createCategory,
   updateCategory,
   deleteCategory,
@@ -68,7 +69,7 @@ import {
   toggleAccountsUserStatus
 } from '../controllers/accountsUserController.js';
 import { authenticate } from '../middleware/auth.js';
-import { uploadAppImages, uploadCountryAssets } from '../middleware/upload.js';
+import { uploadAppImages, uploadCountryAssets, uploadCategoryImage as uploadCategoryImageMiddleware } from '../middleware/upload.js';
 
 const router = express.Router();
 
@@ -192,6 +193,7 @@ router.put('/apps/:id/locking', updateAppLocking);
  * ============================================
  */
 router.get('/apps/:appId/categories', getAppCategories);
+router.post('/categories/upload-image', uploadCategoryImageMiddleware, uploadCategoryImage);
 router.post('/categories', createCategory);
 router.put('/categories/:id', updateCategory);
 router.delete('/categories/:id', deleteCategory);

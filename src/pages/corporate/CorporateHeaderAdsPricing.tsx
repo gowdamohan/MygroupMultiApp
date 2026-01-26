@@ -77,6 +77,8 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
   const [appCategories, setAppCategories] = useState<{[appId: number]: Category[]}>({});
   const [cellEditModal, setCellEditModal] = useState<CellEditModal | null>(null);
   const [cellPrice, setCellPrice] = useState('');
+  const [filterAppId, setFilterAppId] = useState<number | 'all'>('all');
+  const [filterCategoryId, setFilterCategoryId] = useState<number | 'all'>('all');
 
   // Master pricing for all ads types
   const [masterPricing, setMasterPricing] = useState<MasterPricing>({
@@ -220,20 +222,22 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
       const token = localStorage.getItem('accessToken');
       const today = new Date();
       today.setHours(0, 0, 0, 0);
+      const startDateStr = formatDateString(today.getFullYear(), today.getMonth(), today.getDate());
       
       // Calculate end date: exactly 3 months from today
       const endDate = new Date(today);
       endDate.setMonth(endDate.getMonth() + 3);
       endDate.setDate(endDate.getDate() - 1); // Subtract 1 day to get exactly 3 months (not 3 months + 1 day)
       endDate.setHours(0, 0, 0, 0);
+      const endDateStr = formatDateString(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
 
       const res = await axios.get(`${API_BASE_URL}/header-ads-pricing/slave`, {
         headers: { Authorization: `Bearer ${token}` },
         params: {
           country_id: selectedCountry.id,
           pricing_slot: activeTab,
-          start_date: today.toISOString().split('T')[0],
-          end_date: endDate.toISOString().split('T')[0]
+          start_date: startDateStr,
+          end_date: endDateStr
         }
       });
 
@@ -347,6 +351,12 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
     return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
   };
 
+  // Today in local YYYY-MM-DD for disabling cell and comparisons
+  const getTodayDateString = (): string => {
+    const t = new Date();
+    return formatDateString(t.getFullYear(), t.getMonth(), t.getDate());
+  };
+
   const getMonthGroups = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -362,11 +372,15 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
     const currentDate = new Date(today);
     
     while (currentDate <= endDate) {
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth();
+      const day = currentDate.getDate();
+      const dateStr = formatDateString(year, month, day);
       allDates.push({
-        date: currentDate.toISOString().split('T')[0],
-        day: currentDate.getDate(),
-        month: currentDate.getMonth(),
-        year: currentDate.getFullYear()
+        date: dateStr,
+        day,
+        month,
+        year
       });
       currentDate.setDate(currentDate.getDate() + 1);
       currentDate.setHours(0, 0, 0, 0);
@@ -436,6 +450,13 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
     return found ? found.my_coins : null;
   };
 
+  // Filtered apps and categories for table
+  const filteredApps = filterAppId === 'all' ? apps : apps.filter((a) => a.id === filterAppId);
+  const getCategoriesForApp = (appId: number) => {
+    const cats = appCategories[appId] || [];
+    return filterCategoryId === 'all' ? cats : cats.filter((c) => c.id === filterCategoryId);
+  };
+
   // Render price card
   const renderPriceCard = (
     pricing_slot: 'General' | 'Capitals',
@@ -469,8 +490,14 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
 
           {/* Country Dropdown with Flag */}
           <div className="flex items-center gap-2 bg-indigo-600 rounded-lg px-3 py-2">
-            {selectedCountry?.flag_icon && (
-              <span className="text-xl">{selectedCountry.flag_icon}</span>
+            {selectedCountry?.flag_icon ? (
+              selectedCountry.flag_icon.startsWith('http') ? (
+                <img src={selectedCountry.flag_icon} alt="" className="w-6 h-4 object-cover rounded" />
+              ) : (
+                <span className="text-xl" aria-hidden>{selectedCountry.flag_icon}</span>
+              )
+            ) : (
+              <span className="text-xl opacity-80" aria-hidden>🏳️</span>
             )}
             <select
               value={selectedCountry?.id || ''}
@@ -510,12 +537,14 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
               </div>
             ) : (
               <>
-                <span className="bg-indigo-600 px-3 py-2 rounded-lg">1 INR</span>
+                <span className="bg-indigo-600 px-3 py-2 rounded-lg">1 {selectedCountry.currency_code}</span>
                 <span>=</span>
                 <span className="bg-indigo-600 px-3 py-2 rounded-lg">
-                  {exchangeRate.rate > 0 ? exchangeRate.rate.toFixed(4) : '1.0000'}
+                  {exchangeRate.rate > 0 && selectedCountry.currency_code !== 'INR'
+                    ? (1 / exchangeRate.rate).toFixed(2)
+                    : '1.00'}
                 </span>
-                <span className="font-semibold">{selectedCountry.currency_code}</span>
+                <span className="font-semibold">MyCoins</span>
               </>
             )}
           </div>
@@ -541,6 +570,47 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Filters: App & Category (shown when country selected) */}
+      {selectedCountry && (
+        <div className="flex flex-wrap items-center gap-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
+          <span className="text-sm font-medium text-gray-700">Filters:</span>
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-600">App</label>
+            <select
+              value={filterAppId === 'all' ? 'all' : filterAppId}
+              onChange={(e) => {
+                const v = e.target.value;
+                setFilterAppId(v === 'all' ? 'all' : parseInt(v, 10));
+                setFilterCategoryId('all');
+              }}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 text-sm"
+            >
+              <option value="all">All Apps</option>
+              {apps.map((app) => (
+                <option key={app.id} value={app.id}>{app.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-600">Category</label>
+            <select
+              value={filterCategoryId === 'all' ? 'all' : filterCategoryId}
+              onChange={(e) => {
+                const v = e.target.value;
+                setFilterCategoryId(v === 'all' ? 'all' : parseInt(v, 10));
+              }}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 text-sm"
+              disabled={filterAppId === 'all'}
+            >
+              <option value="all">All Categories</option>
+              {filterAppId !== 'all' && (appCategories[filterAppId] || []).map((cat) => (
+                <option key={cat.id} value={cat.id}>{cat.category_name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-2 border-b border-gray-200">
@@ -571,7 +641,7 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
         <table className="w-full border-collapse">
           <thead className="sticky top-0 z-20 bg-white">
             <tr>
-              <th rowSpan={2} className="sticky left-0 z-30 bg-blue-600 border border-gray-300 px-4 py-2 text-sm font-bold text-white min-w-[150px]">
+              <th rowSpan={2} className="bg-blue-600 border border-gray-300 px-4 py-2 text-sm font-bold text-white min-w-[150px]">
                 Category
               </th>
               {getMonthGroups().map((group, idx) => {
@@ -598,28 +668,32 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
                     </th>
                   );
                 }
-                return group.dates.map((dayInfo) => (
-                  <th key={dayInfo.date} className={`border border-gray-300 px-2 py-2 text-xs font-semibold text-white min-w-[50px] ${colors[colorIndex]}`}>
-                    {dayInfo.day}
-                  </th>
-                ));
+                return group.dates.map((dayInfo) => {
+                  const dayName = new Date(dayInfo.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' });
+                  return (
+                    <th key={dayInfo.date} className={`border border-gray-300 px-2 py-2 text-xs font-semibold text-white min-w-[50px] ${colors[colorIndex]}`}>
+                      <div>{dayName}</div>
+                      <div>{dayInfo.day}</div>
+                    </th>
+                  );
+                });
               })}
             </tr>
           </thead>
           <tbody>
-            {apps.map((app) => {
-              const categories = appCategories[app.id] || [];
+            {filteredApps.map((app) => {
+              const categories = getCategoriesForApp(app.id);
               return (
                 <React.Fragment key={app.id}>
                   <tr>
                     <td colSpan={getMonthGroups().reduce((sum, g) => sum + Math.max(g.dates.length, 1), 0) + 1} 
-                      className="sticky left-0 z-10 bg-blue-500 border border-gray-300 px-4 py-2 font-bold text-white">
+                      className="bg-blue-500 border border-gray-300 px-4 py-2 font-bold text-white">
                       {app.name}
                     </td>
                   </tr>
                   {categories.map((category) => (
                     <tr key={category.id} className="hover:bg-gray-50">
-                      <td className="sticky left-0 z-10 bg-blue-100 border border-gray-300 px-4 py-2 font-medium text-gray-900">
+                      <td className="bg-blue-100 border border-gray-300 px-4 py-2 font-medium text-gray-900">
                         {category.category_name}
                       </td>
                       {getMonthGroups().map((group, groupIdx) => {
@@ -636,11 +710,16 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
                         }
                         return group.dates.map((dayInfo) => {
                           const price = getPriceForDate(app.id, category.id, dayInfo.date);
+                          const isToday = dayInfo.date === getTodayDateString();
                           return (
                             <td 
                               key={dayInfo.date} 
-                              onClick={() => handleCellClick(app.id, category.id, dayInfo.date)}
-                              className="border border-gray-300 px-2 py-2 text-center text-xs bg-green-50 cursor-pointer hover:bg-green-100 transition-colors"
+                              onClick={() => !isToday && handleCellClick(app.id, category.id, dayInfo.date)}
+                              className={`border border-gray-300 px-2 py-2 text-center text-xs transition-colors ${
+                                isToday
+                                  ? 'bg-gray-200 cursor-not-allowed opacity-75'
+                                  : 'bg-green-50 cursor-pointer hover:bg-green-100'
+                              }`}
                             >
                               {price !== null ? (
                                 <div className="font-semibold text-gray-900">🪙{price}</div>
@@ -673,7 +752,7 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
               <div className="flex justify-between items-center mb-4">
                 <div>
                   <h3 className="text-xl font-bold text-gray-900">Edit Price</h3>
-                  <p className="text-sm text-gray-600 mt-1">{new Date(cellEditModal.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</p>
+                  <p className="text-sm text-gray-600 mt-1">{new Date(cellEditModal.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</p>
                 </div>
                 <button onClick={() => setCellEditModal(null)} className="p-2 hover:bg-gray-100 rounded-lg">
                   <X size={20} />

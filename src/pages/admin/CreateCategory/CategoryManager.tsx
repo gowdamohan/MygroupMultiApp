@@ -3,6 +3,7 @@ import { ArrowLeft, Plus, Edit2, Trash2, Save, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { API_BASE_URL } from '../../../config/api.config';
+import { CategoryImageUpload } from './CategoryImageUpload';
 
 interface Category {
   id: number;
@@ -521,7 +522,7 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ app, onBack })
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Category Type</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Category Typea</label>
                   <input
                     type="text"
                     value={formData.category_type}
@@ -531,12 +532,10 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ app, onBack })
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Image URL</label>
-                  <input
-                    type="text"
+                  <CategoryImageUpload
                     value={formData.category_image}
-                    onChange={(e) => setFormData({ ...formData, category_image: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    onChange={(url) => setFormData({ ...formData, category_image: url })}
+                    label="Category Image"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">

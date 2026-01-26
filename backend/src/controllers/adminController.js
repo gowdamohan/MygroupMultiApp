@@ -17,6 +17,7 @@ import {
   UserGroup,
   ClientRegistration
 } from '../models/index.js';
+import { uploadFile } from '../services/wasabiService.js';
 
 /**
  * ============================================
@@ -1281,6 +1282,42 @@ export const getAppCategories = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch categories',
+      error: error.message
+    });
+  }
+};
+
+// Upload category image to Wasabi (for main, sub, or child category)
+export const uploadCategoryImage = async (req, res) => {
+  try {
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({
+        success: false,
+        message: 'No image file uploaded or invalid file'
+      });
+    }
+    const uploadResult = await uploadFile(
+      req.file.buffer,
+      req.file.originalname,
+      req.file.mimetype,
+      'category-images'
+    );
+    if (!uploadResult.success || !uploadResult.publicUrl) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to upload image to storage'
+      });
+    }
+    res.status(200).json({
+      success: true,
+      message: 'Category image uploaded successfully',
+      url: uploadResult.publicUrl
+    });
+  } catch (error) {
+    console.error('Category image upload error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to upload category image',
       error: error.message
     });
   }
