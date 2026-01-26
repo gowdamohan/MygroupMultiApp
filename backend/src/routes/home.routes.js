@@ -1,5 +1,5 @@
 import express from 'express';
-import { getMobileHomeData } from '../controllers/homeController.js';
+import { getMobileHomeData, getDownloadApps } from '../controllers/homeController.js';
 
 const router = express.Router();
 
@@ -10,6 +10,9 @@ const router = express.Router();
 
 // GET /api/v1/home/mobile-data - Get mobile home page data
 router.get('/mobile-data', getMobileHomeData);
+
+// GET /api/v1/home/download-apps - Get download links for iOS and Android apps
+router.get('/download-apps', getDownloadApps);
 
 export default router;
 

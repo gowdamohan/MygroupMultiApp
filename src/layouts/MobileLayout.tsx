@@ -467,7 +467,7 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                   {/* Profile Picture */}
                   <div className="relative">
                     <div className="w-24 h-24 rounded-full bg-white p-1">
-                      {userProfile.profile_img ? (
+                      {userProfile?.profile_img ? (
                         <img
                           src={`${BACKEND_URL}${userProfile.profile_img}`}
                           alt="Profile"
@@ -475,7 +475,7 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                         />
                       ) : (
                         <div className="w-full h-full rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white text-3xl font-bold">
-                          {userProfile.first_name?.charAt(0) || 'U'}
+                          {userProfile?.first_name?.charAt(0) || 'U'}
                         </div>
                       )}
                     </div>
@@ -492,9 +492,9 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
 
                   {/* User Info */}
                   <h2 className="text-2xl font-bold text-white mt-4">
-                    {userProfile.display_name || userProfile.first_name}
+                    {userProfile?.display_name || userProfile?.first_name || 'User'}
                   </h2>
-                  {userProfile.identification_code && (
+                  {userProfile?.identification_code && (
                     <p className="text-white/90 text-sm mt-1 font-mono bg-white/20 px-3 py-1 rounded-full">
                       ID: {userProfile.identification_code}
                     </p>

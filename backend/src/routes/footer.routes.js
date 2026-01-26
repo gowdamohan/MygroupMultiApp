@@ -51,6 +51,9 @@ const upload = multer({
   }
 });
 
+// Public route - no authentication required
+router.get('/social-media', getSocialMediaLinks);
+
 router.use(authenticate);
 
 // Footer Page Routes
@@ -68,8 +71,7 @@ router.get('/page-images', getFooterPageImages);
 router.post('/page-images', upload.single('image'), addFooterPageImage);
 router.delete('/page-images/:id', deleteFooterPageImage);
 
-// Social Media Links Routes
-router.get('/social-media', getSocialMediaLinks);
+// Social Media Links Routes (GET is public above; POST/DELETE require auth)
 router.post('/social-media', saveSocialMediaLink);
 router.delete('/social-media/:id', deleteSocialMediaLink);
 

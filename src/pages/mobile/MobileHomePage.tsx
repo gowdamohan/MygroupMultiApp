@@ -668,7 +668,7 @@ export const MobileHomePage: React.FC = () => {
                 ))}
               </div>
               <p className="text-center text-xs text-gray-400">
-                &copy; {new Date().getFullYear()} {homeData.copyRight?.company_name || 'Multi-Tenant Platform'}. All rights reserved.
+                &copy; {new Date().getFullYear()} {homeData.copyRight?.company_name || 'Mygroup'}. All rights reserved.
               </p>
             </div>
           </div>

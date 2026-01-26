@@ -11,6 +11,26 @@ import {
  * Handles mobile home page data fetching
  */
 
+// Get download app links (iOS App Store & Android Play Store)
+export const getDownloadApps = async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      data: {
+        ios: process.env.IOS_APP_STORE_URL || 'https://apps.apple.com/app/placeholder',
+        android: process.env.ANDROID_PLAY_STORE_URL || 'https://play.google.com/store/apps/details?id=com.placeholder'
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching download apps:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch download app links',
+      error: error.message
+    });
+  }
+};
+
 // Get mobile home page data
 export const getMobileHomeData = async (req, res) => {
   try {

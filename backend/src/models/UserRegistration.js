@@ -23,6 +23,10 @@ const UserRegistration = sequelize.define('user_registration_form', {
     type: DataTypes.STRING(10),
     allowNull: true
   },
+  country_code_alter: {
+    type: DataTypes.STRING(10),
+    allowNull: true
+  },
   gender: {
     type: DataTypes.ENUM('Male', 'Female', 'Other'),
     allowNull: true

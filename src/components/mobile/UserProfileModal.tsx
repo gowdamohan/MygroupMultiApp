@@ -239,32 +239,49 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     }
   };
 
-  // Fetch user stats
+  // Fetch user stats (API returns totalRegisteredUsers, activeUsers, newUsersThisMonth)
   const fetchUserStats = async () => {
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await axios.get(`${API_BASE_URL}/member/user-stats`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (response.data.success) {
-        setUserStats(response.data.data || { global: 0, national: 0, regional: 0, local: 0 });
+      const response = await axios.get(`${API_BASE_URL}/member/user-stats`);
+      if (response.data.success && response.data.data) {
+        const d = response.data.data;
+        if (typeof d.totalRegisteredUsers !== 'undefined' || typeof d.activeUsers !== 'undefined' || typeof d.newUsersThisMonth !== 'undefined') {
+          setUserStats({
+            global: Number(d.totalRegisteredUsers) || 0,
+            national: Number(d.activeUsers) || 0,
+            regional: Number(d.newUsersThisMonth) || 0,
+            local: 0
+          });
+        } else {
+          setUserStats({ global: d.global ?? 0, national: d.national ?? 0, regional: d.regional ?? 0, local: d.local ?? 0 });
+        }
       }
     } catch (error) {
-      // Use placeholder data if API not available
-      setUserStats({ global: 12500, national: 3200, regional: 850, local: 125 });
+      setUserStats({ global: 0, national: 0, regional: 0, local: 0 });
     }
   };
 
-  // Fetch download apps
+  // Fetch download apps (API may return { ios, android } or array)
   const fetchDownloadApps = async () => {
     try {
       const response = await axios.get(`${API_BASE_URL}/home/download-apps`);
-      if (response.data.success) setDownloadApps(response.data.data || []);
+      if (response.data.success && response.data.data) {
+        const d = response.data.data;
+        if (Array.isArray(d)) {
+          setDownloadApps(d);
+        } else if (d.android != null || d.ios != null) {
+          setDownloadApps([
+            { name: 'Google Play', icon: '', playStoreUrl: d.android || '#' },
+            { name: 'App Store', icon: '', appStoreUrl: d.ios || '#' }
+          ]);
+        } else {
+          setDownloadApps([]);
+        }
+      }
     } catch (error) {
-      // Use placeholder data
       setDownloadApps([
-        { name: 'Google Play', icon: '/images/google-play.png', playStoreUrl: '#' },
-        { name: 'App Store', icon: '/images/app-store.png', appStoreUrl: '#' }
+        { name: 'Google Play', icon: '/images/google-play.png', playStoreUrl: 'https://play.google.com/store/apps' },
+        { name: 'App Store', icon: '/images/app-store.png', appStoreUrl: 'https://apps.apple.com' }
       ]);
     }
   };
@@ -282,19 +299,24 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
   // Handle profile update
   const handleProfileUpdate = async () => {
+    if (!userProfile?.id) {
+      alert('User profile not loaded');
+      return;
+    }
     setSaving(true);
     try {
       const token = localStorage.getItem('accessToken');
       const formData = new FormData();
 
+      formData.append('user_id', String(userProfile.id));
       Object.entries(profileFormData).forEach(([key, value]) => {
-        if (value) formData.append(key, value as string);
+        if (value != null && value !== '' && key !== 'id') formData.append(key, value as string);
       });
 
       if (profileImage) formData.append('profile_img', profileImage);
 
       await axios.put(`${API_BASE_URL}/member/update-profile`, formData, {
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
+        headers: { Authorization: `Bearer ${token}` }
       });
 
       alert('Profile updated successfully!');
@@ -1026,28 +1048,28 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 <Globe size={14} className="text-blue-500" />
                 <span className="text-xs text-gray-500">Global</span>
               </div>
-              <p className="text-lg font-bold text-gray-800">{userStats.global.toLocaleString()}</p>
+              <p className="text-lg font-bold text-gray-800">{(userStats.global ?? 0).toLocaleString()}</p>
             </div>
             <div className="bg-white p-3 rounded-lg border border-gray-200 text-center">
               <div className="flex items-center justify-center gap-1 mb-1">
                 <Building2 size={14} className="text-green-500" />
                 <span className="text-xs text-gray-500">National</span>
               </div>
-              <p className="text-lg font-bold text-gray-800">{userStats.national.toLocaleString()}</p>
+              <p className="text-lg font-bold text-gray-800">{(userStats.national ?? 0).toLocaleString()}</p>
             </div>
             <div className="bg-white p-3 rounded-lg border border-gray-200 text-center">
               <div className="flex items-center justify-center gap-1 mb-1">
                 <Map size={14} className="text-orange-500" />
                 <span className="text-xs text-gray-500">Regional</span>
               </div>
-              <p className="text-lg font-bold text-gray-800">{userStats.regional.toLocaleString()}</p>
+              <p className="text-lg font-bold text-gray-800">{(userStats.regional ?? 0).toLocaleString()}</p>
             </div>
             <div className="bg-white p-3 rounded-lg border border-gray-200 text-center">
               <div className="flex items-center justify-center gap-1 mb-1">
                 <MapPin size={14} className="text-purple-500" />
                 <span className="text-xs text-gray-500">Local</span>
               </div>
-              <p className="text-lg font-bold text-gray-800">{userStats.local.toLocaleString()}</p>
+              <p className="text-lg font-bold text-gray-800">{(userStats.local ?? 0).toLocaleString()}</p>
             </div>
           </div>
         </div>

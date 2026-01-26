@@ -270,14 +270,14 @@ export const registerMemberStep1 = async (req, res) => {
   }
 };
 
-// Update member profile - Step 2
+// Update member profile - Step 2 (supports both POST JSON and PUT FormData with optional profile_img)
 export const updateMemberProfile = async (req, res) => {
   try {
     console.log('=== Update Member Profile Request ===');
     console.log('Request body:', JSON.stringify(req.body, null, 2));
 
     const {
-      user_id,
+      user_id: userIdRaw,
       display_name,
       last_name,
       alter_number,
@@ -297,9 +297,11 @@ export const updateMemberProfile = async (req, res) => {
       work_others
     } = req.body;
 
+    const user_id = userIdRaw != null ? (typeof userIdRaw === 'number' ? userIdRaw : parseInt(userIdRaw, 10)) : null;
+
     // Validate user_id
-    if (!user_id) {
-      console.log('ERROR: User ID is missing');
+    if (!user_id || Number.isNaN(user_id)) {
+      console.log('ERROR: User ID is missing or invalid');
       return res.status(400).json({
         success: false,
         message: 'User ID is required'
@@ -361,25 +363,27 @@ export const updateMemberProfile = async (req, res) => {
       console.log('Skipping identification code generation - missing country/state/district');
     }
 
-    // Update user table with display_name, last_name, alter_number, identification_code
+    // Build user update payload (users table: display_name, last_name, alter_number, identification_code, profile_img)
+    const userUpdatePayload = {
+      display_name: display_name || null,
+      last_name: last_name || null,
+      alter_number: alter_number || null,
+      identification_code: identification_code
+    };
+    if (req.file && req.file.filename) {
+      userUpdatePayload.profile_img = `/uploads/profile/${req.file.filename}`;
+    }
     console.log('Updating user table...');
-    const userUpdateResult = await User.update(
-      {
-        display_name: display_name || null,
-        last_name: last_name || null,
-        alter_number: alter_number || null,
-        identification_code: identification_code
-      },
-      {
-        where: { id: user_id }
-      }
-    );
+    const userUpdateResult = await User.update(userUpdatePayload, {
+      where: { id: user_id }
+    });
     console.log('User update result:', userUpdateResult);
 
     // Create DOB if all parts provided
     let dob = null;
-    if (dob_year && dob_month && dob_date) {
-      dob = `${dob_year}-${dob_month.padStart(2, '0')}-${String(dob_date).padStart(2, '0')}`;
+    if (dob_year && dob_month != null && dob_date) {
+      const monthStr = typeof dob_month === 'string' ? dob_month : String(dob_month);
+      dob = `${dob_year}-${monthStr.padStart(2, '0')}-${String(dob_date).padStart(2, '0')}`;
     }
 
     // Create or update user_registration_form
@@ -462,6 +466,67 @@ export const checkUserProfile = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to check profile',
+      error: error.message
+    });
+  }
+};
+
+// Get user statistics (public - no auth required)
+export const getUserStats = async (req, res) => {
+  try {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfMonthUnix = Math.floor(startOfMonth.getTime() / 1000);
+
+    const memberGroup = await Group.findOne({
+      where: { name: 'member' }
+    });
+    if (!memberGroup) {
+      return res.json({
+        success: true,
+        data: {
+          totalRegisteredUsers: 0,
+          activeUsers: 0,
+          newUsersThisMonth: 0
+        }
+      });
+    }
+
+    const [totalRegisteredUsers, activeUsers, newUsersThisMonth] = await Promise.all([
+      UserGroup.count({ where: { group_id: memberGroup.id } }),
+      User.count({
+        include: [{
+          model: Group,
+          as: 'groups',
+          required: true,
+          where: { name: 'member' }
+        }],
+        where: { active: 1 }
+      }),
+      User.count({
+        include: [{
+          model: Group,
+          as: 'groups',
+          required: true,
+          where: { name: 'member' }
+        }],
+        where: { created_on: { [Op.gte]: startOfMonthUnix } }
+      })
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        totalRegisteredUsers,
+        activeUsers,
+        newUsersThisMonth
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching user stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch user statistics',
       error: error.message
     });
   }
