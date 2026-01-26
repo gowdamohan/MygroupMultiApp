@@ -291,60 +291,46 @@ export const FranchiseHeaderAds: React.FC<FranchiseHeaderAdsProps> = ({
   };
 
 
+  const formatDateString = (year: number, month: number, day: number): string => {
+    return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  };
+
   const getMonthGroups = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    // Calculate end date: exactly 3 months from today
     const endDate = new Date(today);
     endDate.setMonth(endDate.getMonth() + 3);
-    endDate.setDate(endDate.getDate() - 1); // Subtract 1 day to get exactly 3 months (not 3 months + 1 day)
+    endDate.setDate(endDate.getDate() - 1);
     endDate.setHours(0, 0, 0, 0);
 
-    // Generate all dates from today to endDate (inclusive)
     const allDates: { date: string; day: number; month: number; year: number }[] = [];
     const currentDate = new Date(today);
     
     while (currentDate <= endDate) {
-      allDates.push({
-        date: currentDate.toISOString().split('T')[0],
-        day: currentDate.getDate(),
-        month: currentDate.getMonth(),
-        year: currentDate.getFullYear()
-      });
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth();
+      const day = currentDate.getDate();
+      const dateStr = formatDateString(year, month, day);
+      allDates.push({ date: dateStr, day, month, year });
       currentDate.setDate(currentDate.getDate() + 1);
       currentDate.setHours(0, 0, 0, 0);
     }
 
-    // Group dates by month
     const monthMap = new Map<string, { month: string; year: number; dates: { date: string; day: number }[] }>();
-    
     allDates.forEach(dayInfo => {
       const monthKey = `${dayInfo.year}-${String(dayInfo.month).padStart(2, '0')}`;
-      
       if (!monthMap.has(monthKey)) {
         const monthName = new Date(dayInfo.year, dayInfo.month, 1).toLocaleDateString('en-US', { month: 'short' });
-        monthMap.set(monthKey, {
-          month: monthName,
-          year: dayInfo.year,
-          dates: []
-        });
+        monthMap.set(monthKey, { month: monthName, year: dayInfo.year, dates: [] });
       }
-      
-      monthMap.get(monthKey)!.dates.push({
-        date: dayInfo.date,
-        day: dayInfo.day
-      });
+      monthMap.get(monthKey)!.dates.push({ date: dayInfo.date, day: dayInfo.day });
     });
 
-    // Ensure we have all months in the range, even if they're empty
-    // This ensures all month headers display correctly
     const startMonth = today.getMonth();
     const startYear = today.getFullYear();
     const endMonth = endDate.getMonth();
     const endYear = endDate.getFullYear();
-    
-    // Get all months that should be displayed
     const allMonths: { month: string; year: number; dates: { date: string; day: number }[] }[] = [];
     let currentMonthDate = new Date(startYear, startMonth, 1);
     currentMonthDate.setHours(0, 0, 0, 0);
@@ -354,23 +340,15 @@ export const FranchiseHeaderAds: React.FC<FranchiseHeaderAdsProps> = ({
     while (currentMonthDate <= lastMonthDate) {
       const monthKey = `${currentMonthDate.getFullYear()}-${String(currentMonthDate.getMonth()).padStart(2, '0')}`;
       const monthName = currentMonthDate.toLocaleDateString('en-US', { month: 'short' });
-      
-      if (monthMap.has(monthKey)) {
-        allMonths.push(monthMap.get(monthKey)!);
-      } else {
-        // Add empty month to ensure header displays
-        allMonths.push({
-          month: monthName,
-          year: currentMonthDate.getFullYear(),
-          dates: []
-        });
-      }
-      
+      allMonths.push(monthMap.get(monthKey) || { month: monthName, year: currentMonthDate.getFullYear(), dates: [] });
       currentMonthDate.setMonth(currentMonthDate.getMonth() + 1);
     }
-
     return allMonths;
   };
+
+  const monthGroups = getMonthGroups();
+  const totalDateCols = monthGroups.reduce((sum, g) => sum + Math.max(g.dates.length, 1), 0);
+  const tableMinWidthPx = 200 + 52 * totalDateCols;
 
   const getDateRangeText = () => {
     const today = new Date();
@@ -451,43 +429,29 @@ export const FranchiseHeaderAds: React.FC<FranchiseHeaderAdsProps> = ({
     return months;
   };
 
-  const getDaysInCalendarMonth = (month: Date) => {
+  /** Full month grid for calendar: leading empty cells + all days 1..lastDay with date (YYYY-MM-DD). */
+  const getFullMonthGrid = (month: Date): { emptyCells: number; days: { day: number; date: string }[] } => {
+    const year = month.getFullYear();
+    const monthIndex = month.getMonth();
+    const firstDay = new Date(year, monthIndex, 1);
+    const emptyCells = firstDay.getDay();
+    const lastDayOfMonth = new Date(year, monthIndex + 1, 0).getDate();
+    const days: { day: number; date: string }[] = [];
+    for (let day = 1; day <= lastDayOfMonth; day++) {
+      days.push({ day, date: formatDateString(year, monthIndex, day) });
+    }
+    return { emptyCells, days };
+  };
+
+  /** Start and end of bookable range (today through 3 months). */
+  const getBookableRange = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
-    // Calculate end date: exactly 3 months from today
     const endDate = new Date(today);
     endDate.setMonth(endDate.getMonth() + 3);
     endDate.setDate(endDate.getDate() - 1);
     endDate.setHours(0, 0, 0, 0);
-    
-    const year = month.getFullYear();
-    const monthIndex = month.getMonth();
-    
-    // Determine the start day for this month
-    // If this is the current month, start from today's date
-    // Otherwise, start from day 1
-    const isCurrentMonth = month.getFullYear() === today.getFullYear() && monthIndex === today.getMonth();
-    const startDay = isCurrentMonth ? today.getDate() : 1;
-    
-    // Determine the end day for this month
-    // If this is the last month in range, end at endDate's date
-    // Otherwise, end at the last day of the month
-    const isLastMonth = month.getFullYear() === endDate.getFullYear() && monthIndex === endDate.getMonth();
-    const lastDayOfMonth = new Date(year, monthIndex + 1, 0).getDate();
-    const endDay = isLastMonth ? endDate.getDate() : lastDayOfMonth;
-
-    const days: { date: string; day: number }[] = [];
-    for (let day = startDay; day <= endDay; day++) {
-      const date = new Date(year, monthIndex, day);
-      date.setHours(0, 0, 0, 0);
-      
-      // Double-check that date is within our range
-      if (date >= today && date <= endDate) {
-        days.push({ date: date.toISOString().split('T')[0], day });
-      }
-    }
-    return days;
+    return { start: today, end: endDate };
   };
 
   const getPricingForDate = (appId: number, categoryId: number, date: string): PricingData | undefined => {
@@ -602,11 +566,6 @@ export const FranchiseHeaderAds: React.FC<FranchiseHeaderAdsProps> = ({
     );
   }
 
-  const monthGroups = getMonthGroups();
-  const totalDateColumns = monthGroups.reduce((sum, group) => sum + Math.max(group.dates.length, 1), 0);
-  const appNameColumnWidth = 200;
-  const categoryColumnWidth = 180;
-
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
@@ -634,142 +593,115 @@ export const FranchiseHeaderAds: React.FC<FranchiseHeaderAdsProps> = ({
       </AnimatePresence>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-        <div ref={topScrollRef} className="overflow-x-auto overflow-y-hidden border-b border-gray-200">
-          <div ref={topScrollContentRef} className="h-4" />
+        <div
+          ref={topScrollRef}
+          onScroll={() => { if (topScrollRef.current && tableScrollRef.current) syncScroll(topScrollRef.current, tableScrollRef.current); }}
+          className="overflow-x-auto overflow-y-hidden border-b border-gray-200"
+          style={{ maxHeight: '16px' }}
+        >
+          <div ref={topScrollContentRef} style={{ minWidth: tableMinWidthPx, height: 1 }} />
         </div>
-        <div ref={tableScrollRef} className="overflow-auto relative max-h-[600px]">
-          <table className="w-full border-collapse">
-            <thead className="sticky top-0 z-20">
+        <div
+          ref={tableScrollRef}
+          onScroll={() => { if (tableScrollRef.current && topScrollRef.current) syncScroll(tableScrollRef.current, topScrollRef.current); }}
+          className="overflow-auto"
+          style={{ maxHeight: '600px' }}
+        >
+          <table className="w-full border-collapse" style={{ minWidth: tableMinWidthPx }}>
+            <thead className="sticky top-0 z-20 bg-white">
               <tr>
-                <th
-                  rowSpan={2}
-                  className="sticky top-0 left-0 z-30 bg-blue-600 border border-gray-300 px-4 py-2 text-sm font-bold text-white"
-                  style={{ width: appNameColumnWidth, minWidth: appNameColumnWidth }}
-                >
-                  App Name
-                </th>
-                <th
-                  rowSpan={2}
-                  className="sticky top-0 z-20 bg-blue-600 border border-gray-300 px-4 py-2 text-sm font-bold text-white"
-                  style={{ left: appNameColumnWidth, width: categoryColumnWidth, minWidth: categoryColumnWidth }}
-                >
+                <th rowSpan={2} className="sticky left-0 z-30 bg-blue-600 border border-gray-300 px-4 py-2 text-sm font-bold text-white min-w-[180px] shadow-[2px_0_4px_rgba(0,0,0,0.08)]">
                   Category
                 </th>
                 {monthGroups.map((group, idx) => {
-                  const colors = ['bg-blue-600', 'bg-indigo-600', 'bg-purple-600'];
+                  const colors = ['bg-blue-600', 'bg-indigo-600', 'bg-purple-600', 'bg-pink-600', 'bg-yellow-600', 'bg-green-600', 'bg-red-600'];
                   const colorIndex = idx % colors.length;
-                  const headerText = `${group.month} ${group.year}`;
-                  const colSpan = group.dates.length > 0 ? group.dates.length : 1; // Minimum 1 to ensure header displays
+                  const colSpan = group.dates.length > 0 ? group.dates.length : 1;
                   return (
                     <th key={`${group.month}-${group.year}-${idx}`} colSpan={colSpan} className={`border border-gray-300 px-2 py-2 text-sm font-bold text-white ${colors[colorIndex]}`}>
-                      {headerText}
+                      {group.month} {group.year}
                     </th>
                   );
                 })}
               </tr>
               <tr>
                 {monthGroups.map((group, idx) => {
-                  const colors = ['bg-blue-600', 'bg-indigo-600', 'bg-purple-600'];
+                  const colors = ['bg-blue-600', 'bg-indigo-600', 'bg-purple-600', 'bg-pink-600', 'bg-yellow-600', 'bg-green-600', 'bg-red-600'];
                   const colorIndex = idx % colors.length;
                   if (group.dates.length === 0) {
-                    // If no dates in this month, add a placeholder cell to match colSpan
                     return (
-                      <th key={`empty-${group.month}-${group.year}-${idx}`} className={`border border-gray-300 px-2 py-2 text-xs font-semibold text-white min-w-[50px] ${colors[colorIndex]}`}>
+                      <th key={`empty-${group.month}-${group.year}-${idx}`} className={`border border-gray-300 px-2 py-2 text-xs font-semibold text-white min-w-[52px] ${colors[colorIndex]}`}>
                         &nbsp;
                       </th>
                     );
                   }
-                  return group.dates.map((dayInfo) => (
-                    <th key={dayInfo.date} className={`border border-gray-300 px-2 py-2 text-xs font-semibold text-white min-w-[50px] ${colors[colorIndex]}`}>
-                      {dayInfo.day}
-                    </th>
-                  ));
+                  return group.dates.map((dayInfo) => {
+                    const dayName = new Date(dayInfo.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' });
+                    return (
+                      <th key={dayInfo.date} className={`border border-gray-300 px-2 py-2 text-xs font-semibold text-white min-w-[52px] ${colors[colorIndex]}`}>
+                        <div>{dayName}</div>
+                        <div>{dayInfo.day}</div>
+                      </th>
+                    );
+                  });
                 })}
               </tr>
             </thead>
             <tbody>
               {apps.map((app) => {
                 const categories = appCategories[app.id] || [];
-
-                if (categories.length === 0) {
-                  return (
-                    <tr key={`${app.id}-empty`} className="hover:bg-gray-50">
-                      <td
-                        className="sticky left-0 z-10 bg-blue-500 border border-gray-300 px-4 py-2 font-bold text-white"
-                        style={{ width: appNameColumnWidth, minWidth: appNameColumnWidth }}
-                      >
+                return (
+                  <React.Fragment key={app.id}>
+                    <tr>
+                      <td className="sticky left-0 z-10 bg-blue-500 border border-gray-300 px-4 py-2 font-bold text-white shadow-[2px_0_4px_rgba(0,0,0,0.08)]">
                         {app.name}
                       </td>
-                      <td
-                        className="sticky z-0 bg-blue-100 border border-gray-300 px-4 py-2 font-medium text-gray-900"
-                        style={{ left: appNameColumnWidth, width: categoryColumnWidth, minWidth: categoryColumnWidth }}
-                      >
-                        No categories
-                      </td>
-                      <td colSpan={totalDateColumns} className="border border-gray-300 px-2 py-2 text-center text-xs text-gray-500">
-                        &nbsp;
-                      </td>
+                      <td colSpan={totalDateCols} className="bg-blue-500 border border-gray-300" />
                     </tr>
-                  );
-                }
-
-                return categories.map((category, categoryIndex) => {
-                  const key = `${app.id}-${category.id}`;
-                  const isFirstRow = categoryIndex === 0;
-
-                  return (
-                    <tr key={category.id} className="hover:bg-gray-50">
-                      {isFirstRow && (
-                        <td
-                          rowSpan={categories.length}
-                          className="sticky left-0 z-10 bg-blue-500 border border-gray-300 px-4 py-2 font-bold text-white align-top"
-                          style={{ width: appNameColumnWidth, minWidth: appNameColumnWidth }}
-                        >
-                          {app.name}
+                    {categories.length === 0 ? (
+                      <tr>
+                        <td className="sticky left-0 z-10 bg-blue-100 border border-gray-300 px-4 py-2 font-medium text-gray-900 shadow-[2px_0_4px_rgba(0,0,0,0.08)]">
+                          No categories
                         </td>
-                      )}
-                      <td
-                        className="sticky z-0 bg-blue-100 border border-gray-300 px-4 py-2 font-medium text-gray-900"
-                        style={{ left: appNameColumnWidth, width: categoryColumnWidth, minWidth: categoryColumnWidth }}
-                      >
-                        {category.category_name}
-                      </td>
-                      {monthGroups.flatMap((group, groupIdx) => {
-                        if (group.dates.length === 0) {
-                          // Empty month - add placeholder cell to match header colSpan
-                          return [
-                            <td
-                              key={`empty-${group.month}-${group.year}-${groupIdx}`}
-                              className="border border-gray-300 px-2 py-2 text-center text-xs bg-gray-50"
-                            >
-                              &nbsp;
-                            </td>
-                          ];
-                        }
-                        return group.dates.map((dayInfo) => {
-                          const pricing = getPricingForDate(app.id, category.id, dayInfo.date);
-                          const isBooked = pricing?.is_booked;
-                          const price = pricing?.price ?? 0;
-
-                          return (
-                            <td
-                              key={`${dayInfo.date}-${groupIdx}`}
-                              onClick={() => !isBooked && handleCellClick(app.id, category.id)}
-                              className={`border border-gray-300 px-2 py-2 text-center text-xs cursor-pointer transition-colors
-                                ${isBooked ? 'bg-red-500 cursor-not-allowed' : 'bg-green-100 hover:bg-green-200'}
-                              `}
-                            >
-                              {!isBooked && (
-                                <div className="font-semibold text-gray-900">₹{price}</div>
-                              )}
-                              {isBooked && <div className="text-white font-bold text-lg">✕</div>}
-                            </td>
-                          );
-                        });
-                      })}
-                    </tr>
-                  );
-                });
+                        <td colSpan={totalDateCols} className="border border-gray-300 bg-gray-50" />
+                      </tr>
+                    ) : (
+                      categories.map((category) => (
+                        <tr key={category.id} className="hover:bg-gray-50">
+                          <td className="sticky left-0 z-10 bg-blue-100 border border-gray-300 px-4 py-2 font-medium text-gray-900 shadow-[2px_0_4px_rgba(0,0,0,0.08)]">
+                            {category.category_name}
+                          </td>
+                          {monthGroups.flatMap((group, groupIdx) => {
+                            if (group.dates.length === 0) {
+                              return [
+                                <td key={`empty-${group.month}-${group.year}-${groupIdx}`} className="border border-gray-300 px-2 py-2 text-center text-xs bg-gray-50">
+                                  &nbsp;
+                                </td>
+                              ];
+                            }
+                            return group.dates.map((dayInfo) => {
+                              const pricing = getPricingForDate(app.id, category.id, dayInfo.date);
+                              const isBooked = pricing?.is_booked;
+                              const price = pricing?.price ?? 0;
+                              return (
+                                <td
+                                  key={dayInfo.date}
+                                  onClick={() => !isBooked && handleCellClick(app.id, category.id)}
+                                  className={`border border-gray-300 px-2 py-2 text-center text-xs transition-colors ${
+                                    isBooked ? 'bg-red-500 cursor-not-allowed' : 'bg-green-50 cursor-pointer hover:bg-green-100'
+                                  }`}
+                                >
+                                  {!isBooked && <div className="font-semibold text-gray-900">₹{price}</div>}
+                                  {isBooked && <div className="text-white font-bold text-lg">✕</div>}
+                                </td>
+                              );
+                            });
+                          })}
+                        </tr>
+                      ))
+                    )}
+                  </React.Fragment>
+                );
               })}
             </tbody>
           </table>
@@ -805,66 +737,55 @@ export const FranchiseHeaderAds: React.FC<FranchiseHeaderAdsProps> = ({
                     <div className="lg:col-span-3 space-y-4">
                       <h4 className="font-semibold text-gray-900">Select Dates (3 Months)</h4>
                       
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[400px] overflow-y-auto">
-                        {getCalendarMonths().map((month) => (
-                          <div key={month.toISOString()} className="border border-gray-200 rounded-lg p-3">
-                            <h5 className="font-semibold text-center mb-2 text-gray-800">
-                              {month.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                            </h5>
-                            <div className="grid grid-cols-7 gap-1">
-                              {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => (
-                                <div key={i} className="text-xs font-semibold text-center text-gray-600 py-1">{day}</div>
-                              ))}
-                              {(() => {
-                                const today = new Date();
-                                today.setHours(0, 0, 0, 0);
-                                const days = getDaysInCalendarMonth(month);
-                                
-                                if (days.length === 0) {
-                                  // No days to show in this month
-                                  return null;
-                                }
-                                
-                                // Get the first date that should be displayed
-                                const firstDate = new Date(days[0].date);
-                                firstDate.setHours(0, 0, 0, 0);
-                                const emptyCells = firstDate.getDay();
-                                
-                                return Array.from({ length: emptyCells }).map((_, i) => (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-h-[500px] overflow-y-auto">
+                        {getCalendarMonths().map((month) => {
+                          const { emptyCells, days } = getFullMonthGrid(month);
+                          const { start: rangeStart, end: rangeEnd } = getBookableRange();
+                          return (
+                            <div key={month.toISOString()} className="border border-gray-200 rounded-lg p-3">
+                              <h5 className="font-semibold text-center mb-2 text-gray-800">
+                                {month.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                              </h5>
+                              <div className="grid grid-cols-7 gap-1">
+                                {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
+                                  <div key={i} className="text-xs font-semibold text-center text-gray-600 py-1">{d}</div>
+                                ))}
+                                {Array.from({ length: emptyCells }).map((_, i) => (
                                   <div key={`empty-${i}`} />
-                                ));
-                              })()}
-                              {getDaysInCalendarMonth(month).map((dayInfo) => {
-                                const pricing = getPricingForDate(showBookingModal.appId, showBookingModal.categoryId, dayInfo.date);
-                                const isSelected = slot?.dates.includes(dayInfo.date);
-                                const isBooked = pricing?.is_booked;
-                                const dayDate = new Date(dayInfo.date);
-                                dayDate.setHours(0, 0, 0, 0);
-                                const today = new Date();
-                                today.setHours(0, 0, 0, 0);
-                                const isPast = dayDate < today;
-                                const price = pricing?.price ?? 0;
+                                ))}
+                                {days.map((dayInfo) => {
+                                  const pricing = getPricingForDate(showBookingModal.appId, showBookingModal.categoryId, dayInfo.date);
+                                  const isSelected = slot?.dates.includes(dayInfo.date);
+                                  const isBooked = pricing?.is_booked ?? false;
+                                  const dayDate = new Date(dayInfo.date + 'T12:00:00');
+                                  const isPast = dayDate < rangeStart;
+                                  const isOutOfRange = dayDate < rangeStart || dayDate > rangeEnd;
+                                  const isAvailable = !isOutOfRange && !isBooked;
+                                  const price = pricing?.price ?? 0;
 
-                                return (
-                                  <button
-                                    key={dayInfo.date}
-                                    onClick={() => !isPast && !isBooked && handleCalendarDateClick(showBookingModal.appId, showBookingModal.categoryId, dayInfo.date, pricing)}
-                                    disabled={isPast || isBooked}
-                                    className={`text-xs p-1 rounded transition-colors
-                                      ${isPast ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''}
-                                      ${isBooked ? 'bg-red-100 text-red-500 cursor-not-allowed line-through' : ''}
-                                      ${isSelected ? 'bg-teal-600 text-white font-bold' : ''}
-                                      ${!isPast && !isBooked && !isSelected ? 'bg-[rgb(150,240,68)] hover:bg-[rgb(140,230,60)] text-gray-900' : ''}
-                                    `}
-                                  >
-                                    <div>{dayInfo.day}</div>
-                                    {!isBooked && !isPast && <div className="text-[9px]">₹{price}</div>}
-                                  </button>
-                                );
-                              })}
+                                  return (
+                                    <button
+                                      key={dayInfo.date}
+                                      type="button"
+                                      onClick={() => isAvailable && handleCalendarDateClick(showBookingModal.appId, showBookingModal.categoryId, dayInfo.date, pricing)}
+                                      disabled={isPast || isBooked || isOutOfRange}
+                                      className={`text-xs p-1 rounded transition-colors min-h-[32px]
+                                        ${isOutOfRange && !isBooked ? 'bg-gray-100 text-gray-400 cursor-default' : ''}
+                                        ${isBooked ? 'bg-red-100 text-red-600 cursor-not-allowed' : ''}
+                                        ${isSelected ? 'bg-teal-600 text-white font-bold' : ''}
+                                        ${isAvailable && !isSelected ? 'bg-[rgb(150,240,68)] hover:bg-[rgb(140,230,60)] text-gray-900' : ''}
+                                      `}
+                                    >
+                                      <div>{dayInfo.day}</div>
+                                      {isAvailable && <div className="text-[9px]">₹{price}</div>}
+                                      {isBooked && !isSelected && <div className="text-[9px]">—</div>}
+                                    </button>
+                                  );
+                                })}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
