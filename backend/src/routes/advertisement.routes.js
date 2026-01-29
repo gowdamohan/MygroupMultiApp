@@ -17,7 +17,8 @@ import {
   trackAdClick,
   getMyAds,
   getFranchiseHeaderAdsPricing,
-  bookFranchiseHeaderAd
+  bookFranchiseHeaderAd,
+  getCarouselAds
 } from '../controllers/advertisementController.js';
 import { authenticate } from '../middleware/auth.js';
 
@@ -65,6 +66,10 @@ const upload = multer({
 
 // Get ads for frontend display
 router.get('/display', getDisplayAds);
+
+// Get carousel ads for mobile header with location-based filtering
+// Query params: country_id, state_id, district_id, app_id (optional)
+router.get('/carousel', getCarouselAds);
 
 // Track ad click
 router.post('/ads/:id/click', trackAdClick);

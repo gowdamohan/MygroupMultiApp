@@ -33,6 +33,15 @@ interface AppInfo {
   name_image: string;
 }
 
+interface UserProfileData {
+  set_country?: number;
+  set_state?: number;
+  set_district?: number;
+  country?: number;
+  state?: number;
+  district?: number;
+}
+
 interface UserProfile {
   id: number;
   username: string;
@@ -42,6 +51,7 @@ interface UserProfile {
   phone?: string;
   profile_img?: string;
   identification_code?: string;
+  profile?: UserProfileData;
 }
 
 interface GroupedApps {
@@ -109,14 +119,14 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
   // Fetch user profile if not provided
   const fetchUserProfile = useCallback(async () => {
     if (externalUserProfile) return; // Don't fetch if provided as prop
-    
+
     try {
       const token = localStorage.getItem('accessToken');
       if (!token) {
         setInternalIsLoggedIn(false);
         return;
       }
-      
+
       const response = await authAPI.getProfile();
       if (response.data.success) {
         const userData = response.data.data;
@@ -128,7 +138,15 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
           last_name: userData.last_name,
           phone: userData.phone,
           profile_img: userData.profile_img,
-          identification_code: userData.identification_code
+          identification_code: userData.identification_code,
+          profile: userData.profile ? {
+            set_country: userData.profile.set_country,
+            set_state: userData.profile.set_state,
+            set_district: userData.profile.set_district,
+            country: userData.profile.country,
+            state: userData.profile.state,
+            district: userData.profile.district
+          } : undefined
         });
         setInternalIsLoggedIn(true);
       }
@@ -255,25 +273,46 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
     }
   }, [appName, selectedApp]);
 
-  // Fetch ads/carousel by group_name with priority
-  const fetchAds = useCallback(async (id?: number) => {
+  // Fetch carousel ads with location-based and date-based filtering
+  // Priority order: branch_ads1, regional_ads1, branch_ads2, head_office_ads1
+  const fetchAds = useCallback(async (id?: number, profile?: UserProfileData) => {
     try {
-      let url = `${API_BASE_URL}/header-ads/by-group?limit=4`;
+      // Build URL with location parameters from user profile
+      const params = new URLSearchParams();
+
       if (id) {
-        url += `&app_id=${id}`;
+        params.append('app_id', id.toString());
       }
+
+      // Use set_country/set_state/set_district if available, otherwise fall back to country/state/district
+      const countryId = profile?.set_country || profile?.country;
+      const stateId = profile?.set_state || profile?.state;
+      const districtId = profile?.set_district || profile?.district;
+
+      if (countryId) {
+        params.append('country_id', countryId.toString());
+      }
+      if (stateId) {
+        params.append('state_id', stateId.toString());
+      }
+      if (districtId) {
+        params.append('district_id', districtId.toString());
+      }
+
+      const url = `${API_BASE_URL}/advertisement/carousel?${params.toString()}`;
       const response = await axios.get(url);
+
       if (response.data.success) {
         const formattedAds = response.data.data.map((ad: any) => ({
           id: ad.id,
-          image: ad.file_path || ad.file_url || '',
-          title: ad.app?.name || 'Advertisement',
-          url: ad.link_url || '#'
+          image: ad.signed_url || ad.image || ad.file_path || ad.file_url || '',
+          title: ad.title || 'Advertisement',
+          url: ad.url || '#'
         }));
         setAds(formattedAds);
       }
     } catch (error) {
-      console.error('Error fetching ads:', error);
+      console.error('Error fetching carousel ads:', error);
       setAds([]);
     } finally {
       setLoading(false);
@@ -286,16 +325,44 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
     setTopIcons([]);
     setAds([]);
     setCurrentAdIndex(0);
-    
+
     const initializeHeader = async () => {
       await fetchUserProfile();
       const info = await fetchAppInfo();
       const targetAppId = appId || info?.id;
       fetchTopIcons(targetAppId);
-      fetchAds(targetAppId);
+
+      // Get user profile data for location-based ad filtering
+      // Use external profile if provided, otherwise try to get from internal state or localStorage
+      let profileData: UserProfileData | undefined;
+      if (externalUserProfile?.profile) {
+        profileData = externalUserProfile.profile;
+      } else {
+        // Try to get from localStorage as fallback
+        try {
+          const storedUser = localStorage.getItem('user');
+          if (storedUser) {
+            const userData = JSON.parse(storedUser);
+            if (userData.profile) {
+              profileData = {
+                set_country: userData.profile.set_country,
+                set_state: userData.profile.set_state,
+                set_district: userData.profile.set_district,
+                country: userData.profile.country,
+                state: userData.profile.state,
+                district: userData.profile.district
+              };
+            }
+          }
+        } catch (e) {
+          console.error('Error parsing stored user:', e);
+        }
+      }
+
+      fetchAds(targetAppId, profileData);
     };
     initializeHeader();
-  }, [appId, appName, fetchAppInfo, fetchTopIcons, fetchAds, fetchUserProfile]);
+  }, [appId, appName, fetchAppInfo, fetchTopIcons, fetchAds, fetchUserProfile, externalUserProfile]);
 
   // Auto-rotate carousel
   useEffect(() => {

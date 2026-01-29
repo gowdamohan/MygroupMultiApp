@@ -7,8 +7,12 @@ import {
   Country,
   State,
   District,
-  User
+  User,
+  HeaderAdsManagement,
+  HeaderAdsSlot,
+  FranchiseHolder
 } from '../models/index.js';
+import { getSignedReadUrl } from '../services/wasabiService.js';
 
 /**
  * ============================================
@@ -760,6 +764,168 @@ export const bookFranchiseHeaderAd = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to book ad',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Get carousel ads for mobile header with location-based and date-based filtering
+ * Priority order: branch_ads1, regional_ads1, branch_ads2, head_office_ads1
+ * GET /api/v1/advertisement/carousel
+ * Query params: country_id, state_id, district_id, app_id (optional)
+ */
+export const getCarouselAds = async (req, res) => {
+  try {
+    const { country_id, state_id, district_id, app_id } = req.query;
+    const today = new Date().toISOString().split('T')[0];
+
+    // Define the priority order for carousel slides
+    // 1st slide - branch_ads1 (district level, ads1)
+    // 2nd slide - regional_ads1 (state level, ads1)
+    // 3rd slide - branch_ads2 (district level, ads2)
+    // 4th slide - head_office_ads1 (country level, ads1)
+    const priorityOrder = [
+      { office_level: 'branch_office', ad_slot: 'ads1', location: 'district' },
+      { office_level: 'regional_office', ad_slot: 'ads1', location: 'state' },
+      { office_level: 'branch_office', ad_slot: 'ads2', location: 'district' },
+      { office_level: 'head_office', ad_slot: 'ads1', location: 'country' }
+    ];
+
+    const carouselAds = [];
+
+    // Fetch ads for each priority slot
+    for (const priority of priorityOrder) {
+      const whereClause = {
+        office_level: priority.office_level,
+        ad_slot: priority.ad_slot,
+        status: 'active',
+        is_active: 1,
+        start_date: { [Op.lte]: today },
+        end_date: { [Op.gte]: today }
+      };
+
+      // Add app_id filter if provided
+      if (app_id) {
+        whereClause.app_id = app_id;
+      }
+
+      // Add location filter based on priority level
+      if (priority.location === 'district' && district_id) {
+        whereClause.district_id = district_id;
+      } else if (priority.location === 'state' && state_id) {
+        whereClause.state_id = state_id;
+        whereClause.district_id = null; // State level should not have district
+      } else if (priority.location === 'country' && country_id) {
+        whereClause.country_id = country_id;
+        whereClause.state_id = null; // Country level should not have state
+        whereClause.district_id = null;
+      }
+
+      // Find ad for this priority slot
+      const ad = await HeaderAd.findOne({
+        where: whereClause,
+        include: [
+          { model: GroupCreate, as: 'app', attributes: ['id', 'name'] }
+        ],
+        order: [['created_at', 'DESC']]
+      });
+
+      if (ad) {
+        // Get signed URL for the file if it's a Wasabi path
+        let signedUrl = null;
+        const filePath = ad.file_path || ad.file_url;
+
+        if (filePath && !filePath.startsWith('http')) {
+          try {
+            const result = await getSignedReadUrl(filePath);
+            signedUrl = result.signedUrl;
+          } catch (e) {
+            console.error('Error getting signed URL:', e);
+          }
+        }
+
+        carouselAds.push({
+          id: ad.id,
+          image: signedUrl || filePath || '',
+          file_path: ad.file_path,
+          file_url: ad.file_url,
+          signed_url: signedUrl,
+          title: ad.title || ad.app?.name || 'Advertisement',
+          url: ad.link_url || '#',
+          office_level: ad.office_level,
+          ad_slot: ad.ad_slot,
+          priority: priority.location
+        });
+
+        // Increment impressions
+        await ad.increment('impressions');
+      }
+    }
+
+    // If no ads found from HeaderAd, fallback to HeaderAdsManagement (corporate ads)
+    if (carouselAds.length === 0) {
+      const fallbackWhere = {};
+      if (app_id) {
+        fallbackWhere.app_id = app_id;
+      }
+
+      const fallbackAds = await HeaderAdsManagement.findAll({
+        where: fallbackWhere,
+        include: [
+          { model: GroupCreate, as: 'app', attributes: ['id', 'name'] },
+          {
+            model: HeaderAdsSlot,
+            as: 'slots',
+            where: {
+              selected_date: today,
+              is_active: 1
+            },
+            required: false
+          }
+        ],
+        limit: 4,
+        order: [['id', 'DESC']]
+      });
+
+      for (const ad of fallbackAds) {
+        let signedUrl = null;
+        const filePath = ad.file_path || ad.file_url;
+
+        if (filePath && !filePath.startsWith('http')) {
+          try {
+            const result = await getSignedReadUrl(filePath);
+            signedUrl = result.signedUrl;
+          } catch (e) {
+            console.error('Error getting signed URL:', e);
+          }
+        }
+
+        carouselAds.push({
+          id: ad.id,
+          image: signedUrl || filePath || '',
+          file_path: ad.file_path,
+          file_url: ad.file_url,
+          signed_url: signedUrl,
+          title: ad.app?.name || 'Advertisement',
+          url: ad.link_url || ad.url || '#',
+          office_level: 'corporate',
+          ad_slot: 'ads1',
+          priority: 'fallback'
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      data: carouselAds,
+      count: carouselAds.length
+    });
+  } catch (error) {
+    console.error('Get carousel ads error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching carousel ads',
       error: error.message
     });
   }
