@@ -5,7 +5,10 @@ import {
   getAllPricingMasterByCountry,
   createPricingMaster,
   getPricingSlave,
-  updateSlavePricing
+  updateSlavePricing,
+  getFranchiseLocationPricing,
+  getPricingWithMultiplier,
+  getLocationHierarchyPricing
 } from '../controllers/headerAdsPricingController.js';
 import { authenticate } from '../middleware/auth.js';
 
@@ -25,5 +28,10 @@ router.post('/master', createPricingMaster);
 // Pricing slave routes
 router.get('/slave', getPricingSlave);
 router.put('/slave', updateSlavePricing);
+
+// Franchise location-based pricing
+router.get('/franchise-location', getFranchiseLocationPricing);
+router.get('/with-multiplier', getPricingWithMultiplier);
+router.get('/location-hierarchy', getLocationHierarchyPricing);
 
 export default router;

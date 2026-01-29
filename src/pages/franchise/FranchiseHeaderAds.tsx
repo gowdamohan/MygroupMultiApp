@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Upload, Save, Loader2, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
-import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
+import { API_BASE_URL } from '../../config/api.config';
 
 interface App {
   id: number;
@@ -17,6 +17,8 @@ interface Category {
 interface PricingData {
   date: string;
   price: number;
+  base_price?: number;
+  multiplier?: number;
   is_booked: boolean;
 }
 
@@ -29,12 +31,20 @@ interface SelectedSlot {
   preview: string;
 }
 
+interface HierarchyItem {
+  level: string;
+  name: string;
+  count: number;
+  total: number;
+  logic: string;
+}
+
 interface FranchiseHeaderAdsProps {
   officeLevel?: 'head_office' | 'regional' | 'branch';
   adSlot?: 'ads1' | 'ads2';
 }
 
-export const FranchiseHeaderAds: React.FC<FranchiseHeaderAdsProps> = ({ 
+export const FranchiseHeaderAds: React.FC<FranchiseHeaderAdsProps> = ({
   officeLevel = 'head_office',
   adSlot = 'ads1'
 }) => {
@@ -49,6 +59,9 @@ export const FranchiseHeaderAds: React.FC<FranchiseHeaderAdsProps> = ({
   const [showBookingModal, setShowBookingModal] = useState<{appId: number, categoryId: number} | null>(null);
   const [calendarStartMonth, setCalendarStartMonth] = useState(new Date());
   const [isFetchingCategories, setIsFetchingCategories] = useState(false);
+  // Hierarchy pricing table data
+  const [hierarchyPricing, setHierarchyPricing] = useState<HierarchyItem[]>([]);
+  const [myCoins, setMyCoins] = useState<number>(0);
   const pricingFetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const hasFetchedInitialPricing = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -73,19 +86,22 @@ export const FranchiseHeaderAds: React.FC<FranchiseHeaderAdsProps> = ({
     topContentEl.style.width = `${tableEl.scrollWidth}px`;
   }, []);
 
+  // State for pricing multiplier info
+  const [pricingMultiplier, setPricingMultiplier] = useState<number>(1);
+
   // Define fetchPricing first so it can be used in useEffects and useCallbacks
   const fetchPricing = useCallback(async (appId: number, categoryId: number, startDate: Date, endDate: Date, cancelPrevious: boolean = false) => {
     // Cancel previous request only if explicitly requested (e.g., for calendar modal)
     if (cancelPrevious && abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
-    
+
     // Create new abort controller for this request
     const controller = new AbortController();
     if (cancelPrevious) {
       abortControllerRef.current = controller;
     }
-    
+
     try {
       const token = localStorage.getItem('accessToken');
       const response = await axios.get(`${API_BASE_URL}/header-ads/pricing`, {
@@ -94,10 +110,16 @@ export const FranchiseHeaderAds: React.FC<FranchiseHeaderAdsProps> = ({
           app_id: appId,
           category_id: categoryId,
           start_date: startDate.toISOString().split('T')[0],
-          end_date: endDate.toISOString().split('T')[0]
+          end_date: endDate.toISOString().split('T')[0],
+          office_level: officeLevel
         },
         signal: controller.signal
       });
+
+      // Store multiplier info from response
+      if (response.data.multiplier) {
+        setPricingMultiplier(response.data.multiplier);
+      }
       
       if (response.data.success) {
         const key = `${appId}-${categoryId}`;
@@ -159,6 +181,7 @@ export const FranchiseHeaderAds: React.FC<FranchiseHeaderAdsProps> = ({
 
   useEffect(() => {
     fetchApps();
+    fetchHierarchyPricing();
     return () => {
       // Cleanup: cancel any pending requests on unmount
       if (abortControllerRef.current) {
@@ -168,7 +191,8 @@ export const FranchiseHeaderAds: React.FC<FranchiseHeaderAdsProps> = ({
         clearTimeout(pricingFetchTimeoutRef.current);
       }
     };
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [officeLevel, adSlot]);
 
   useEffect(() => {
     const tableEl = tableScrollRef.current;
@@ -285,11 +309,27 @@ export const FranchiseHeaderAds: React.FC<FranchiseHeaderAdsProps> = ({
       if (response.data.success) {
         setAppCategories(prev => ({ ...prev, [appId]: response.data.data }));
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching categories:', err);
     }
   };
 
+  // Fetch location hierarchy pricing
+  const fetchHierarchyPricing = async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const response = await axios.get(`${API_BASE_URL}/header-ads-pricing/location-hierarchy`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { office_level: officeLevel }
+      });
+      if (response.data.success) {
+        setHierarchyPricing(response.data.data.hierarchy || []);
+        setMyCoins(response.data.data.my_coins || 0);
+      }
+    } catch (err: unknown) {
+      console.error('Error fetching hierarchy pricing:', err);
+    }
+  };
 
   const formatDateString = (year: number, month: number, day: number): string => {
     return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -533,6 +573,7 @@ export const FranchiseHeaderAds: React.FC<FranchiseHeaderAdsProps> = ({
           return updated;
         });
         setShowBookingModal(null);
+
         // Reset the flag to allow refetching pricing after booking
         hasFetchedInitialPricing.current = false;
         // Debounce the pricing refetch
@@ -566,12 +607,30 @@ export const FranchiseHeaderAds: React.FC<FranchiseHeaderAdsProps> = ({
     );
   }
 
+  const getOfficeLevelLabel = () => {
+    switch (officeLevel) {
+      case 'head_office': return 'Head Office';
+      case 'regional': return 'Regional Office';
+      case 'branch': return 'Branch Office';
+      default: return 'Franchise';
+    }
+  };
+
   return (
     <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">
-          Franchise Header Ads {adSlot === 'ads2' ? '-2' : ''} Booking
-        </h1>
+      <div className="flex justify-between items-center flex-wrap gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">
+            {getOfficeLevelLabel()} Header Ads {adSlot === 'ads2' ? '-2' : ''} Booking
+          </h1>
+          {pricingMultiplier > 1 && (
+            <p className="text-sm text-gray-500 mt-1">
+              Pricing includes location multiplier: <span className="font-semibold text-blue-600">×{pricingMultiplier}</span>
+              {officeLevel === 'head_office' && ' (states × districts)'}
+              {officeLevel === 'regional' && ' (districts)'}
+            </p>
+          )}
+        </div>
         <div className="text-sm text-gray-600 font-medium">
           {getDateRangeText()}
         </div>
@@ -591,6 +650,37 @@ export const FranchiseHeaderAds: React.FC<FranchiseHeaderAdsProps> = ({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Pricing Hierarchy Table */}
+      {hierarchyPricing.length > 0 && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Pricing Structure (Base: ₹{myCoins})</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-gray-50">
+                  <th className="border border-gray-200 px-4 py-2 text-left text-sm font-semibold text-gray-700">Level</th>
+                  <th className="border border-gray-200 px-4 py-2 text-left text-sm font-semibold text-gray-700">Name</th>
+                  <th className="border border-gray-200 px-4 py-2 text-center text-sm font-semibold text-gray-700">Count</th>
+                  <th className="border border-gray-200 px-4 py-2 text-right text-sm font-semibold text-gray-700">Total</th>
+                  <th className="border border-gray-200 px-4 py-2 text-left text-sm font-semibold text-gray-700">Logic</th>
+                </tr>
+              </thead>
+              <tbody>
+                {hierarchyPricing.map((item, idx) => (
+                  <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                    <td className="border border-gray-200 px-4 py-2 text-sm font-medium text-gray-900">{item.level}</td>
+                    <td className="border border-gray-200 px-4 py-2 text-sm text-gray-700">{item.name}</td>
+                    <td className="border border-gray-200 px-4 py-2 text-sm text-center text-gray-700">{item.count}</td>
+                    <td className="border border-gray-200 px-4 py-2 text-sm text-right font-semibold text-teal-600">₹{item.total}</td>
+                    <td className="border border-gray-200 px-4 py-2 text-sm text-gray-500">{item.logic}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200">
         <div
@@ -870,6 +960,8 @@ export const FranchiseHeaderAds: React.FC<FranchiseHeaderAdsProps> = ({
           </motion.div>
         </div>
       )}
+
+
     </div>
   );
 };

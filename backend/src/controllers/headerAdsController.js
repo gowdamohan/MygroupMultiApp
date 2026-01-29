@@ -64,19 +64,33 @@ export const getCategoriesByApp = async (req, res) => {
   }
 };
 
-// Get pricing data for date range
+// Get pricing data for date range with office level multiplier
+// Accepts optional group_name parameter: head_office_ads1, regional_ads1, branch_ads1, branch_ads2
 export const getPricing = async (req, res) => {
   try {
-    const { app_id, category_id, start_date, end_date } = req.query;
+    const { app_id, category_id, start_date, end_date, office_level, group_name } = req.query;
+
+    // If group_name is provided, extract office_level from it
+    let effectiveOfficeLevel = office_level;
+    if (group_name && !office_level) {
+      if (group_name.startsWith('head_office')) {
+        effectiveOfficeLevel = 'head_office';
+      } else if (group_name.startsWith('regional')) {
+        effectiveOfficeLevel = 'regional';
+      } else if (group_name.startsWith('branch')) {
+        effectiveOfficeLevel = 'branch';
+      }
+    }
 
     // Get franchise holder's country_id if user is a franchise holder
     let countryId = null;
     let franchiseHolderId = null;
+    let franchiseHolder = null;
     let pricingSlot = 'General'; // Default to General, can be made configurable
-    
+
     if (req.user && req.user.id) {
-      const { FranchiseHolder } = await import('../models/index.js');
-      const franchiseHolder = await FranchiseHolder.findOne({
+      const { FranchiseHolder: FH, State, District, User, Group } = await import('../models/index.js');
+      franchiseHolder = await FH.findOne({
         where: { user_id: req.user.id }
       });
       if (franchiseHolder) {
@@ -85,11 +99,65 @@ export const getPricing = async (req, res) => {
           countryId = franchiseHolder.country;
         }
       }
+
+      // Calculate multiplier based on office level
+      let multiplier = 1;
+      // Use effectiveOfficeLevel (from group_name) if available, otherwise use office_level
+      let actualOfficeLevel = effectiveOfficeLevel || office_level;
+
+      if (!actualOfficeLevel && franchiseHolder) {
+        // Get user's group to determine office level
+        const user = await User.findByPk(req.user.id, {
+          include: [{
+            model: Group,
+            as: 'groups',
+            through: { attributes: [] },
+            attributes: ['name']
+          }]
+        });
+
+        if (user && user.groups && user.groups.length > 0) {
+          const groupName = user.groups[0].name;
+          if (groupName === 'head_office') actualOfficeLevel = 'head_office';
+          else if (groupName === 'regional') actualOfficeLevel = 'regional';
+          else actualOfficeLevel = 'branch';
+        }
+      }
+
+      // Calculate multiplier based on office level
+      if (actualOfficeLevel === 'head_office' && franchiseHolder && franchiseHolder.country) {
+        // Head Office: state_count × district_count
+        const states = await State.findAll({
+          where: { country_id: franchiseHolder.country },
+          attributes: ['id']
+        });
+        const stateCount = states.length || 1;
+
+        const stateIds = states.map(s => s.id);
+        let districtCount = 1;
+        if (stateIds.length > 0) {
+          districtCount = await District.count({
+            where: { state_id: { [Op.in]: stateIds } }
+          }) || 1;
+        }
+
+        multiplier = stateCount * districtCount;
+      } else if (actualOfficeLevel === 'regional' && franchiseHolder && franchiseHolder.state) {
+        // Regional Office: district_count for their state
+        multiplier = await District.count({
+          where: { state_id: franchiseHolder.state }
+        }) || 1;
+      }
+      // Branch office: multiplier = 1
+
+      req.calculatedMultiplier = multiplier;
+      req.officeLevel = actualOfficeLevel;
     }
 
     const start = new Date(start_date);
     const end = new Date(end_date);
     const pricingData = [];
+    const multiplier = req.calculatedMultiplier || 1;
 
     // Get existing bookings from header_ads_slot
     const existingSlots = await HeaderAdsSlot.findAll({
@@ -117,7 +185,7 @@ export const getPricing = async (req, res) => {
 
     // Step 1: Get pricing from header_ads_pricing_slave table first
     let slavePriceMap = new Map();
-    
+
     if (countryId) {
       // Get master record for this country and pricing slot
       const masterRecord = await HeaderAdsPricingMaster.findOne({
@@ -150,24 +218,31 @@ export const getPricing = async (req, res) => {
         // Master price as fallback
         const masterPrice = parseFloat(masterRecord.my_coins) || 0;
 
-        // Generate pricing data for all dates in range
+        // Generate pricing data for all dates in range with multiplier applied
         for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
           const dateStr = d.toISOString().split('T')[0];
-          
+
           // Use slave price if available, otherwise use master price
-          const price = slavePriceMap.has(dateStr) 
-            ? slavePriceMap.get(dateStr) 
+          const basePrice = slavePriceMap.has(dateStr)
+            ? slavePriceMap.get(dateStr)
             : masterPrice;
-          
+
+          // Apply multiplier to get final price
+          const finalPrice = basePrice * multiplier;
+
           pricingData.push({
             date: dateStr,
-            price: price,
+            base_price: basePrice,
+            multiplier: multiplier,
+            price: finalPrice,
             is_booked: bookedDates.has(dateStr)
           });
         }
 
         return res.json({
           success: true,
+          office_level: req.officeLevel,
+          multiplier: multiplier,
           data: pricingData
         });
       }
@@ -192,16 +267,22 @@ export const getPricing = async (req, res) => {
 
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
       const dateStr = d.toISOString().split('T')[0];
-      
+      const basePrice = priceMap.get(dateStr) || 0;
+      const finalPrice = basePrice * multiplier;
+
       pricingData.push({
         date: dateStr,
-        price: priceMap.get(dateStr) || 0,
+        base_price: basePrice,
+        multiplier: multiplier,
+        price: finalPrice,
         is_booked: bookedDates.has(dateStr)
       });
     }
 
     res.json({
       success: true,
+      office_level: req.officeLevel,
+      multiplier: multiplier,
       data: pricingData
     });
   } catch (error) {
@@ -215,9 +296,37 @@ export const getPricing = async (req, res) => {
 };
 
 // Get all header ads grouped by app and category
+// Accepts optional query parameters: group_name, franchise_holder_id
 export const getHeaderAds = async (req, res) => {
   try {
+    const { group_name, franchise_holder_id } = req.query;
+
+    // Build where clause based on query parameters
+    const whereClause = {};
+
+    // Filter by group_name if provided
+    // Valid values: head_office_ads1, regional_ads1, branch_ads1, branch_ads2
+    if (group_name) {
+      whereClause.group_name = group_name;
+    }
+
+    // Filter by franchise_holder_id if provided
+    if (franchise_holder_id) {
+      whereClause.franchise_holder_id = parseInt(franchise_holder_id, 10);
+    }
+
+    // If user is logged in and no franchise_holder_id provided, filter by their franchise
+    if (!franchise_holder_id && req.user && req.user.id) {
+      const franchiseHolder = await FranchiseHolder.findOne({
+        where: { user_id: req.user.id }
+      });
+      if (franchiseHolder) {
+        whereClause.franchise_holder_id = franchiseHolder.id;
+      }
+    }
+
     const ads = await HeaderAdsManagement.findAll({
+      where: whereClause,
       include: [
         {
           model: GroupCreate,
@@ -228,9 +337,14 @@ export const getHeaderAds = async (req, res) => {
           model: AppCategory,
           as: 'category',
           attributes: ['id', 'category_name']
+        },
+        {
+          model: HeaderAdsSlot,
+          as: 'slots',
+          attributes: ['id', 'selected_date', 'price', 'impressions', 'clicks', 'is_active']
         }
       ],
-      order: [['id', 'DESC']]
+      order: [['created_at', 'DESC']]
     });
 
     res.json({

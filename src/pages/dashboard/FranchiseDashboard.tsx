@@ -91,6 +91,7 @@ export const FranchiseDashboard: React.FC = () => {
       '/franchise/create-branch-office-login': 'branch-office-login',
       '/franchise/franchise-offer-ads': 'offer-ads',
       '/franchise/create-header-ads-head-office': 'header-ads',
+      '/franchise/create-header-ads-regional-office': 'header-ads-regional',
       '/franchise/create-header-ads-branch-office': 'header-ads-1',
       '/franchise/create-header-ads-2': 'header-ads-2',
       '/franchise/admin-details': 'admin-details',
@@ -108,7 +109,7 @@ export const FranchiseDashboard: React.FC = () => {
       if (['admin-details', 'office-address', 'change-password'].includes(menuId)) {
         setExpandedMenus(prev => prev.includes('profile') ? prev : [...prev, 'profile']);
       }
-      if (['header-ads', 'header-ads-1', 'header-ads-2'].includes(menuId)) {
+      if (['header-ads', 'header-ads-regional', 'header-ads-1', 'header-ads-2'].includes(menuId)) {
         setExpandedMenus(prev => prev.includes('advertisement') ? prev : [...prev, 'advertisement']);
       }
     }
@@ -161,24 +162,31 @@ export const FranchiseDashboard: React.FC = () => {
       label: 'Advertisement',
       icon: TrendingUp,
       children: [
-        { 
-          id: 'header-ads', 
-          label: 'Header Ads', 
-          icon: BarChart3, 
+        {
+          id: 'header-ads',
+          label: 'Header Ads',
+          icon: BarChart3,
           path: '/franchise/create-header-ads-head-office',
-          roleRestriction: ['head_office', 'regional']
+          roleRestriction: ['head_office']
         },
-        { 
-          id: 'header-ads-1', 
-          label: 'Header Ads -1', 
-          icon: BarChart3, 
+        {
+          id: 'header-ads-regional',
+          label: 'Header Ads',
+          icon: BarChart3,
+          path: '/franchise/create-header-ads-regional-office',
+          roleRestriction: ['regional']
+        },
+        {
+          id: 'header-ads-1',
+          label: 'Header Ads -1',
+          icon: BarChart3,
           path: '/franchise/create-header-ads-branch-office',
           roleRestriction: ['branch']
         },
-        { 
-          id: 'header-ads-2', 
-          label: 'Header Ads -2', 
-          icon: BarChart3, 
+        {
+          id: 'header-ads-2',
+          label: 'Header Ads -2',
+          icon: BarChart3,
           path: '/franchise/create-header-ads-2',
           roleRestriction: ['branch']
         }
@@ -337,6 +345,10 @@ export const FranchiseDashboard: React.FC = () => {
 
     if (path === '/franchise/create-header-ads-head-office') {
       return <FranchiseHeaderAds officeLevel="head_office" adSlot="ads1" />;
+    }
+
+    if (path === '/franchise/create-header-ads-regional-office') {
+      return <FranchiseHeaderAds officeLevel="regional" adSlot="ads1" />;
     }
 
     if (path === '/franchise/create-header-ads-branch-office') {
