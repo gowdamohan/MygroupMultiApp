@@ -159,7 +159,7 @@ export const getPricing = async (req, res) => {
     const pricingData = [];
     const multiplier = req.calculatedMultiplier || 1;
 
-    // Get existing bookings from header_ads_slot
+    // Get existing bookings from header_ads_slot (filter by group_name when provided, e.g. branch_ads1 vs branch_ads2)
     const existingSlots = await HeaderAdsSlot.findAll({
       include: [{
         model: HeaderAdsManagement,
@@ -167,7 +167,8 @@ export const getPricing = async (req, res) => {
         where: {
           app_id,
           category_id,
-          ...(franchiseHolderId ? { franchise_holder_id: franchiseHolderId } : {})
+          ...(franchiseHolderId ? { franchise_holder_id: franchiseHolderId } : {}),
+          ...(group_name ? { group_name } : {})
         },
         attributes: []
       }],
@@ -356,6 +357,79 @@ export const getHeaderAds = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch header ads',
+      error: error.message
+    });
+  }
+};
+
+// Get header ad for a specific date (app + category + group). Returns full ad with all slots.
+// Query: app_id, category_id, date, group_name. Used for "View ad" on booked cells.
+export const getHeaderAdByDate = async (req, res) => {
+  try {
+    const { app_id, category_id, date, group_name } = req.query;
+
+    if (!app_id || !category_id || !date || !group_name) {
+      return res.status(400).json({
+        success: false,
+        message: 'app_id, category_id, date, and group_name are required'
+      });
+    }
+
+    const whereClause = {
+      app_id: parseInt(app_id, 10),
+      category_id: parseInt(category_id, 10),
+      group_name: String(group_name).trim()
+    };
+
+    if (req.user?.id) {
+      const franchiseHolder = await FranchiseHolder.findOne({
+        where: { user_id: req.user.id }
+      });
+      if (franchiseHolder) {
+        whereClause.franchise_holder_id = franchiseHolder.id;
+      }
+    }
+
+    const ad = await HeaderAdsManagement.findOne({
+      where: whereClause,
+      include: [
+        { model: GroupCreate, as: 'app', attributes: ['id', 'name'] },
+        { model: AppCategory, as: 'category', attributes: ['id', 'category_name'] },
+        {
+          model: HeaderAdsSlot,
+          as: 'slots',
+          where: { selected_date: date, is_active: 1 },
+          required: true,
+          attributes: ['id', 'selected_date', 'price', 'impressions', 'clicks']
+        }
+      ],
+      order: [['created_at', 'DESC']]
+    });
+
+    if (!ad) {
+      return res.status(404).json({
+        success: false,
+        message: 'No ad found for this date'
+      });
+    }
+
+    const allSlots = await HeaderAdsSlot.findAll({
+      where: { header_ads_id: ad.id, is_active: 1 },
+      attributes: ['id', 'selected_date', 'price', 'impressions', 'clicks'],
+      order: [['selected_date', 'ASC']]
+    });
+
+    const payload = {
+      ...ad.toJSON(),
+      slots: allSlots.map((s) => s.toJSON())
+    };
+
+    res.json({ success: true, data: payload });
+  } catch (error) {
+    console.error('Error fetching header ad by date:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch header ad',
       error: error.message
     });
   }

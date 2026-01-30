@@ -8,6 +8,7 @@ import {
   getCategoriesByApp,
   getPricing,
   getHeaderAds,
+  getHeaderAdByDate,
   getHeaderAdsManagement,
   getHeaderAdsByGroup,
   createHeaderAd,
@@ -73,6 +74,9 @@ router.get('/pricing', getPricing);
 
 // Get all header ads
 router.get('/', getHeaderAds);
+
+// Get header ad for a specific date (view ad on booked cell)
+router.get('/by-date', getHeaderAdByDate);
 
 // Corporate header ads management (simple)
 router.get('/management', getHeaderAdsManagement);

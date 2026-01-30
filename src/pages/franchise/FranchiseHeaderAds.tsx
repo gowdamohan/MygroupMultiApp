@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Upload, Save, Loader2, X } from 'lucide-react';
+import { Upload, Save, Loader2, X, Eye } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
-import { API_BASE_URL } from '../../config/api.config';
+import { API_BASE_URL, getUploadUrl } from '../../config/api.config';
 
 interface App {
   id: number;
@@ -39,6 +39,20 @@ interface HierarchyItem {
   logic: string;
 }
 
+interface ViewAdData {
+  id: number;
+  app_id: number;
+  category_id: number;
+  file_path: string | null;
+  link_url: string | null;
+  status: string;
+  total_price: number;
+  group_name: string | null;
+  app?: { id: number; name: string };
+  category?: { id: number; category_name: string };
+  slots?: { id: number; selected_date: string; price: number; impressions: number; clicks: number }[];
+}
+
 interface FranchiseHeaderAdsProps {
   officeLevel?: 'head_office' | 'regional' | 'branch';
   adSlot?: 'ads1' | 'ads2';
@@ -59,6 +73,10 @@ export const FranchiseHeaderAds: React.FC<FranchiseHeaderAdsProps> = ({
   const [showBookingModal, setShowBookingModal] = useState<{appId: number, categoryId: number} | null>(null);
   const [calendarStartMonth, setCalendarStartMonth] = useState(new Date());
   const [isFetchingCategories, setIsFetchingCategories] = useState(false);
+  const [viewAdModal, setViewAdModal] = useState<{appId: number; categoryId: number; date: string} | null>(null);
+  const [viewAdData, setViewAdData] = useState<ViewAdData | null>(null);
+  const [viewAdLoading, setViewAdLoading] = useState(false);
+  const [viewAdError, setViewAdError] = useState('');
   // Hierarchy pricing table data
   const [hierarchyPricing, setHierarchyPricing] = useState<HierarchyItem[]>([]);
   const [myCoins, setMyCoins] = useState<number>(0);
@@ -104,6 +122,7 @@ export const FranchiseHeaderAds: React.FC<FranchiseHeaderAdsProps> = ({
 
     try {
       const token = localStorage.getItem('accessToken');
+      const groupName = `${officeLevel}_${adSlot}`;
       const response = await axios.get(`${API_BASE_URL}/header-ads/pricing`, {
         headers: { Authorization: `Bearer ${token}` },
         params: {
@@ -111,7 +130,8 @@ export const FranchiseHeaderAds: React.FC<FranchiseHeaderAdsProps> = ({
           category_id: categoryId,
           start_date: startDate.toISOString().split('T')[0],
           end_date: endDate.toISOString().split('T')[0],
-          office_level: officeLevel
+          office_level: officeLevel,
+          group_name: groupName
         },
         signal: controller.signal
       });
@@ -146,7 +166,7 @@ export const FranchiseHeaderAds: React.FC<FranchiseHeaderAdsProps> = ({
         console.error('Error fetching pricing:', err);
       }
     }
-  }, []);
+  }, [officeLevel, adSlot]);
 
   const fetchPricingForAllCategories = useCallback(async () => {
     const today = new Date();
@@ -275,6 +295,36 @@ export const FranchiseHeaderAds: React.FC<FranchiseHeaderAdsProps> = ({
       }
     };
   }, [showBookingModal, calendarStartMonth, fetchPricingForCalendar]);
+
+  useEffect(() => {
+    if (!viewAdModal) return;
+    const { appId, categoryId, date } = viewAdModal;
+    const groupName = `${officeLevel}_${adSlot}`;
+    let cancelled = false;
+
+    const fetchAd = async () => {
+      setViewAdLoading(true);
+      setViewAdError('');
+      try {
+        const token = localStorage.getItem('accessToken');
+        const { data } = await axios.get(`${API_BASE_URL}/header-ads/by-date`, {
+          headers: { Authorization: `Bearer ${token}` },
+          params: { app_id: appId, category_id: categoryId, date, group_name: groupName }
+        });
+        if (!cancelled && data.success) setViewAdData(data.data);
+      } catch (err: any) {
+        if (!cancelled) {
+          setViewAdError(err.response?.data?.message || 'Failed to load ad');
+          setViewAdData(null);
+        }
+      } finally {
+        if (!cancelled) setViewAdLoading(false);
+      }
+    };
+
+    fetchAd();
+    return () => { cancelled = true; };
+  }, [viewAdModal, officeLevel, adSlot]);
 
   const fetchApps = async () => {
     try {
@@ -438,6 +488,12 @@ export const FranchiseHeaderAds: React.FC<FranchiseHeaderAdsProps> = ({
       ...prev,
       [key]: { ...currentSlot, dates: newDates }
     }));
+  };
+
+  const handleViewAdClick = (appId: number, categoryId: number, date: string) => {
+    setViewAdData(null);
+    setViewAdError('');
+    setViewAdModal({ appId, categoryId, date });
   };
 
   const getCalendarMonths = () => {
@@ -776,13 +832,19 @@ export const FranchiseHeaderAds: React.FC<FranchiseHeaderAdsProps> = ({
                               return (
                                 <td
                                   key={dayInfo.date}
-                                  onClick={() => !isBooked && handleCellClick(app.id, category.id)}
+                                  onClick={() => isBooked ? handleViewAdClick(app.id, category.id, dayInfo.date) : handleCellClick(app.id, category.id)}
                                   className={`border border-gray-300 px-2 py-2 text-center text-xs transition-colors ${
-                                    isBooked ? 'bg-red-500 cursor-not-allowed' : 'bg-green-50 cursor-pointer hover:bg-green-100'
+                                    isBooked ? 'bg-red-500 cursor-pointer hover:bg-red-600' : 'bg-green-50 cursor-pointer hover:bg-green-100'
                                   }`}
+                                  title={isBooked ? 'View uploaded ad' : 'Book this date'}
                                 >
                                   {!isBooked && <div className="font-semibold text-gray-900">₹{price}</div>}
-                                  {isBooked && <div className="text-white font-bold text-lg">✕</div>}
+                                  {isBooked && (
+                                    <div className="flex flex-col items-center gap-0.5 text-white">
+                                      <Eye size={14} className="shrink-0" />
+                                      <span className="font-medium text-[10px]">View</span>
+                                    </div>
+                                  )}
                                 </td>
                               );
                             });
@@ -961,6 +1023,105 @@ export const FranchiseHeaderAds: React.FC<FranchiseHeaderAdsProps> = ({
         </div>
       )}
 
+      {viewAdModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-xl shadow-xl max-w-2xl w-full p-6"
+          >
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold text-gray-900">View uploaded ad</h3>
+              <button
+                onClick={() => { setViewAdModal(null); setViewAdData(null); setViewAdError(''); }}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+                type="button"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {viewAdLoading && (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="animate-spin text-teal-600" size={32} />
+              </div>
+            )}
+
+            {viewAdError && !viewAdLoading && (
+              <div className="py-8 text-center text-red-600">{viewAdError}</div>
+            )}
+
+            {viewAdData && !viewAdLoading && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                  <span className="text-gray-500">App</span>
+                  <span className="font-medium text-gray-900">{viewAdData.app?.name ?? '—'}</span>
+                  <span className="text-gray-500">Category</span>
+                  <span className="font-medium text-gray-900">{viewAdData.category?.category_name ?? '—'}</span>
+                  <span className="text-gray-500">Office level & ad slot</span>
+                  <span className="font-medium text-gray-900">
+                    {officeLevel.replace('_', ' ')} · {adSlot === 'ads1' ? 'Header Ads 1' : 'Header Ads 2'}
+                    {viewAdData.group_name && ` (${viewAdData.group_name})`}
+                  </span>
+                  <span className="text-gray-500">Status</span>
+                  <span>
+                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${viewAdData.status === 'active' ? 'bg-green-100 text-green-800' : viewAdData.status === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-700'}`}>
+                      {viewAdData.status}
+                    </span>
+                  </span>
+                  <span className="text-gray-500">Total price</span>
+                  <span className="font-semibold text-teal-600">₹{Number(viewAdData.total_price ?? 0).toLocaleString()}</span>
+                </div>
+
+                {viewAdData.file_path && (
+                  <div className="rounded-lg border border-gray-200 overflow-hidden bg-gray-50">
+                    <img
+                      src={getUploadUrl(viewAdData.file_path)}
+                      alt="Header ad"
+                      className="w-full max-h-80 object-contain"
+                    />
+                  </div>
+                )}
+                {!viewAdData.file_path && (
+                  <div className="py-8 text-center text-gray-500 rounded-lg border border-dashed border-gray-300">No image</div>
+                )}
+
+                {viewAdData.link_url && (
+                  <div>
+                    <span className="text-sm text-gray-500 block mb-1">Link URL</span>
+                    <a
+                      href={viewAdData.link_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-teal-600 hover:underline break-all"
+                    >
+                      {viewAdData.link_url}
+                    </a>
+                  </div>
+                )}
+
+                {viewAdData.slots && viewAdData.slots.length > 0 && (
+                  <div>
+                    <span className="text-sm font-medium text-gray-700 block mb-2">All booked dates</span>
+                    <div className="flex flex-wrap gap-2">
+                      {viewAdData.slots.map((s) => (
+                        <span
+                          key={s.id}
+                          className="inline-flex px-2 py-1 bg-gray-100 rounded text-xs text-gray-800"
+                        >
+                          {new Date(s.selected_date).toLocaleDateString('en-US', { dateStyle: 'medium' })}
+                          {' '}
+                          <span className="text-gray-500">₹{Number(s.price).toLocaleString()}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </motion.div>
+        </div>
+      )}
 
     </div>
   );
