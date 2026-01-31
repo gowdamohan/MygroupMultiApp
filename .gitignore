@@ -1,10 +1,12 @@
 /node_modules
 backend/node_modules
-*/node_modules
+**/node_modules
 package-lock.json
 backend/package-lock.json
 package.json
 backend/package.json
+_metadata.json
+**/_metadata.json
 
 backend/.env
 .env
