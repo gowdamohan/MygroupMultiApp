@@ -595,15 +595,16 @@ export const getLocationHierarchyPricing = async (req, res) => {
     const hierarchyTable = [];
 
     if (actualOfficeLevel === 'head_office') {
-      // Head Office: Country → States → Districts
-      // Get all states for the country
+      // Head Office: Hierarchical pricing
+      // District Price = Base price (fundamental unit)
+      // State Price = Districts in state × District Price
+      // Country Price = Sum of State Prices = Total districts × District Price
       const states = await State.findAll({
         where: { country_id: franchiseHolder.country },
         attributes: ['id', 'state']
       });
       const stateCount = states.length || 0;
 
-      // Get all districts for all states
       const stateIds = states.map(s => s.id);
       let totalDistrictCount = 0;
       if (stateIds.length > 0) {
@@ -612,33 +613,31 @@ export const getLocationHierarchyPricing = async (req, res) => {
         }) || 0;
       }
 
-      // Calculate totals
-      const districtTotal = myCoins;
-      const stateTotal = totalDistrictCount * myCoins;
-      const countryTotal = stateTotal; // Country total = sum of all states
+      const countryTotal = totalDistrictCount * myCoins; // Sum of all State Prices
 
+      // Display: District → State → Country (bottom-up hierarchy)
       hierarchyTable.push({
-        level: 'Country',
-        name: franchiseHolder.countryData?.country || 'N/A',
-        count: 1,
-        total: countryTotal,
-        logic: 'States Price Total'
+        level: 'District',
+        name: `${totalDistrictCount} Districts`,
+        count: totalDistrictCount,
+        total: myCoins,
+        logic: `Base price per district (from header_ads_pricing_slave)`
       });
 
       hierarchyTable.push({
         level: 'State',
         name: `${stateCount} States`,
         count: stateCount,
-        total: stateTotal,
-        logic: `${totalDistrictCount} districts × ${myCoins} = ${stateTotal}`
+        total: countryTotal,
+        logic: `State Price = districts in state × base. Sum = ${totalDistrictCount} × ${myCoins} = ${countryTotal}`
       });
 
       hierarchyTable.push({
-        level: 'District',
-        name: `${totalDistrictCount} Districts`,
-        count: totalDistrictCount,
-        total: myCoins,
-        logic: `My Coins = ${myCoins}`
+        level: 'Country',
+        name: franchiseHolder.countryData?.country || 'N/A',
+        count: 1,
+        total: countryTotal,
+        logic: `Sum of all State Prices = ${totalDistrictCount} districts × ${myCoins}`
       });
 
     } else if (actualOfficeLevel === 'regional') {

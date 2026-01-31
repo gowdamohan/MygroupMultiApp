@@ -682,8 +682,8 @@ export const FranchiseHeaderAds: React.FC<FranchiseHeaderAdsProps> = ({
           {pricingMultiplier > 1 && (
             <p className="text-sm text-gray-500 mt-1">
               Pricing includes location multiplier: <span className="font-semibold text-blue-600">×{pricingMultiplier}</span>
-              {officeLevel === 'head_office' && ' (states × districts)'}
-              {officeLevel === 'regional' && ' (districts)'}
+              {officeLevel === 'head_office' && ' (total districts × base district price)'}
+              {officeLevel === 'regional' && ' (districts × base district price)'}
             </p>
           )}
         </div>

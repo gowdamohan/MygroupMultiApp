@@ -124,24 +124,25 @@ export const getPricing = async (req, res) => {
         }
       }
 
-      // Calculate multiplier based on office level
+      // Calculate multiplier based on office level (hierarchical pricing)
       if (actualOfficeLevel === 'head_office' && franchiseHolder && franchiseHolder.country) {
-        // Head Office: state_count × district_count
+        // Head Office: Country Price = Total districts × District Price (base)
+        // District Price = base from header_ads_pricing_slave
+        // State Price = districts in state × District Price
+        // Country Price = Sum of State Prices = Total districts × District Price
         const states = await State.findAll({
           where: { country_id: franchiseHolder.country },
           attributes: ['id']
         });
-        const stateCount = states.length || 1;
-
         const stateIds = states.map(s => s.id);
-        let districtCount = 1;
+        let totalDistrictCount = 1;
         if (stateIds.length > 0) {
-          districtCount = await District.count({
+          totalDistrictCount = await District.count({
             where: { state_id: { [Op.in]: stateIds } }
           }) || 1;
         }
 
-        multiplier = stateCount * districtCount;
+        multiplier = totalDistrictCount;
       } else if (actualOfficeLevel === 'regional' && franchiseHolder && franchiseHolder.state) {
         // Regional Office: district_count for their state
         multiplier = await District.count({
@@ -735,11 +736,35 @@ export const createHeaderAd = async (req, res) => {
     // Format group_name as {group_name}_{ad_slot}
     const group_name = `${groupName}_${adSlot}`;
 
+    // Calculate multiplier based on office level (same logic as getPricing)
+    let multiplier = 1;
+    if (groupName === 'head_office' && franchiseHolder.country) {
+      const { State, District } = await import('../models/index.js');
+      const states = await State.findAll({
+        where: { country_id: franchiseHolder.country },
+        attributes: ['id']
+      });
+      const stateIds = states.map(s => s.id);
+      if (stateIds.length > 0) {
+        const totalDistrictCount = await District.count({
+          where: { state_id: { [Op.in]: stateIds } }
+        });
+        multiplier = totalDistrictCount || 1;
+      }
+    } else if (groupName === 'regional' && franchiseHolder.state) {
+      const { District } = await import('../models/index.js');
+      const districtCount = await District.count({
+        where: { state_id: franchiseHolder.state }
+      });
+      multiplier = districtCount || 1;
+    }
+    // Branch office: multiplier = 1
+
     // Get pricing for selected dates using slave/master pricing hierarchy
     // First, get franchise holder's country_id
     const countryId = franchiseHolder.country || null;
     
-    // Initialize price map
+    // Initialize price map (stores base prices per date)
     const priceMap = new Map();
     
     if (countryId) {
@@ -799,8 +824,11 @@ export const createHeaderAd = async (req, res) => {
       });
     }
 
-    // Calculate total price
-    const total_price = selectedDates.reduce((sum, date) => sum + (priceMap.get(date) || 0), 0);
+    // Calculate total price (base × multiplier for head_office/regional)
+    const total_price = selectedDates.reduce((sum, date) => {
+      const basePrice = priceMap.get(date) || 0;
+      return sum + (basePrice * multiplier);
+    }, 0);
 
     // Create header ad
     const ad = await HeaderAdsManagement.create({
@@ -815,15 +843,19 @@ export const createHeaderAd = async (req, res) => {
       group_name: group_name
     });
 
-    // Create header_ads_slot records for each selected date with individual prices
-    const slotRecords = selectedDates.map(date => ({
-      header_ads_id: ad.id,
-      selected_date: date,
-      price: priceMap.get(date) || 0,
-      impressions: 0,
-      clicks: 0,
-      is_active: 1
-    }));
+    // Create header_ads_slot records for each selected date with final prices (base × multiplier)
+    const slotRecords = selectedDates.map(date => {
+      const basePrice = priceMap.get(date) || 0;
+      const finalPrice = basePrice * multiplier;
+      return {
+        header_ads_id: ad.id,
+        selected_date: date,
+        price: finalPrice,
+        impressions: 0,
+        clicks: 0,
+        is_active: 1
+      };
+    });
 
     await HeaderAdsSlot.bulkCreate(slotRecords);
 
