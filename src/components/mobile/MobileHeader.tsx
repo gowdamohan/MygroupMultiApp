@@ -625,7 +625,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                   }`}
                 >
                   <img
-                    src={`${BACKEND_URL}${ad.image}`}
+                    src={`${ad.image}`}
                     alt={ad.title}
                     className="w-full h-full object-cover"
                   />

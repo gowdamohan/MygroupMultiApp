@@ -9,6 +9,7 @@ import {
   District,
   User,
   HeaderAdsManagement,
+  HeaderAdsManagementCorporate,
   HeaderAdsSlot,
   FranchiseHolder
 } from '../models/index.js';
@@ -770,156 +771,138 @@ export const bookFranchiseHeaderAd = async (req, res) => {
 };
 
 /**
- * Get carousel ads for mobile header with location-based and date-based filtering
- * Priority order: branch_ads1, regional_ads1, branch_ads2, head_office_ads1
+ * Get carousel ads for mobile header.
+ * Data flow: franchise pages (create-header-ads-head-office, create-header-ads-branch-office) write to
+ * header_ads table via headerAdsController with group_name = {head_office|regional|branch}_ads{1|2}.
+ * Priority: Slot 1 = branch_ads1, Slot 2 = regional_ads1, Slot 3 = branch_ads2, Slot 4 = head_office_ads1.
+ * Empty slots are filled from header_ads_management (app_id, category_id).
  * GET /api/v1/advertisement/carousel
- * Query params: country_id, state_id, district_id, app_id (optional)
+ * Query params: app_id (optional), category_id (optional), country_id, state_id, district_id, selected_date
  */
 export const getCarouselAds = async (req, res) => {
   try {
-    const { country_id, state_id, district_id, app_id } = req.query;
+    const { app_id, category_id, country_id, state_id, district_id, selected_date } = req.query;
     const today = new Date().toISOString().split('T')[0];
+    const selectedDate = selected_date || today;
 
-    // Define the priority order for carousel slides
-    // 1st slide - branch_ads1 (district level, ads1)
-    // 2nd slide - regional_ads1 (state level, ads1)
-    // 3rd slide - branch_ads2 (district level, ads2)
-    // 4th slide - head_office_ads1 (country level, ads1)
-    const priorityOrder = [
-      { office_level: 'branch_office', ad_slot: 'ads1', location: 'district' },
-      { office_level: 'regional_office', ad_slot: 'ads1', location: 'state' },
-      { office_level: 'branch_office', ad_slot: 'ads2', location: 'district' },
-      { office_level: 'head_office', ad_slot: 'ads1', location: 'country' }
-    ];
+    // Priority order: exactly 4 slots by group_name from header_ads table
+    const priorityOrder = ['branch_ads1', 'regional_ads1', 'branch_ads2', 'head_office_ads1'];
 
     const carouselAds = [];
 
-    // Fetch ads for each priority slot
-    for (const priority of priorityOrder) {
+    // Helper: get signed URL for file path
+    const getSigned = async (filePath) => {
+      if (!filePath || filePath.startsWith('http')) return null;
+      try {
+        const result = await getSignedReadUrl(filePath);
+        return result.signedUrl;
+      } catch (e) {
+        console.error('Error getting signed URL:', e);
+        return null;
+      }
+    };
+
+    // Helper: format header_ads row into carousel item
+    const formatHeaderAd = (ad, groupName) => ({
+      id: ad.id,
+      image: null, // filled below
+      file_path: ad.file_path,
+      file_url: ad.file_url,
+      signed_url: null,
+      title: ad.app?.name || ad.title || 'Advertisement',
+      url: ad.link_url || '#',
+      group_name: groupName,
+      source: 'header_ads'
+    });
+
+    // Helper: format header_ads_management row into carousel item
+    const formatManagementAd = (ad) => ({
+      id: ad.id,
+      image: null,
+      file_path: ad.file_path,
+      file_url: ad.url || null,
+      signed_url: null,
+      title: ad.app?.name || 'Advertisement',
+      url: ad.url || '#',
+      group_name: 'fallback',
+      source: 'header_ads_management'
+    });
+
+    // 1) For each slot, try header_ads by group_name (with slot for selected_date)
+    for (const groupName of priorityOrder) {
       const whereClause = {
-        office_level: priority.office_level,
-        ad_slot: priority.ad_slot,
+        group_name: groupName,
         status: 'active',
-        is_active: 1,
-        start_date: { [Op.lte]: today },
-        end_date: { [Op.gte]: today }
+        is_active: 1
       };
+      if (app_id) whereClause.app_id = parseInt(app_id, 10);
+      if (category_id) whereClause.category_id = parseInt(category_id, 10);
 
-      // Add app_id filter if provided
-      if (app_id) {
-        whereClause.app_id = app_id;
-      }
-
-      // Add location filter based on priority level
-      if (priority.location === 'district' && district_id) {
-        whereClause.district_id = district_id;
-      } else if (priority.location === 'state' && state_id) {
-        whereClause.state_id = state_id;
-        whereClause.district_id = null; // State level should not have district
-      } else if (priority.location === 'country' && country_id) {
-        whereClause.country_id = country_id;
-        whereClause.state_id = null; // Country level should not have state
-        whereClause.district_id = null;
-      }
-
-      // Find ad for this priority slot
-      const ad = await HeaderAd.findOne({
+      const ad = await HeaderAdsManagement.findOne({
         where: whereClause,
-        include: [
-          { model: GroupCreate, as: 'app', attributes: ['id', 'name'] }
-        ],
-        order: [['created_at', 'DESC']]
-      });
-
-      if (ad) {
-        // Get signed URL for the file if it's a Wasabi path
-        let signedUrl = null;
-        const filePath = ad.file_path || ad.file_url;
-
-        if (filePath && !filePath.startsWith('http')) {
-          try {
-            const result = await getSignedReadUrl(filePath);
-            signedUrl = result.signedUrl;
-          } catch (e) {
-            console.error('Error getting signed URL:', e);
-          }
-        }
-
-        carouselAds.push({
-          id: ad.id,
-          image: signedUrl || filePath || '',
-          file_path: ad.file_path,
-          file_url: ad.file_url,
-          signed_url: signedUrl,
-          title: ad.title || ad.app?.name || 'Advertisement',
-          url: ad.link_url || '#',
-          office_level: ad.office_level,
-          ad_slot: ad.ad_slot,
-          priority: priority.location
-        });
-
-        // Increment impressions
-        await ad.increment('impressions');
-      }
-    }
-
-    // If no ads found from HeaderAd, fallback to HeaderAdsManagement (corporate ads)
-    if (carouselAds.length === 0) {
-      const fallbackWhere = {};
-      if (app_id) {
-        fallbackWhere.app_id = app_id;
-      }
-
-      const fallbackAds = await HeaderAdsManagement.findAll({
-        where: fallbackWhere,
         include: [
           { model: GroupCreate, as: 'app', attributes: ['id', 'name'] },
           {
             model: HeaderAdsSlot,
             as: 'slots',
-            where: {
-              selected_date: today,
-              is_active: 1
-            },
-            required: false
+            where: { selected_date: selectedDate, is_active: 1 },
+            required: true,
+            attributes: []
           }
         ],
-        limit: 4,
-        order: [['id', 'DESC']]
+        order: [['created_at', 'DESC']]
       });
 
-      for (const ad of fallbackAds) {
-        let signedUrl = null;
+      if (ad) {
         const filePath = ad.file_path || ad.file_url;
-
-        if (filePath && !filePath.startsWith('http')) {
-          try {
-            const result = await getSignedReadUrl(filePath);
-            signedUrl = result.signedUrl;
-          } catch (e) {
-            console.error('Error getting signed URL:', e);
-          }
-        }
-
-        carouselAds.push({
-          id: ad.id,
-          image: signedUrl || filePath || '',
-          file_path: ad.file_path,
-          file_url: ad.file_url,
-          signed_url: signedUrl,
-          title: ad.app?.name || 'Advertisement',
-          url: ad.link_url || ad.url || '#',
-          office_level: 'corporate',
-          ad_slot: 'ads1',
-          priority: 'fallback'
-        });
+        const signedUrl = await getSigned(filePath);
+        const item = formatHeaderAd(ad, groupName);
+        item.image = signedUrl || filePath || '';
+        item.signed_url = signedUrl;
+        carouselAds.push(item);
+        await ad.increment('impressions');
+      } else {
+        carouselAds.push(null); // slot empty, will fill from fallback
       }
     }
 
+    // 2) Fetch fallback ads from header_ads_management (filter by app_id, category_id)
+    const fallbackWhere = {};
+    if (app_id) fallbackWhere.app_id = parseInt(app_id, 10);
+    if (category_id) fallbackWhere.app_category_id = parseInt(category_id, 10);
+
+    const fallbackList = await HeaderAdsManagementCorporate.findAll({
+      where: Object.keys(fallbackWhere).length ? fallbackWhere : undefined,
+      include: [{ model: GroupCreate, as: 'app', attributes: ['id', 'name'] }],
+      limit: 4,
+      order: [['id', 'DESC']]
+    });
+
+    // 3) Fill empty slots with fallback ads (in order)
+    let fallbackIndex = 0;
+    for (let i = 0; i < carouselAds.length; i++) {
+      if (carouselAds[i] !== null) continue;
+      if (fallbackIndex >= fallbackList.length) {
+        // No fallback: keep slot as null or omit; user asked "always return 4 ads total"
+        // So we only push when we have data; we'll filter nulls and pad if needed
+        continue;
+      }
+      const ad = fallbackList[fallbackIndex++];
+      const filePath = ad.file_path || ad.url;
+      const signedUrl = await getSigned(filePath);
+      const item = formatManagementAd(ad);
+      item.image = signedUrl || filePath || '';
+      item.signed_url = signedUrl;
+      carouselAds[i] = item;
+    }
+
+    // Build final array: exactly 4 items (drop nulls only if we have no fallback for that slot)
+    const finalAds = carouselAds.filter(Boolean);
+
     res.json({
       success: true,
-      data: carouselAds,
-      count: carouselAds.length
+      data: finalAds,
+      count: finalAds.length
     });
   } catch (error) {
     console.error('Get carousel ads error:', error);
