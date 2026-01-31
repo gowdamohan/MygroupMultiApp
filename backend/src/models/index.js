@@ -402,6 +402,16 @@ AppCategory.hasMany(HeaderAdsManagementCorporate, {
   as: 'headerAdsManagement'
 });
 
+// HeaderAdsManagement belongs to FranchiseHolder
+HeaderAdsManagement.belongsTo(FranchiseHolder, {
+  foreignKey: 'franchise_holder_id',
+  as: 'franchiseHolder'
+});
+FranchiseHolder.hasMany(HeaderAdsManagement, {
+  foreignKey: 'franchise_holder_id',
+  as: 'headerAds'
+});
+
 // HeaderAdsManagement has many HeaderAdsSlot
 HeaderAdsManagement.hasMany(HeaderAdsSlot, {
   foreignKey: 'header_ads_id',

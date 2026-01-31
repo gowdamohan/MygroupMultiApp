@@ -772,12 +772,34 @@ export const bookFranchiseHeaderAd = async (req, res) => {
 
 /**
  * Get carousel ads for mobile header.
+ * Returns exactly 4 ads with slot-based priority order.
+ *
  * Data flow: franchise pages (create-header-ads-head-office, create-header-ads-branch-office) write to
  * header_ads table via headerAdsController with group_name = {head_office|regional|branch}_ads{1|2}.
- * Priority: Slot 1 = branch_ads1, Slot 2 = regional_ads1, Slot 3 = branch_ads2, Slot 4 = head_office_ads1.
+ *
+ * Priority Slots:
+ * - Slot 1: group_name = 'branch_ads1'
+ * - Slot 2: group_name = 'regional_ads1'
+ * - Slot 3: group_name = 'branch_ads2'
+ * - Slot 4: group_name = 'head_office_ads1'
+ *
+ * Location-based filtering (hierarchical priority):
+ * - District-level ads (most specific)
+ * - State-level ads (when district is null)
+ * - Country-level ads (when state and district are null)
+ * - Corporate/National ads (all location fields are null)
+ *
  * Empty slots are filled from header_ads_management (app_id, category_id).
+ * Always returns exactly 4 ads (repeating fallback ads if needed).
+ *
  * GET /api/v1/advertisement/carousel
- * Query params: app_id (optional), category_id (optional), country_id, state_id, district_id, selected_date
+ * Query params:
+ * - app_id (required) - Application ID
+ * - category_id (required) - App category ID
+ * - country_id (optional) - User's country ID for location filtering
+ * - state_id (optional) - User's state ID for location filtering
+ * - district_id (optional) - User's district ID for location filtering
+ * - selected_date (optional) - Date for ads (defaults to today)
  */
 export const getCarouselAds = async (req, res) => {
   try {
@@ -785,17 +807,33 @@ export const getCarouselAds = async (req, res) => {
     const today = new Date().toISOString().split('T')[0];
     const selectedDate = selected_date || today;
 
-    // Priority order: exactly 4 slots by group_name from header_ads table
-    const priorityOrder = ['branch_ads1', 'regional_ads1', 'branch_ads2', 'head_office_ads1'];
+    // Validate required parameters (only app_id is required)
+    if (!app_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'app_id is required'
+      });
+    }
 
-    const carouselAds = [];
+    // Parse IDs
+    const appId = parseInt(app_id, 10);
+    const categoryId = category_id ? parseInt(category_id, 10) : null;
+    const countryId = country_id ? parseInt(country_id, 10) : null;
+    const stateId = state_id ? parseInt(state_id, 10) : null;
+    const districtId = district_id ? parseInt(district_id, 10) : null;
 
-    // Helper: get signed URL for file path
+    // ============================================
+    // 1) HELPER FUNCTIONS
+    // ============================================
+
+    // Helper: get signed URL for Wasabi file path
     const getSigned = async (filePath) => {
-      if (!filePath || filePath.startsWith('http')) return null;
+      if (!filePath) return null;
+      // If already a URL, don't sign
+      if (filePath.startsWith('http://') || filePath.startsWith('https://')) return null;
       try {
         const result = await getSignedReadUrl(filePath);
-        return result.signedUrl;
+        return result.signedUrl || null;
       } catch (e) {
         console.error('Error getting signed URL:', e);
         return null;
@@ -803,43 +841,122 @@ export const getCarouselAds = async (req, res) => {
     };
 
     // Helper: format header_ads row into carousel item
-    const formatHeaderAd = (ad, groupName) => ({
-      id: ad.id,
-      image: null, // filled below
-      file_path: ad.file_path,
-      file_url: ad.file_url,
-      signed_url: null,
-      title: ad.app?.name || ad.title || 'Advertisement',
-      url: ad.link_url || '#',
-      group_name: groupName,
-      source: 'header_ads'
-    });
-
-    // Helper: format header_ads_management row into carousel item
-    const formatManagementAd = (ad) => ({
-      id: ad.id,
-      image: null,
-      file_path: ad.file_path,
-      file_url: ad.url || null,
-      signed_url: null,
-      title: ad.app?.name || 'Advertisement',
-      url: ad.url || '#',
-      group_name: 'fallback',
-      source: 'header_ads_management'
-    });
-
-    // 1) For each slot, try header_ads by group_name (with slot for selected_date)
-    for (const groupName of priorityOrder) {
-      const whereClause = {
+    const formatHeaderAd = async (ad, groupName) => {
+      const filePath = ad.file_path || null;
+      const fileUrl = ad.file_url || null;
+      const signedUrl = await getSigned(filePath);
+      return {
+        id: ad.id,
+        image: signedUrl || fileUrl || filePath || '',
+        file_path: filePath,
+        file_url: fileUrl,
+        signed_url: signedUrl,
+        title: ad.app?.name || ad.title || 'Advertisement',
+        url: ad.link_url || '#',
         group_name: groupName,
-        status: 'active',
-        is_active: 1
+        source: 'header_ads'
       };
-      if (app_id) whereClause.app_id = parseInt(app_id, 10);
-      if (category_id) whereClause.category_id = parseInt(category_id, 10);
+    };
 
-      const ad = await HeaderAdsManagement.findOne({
-        where: whereClause,
+    // Helper: format header_ads_management row into carousel item (local files)
+    const formatManagementAd = (ad, slotIndex) => {
+      const filePath = ad.file_path || null;
+      const url = ad.url || null;
+      return {
+        id: ad.id,
+        image: filePath || url || '',
+        file_path: filePath,
+        file_url: url,
+        signed_url: null, // Local files don't need signed URLs
+        title: ad.app?.name || 'Advertisement',
+        url: url || '#',
+        group_name: `fallback_slot${slotIndex + 1}`,
+        source: 'header_ads_management'
+      };
+    };
+
+    // Helper: build location conditions for hierarchical matching
+    const buildLocationConditions = () => {
+      const conditions = [];
+
+      // District-level match (most specific)
+      if (districtId) {
+        conditions.push({
+          '$franchiseHolder.district$': districtId
+        });
+      }
+
+      // State-level match (franchise has state but no district)
+      if (stateId) {
+        conditions.push({
+          '$franchiseHolder.state$': stateId,
+          '$franchiseHolder.district$': null
+        });
+      }
+
+      // Country-level match (franchise has country but no state/district)
+      if (countryId) {
+        conditions.push({
+          '$franchiseHolder.country$': countryId,
+          '$franchiseHolder.state$': null,
+          '$franchiseHolder.district$': null
+        });
+      }
+
+      // Corporate/National level (franchise has no location set - applies to all)
+      conditions.push({
+        '$franchiseHolder.country$': null,
+        '$franchiseHolder.state$': null,
+        '$franchiseHolder.district$': null
+      });
+
+      return conditions;
+    };
+
+    // Helper: get location priority score for sorting
+    const getLocationPriority = (franchiseHolder) => {
+      if (!franchiseHolder) return 0;
+      const fh = franchiseHolder;
+      if (fh.district && fh.district === districtId) return 4; // District match
+      if (fh.state && fh.state === stateId && !fh.district) return 3; // State match
+      if (fh.country && fh.country === countryId && !fh.state && !fh.district) return 2; // Country match
+      if (!fh.country && !fh.state && !fh.district) return 1; // Corporate/national
+      return 0;
+    };
+
+    // ============================================
+    // 2) DEFINE PRIORITY SLOTS
+    // ============================================
+    const prioritySlots = ['branch_ads1', 'regional_ads1', 'branch_ads2', 'head_office_ads1'];
+    const carouselAds = [null, null, null, null]; // Initialize with 4 null slots
+
+    // Build base where clause
+    const baseWhereClause = {
+      status: 'active',
+      is_active: 1,
+      app_id: appId
+    };
+    // Add category_id filter only if provided
+    if (categoryId) {
+      baseWhereClause.category_id = categoryId;
+    }
+
+    // Get location conditions
+    const locationConditions = buildLocationConditions();
+
+    // ============================================
+    // 3) FETCH ADS FOR EACH PRIORITY SLOT
+    // ============================================
+    for (let i = 0; i < prioritySlots.length; i++) {
+      const groupName = prioritySlots[i];
+
+      // Fetch all matching ads for this slot with location filtering
+      const matchingAds = await HeaderAdsManagement.findAll({
+        where: {
+          ...baseWhereClause,
+          group_name: groupName,
+          [Op.or]: locationConditions
+        },
         include: [
           { model: GroupCreate, as: 'app', attributes: ['id', 'name'] },
           {
@@ -847,58 +964,96 @@ export const getCarouselAds = async (req, res) => {
             as: 'slots',
             where: { selected_date: selectedDate, is_active: 1 },
             required: true,
-            attributes: []
+            attributes: ['id', 'selected_date', 'impressions']
+          },
+          {
+            model: FranchiseHolder,
+            as: 'franchiseHolder',
+            attributes: ['id', 'country', 'state', 'district'],
+            required: false
           }
         ],
         order: [['created_at', 'DESC']]
       });
 
-      if (ad) {
-        const filePath = ad.file_path || ad.file_url;
-        const signedUrl = await getSigned(filePath);
-        const item = formatHeaderAd(ad, groupName);
-        item.image = signedUrl || filePath || '';
-        item.signed_url = signedUrl;
-        carouselAds.push(item);
-        await ad.increment('impressions');
-      } else {
-        carouselAds.push(null); // slot empty, will fill from fallback
+      if (matchingAds.length > 0) {
+        // Sort by location priority (most specific first)
+        const sortedAds = matchingAds.sort((a, b) => {
+          return getLocationPriority(b.franchiseHolder) - getLocationPriority(a.franchiseHolder);
+        });
+
+        // Take the best matching ad
+        const bestAd = sortedAds[0];
+        const formattedAd = await formatHeaderAd(bestAd, groupName);
+        carouselAds[i] = formattedAd;
+
+        // Increment impressions on the slot (non-blocking)
+        if (bestAd.slots && bestAd.slots.length > 0) {
+          bestAd.slots[0].increment('impressions').catch(e =>
+            console.error('Impression increment error:', e)
+          );
+        }
       }
     }
 
-    // 2) Fetch fallback ads from header_ads_management (filter by app_id, category_id)
-    const fallbackWhere = {};
-    if (app_id) fallbackWhere.app_id = parseInt(app_id, 10);
-    if (category_id) fallbackWhere.app_category_id = parseInt(category_id, 10);
+    // ============================================
+    // 4) FETCH FALLBACK ADS FROM header_ads_management
+    // ============================================
+    const fallbackWhere = {
+      app_id: appId
+    };
+    // Add category filter only if provided
+    if (categoryId) {
+      fallbackWhere.app_category_id = categoryId;
+    }
 
-    const fallbackList = await HeaderAdsManagementCorporate.findAll({
-      where: Object.keys(fallbackWhere).length ? fallbackWhere : undefined,
+    const fallbackAds = await HeaderAdsManagementCorporate.findAll({
+      where: fallbackWhere,
       include: [{ model: GroupCreate, as: 'app', attributes: ['id', 'name'] }],
       limit: 4,
       order: [['id', 'DESC']]
     });
 
-    // 3) Fill empty slots with fallback ads (in order)
+    // ============================================
+    // 5) FILL EMPTY SLOTS WITH FALLBACK ADS
+    // ============================================
     let fallbackIndex = 0;
     for (let i = 0; i < carouselAds.length; i++) {
-      if (carouselAds[i] !== null) continue;
-      if (fallbackIndex >= fallbackList.length) {
-        // No fallback: keep slot as null or omit; user asked "always return 4 ads total"
-        // So we only push when we have data; we'll filter nulls and pad if needed
-        continue;
+      if (carouselAds[i] === null) {
+        if (fallbackAds.length > 0) {
+          // Use fallback ad (cycle through if needed)
+          const fallbackAd = fallbackAds[fallbackIndex % fallbackAds.length];
+          carouselAds[i] = formatManagementAd(fallbackAd, i);
+          fallbackIndex++;
+        }
       }
-      const ad = fallbackList[fallbackIndex++];
-      const filePath = ad.file_path || ad.url;
-      const signedUrl = await getSigned(filePath);
-      const item = formatManagementAd(ad);
-      item.image = signedUrl || filePath || '';
-      item.signed_url = signedUrl;
-      carouselAds[i] = item;
     }
 
-    // Build final array: exactly 4 items (drop nulls only if we have no fallback for that slot)
-    const finalAds = carouselAds.filter(Boolean);
+    // ============================================
+    // 6) ENSURE EXACTLY 4 ADS (repeat if needed)
+    // ============================================
+    // Filter out any remaining nulls and ensure we have exactly 4
+    const validAds = carouselAds.filter(ad => ad !== null);
+    const finalAds = [];
 
+    if (validAds.length === 0) {
+      // No ads at all - return empty array with message
+      return res.json({
+        success: true,
+        data: [],
+        count: 0,
+        message: 'No ads available for the specified criteria'
+      });
+    }
+
+    // Fill exactly 4 slots by repeating available ads
+    for (let i = 0; i < 4; i++) {
+      finalAds.push(validAds[i % validAds.length]);
+    }
+
+    // ============================================
+    // 7) RETURN RESPONSE
+    // ============================================
     res.json({
       success: true,
       data: finalAds,
