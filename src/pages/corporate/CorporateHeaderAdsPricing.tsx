@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Loader2 } from 'lucide-react';
+import { X, Loader2, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
-import { API_BASE_URL } from '../../config/api.config';
+import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
+
+const FLAG_ICON_BASE_URL = BACKEND_URL;
 
 interface Country {
   id: number;
@@ -93,6 +95,8 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
   const tableScrollRef = useRef<HTMLDivElement>(null);
   const topScrollRef = useRef<HTMLDivElement>(null);
   const isSyncingScroll = useRef(false);
+  const countryDropdownRef = useRef<HTMLDivElement>(null);
+  const [countryDropdownOpen, setCountryDropdownOpen] = useState(false);
 
   const syncScrollFromMain = useCallback(() => {
     if (isSyncingScroll.current) return;
@@ -130,6 +134,17 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
       fetchPricingData();
     }
   }, [activeTab]);
+
+  // Close country dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (countryDropdownRef.current && !countryDropdownRef.current.contains(e.target as Node)) {
+        setCountryDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const fetchExchangeRate = async () => {
     if (!selectedCountry) return;
@@ -483,6 +498,13 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
   const totalDateCols = monthGroups.reduce((sum, g) => sum + Math.max(g.dates.length, 1), 0);
   const tableMinWidthPx = 200 + 52 * totalDateCols;
 
+  const getFlagUrl = (country: Country) => {
+    if (!country?.flag_icon) return '';
+    return country.flag_icon.startsWith('http')
+      ? country.flag_icon
+      : `${FLAG_ICON_BASE_URL}/${country.flag_icon.replace(/^\//, '')}`;
+  };
+
   // Render price card
   const renderPriceCard = (
     pricing_slot: 'General' | 'Capitals',
@@ -515,30 +537,74 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
           <span className="text-white font-semibold text-lg">MY Coins Pricing Value</span>
 
           {/* Country Dropdown with Flag */}
-          <div className="flex items-center gap-2 bg-indigo-600 rounded-lg px-3 py-2">
-            {selectedCountry?.flag_icon ? (
-              selectedCountry.flag_icon.startsWith('http') ? (
-                <img src={selectedCountry.flag_icon} alt="" className="w-6 h-4 object-cover rounded" />
-              ) : (
-                <span className="text-xl" aria-hidden>{selectedCountry.flag_icon}</span>
-              )
-            ) : (
-              <span className="text-xl opacity-80" aria-hidden>🏳️</span>
-            )}
-            <select
-              value={selectedCountry?.id || ''}
-              onChange={(e) => {
-                const country = countries.find(c => c.id === parseInt(e.target.value));
-                setSelectedCountry(country || null);
-              }}
-              className="bg-transparent text-white border-none focus:ring-0 focus:outline-none cursor-pointer"
+          <div ref={countryDropdownRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setCountryDropdownOpen(!countryDropdownOpen)}
+              className="flex items-center gap-2 bg-indigo-600 rounded-lg px-3 py-2 text-white hover:bg-indigo-500 transition-colors min-w-[200px]"
             >
-              {countries.map(country => (
-                <option key={country.id} value={country.id} className="text-gray-900">
-                  {country.name} - {country.currency_code}
-                </option>
-              ))}
-            </select>
+              {selectedCountry ? (
+                <>
+                  {selectedCountry.flag_icon ? (
+                    <img
+                      src={getFlagUrl(selectedCountry)}
+                      alt=""
+                      className="w-6 h-4 object-cover rounded"
+                    />
+                  ) : (
+                    <span className="text-xl opacity-80" aria-hidden>🏳️</span>
+                  )}
+                  <span className="flex-1 text-left">
+                    {selectedCountry.name} - {selectedCountry.currency_code}
+                  </span>
+                </>
+              ) : (
+                <span className="flex-1 text-left">Select country</span>
+              )}
+              <ChevronDown
+                size={18}
+                className={`transition-transform ${countryDropdownOpen ? 'rotate-180' : ''}`}
+              />
+            </button>
+
+            <AnimatePresence>
+              {countryDropdownOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute left-0 top-full mt-1 z-50 bg-white rounded-lg shadow-lg border border-gray-200 py-1 max-h-[280px] overflow-y-auto min-w-[200px]"
+                >
+                  {countries.map((country) => (
+                    <button
+                      key={country.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedCountry(country);
+                        setCountryDropdownOpen(false);
+                      }}
+                      className={`flex items-center gap-2 w-full px-3 py-2 text-left hover:bg-indigo-50 transition-colors ${
+                        selectedCountry?.id === country.id ? 'bg-indigo-100 text-indigo-800' : 'text-gray-900'
+                      }`}
+                    >
+                      {country.flag_icon ? (
+                        <img
+                          src={getFlagUrl(country)}
+                          alt=""
+                          className="w-6 h-4 object-cover rounded flex-shrink-0"
+                        />
+                      ) : (
+                        <span className="w-6 h-4 flex items-center justify-center text-lg">🏳️</span>
+                      )}
+                      <span>
+                        {country.name} - {country.currency_code}
+                      </span>
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           {/* Currency Display */}
