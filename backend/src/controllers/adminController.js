@@ -1187,17 +1187,17 @@ export const getAppLocking = async (req, res) => {
       });
     }
 
+    const raw = app.locking_json || {};
+    const locking_json = {
+      subAppLocks: raw.subAppLocks || {},
+      customFormConfig: raw.customFormConfig || {}
+    };
     res.json({
       success: true,
       data: {
         id: app.id,
         name: app.name,
-        locking_json: app.locking_json || {
-          lockCategory: false,
-          lockSubCategory: false,
-          lockChildCategory: false,
-          customFormConfig: {}
-        }
+        locking_json
       }
     });
   } catch (error) {
@@ -1209,11 +1209,11 @@ export const getAppLocking = async (req, res) => {
   }
 };
 
-// Update app locking settings
+// Update app locking settings (per Sub App)
 export const updateAppLocking = async (req, res) => {
   try {
     const { id } = req.params;
-    const { lockCategory, lockSubCategory, lockChildCategory, customFormConfig } = req.body;
+    const { subAppId, lockSubCategory, lockChildCategory, customFormConfig } = req.body;
 
     const app = await GroupCreate.findByPk(id);
     if (!app) {
@@ -1223,7 +1223,6 @@ export const updateAppLocking = async (req, res) => {
       });
     }
 
-    // Only allow locking for "My Apps" type
     if (app.apps_name !== 'My Apps') {
       return res.status(400).json({
         success: false,
@@ -1231,12 +1230,26 @@ export const updateAppLocking = async (req, res) => {
       });
     }
 
+    if (subAppId == null || subAppId === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'subAppId is required'
+      });
+    }
+
+    const key = String(subAppId);
+    const raw = app.locking_json || {};
+    const subAppLocks = { ...(raw.subAppLocks || {}) };
+    subAppLocks[key] = {
+      lockSubCategory: Boolean(lockSubCategory),
+      lockChildCategory: Boolean(lockChildCategory)
+    };
+
     await app.update({
       locking_json: {
-        lockCategory: lockCategory || false,
-        lockSubCategory: lockSubCategory || false,
-        lockChildCategory: lockChildCategory || false,
-        customFormConfig: customFormConfig || {}
+        ...raw,
+        subAppLocks,
+        customFormConfig: customFormConfig || raw.customFormConfig || {}
       }
     });
 
