@@ -68,6 +68,13 @@ export const uploadAppImages = createUploader([
   { name: 'name_image', maxCount: 1 }
 ], 'apps');
 
+// Middleware for uploading admin profile images (icon, logo, name_image)
+export const uploadProfileImages = createUploader([
+  { name: 'icon', maxCount: 1 },
+  { name: 'logo', maxCount: 1 },
+  { name: 'name_image', maxCount: 1 }
+], 'profile');
+
 // Middleware for uploading country assets (flag, currency icon)
 export const uploadCountryAssets = createUploader([
   { name: 'country_flag', maxCount: 1 },

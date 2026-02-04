@@ -61,6 +61,7 @@ import {
   updateMediaChannelStatus,
   updateMediaChannelActive
 } from '../controllers/adminController.js';
+import { getProfile, createProfile, updateProfile } from '../controllers/profileController.js';
 import {
   getAccountsUsers,
   createAccountsUser,
@@ -69,7 +70,7 @@ import {
   toggleAccountsUserStatus
 } from '../controllers/accountsUserController.js';
 import { authenticate } from '../middleware/auth.js';
-import { uploadAppImages, uploadCountryAssets, uploadCategoryImage as uploadCategoryImageMiddleware } from '../middleware/upload.js';
+import { uploadAppImages, uploadCountryAssets, uploadCategoryImage as uploadCategoryImageMiddleware, uploadProfileImages } from '../middleware/upload.js';
 
 const router = express.Router();
 
@@ -94,6 +95,15 @@ router.post('/app-login', appLogin);
  */
 // All routes below require authentication
 router.use(authenticate);
+
+/**
+ * ============================================
+ * ADMIN PROFILE ROUTES (my_group_profile)
+ * ============================================
+ */
+router.get('/profile', getProfile);
+router.post('/profile', uploadProfileImages, createProfile);
+router.put('/profile/:id', uploadProfileImages, updateProfile);
 
 /**
  * ============================================

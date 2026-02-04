@@ -1,8 +1,10 @@
 import FranchiseOfferAd from '../models/FranchiseOfferAd.js';
 import { uploadFile, getSignedReadUrl } from '../services/wasabiService.js';
 
+const VALID_GROUP_NAMES = ['regional', 'branch', 'headoffice'];
+
 /**
- * Get franchise offer ads. Query: group_name ("regional" | "branch"), type ("ads1" | "ads2") optional, limit (default 100).
+ * Get franchise offer ads. Query: group_name ("regional" | "branch" | "headoffice"), type ("ads1" | "ads2") optional, limit (default 100).
  * Returns signed URLs for display when image_path is set (expires in 1 hour).
  */
 export const getOfferAds = async (req, res) => {
@@ -11,7 +13,7 @@ export const getOfferAds = async (req, res) => {
     const limitNum = Math.min(parseInt(limit, 10) || 100, 100);
 
     const where = {};
-    if (group_name === 'regional' || group_name === 'branch') {
+    if (VALID_GROUP_NAMES.includes(group_name)) {
       where.group_name = group_name;
     }
     if (type === 'ads1' || type === 'ads2') {
@@ -63,8 +65,8 @@ export const getOfferAds = async (req, res) => {
 export const createOfferAds = async (req, res) => {
   try {
     const groupName = (req.body.group_name || '').toString().trim().toLowerCase();
-    if (groupName !== 'regional' && groupName !== 'branch') {
-      return res.status(400).json({ success: false, message: 'group_name must be "regional" or "branch"' });
+    if (!VALID_GROUP_NAMES.includes(groupName)) {
+      return res.status(400).json({ success: false, message: 'group_name must be "regional", "branch", or "headoffice"' });
     }
 
     const files = req.files?.images || (req.file ? [req.file] : []);
@@ -105,8 +107,8 @@ export const createOfferAds = async (req, res) => {
 export const createOfferAdsByUrl = async (req, res) => {
   try {
     const groupName = (req.body.group_name || '').toString().trim().toLowerCase();
-    if (groupName !== 'regional' && groupName !== 'branch') {
-      return res.status(400).json({ success: false, message: 'group_name must be "regional" or "branch"' });
+    if (!VALID_GROUP_NAMES.includes(groupName)) {
+      return res.status(400).json({ success: false, message: 'group_name must be "regional", "branch", or "headoffice"' });
     }
 
     const imageUrls = Array.isArray(req.body.image_urls)
@@ -150,8 +152,8 @@ export const saveOfferAdRow = async (req, res) => {
     const adType = (req.body.type || '').toString().trim().toLowerCase();
     const slotNum = parseInt(req.body.slot, 10);
 
-    if (groupName !== 'regional' && groupName !== 'branch') {
-      return res.status(400).json({ success: false, message: 'group_name must be "regional" or "branch"' });
+    if (!VALID_GROUP_NAMES.includes(groupName)) {
+      return res.status(400).json({ success: false, message: 'group_name must be "regional", "branch", or "headoffice"' });
     }
     if (adType !== 'ads1' && adType !== 'ads2') {
       return res.status(400).json({ success: false, message: 'type must be "ads1" or "ads2"' });

@@ -23,6 +23,7 @@ import { CorporateLogin } from '../admin/CorporateLogin';
 import { AccountsLogin } from '../admin/AccountsLogin';
 import { CreateCategoryPage } from '../admin/CreateCategory';
 import { AdminSupportChat } from '../admin/AdminSupportChat';
+import { Profile } from '../admin/Profile';
 interface MenuItem {
   id: string;
   label: string;
@@ -81,6 +82,8 @@ export const AdminDashboardNew: React.FC = () => {
       case '/admin/create-apps':
         console.log('Rendering CreateAppsList');
         return <CreateAppsList />;
+      case '/admin/profile':
+        return <Profile />;
       case '/admin/corporate-login':
         console.log('Rendering CorporateLogin');
         return <CorporateLogin />;
@@ -124,6 +127,12 @@ export const AdminDashboardNew: React.FC = () => {
       label: 'Dashboard',
       icon: LayoutDashboard,
       path: '/dashboard/admin'
+    },
+    {
+      id: 'profile',
+      label: 'Profile',
+      icon: User,
+      path: '/admin/profile'
     },
     {
       id: 'corporate-login',

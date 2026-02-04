@@ -157,12 +157,11 @@ export const LanguageList: React.FC = () => {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Country *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Country </label>
               <select
                 value={formData.country_id}
                 onChange={(e) => setFormData({ ...formData, country_id: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                required
               >
                 <option value="">Select Country</option>
                 {countries.map((c: Country) => (

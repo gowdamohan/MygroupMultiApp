@@ -16,6 +16,7 @@ import { UserTermsConditions } from '../corporate/UserTermsConditions';
 import { FooterFaqManager } from '../corporate/FooterFaqManager';
 import { HeaderAdsPricing } from '../corporate/HeaderAdsPricing';
 import { CorporateHeaderAdsPricing } from '../corporate/CorporateHeaderAdsPricing';
+import { CorporateOfferAds } from '../corporate/CorporateOfferAds';
 import { ChangePassword } from '../corporate/ChangePassword';
 import {
   LayoutDashboard, Users, Building2, MapPin, Globe, FileText,
@@ -25,7 +26,7 @@ import {
   Clock, TrendingUp, BarChart3, DollarSign, Image, Megaphone,
   Database, HelpCircle, Key, User, FileImage, Link2, BookOpen,
   Smile, Building, Milestone, Phone, Share2, Scale, ShieldCheck,
-  FileQuestion, Headphones
+  FileQuestion, Headphones, Package
 } from 'lucide-react';
 
 interface MenuItem {
@@ -124,6 +125,7 @@ export const CorporateDashboard: React.FC = () => {
       icon: Megaphone,
       children: [
         { id: 'header-ads', label: 'Header Ads', icon: Image, path: '/corporate/header-ads' },
+        { id: 'offer-ads', label: 'Offer Ads', icon: Package, path: '/corporate/offer-ads' },
         { id: 'popup-ads', label: 'Popup Add', icon: MessageSquare, path: '/corporate/popup-ads' },
         { id: 'company-header-ads', label: 'My Company Header Ads', icon: Building, path: '/corporate/company-header-ads' },
         { id: 'main-page-ads', label: 'Main Page Ads', icon: FileImage, path: '/corporate/main-page-ads' }
@@ -248,6 +250,8 @@ export const CorporateDashboard: React.FC = () => {
         return <HeadOfficeLogin />;
       case '/corporate/header-ads':
         return <HeaderAds />;
+      case '/corporate/offer-ads':
+        return <CorporateOfferAds />;
       case '/corporate/header-ads-pricing':
         return <CorporateHeaderAdsPricing />;
       case '/corporate/popup-ads':

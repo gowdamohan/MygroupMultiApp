@@ -60,6 +60,7 @@ import FooterFaq from './FooterFaq.js';
 import FooterPageImage from './FooterPageImage.js';
 import FranchiseOfferAd from './FranchiseOfferAd.js';
 import FranchiseOfficeAddress from './FranchiseOfficeAddress.js';
+import MyGroupProfile from './MyGroupProfile.js';
 
 // ============================================
 // USER ASSOCIATIONS
@@ -817,6 +818,7 @@ export {
   FooterFaq,
   FooterPageImage,
   FranchiseOfferAd,
-  FranchiseOfficeAddress
+  FranchiseOfficeAddress,
+  MyGroupProfile
 };
 

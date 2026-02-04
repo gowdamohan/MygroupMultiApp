@@ -541,19 +541,35 @@ export const CountryList: React.FC = () => {
                   <input
                     type="checkbox"
                     checked={lockSettings.lockStates}
-                    onChange={(e) => setLockSettings({ ...lockSettings, lockStates: e.target.checked })}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setLockSettings(prev => ({
+                        ...prev,
+                        lockStates: checked,
+                        // When locking states, also lock districts (districts belong to states)
+                        lockDistricts: checked ? true : prev.lockDistricts
+                      }));
+                    }}
                     className="w-5 h-5 text-primary-600 rounded focus:ring-2 focus:ring-primary-500"
                   />
                   <span className="text-gray-700">Lock State Creation</span>
                 </label>
-                <label className="flex items-center gap-3 cursor-pointer">
+                <label className={`flex items-center gap-3 ${lockSettings.lockStates ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'}`}>
                   <input
                     type="checkbox"
                     checked={lockSettings.lockDistricts}
-                    onChange={(e) => setLockSettings({ ...lockSettings, lockDistricts: e.target.checked })}
-                    className="w-5 h-5 text-primary-600 rounded focus:ring-2 focus:ring-primary-500"
+                    disabled={lockSettings.lockStates}
+                    onChange={(e) => {
+                      if (!lockSettings.lockStates) {
+                        setLockSettings({ ...lockSettings, lockDistricts: e.target.checked });
+                      }
+                    }}
+                    className="w-5 h-5 text-primary-600 rounded focus:ring-2 focus:ring-primary-500 disabled:opacity-70 disabled:cursor-not-allowed"
                   />
                   <span className="text-gray-700">Lock District Creation</span>
+                  {lockSettings.lockStates && (
+                    <span className="text-xs text-gray-500">(locked when State Creation is locked)</span>
+                  )}
                 </label>
               </div>
               <div className="flex gap-3 mt-6">
