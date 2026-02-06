@@ -352,7 +352,7 @@ export const getRegionalOfficeUsers = async (req, res) => {
 // Create regional office user
 export const createRegionalOfficeUser = async (req, res) => {
   try {
-    const { first_name, phone, email, username, country, state } = req.body;
+    const { first_name, phone, email, username, country, state, grade } = req.body;
     const usernameLower = (username || '').toString().trim().toLowerCase();
 
     // Validate required fields
@@ -397,7 +397,8 @@ export const createRegionalOfficeUser = async (req, res) => {
     const franchiseHolder = await FranchiseHolder.create({
       user_id: user.id,
       country: country,
-      state: state
+      state: state,
+      grade: grade || null
     });
 
     // Fetch country and state data
@@ -657,7 +658,7 @@ export const getBranchOfficeUsers = async (req, res) => {
 // Create new branch office user
 export const createBranchOfficeUser = async (req, res) => {
   try {
-    const { first_name, phone, email, username, country, state, district } = req.body;
+    const { first_name, phone, email, username, country, state, district, grade } = req.body;
     const usernameLower = (username || '').toString().trim().toLowerCase();
 
     // Validate required fields
@@ -698,7 +699,8 @@ export const createBranchOfficeUser = async (req, res) => {
       user_id: user.id,
       country: country,
       state: state,
-      district: district
+      district: district,
+      grade: grade || null
     });
 
     res.status(201).json({ message: 'Branch office user created successfully', user });

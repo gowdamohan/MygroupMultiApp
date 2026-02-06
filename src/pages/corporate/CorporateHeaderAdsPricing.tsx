@@ -50,21 +50,35 @@ interface MasterPriceData {
 }
 
 interface MasterPricing {
-  General: {
+  A: {
     header_ads: MasterPriceData | null;
     popup_ads: MasterPriceData | null;
     middle_ads: MasterPriceData | null;
+    chat_ads: MasterPriceData | null;
   };
-  Capitals: {
+  B: {
     header_ads: MasterPriceData | null;
     popup_ads: MasterPriceData | null;
     middle_ads: MasterPriceData | null;
+    chat_ads: MasterPriceData | null;
+  };
+  C: {
+    header_ads: MasterPriceData | null;
+    popup_ads: MasterPriceData | null;
+    middle_ads: MasterPriceData | null;
+    chat_ads: MasterPriceData | null;
+  };
+  D: {
+    header_ads: MasterPriceData | null;
+    popup_ads: MasterPriceData | null;
+    middle_ads: MasterPriceData | null;
+    chat_ads: MasterPriceData | null;
   };
 }
 
 interface PriceCardEditModal {
-  pricing_slot: 'General' | 'Capitals';
-  ads_type: 'header_ads' | 'popup_ads' | 'middle_ads';
+  pricing_slot: 'A' | 'B' | 'C' | 'D';
+  ads_type: 'header_ads' | 'popup_ads' | 'middle_ads' | 'chat_ads';
   currentPrice: number;
 }
 
@@ -72,7 +86,7 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
   const [countries, setCountries] = useState<Country[]>([]);
   const [selectedCountry, setSelectedCountry] = useState<Country | null>(null);
   const [exchangeRate, setExchangeRate] = useState<ExchangeRate>({ rate: 0, loading: false, error: '' });
-  const [activeTab, setActiveTab] = useState<'General' | 'Capitals'>('General');
+  const [activeTab, setActiveTab] = useState<'A' | 'B' | 'C' | 'D'>('A');
   const [loading, setLoading] = useState(false);
   const [pricingData, setPricingData] = useState<{[key: string]: PricingSlave[]}>({});
   const [apps, setApps] = useState<App[]>([]);
@@ -84,8 +98,10 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
 
   // Master pricing for all ads types
   const [masterPricing, setMasterPricing] = useState<MasterPricing>({
-    General: { header_ads: null, popup_ads: null, middle_ads: null },
-    Capitals: { header_ads: null, popup_ads: null, middle_ads: null }
+    A: { header_ads: null, popup_ads: null, middle_ads: null, chat_ads: null },
+    B: { header_ads: null, popup_ads: null, middle_ads: null, chat_ads: null },
+    C: { header_ads: null, popup_ads: null, middle_ads: null, chat_ads: null },
+    D: { header_ads: null, popup_ads: null, middle_ads: null, chat_ads: null }
   });
 
   // Price card edit modal
@@ -335,8 +351,8 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
 
   // Handle price card click to open edit modal
   const handlePriceCardClick = (
-    pricing_slot: 'General' | 'Capitals',
-    ads_type: 'header_ads' | 'popup_ads' | 'middle_ads'
+    pricing_slot: 'A' | 'B' | 'C' | 'D',
+    ads_type: 'header_ads' | 'popup_ads' | 'middle_ads' | 'chat_ads'
   ) => {
     const currentPrice = masterPricing[pricing_slot]?.[ads_type]?.my_coins || 0;
     setPriceCardModal({ pricing_slot, ads_type, currentPrice });
@@ -379,6 +395,7 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
       case 'header_ads': return 'Header Ads';
       case 'popup_ads': return 'Popup Ads';
       case 'middle_ads': return 'Middle Ads';
+      case 'chat_ads': return 'Chat Ads';
       default: return ads_type;
     }
   };
@@ -507,8 +524,8 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
 
   // Render price card
   const renderPriceCard = (
-    pricing_slot: 'General' | 'Capitals',
-    ads_type: 'header_ads' | 'popup_ads' | 'middle_ads',
+    pricing_slot: 'A' | 'B' | 'C' | 'D',
+    ads_type: 'header_ads' | 'popup_ads' | 'middle_ads' | 'chat_ads',
     bgColor: string
   ) => {
     const priceData = masterPricing[pricing_slot]?.[ads_type];
@@ -642,23 +659,47 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
           </div>
         </div>
 
-        {/* Row 2: Adding prices to General */}
+        {/* Row 2: Adding prices to Grade A */}
         <div className="flex flex-wrap items-center gap-4">
-          <span className="text-white font-semibold min-w-[200px]">Adding Pricess to General</span>
+          <span className="text-white font-semibold min-w-[200px]">Adding Prices to Grade A</span>
           <div className="flex flex-wrap gap-3">
-            {renderPriceCard('General', 'header_ads', 'bg-cyan-500')}
-            {renderPriceCard('General', 'popup_ads', 'bg-cyan-500')}
-            {renderPriceCard('General', 'middle_ads', 'bg-cyan-500')}
+            {renderPriceCard('A', 'header_ads', 'bg-cyan-500')}
+            {renderPriceCard('A', 'popup_ads', 'bg-cyan-500')}
+            {renderPriceCard('A', 'middle_ads', 'bg-cyan-500')}
+            {renderPriceCard('A', 'chat_ads', 'bg-cyan-500')}
           </div>
         </div>
 
-        {/* Row 3: Adding prices to Capitals */}
+        {/* Row 3: Adding prices to Grade B */}
         <div className="flex flex-wrap items-center gap-4">
-          <span className="text-white font-semibold min-w-[200px]">Adding Pricess to Capitals</span>
+          <span className="text-white font-semibold min-w-[200px]">Adding Prices to Grade B</span>
           <div className="flex flex-wrap gap-3">
-            {renderPriceCard('Capitals', 'header_ads', 'bg-cyan-500')}
-            {renderPriceCard('Capitals', 'popup_ads', 'bg-cyan-500')}
-            {renderPriceCard('Capitals', 'middle_ads', 'bg-cyan-500')}
+            {renderPriceCard('B', 'header_ads', 'bg-cyan-500')}
+            {renderPriceCard('B', 'popup_ads', 'bg-cyan-500')}
+            {renderPriceCard('B', 'middle_ads', 'bg-cyan-500')}
+            {renderPriceCard('B', 'chat_ads', 'bg-cyan-500')}
+          </div>
+        </div>
+
+        {/* Row 4: Adding prices to Grade C */}
+        <div className="flex flex-wrap items-center gap-4">
+          <span className="text-white font-semibold min-w-[200px]">Adding Prices to Grade C</span>
+          <div className="flex flex-wrap gap-3">
+            {renderPriceCard('C', 'header_ads', 'bg-cyan-500')}
+            {renderPriceCard('C', 'popup_ads', 'bg-cyan-500')}
+            {renderPriceCard('C', 'middle_ads', 'bg-cyan-500')}
+            {renderPriceCard('C', 'chat_ads', 'bg-cyan-500')}
+          </div>
+        </div>
+
+        {/* Row 5: Adding prices to Grade D */}
+        <div className="flex flex-wrap items-center gap-4">
+          <span className="text-white font-semibold min-w-[200px]">Adding Prices to Grade D</span>
+          <div className="flex flex-wrap gap-3">
+            {renderPriceCard('D', 'header_ads', 'bg-cyan-500')}
+            {renderPriceCard('D', 'popup_ads', 'bg-cyan-500')}
+            {renderPriceCard('D', 'middle_ads', 'bg-cyan-500')}
+            {renderPriceCard('D', 'chat_ads', 'bg-cyan-500')}
           </div>
         </div>
       </div>
@@ -707,24 +748,44 @@ export const CorporateHeaderAdsPricing: React.FC = () => {
       {/* Tabs */}
       <div className="flex gap-2 border-b border-gray-200">
         <button
-          onClick={() => setActiveTab('General')}
+          onClick={() => setActiveTab('A')}
           className={`px-6 py-3 font-semibold transition-colors ${
-            activeTab === 'General'
+            activeTab === 'A'
               ? 'text-teal-600 border-b-2 border-teal-600'
               : 'text-gray-600 hover:text-gray-900'
           }`}
         >
-          General Ads
+          Grade A
         </button>
         <button
-          onClick={() => setActiveTab('Capitals')}
+          onClick={() => setActiveTab('B')}
           className={`px-6 py-3 font-semibold transition-colors ${
-            activeTab === 'Capitals'
+            activeTab === 'B'
               ? 'text-teal-600 border-b-2 border-teal-600'
               : 'text-gray-600 hover:text-gray-900'
           }`}
         >
-          Capital Ads
+          Grade B
+        </button>
+        <button
+          onClick={() => setActiveTab('C')}
+          className={`px-6 py-3 font-semibold transition-colors ${
+            activeTab === 'C'
+              ? 'text-teal-600 border-b-2 border-teal-600'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          Grade C
+        </button>
+        <button
+          onClick={() => setActiveTab('D')}
+          className={`px-6 py-3 font-semibold transition-colors ${
+            activeTab === 'D'
+              ? 'text-teal-600 border-b-2 border-teal-600'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          Grade D
         </button>
       </div>
 

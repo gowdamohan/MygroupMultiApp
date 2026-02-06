@@ -8,7 +8,7 @@ const HeaderAdsPricingMaster = sequelize.define('header_ads_pricing_master', {
     autoIncrement: true
   },
   pricing_slot: {
-    type: DataTypes.ENUM('General', 'Capitals'),
+    type: DataTypes.ENUM('A', 'B', 'C', 'D'),
     allowNull: false
   },
   my_coins: {
@@ -25,7 +25,7 @@ const HeaderAdsPricingMaster = sequelize.define('header_ads_pricing_master', {
     }
   },
   ads_type: {
-    type: DataTypes.ENUM('header_ads', 'popup_ads', 'middle_ads'),
+    type: DataTypes.ENUM('header_ads', 'popup_ads', 'middle_ads', 'chat_ads'),
     allowNull: false,
     defaultValue: 'header_ads'
   }

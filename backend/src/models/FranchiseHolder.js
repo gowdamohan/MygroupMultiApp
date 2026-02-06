@@ -38,6 +38,11 @@ const FranchiseHolder = sequelize.define('franchise_holder', {
       model: 'district_tbl',
       key: 'id'
     }
+  },
+  grade: {
+    type: DataTypes.ENUM('A', 'B', 'C', 'D'),
+    allowNull: true,
+    defaultValue: null
   }
 }, {
   timestamps: false,

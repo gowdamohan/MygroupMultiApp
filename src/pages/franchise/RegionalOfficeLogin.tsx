@@ -27,6 +27,7 @@ interface RegionalOfficeUser {
   state_id: number;
   state_name: string;
   franchise_holder_id: number;
+  grade?: 'A' | 'B' | 'C' | 'D' | null;
 }
 
 interface StateRow {
@@ -40,6 +41,7 @@ interface StateRow {
     phone: string;
     email: string;
     username: string;
+    grade: string;
   };
 }
 
@@ -122,12 +124,14 @@ export const RegionalOfficeLogin: React.FC = () => {
             first_name: user.first_name,
             phone: user.phone,
             email: user.email,
-            username: user.username
+            username: user.username,
+            grade: user.grade || ''
           } : {
             first_name: '',
             phone: '',
             email: '',
-            username: defaultUsername
+            username: defaultUsername,
+            grade: ''
           }
         };
       });
@@ -165,7 +169,8 @@ export const RegionalOfficeLogin: React.FC = () => {
         ...row.formData,
         username: (row.formData.username || '').trim().toLowerCase(),
         country: selectedCountry,
-        state: stateId.toString()
+        state: stateId.toString(),
+        grade: row.formData.grade || null
       };
 
       if (row.user) {
@@ -211,7 +216,8 @@ export const RegionalOfficeLogin: React.FC = () => {
             first_name: row.user.first_name,
             phone: row.user.phone,
             email: row.user.email,
-            username: row.user.username
+            username: row.user.username,
+            grade: row.user.grade || ''
           }
         };
       }
@@ -312,6 +318,9 @@ export const RegionalOfficeLogin: React.FC = () => {
                       Username
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Grade
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Status
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -322,13 +331,13 @@ export const RegionalOfficeLogin: React.FC = () => {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {loading ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
+                      <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
                         Loading...
                       </td>
                     </tr>
                   ) : stateRows.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
+                      <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
                         No states found for selected country
                       </td>
                     </tr>
@@ -390,6 +399,23 @@ export const RegionalOfficeLogin: React.FC = () => {
                               />
                             ) : (
                               <span className="text-gray-900">{row.user?.username}</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm">
+                            {isEditable ? (
+                              <select
+                                value={row.formData?.grade || ''}
+                                onChange={(e) => handleInputChange(row.state_id, 'grade', e.target.value)}
+                                className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              >
+                                <option value="">Select Grade</option>
+                                <option value="A">Grade A</option>
+                                <option value="B">Grade B</option>
+                                <option value="C">Grade C</option>
+                                <option value="D">Grade D</option>
+                              </select>
+                            ) : (
+                              <span className="text-gray-900">{row.user?.grade || '-'}</span>
                             )}
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap">

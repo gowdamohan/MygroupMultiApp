@@ -34,6 +34,7 @@ interface BranchOfficeUser {
   state_name: string;
   country_id: number;
   country_name: string;
+  grade?: 'A' | 'B' | 'C' | 'D' | null;
 }
 
 interface DistrictRow {
@@ -48,6 +49,7 @@ interface DistrictRow {
     phone: string;
     email: string;
     username: string;
+    grade: 'A' | 'B' | 'C' | 'D' | '';
   };
 }
 
@@ -165,12 +167,14 @@ export const BranchOfficeLogin: React.FC = () => {
             first_name: user.first_name,
             phone: user.phone,
             email: user.email,
-            username: user.username
+            username: user.username,
+            grade: user.grade || ''
           } : {
             first_name: '',
             phone: '',
             email: '',
-            username: defaultUsername
+            username: defaultUsername,
+            grade: ''
           }
         };
       });
@@ -202,7 +206,7 @@ export const BranchOfficeLogin: React.FC = () => {
     const row = districtRows.find(r => r.district_id === districtId);
     if (!row || !row.formData) return;
 
-    const { first_name, phone, email, username } = row.formData;
+    const { first_name, phone, email, username, grade } = row.formData;
 
     if (!first_name || !phone || !email || !username) {
       alert('All fields are required');
@@ -217,7 +221,7 @@ export const BranchOfficeLogin: React.FC = () => {
         // Update existing user
         await axios.put(
           `${API_BASE_URL}/franchise/branch-office-users/${row.user.id}`,
-          { first_name, phone, email, username: usernameLower },
+          { first_name, phone, email, username: usernameLower, grade: grade || null },
           { headers: { Authorization: `Bearer ${token}` } }
         );
         alert('User updated successfully');
@@ -232,7 +236,8 @@ export const BranchOfficeLogin: React.FC = () => {
             username: usernameLower,
             country: row.country_id,
             state: row.state_id,
-            district: row.district_id
+            district: row.district_id,
+            grade: grade || null
           },
           { headers: { Authorization: `Bearer ${token}` } }
         );
@@ -264,7 +269,8 @@ export const BranchOfficeLogin: React.FC = () => {
             first_name: row.user.first_name,
             phone: row.user.phone,
             email: row.user.email,
-            username: row.user.username
+            username: row.user.username,
+            grade: row.user.grade || ''
           }
         };
       }
@@ -387,6 +393,9 @@ export const BranchOfficeLogin: React.FC = () => {
                       Username
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Grade
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Status
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -397,13 +406,13 @@ export const BranchOfficeLogin: React.FC = () => {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {loading ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
+                      <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
                         Loading...
                       </td>
                     </tr>
                   ) : districtRows.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
+                      <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
                         No districts found for selected state
                       </td>
                     </tr>
@@ -465,6 +474,23 @@ export const BranchOfficeLogin: React.FC = () => {
                               />
                             ) : (
                               <span className="text-gray-900">{row.user?.username}</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm">
+                            {isEditable ? (
+                              <select
+                                value={row.formData?.grade || ''}
+                                onChange={(e) => handleInputChange(row.district_id, 'grade', e.target.value)}
+                                className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              >
+                                <option value="">Select Grade</option>
+                                <option value="A">Grade A</option>
+                                <option value="B">Grade B</option>
+                                <option value="C">Grade C</option>
+                                <option value="D">Grade D</option>
+                              </select>
+                            ) : (
+                              <span className="text-gray-900">{row.user?.grade || '-'}</span>
                             )}
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap">

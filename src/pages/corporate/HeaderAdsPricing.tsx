@@ -45,15 +45,15 @@ interface PriceDialogData {
 
 interface MasterPricing {
   id: number;
-  pricing_slot: 'General' | 'Capitals';
-  ads_type: 'header_ads' | 'popup_ads' | 'middle_ads';
+  pricing_slot: 'A' | 'B' | 'C' | 'D';
+  ads_type: 'header_ads' | 'popup_ads' | 'middle_ads' | 'chat_ads';
   my_coins: number;
   country_id: number;
 }
 
 interface MasterPriceDialogData {
-  ads_type: 'header_ads' | 'popup_ads' | 'middle_ads';
-  pricing_slot: 'General' | 'Capitals';
+  ads_type: 'header_ads' | 'popup_ads' | 'middle_ads' | 'chat_ads';
+  pricing_slot: 'A' | 'B' | 'C' | 'D';
   currentPrice: number;
 }
 
@@ -62,7 +62,7 @@ export const HeaderAdsPricing: React.FC = () => {
   const [apps, setApps] = useState<App[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCountryId, setSelectedCountryId] = useState<string>('');
-  const [selectedSlot, setSelectedSlot] = useState<'General' | 'Capitals'>('General');
+  const [selectedSlot, setSelectedSlot] = useState<'A' | 'B' | 'C' | 'D'>('A');
   const [selectedAppId, setSelectedAppId] = useState<string>('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -192,7 +192,7 @@ export const HeaderAdsPricing: React.FC = () => {
     }
   };
 
-  const handleMasterPriceCardClick = (ads_type: 'header_ads' | 'popup_ads' | 'middle_ads', pricing_slot: 'General' | 'Capitals') => {
+  const handleMasterPriceCardClick = (ads_type: 'header_ads' | 'popup_ads' | 'middle_ads' | 'chat_ads', pricing_slot: 'A' | 'B' | 'C' | 'D') => {
     const existing = masterPricing.find(m => m.ads_type === ads_type && m.pricing_slot === pricing_slot);
     setMasterPriceDialogData({
       ads_type,
@@ -375,7 +375,7 @@ export const HeaderAdsPricing: React.FC = () => {
     });
   };
 
-  const getMasterPrice = (ads_type: 'header_ads' | 'popup_ads' | 'middle_ads', pricing_slot: 'General' | 'Capitals') => {
+  const getMasterPrice = (ads_type: 'header_ads' | 'popup_ads' | 'middle_ads' | 'chat_ads', pricing_slot: 'A' | 'B' | 'C' | 'D') => {
     const master = masterPricing.find(m => m.ads_type === ads_type && m.pricing_slot === pricing_slot);
     return master?.my_coins || 0;
   };
@@ -448,59 +448,93 @@ export const HeaderAdsPricing: React.FC = () => {
 
       {selectedCountryId && (
         <>
-          {/* General Pricing Section */}
+          {/* Grade A Pricing Section */}
           <div className="space-y-2">
             <div className="bg-gradient-to-r from-red-400 to-red-500 rounded-lg p-3">
-              <div className="text-white text-center font-medium">Adding prices to General</div>
+              <div className="text-white text-center font-medium">Adding prices to Grade A</div>
             </div>
             <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg p-3">
-              <div className="grid grid-cols-3 gap-4 text-white text-sm">
-                <div 
-                  className="bg-blue-700 rounded px-4 py-2 text-center font-medium cursor-pointer hover:bg-blue-800 transition-colors"
-                  onClick={() => handleMasterPriceCardClick('header_ads', 'General')}
-                >
-                  Header Ads : {getMasterPrice('header_ads', 'General')} Mycoins
+              <div className="grid grid-cols-4 gap-4 text-white text-sm">
+                <div className="bg-blue-700 rounded px-4 py-2 text-center font-medium cursor-pointer hover:bg-blue-800 transition-colors" onClick={() => handleMasterPriceCardClick('header_ads', 'A')}>
+                  Header Ads : {getMasterPrice('header_ads', 'A')} Mycoins
                 </div>
-                <div 
-                  className="bg-blue-700 rounded px-4 py-2 text-center font-medium cursor-pointer hover:bg-blue-800 transition-colors"
-                  onClick={() => handleMasterPriceCardClick('popup_ads', 'General')}
-                >
-                  Popup Ads : {getMasterPrice('popup_ads', 'General')} Mycoins
+                <div className="bg-blue-700 rounded px-4 py-2 text-center font-medium cursor-pointer hover:bg-blue-800 transition-colors" onClick={() => handleMasterPriceCardClick('popup_ads', 'A')}>
+                  Popup Ads : {getMasterPrice('popup_ads', 'A')} Mycoins
                 </div>
-                <div 
-                  className="bg-blue-700 rounded px-4 py-2 text-center font-medium cursor-pointer hover:bg-blue-800 transition-colors"
-                  onClick={() => handleMasterPriceCardClick('middle_ads', 'General')}
-                >
-                  Middle Ads : {getMasterPrice('middle_ads', 'General')} Mycoins
+                <div className="bg-blue-700 rounded px-4 py-2 text-center font-medium cursor-pointer hover:bg-blue-800 transition-colors" onClick={() => handleMasterPriceCardClick('middle_ads', 'A')}>
+                  Middle Ads : {getMasterPrice('middle_ads', 'A')} Mycoins
+                </div>
+                <div className="bg-blue-700 rounded px-4 py-2 text-center font-medium cursor-pointer hover:bg-blue-800 transition-colors" onClick={() => handleMasterPriceCardClick('chat_ads', 'A')}>
+                  Chat Ads : {getMasterPrice('chat_ads', 'A')} Mycoins
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Capitals Pricing Section */}
+          {/* Grade B Pricing Section */}
           <div className="space-y-2">
             <div className="bg-gradient-to-r from-red-400 to-red-500 rounded-lg p-3">
-              <div className="text-white text-center font-medium">Adding prices to Capitals</div>
+              <div className="text-white text-center font-medium">Adding prices to Grade B</div>
             </div>
             <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-lg p-3">
-              <div className="grid grid-cols-3 gap-4 text-white text-sm">
-                <div 
-                  className="bg-purple-700 rounded px-4 py-2 text-center font-medium cursor-pointer hover:bg-purple-800 transition-colors"
-                  onClick={() => handleMasterPriceCardClick('header_ads', 'Capitals')}
-                >
-                  Header Ads : {getMasterPrice('header_ads', 'Capitals')} Mycoins
+              <div className="grid grid-cols-4 gap-4 text-white text-sm">
+                <div className="bg-purple-700 rounded px-4 py-2 text-center font-medium cursor-pointer hover:bg-purple-800 transition-colors" onClick={() => handleMasterPriceCardClick('header_ads', 'B')}>
+                  Header Ads : {getMasterPrice('header_ads', 'B')} Mycoins
                 </div>
-                <div 
-                  className="bg-purple-700 rounded px-4 py-2 text-center font-medium cursor-pointer hover:bg-purple-800 transition-colors"
-                  onClick={() => handleMasterPriceCardClick('popup_ads', 'Capitals')}
-                >
-                  Popup Ads : {getMasterPrice('popup_ads', 'Capitals')} Mycoins
+                <div className="bg-purple-700 rounded px-4 py-2 text-center font-medium cursor-pointer hover:bg-purple-800 transition-colors" onClick={() => handleMasterPriceCardClick('popup_ads', 'B')}>
+                  Popup Ads : {getMasterPrice('popup_ads', 'B')} Mycoins
                 </div>
-                <div 
-                  className="bg-purple-700 rounded px-4 py-2 text-center font-medium cursor-pointer hover:bg-purple-800 transition-colors"
-                  onClick={() => handleMasterPriceCardClick('middle_ads', 'Capitals')}
-                >
-                  Middle Ads : {getMasterPrice('middle_ads', 'Capitals')} Mycoins
+                <div className="bg-purple-700 rounded px-4 py-2 text-center font-medium cursor-pointer hover:bg-purple-800 transition-colors" onClick={() => handleMasterPriceCardClick('middle_ads', 'B')}>
+                  Middle Ads : {getMasterPrice('middle_ads', 'B')} Mycoins
+                </div>
+                <div className="bg-purple-700 rounded px-4 py-2 text-center font-medium cursor-pointer hover:bg-purple-800 transition-colors" onClick={() => handleMasterPriceCardClick('chat_ads', 'B')}>
+                  Chat Ads : {getMasterPrice('chat_ads', 'B')} Mycoins
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Grade C Pricing Section */}
+          <div className="space-y-2">
+            <div className="bg-gradient-to-r from-red-400 to-red-500 rounded-lg p-3">
+              <div className="text-white text-center font-medium">Adding prices to Grade C</div>
+            </div>
+            <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-lg p-3">
+              <div className="grid grid-cols-4 gap-4 text-white text-sm">
+                <div className="bg-green-700 rounded px-4 py-2 text-center font-medium cursor-pointer hover:bg-green-800 transition-colors" onClick={() => handleMasterPriceCardClick('header_ads', 'C')}>
+                  Header Ads : {getMasterPrice('header_ads', 'C')} Mycoins
+                </div>
+                <div className="bg-green-700 rounded px-4 py-2 text-center font-medium cursor-pointer hover:bg-green-800 transition-colors" onClick={() => handleMasterPriceCardClick('popup_ads', 'C')}>
+                  Popup Ads : {getMasterPrice('popup_ads', 'C')} Mycoins
+                </div>
+                <div className="bg-green-700 rounded px-4 py-2 text-center font-medium cursor-pointer hover:bg-green-800 transition-colors" onClick={() => handleMasterPriceCardClick('middle_ads', 'C')}>
+                  Middle Ads : {getMasterPrice('middle_ads', 'C')} Mycoins
+                </div>
+                <div className="bg-green-700 rounded px-4 py-2 text-center font-medium cursor-pointer hover:bg-green-800 transition-colors" onClick={() => handleMasterPriceCardClick('chat_ads', 'C')}>
+                  Chat Ads : {getMasterPrice('chat_ads', 'C')} Mycoins
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Grade D Pricing Section */}
+          <div className="space-y-2">
+            <div className="bg-gradient-to-r from-red-400 to-red-500 rounded-lg p-3">
+              <div className="text-white text-center font-medium">Adding prices to Grade D</div>
+            </div>
+            <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-lg p-3">
+              <div className="grid grid-cols-4 gap-4 text-white text-sm">
+                <div className="bg-orange-700 rounded px-4 py-2 text-center font-medium cursor-pointer hover:bg-orange-800 transition-colors" onClick={() => handleMasterPriceCardClick('header_ads', 'D')}>
+                  Header Ads : {getMasterPrice('header_ads', 'D')} Mycoins
+                </div>
+                <div className="bg-orange-700 rounded px-4 py-2 text-center font-medium cursor-pointer hover:bg-orange-800 transition-colors" onClick={() => handleMasterPriceCardClick('popup_ads', 'D')}>
+                  Popup Ads : {getMasterPrice('popup_ads', 'D')} Mycoins
+                </div>
+                <div className="bg-orange-700 rounded px-4 py-2 text-center font-medium cursor-pointer hover:bg-orange-800 transition-colors" onClick={() => handleMasterPriceCardClick('middle_ads', 'D')}>
+                  Middle Ads : {getMasterPrice('middle_ads', 'D')} Mycoins
+                </div>
+                <div className="bg-orange-700 rounded px-4 py-2 text-center font-medium cursor-pointer hover:bg-orange-800 transition-colors" onClick={() => handleMasterPriceCardClick('chat_ads', 'D')}>
+                  Chat Ads : {getMasterPrice('chat_ads', 'D')} Mycoins
                 </div>
               </div>
             </div>
@@ -517,11 +551,13 @@ export const HeaderAdsPricing: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">Pricing Slot</label>
               <select
                 value={selectedSlot}
-                onChange={(e) => setSelectedSlot(e.target.value as 'General' | 'Capitals')}
+                onChange={(e) => setSelectedSlot(e.target.value as 'A' | 'B' | 'C' | 'D')}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               >
-                <option value="General">General</option>
-                <option value="Capitals">Capitals</option>
+                <option value="A">Grade A</option>
+                <option value="B">Grade B</option>
+                <option value="C">Grade C</option>
+                <option value="D">Grade D</option>
               </select>
             </div>
             <div>
