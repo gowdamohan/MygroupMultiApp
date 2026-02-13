@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
 import { getCategoryIcon } from './CategoryIcons';
@@ -54,12 +54,13 @@ export const MobileFooter: React.FC<MobileFooterProps> = ({
   const effectiveBorderColor = borderColor || (darkMode ? 'border-gray-700' : 'border-gray-200');
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const onCategoriesLoadedRef = useRef(onCategoriesLoaded);
+  onCategoriesLoadedRef.current = onCategoriesLoaded;
 
-  // Fetch categories/sub-apps for the selected app
+  // Fetch categories/sub-apps for the selected app (callback ref so parent updates don't trigger refetch)
   const fetchCategories = useCallback(async () => {
     try {
       setLoading(true);
-      // Build URL with appId or appName
       let url = `${API_BASE_URL}/mymedia/categories`;
       const params: string[] = [];
       if (appId) {
@@ -75,17 +76,11 @@ export const MobileFooter: React.FC<MobileFooterProps> = ({
       const response = await axios.get(url);
       if (response.data.success) {
         const allCategories: Category[] = response.data.data;
-        // Filter to only parent categories (parent_id IS NULL or undefined)
         const parentCategories = allCategories.filter(cat => !cat.parent_id);
-        // Sort by sort_order if available
         parentCategories.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
-        // Limit to maxCategories for footer
         const limitedCategories = parentCategories.slice(0, maxCategories);
         setCategories(limitedCategories);
-        // Notify parent component that categories are loaded
-        if (onCategoriesLoaded) {
-          onCategoriesLoaded(limitedCategories);
-        }
+        onCategoriesLoadedRef.current?.(limitedCategories);
       }
     } catch (error) {
       console.error('Error fetching categories:', error);
@@ -93,7 +88,7 @@ export const MobileFooter: React.FC<MobileFooterProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [appId, appName, maxCategories, onCategoriesLoaded]);
+  }, [appId, appName, maxCategories]);
 
   useEffect(() => {
     fetchCategories();

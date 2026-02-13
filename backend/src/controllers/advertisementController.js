@@ -229,7 +229,7 @@ export const deleteHeaderAdsPricing = async (req, res) => {
 export const getHeaderAds = async (req, res) => {
   try {
     const {
-      app_id, category_id, office_level, ad_slot, status,
+      app_id, category_id, group_name, status,
       country_id, state_id, district_id,
       start_date, end_date
     } = req.query;
@@ -238,8 +238,7 @@ export const getHeaderAds = async (req, res) => {
 
     if (app_id) where.app_id = app_id;
     if (category_id) where.category_id = category_id;
-    if (office_level) where.office_level = office_level;
-    if (ad_slot) where.ad_slot = ad_slot;
+    if (group_name) where.group_name = group_name;
     if (status) where.status = status;
     if (country_id) where.country_id = country_id;
     if (state_id) where.state_id = state_id;
@@ -287,7 +286,7 @@ export const getHeaderAds = async (req, res) => {
 export const createHeaderAd = async (req, res) => {
   try {
     const {
-      app_id, category_id, office_level, ad_slot, ad_type,
+      app_id, category_id, group_name, ad_type,
       file_url, link_url, title, description,
       start_date, end_date,
       country_id, state_id, district_id
@@ -296,10 +295,10 @@ export const createHeaderAd = async (req, res) => {
     const userId = req.user?.id;
     const file = req.file;
 
-    if (!app_id || !category_id || !office_level || !start_date || !end_date) {
+    if (!app_id || !category_id || !start_date || !end_date) {
       return res.status(400).json({
         success: false,
-        message: 'app_id, category_id, office_level, start_date, and end_date are required'
+        message: 'app_id, category_id, start_date, and end_date are required'
       });
     }
 
@@ -308,8 +307,6 @@ export const createHeaderAd = async (req, res) => {
       where: {
         app_id,
         category_id,
-        office_level,
-        ad_slot: ad_slot || 'ads1',
         ad_date: { [Op.between]: [start_date, end_date] }
       }
     });
@@ -332,8 +329,7 @@ export const createHeaderAd = async (req, res) => {
     const ad = await HeaderAd.create({
       app_id,
       category_id,
-      office_level,
-      ad_slot: ad_slot || 'ads1',
+      group_name: group_name || null,
       ad_type: ad_type || 'file',
       file_path: filePath,
       file_url: file_url || null,
@@ -541,8 +537,8 @@ export const getDisplayAds = async (req, res) => {
       },
       order: [
         // Priority order: more specific location = higher priority
-        ['office_level', 'DESC'],
-        ['ad_slot', 'ASC']
+        ['group_name', 'ASC'],
+        ['created_at', 'DESC']
       ],
       limit: 4 // 4 slides for carousel
     });
@@ -644,7 +640,7 @@ export const getMyAds = async (req, res) => {
  */
 export const getFranchiseHeaderAdsPricing = async (req, res) => {
   try {
-    const { office_level, ad_slot, start_date, end_date } = req.query;
+    const { group_name, start_date, end_date } = req.query;
     const userId = req.user.id;
 
     // Get user's franchise info
@@ -658,8 +654,7 @@ export const getFranchiseHeaderAdsPricing = async (req, res) => {
 
     const where = {};
 
-    if (office_level) where.office_level = office_level;
-    if (ad_slot) where.ad_slot = ad_slot;
+    if (group_name) where.group_name = group_name;
 
     // Date range filter
     if (start_date && end_date) {
@@ -703,7 +698,7 @@ export const getFranchiseHeaderAdsPricing = async (req, res) => {
  */
 export const bookFranchiseHeaderAd = async (req, res) => {
   try {
-    const { dates, ad_slot, office_level, link_url } = req.body;
+    const { dates, group_name, link_url } = req.body;
     const userId = req.user.id;
     const file = req.file;
 
@@ -738,8 +733,7 @@ export const bookFranchiseHeaderAd = async (req, res) => {
       const ad = await HeaderAd.create({
         user_id: userId,
         app_id: user.group_id,
-        ad_slot: ad_slot,
-        office_level: office_level,
+        group_name: group_name,
         ad_date: date,
         file_path: `/uploads/ads/${file.filename}`,
         link_url: link_url || null,
@@ -751,7 +745,7 @@ export const bookFranchiseHeaderAd = async (req, res) => {
       // Update pricing to mark as booked
       await HeaderAdsPricing.update(
         { is_booked: 1, booked_by: userId },
-        { where: { ad_date: date, ad_slot: ad_slot, office_level: office_level } }
+        { where: { ad_date: date, group_name: group_name } }
       );
     }
 
@@ -774,32 +768,26 @@ export const bookFranchiseHeaderAd = async (req, res) => {
  * Get carousel ads for mobile header.
  * Returns exactly 4 ads with slot-based priority order.
  *
- * Data flow: franchise pages (create-header-ads-head-office, create-header-ads-branch-office) write to
- * header_ads table via headerAdsController with group_name = {head_office|regional|branch}_ads{1|2}.
+ * Primary source: header_ads (HeaderAdsManagement). Fallback: header_ads_management (HeaderAdsManagementCorporate).
  *
- * Priority Slots:
- * - Slot 1: group_name = 'branch_ads1'
+ * Priority Slots (group_name):
+ * - Slot 1: group_name = 'branch_ads1' (highest)
  * - Slot 2: group_name = 'regional_ads1'
  * - Slot 3: group_name = 'branch_ads2'
- * - Slot 4: group_name = 'head_office_ads1'
+ * - Slot 4: group_name = 'head_office_ads1' (lowest)
  *
- * Location-based filtering (hierarchical priority):
- * - District-level ads (most specific)
- * - State-level ads (when district is null)
- * - Country-level ads (when state and district are null)
- * - Corporate/National ads (all location fields are null)
- *
- * Empty slots are filled from header_ads_management (app_id, category_id).
- * Always returns exactly 4 ads (repeating fallback ads if needed).
+ * Location: header_ads.franchise_holder_id → franchise_holder (country, state, district).
+ * Matching (Op.or): district match → state match → country match → corporate (all null).
+ * For each slot, the ad with the best location priority is selected; empty slots use fallback.
  *
  * GET /api/v1/advertisement/carousel
  * Query params:
  * - app_id (required) - Application ID
- * - category_id (required) - App category ID
- * - country_id (optional) - User's country ID for location filtering
- * - state_id (optional) - User's state ID for location filtering
- * - district_id (optional) - User's district ID for location filtering
- * - selected_date (optional) - Date for ads (defaults to today)
+ * - category_id (required) - App category ID for category-based filtering
+ * - country_id (optional) - User's country for location filtering
+ * - state_id (optional) - User's state for location filtering
+ * - district_id (optional) - User's district for location filtering
+ * - selected_date (optional) - Date for slot (default: today YYYY-MM-DD)
  */
 export const getCarouselAds = async (req, res) => {
   try {
@@ -807,17 +795,23 @@ export const getCarouselAds = async (req, res) => {
     const today = new Date().toISOString().split('T')[0];
     const selectedDate = selected_date || today;
 
-    // Validate required parameters (only app_id is required)
+    // Validate required parameters: app_id and category_id are both required
     if (!app_id) {
       return res.status(400).json({
         success: false,
         message: 'app_id is required'
       });
     }
+    if (!category_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'category_id is required for category-based filtering'
+      });
+    }
 
     // Parse IDs
     const appId = parseInt(app_id, 10);
-    const categoryId = category_id ? parseInt(category_id, 10) : null;
+    const categoryId = parseInt(category_id, 10);
     const countryId = country_id ? parseInt(country_id, 10) : null;
     const stateId = state_id ? parseInt(state_id, 10) : null;
     const districtId = district_id ? parseInt(district_id, 10) : null;
@@ -840,7 +834,7 @@ export const getCarouselAds = async (req, res) => {
       }
     };
 
-    // Helper: format header_ads row into carousel item
+    // Helper: format header_ads row into carousel item (image: signed_url > file_url > file_path)
     const formatHeaderAd = async (ad, groupName) => {
       const filePath = ad.file_path || null;
       const fileUrl = ad.file_url || null;
@@ -858,35 +852,45 @@ export const getCarouselAds = async (req, res) => {
       };
     };
 
-    // Helper: format header_ads_management row into carousel item (local files)
-    const formatManagementAd = (ad, slotIndex) => {
+    // Helper: format header_ads_management row into carousel item (signed URL for Wasabi file_path)
+    const formatManagementAd = async (ad, slotIndex) => {
       const filePath = ad.file_path || null;
-      const url = ad.url || null;
+      const fileUrl = ad.url || null;
+      let signedUrl = null;
+      if (filePath && !filePath.startsWith('http://') && !filePath.startsWith('https://')) {
+        try {
+          const result = await getSignedReadUrl(filePath);
+          signedUrl = result.signedUrl || null;
+        } catch (e) {
+          console.error('Error getting signed URL for fallback ad:', e);
+        }
+      }
+      const image = signedUrl || fileUrl || filePath || '';
       return {
         id: ad.id,
-        image: filePath || url || '',
+        image,
         file_path: filePath,
-        file_url: url,
-        signed_url: null, // Local files don't need signed URLs
+        file_url: fileUrl,
+        signed_url: signedUrl,
         title: ad.app?.name || 'Advertisement',
-        url: url || '#',
+        url: fileUrl || '#',
         group_name: `fallback_slot${slotIndex + 1}`,
         source: 'header_ads_management'
       };
     };
 
-    // Helper: build location conditions for hierarchical matching
+    // Helper: build location conditions for hierarchical matching via FranchiseHolder
+    // Uses Sequelize $franchiseHolder.column$ for filtering on associated franchise_holder columns.
+    // All conditions combined with Op.or so we get district, state, country, or corporate matches.
     const buildLocationConditions = () => {
       const conditions = [];
 
-      // District-level match (most specific)
+      // 1) District-level (most specific): franchise_holder.district = districtId
       if (districtId) {
-        conditions.push({
-          '$franchiseHolder.district$': districtId
-        });
+        conditions.push({ '$franchiseHolder.district$': districtId });
       }
 
-      // State-level match (franchise has state but no district)
+      // 2) State-level: franchise_holder.state = stateId AND district IS NULL
       if (stateId) {
         conditions.push({
           '$franchiseHolder.state$': stateId,
@@ -894,7 +898,7 @@ export const getCarouselAds = async (req, res) => {
         });
       }
 
-      // Country-level match (franchise has country but no state/district)
+      // 3) Country-level: franchise_holder.country = countryId AND state IS NULL AND district IS NULL
       if (countryId) {
         conditions.push({
           '$franchiseHolder.country$': countryId,
@@ -903,7 +907,7 @@ export const getCarouselAds = async (req, res) => {
         });
       }
 
-      // Corporate/National level (franchise has no location set - applies to all)
+      // 4) Corporate/National (always include): country IS NULL AND state IS NULL AND district IS NULL
       conditions.push({
         '$franchiseHolder.country$': null,
         '$franchiseHolder.state$': null,
@@ -913,10 +917,10 @@ export const getCarouselAds = async (req, res) => {
       return conditions;
     };
 
-    // Helper: get location priority score for sorting
-    const getLocationPriority = (franchiseHolder) => {
-      if (!franchiseHolder) return 0;
-      const fh = franchiseHolder;
+    // Helper: get location priority score for sorting (via FranchiseHolder association)
+    const getLocationPriority = (ad) => {
+      if (!ad || !ad.franchiseHolder) return 1; // No franchise holder = corporate level
+      const fh = ad.franchiseHolder;
       if (fh.district && fh.district === districtId) return 4; // District match
       if (fh.state && fh.state === stateId && !fh.district) return 3; // State match
       if (fh.country && fh.country === countryId && !fh.state && !fh.district) return 2; // Country match
@@ -925,23 +929,21 @@ export const getCarouselAds = async (req, res) => {
     };
 
     // ============================================
-    // 2) DEFINE PRIORITY SLOTS
+    // 2) DEFINE PRIORITY SLOTS (using group_name field)
     // ============================================
+    // Priority order: branch_ads1 > regional_ads1 > branch_ads2 > head_office_ads1
     const prioritySlots = ['branch_ads1', 'regional_ads1', 'branch_ads2', 'head_office_ads1'];
     const carouselAds = [null, null, null, null]; // Initialize with 4 null slots
 
-    // Build base where clause
+    // Base where for header_ads (HeaderAdsManagement): app_id, category_id (required), is_active
     const baseWhereClause = {
       status: 'active',
       is_active: 1,
-      app_id: appId
+      app_id: appId,
+      category_id: categoryId
     };
-    // Add category_id filter only if provided
-    if (categoryId) {
-      baseWhereClause.category_id = categoryId;
-    }
 
-    // Get location conditions
+    // Get location conditions (uses FranchiseHolder association)
     const locationConditions = buildLocationConditions();
 
     // ============================================
@@ -950,7 +952,7 @@ export const getCarouselAds = async (req, res) => {
     for (let i = 0; i < prioritySlots.length; i++) {
       const groupName = prioritySlots[i];
 
-      // Fetch all matching ads for this slot with location filtering
+      // Fetch all matching ads for this slot with location filtering via FranchiseHolder
       const matchingAds = await HeaderAdsManagement.findAll({
         where: {
           ...baseWhereClause,
@@ -959,6 +961,7 @@ export const getCarouselAds = async (req, res) => {
         },
         include: [
           { model: GroupCreate, as: 'app', attributes: ['id', 'name'] },
+          { model: AppCategory, as: 'category', attributes: ['id', 'category_name'] },
           {
             model: HeaderAdsSlot,
             as: 'slots',
@@ -973,13 +976,14 @@ export const getCarouselAds = async (req, res) => {
             required: false
           }
         ],
-        order: [['created_at', 'DESC']]
+        order: [['created_at', 'DESC']],
+        subQuery: false // Required for $association.column$ syntax to work correctly
       });
 
       if (matchingAds.length > 0) {
         // Sort by location priority (most specific first)
         const sortedAds = matchingAds.sort((a, b) => {
-          return getLocationPriority(b.franchiseHolder) - getLocationPriority(a.franchiseHolder);
+          return getLocationPriority(b) - getLocationPriority(a);
         });
 
         // Take the best matching ad
@@ -997,35 +1001,27 @@ export const getCarouselAds = async (req, res) => {
     }
 
     // ============================================
-    // 4) FETCH FALLBACK ADS FROM header_ads_management
+    // 4) FETCH FALLBACK ADS FROM header_ads_management (corporate)
     // ============================================
-    const fallbackWhere = {
-      app_id: appId
-    };
-    // Add category filter only if provided
-    if (categoryId) {
-      fallbackWhere.app_category_id = categoryId;
-    }
-
     const fallbackAds = await HeaderAdsManagementCorporate.findAll({
-      where: fallbackWhere,
+      where: {
+        app_id: appId,
+        app_category_id: categoryId
+      },
       include: [{ model: GroupCreate, as: 'app', attributes: ['id', 'name'] }],
       limit: 4,
       order: [['id', 'DESC']]
     });
 
     // ============================================
-    // 5) FILL EMPTY SLOTS WITH FALLBACK ADS
+    // 5) FILL EMPTY SLOTS WITH FALLBACK ADS (cycle if fewer fallback ads than empty slots)
     // ============================================
     let fallbackIndex = 0;
     for (let i = 0; i < carouselAds.length; i++) {
-      if (carouselAds[i] === null) {
-        if (fallbackAds.length > 0) {
-          // Use fallback ad (cycle through if needed)
-          const fallbackAd = fallbackAds[fallbackIndex % fallbackAds.length];
-          carouselAds[i] = formatManagementAd(fallbackAd, i);
-          fallbackIndex++;
-        }
+      if (carouselAds[i] === null && fallbackAds.length > 0) {
+        const fallbackAd = fallbackAds[fallbackIndex % fallbackAds.length];
+        carouselAds[i] = await formatManagementAd(fallbackAd, i);
+        fallbackIndex++;
       }
     }
 

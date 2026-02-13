@@ -17,14 +17,10 @@ const HeaderAd = sequelize.define('header_ads', {
     allowNull: false,
     references: { model: 'app_categories', key: 'id' }
   },
-  office_level: {
-    type: DataTypes.ENUM('corporate', 'head_office', 'regional_office', 'branch_office'),
-    allowNull: false
-  },
-  ad_slot: {
-    type: DataTypes.ENUM('ads1', 'ads2'),
-    allowNull: false,
-    defaultValue: 'ads1'
+  group_name: {
+    type: DataTypes.STRING(50),
+    allowNull: true,
+    comment: 'e.g., branch_ads1, regional_ads1, branch_ads2, head_office_ads1'
   },
   ad_type: {
     type: DataTypes.ENUM('file', 'url'),

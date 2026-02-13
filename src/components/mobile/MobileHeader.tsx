@@ -61,6 +61,12 @@ interface GroupedApps {
 interface MobileHeaderProps {
   appId?: number;
   appName?: string;
+  /** When true, parent provides app info - header will not fetch /mymedia/app. Pass appInfo when loaded. */
+  appInfoFromParent?: boolean;
+  /** App info from parent (e.g. MobileAppPage). When provided, header uses it instead of fetching. */
+  appInfo?: AppInfo | null;
+  /** Selected footer category ID for carousel ad filtering (required by API). */
+  selectedCategoryId?: number | null;
   darkMode?: boolean;
   onDarkModeToggle?: () => void;
   userProfile?: UserProfile | null;
@@ -82,6 +88,9 @@ interface MobileHeaderProps {
 export const MobileHeader: React.FC<MobileHeaderProps> = ({
   appId,
   appName,
+  appInfoFromParent = false,
+  appInfo: appInfoProp = undefined,
+  selectedCategoryId = null,
   darkMode = false,
   onDarkModeToggle,
   userProfile: externalUserProfile,
@@ -105,7 +114,8 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
   const [topIcons, setTopIcons] = useState<TopIcon[]>([]);
   const [allGroupedApps, setAllGroupedApps] = useState<GroupedApps>({});
   const [ads, setAds] = useState<Ad[]>([]);
-  const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
+  const [internalAppInfo, setInternalAppInfo] = useState<AppInfo | null>(null);
+  const appInfo = appInfoFromParent ? (appInfoProp ?? internalAppInfo) : (appInfoProp ?? internalAppInfo);
   const [selectedApp, setSelectedApp] = useState<TopIcon | null>(null);
   const [currentAdIndex, setCurrentAdIndex] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -116,9 +126,10 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
   const userProfile = externalUserProfile || internalUserProfile;
   const isLoggedIn = externalIsLoggedIn || internalIsLoggedIn;
 
-  // Fetch user profile if not provided
+  // Fetch user profile if not provided (when parent provides app info it usually provides profile too)
   const fetchUserProfile = useCallback(async () => {
-    if (externalUserProfile) return; // Don't fetch if provided as prop
+    if (externalUserProfile != null) return; // Don't fetch if provided as prop
+    if (appInfoFromParent) return; // Parent (e.g. MobileAppPage) will provide profile
 
     try {
       const token = localStorage.getItem('accessToken');
@@ -154,10 +165,11 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
       console.error('Error fetching user profile:', error);
       setInternalIsLoggedIn(false);
     }
-  }, [externalUserProfile]);
+  }, [externalUserProfile, appInfoFromParent]);
 
-  // Fetch app info
+  // Fetch app info (only when parent does not provide it)
   const fetchAppInfo = useCallback(async () => {
+    if (appInfoFromParent) return null;
     try {
       let url = `${API_BASE_URL}/mymedia/app`;
       if (appName) {
@@ -166,14 +178,14 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
       const response = await axios.get(url);
       if (response.data.success) {
         const info = response.data.data;
-        setAppInfo(info);
+        setInternalAppInfo(info);
         return info;
       }
     } catch (error) {
       console.error('Error fetching app info:', error);
     }
     return null;
-  }, [appName]);
+  }, [appName, appInfoFromParent]);
 
   // Fetch top icons for "My Apps" category only (horizontal scroll)
   // Also fetch all grouped apps for the "More" modal
@@ -273,31 +285,20 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
     }
   }, [appName, selectedApp]);
 
-  // Fetch carousel ads with location-based and date-based filtering
-  // Priority order: branch_ads1, regional_ads1, branch_ads2, head_office_ads1
-  const fetchAds = useCallback(async (id?: number, profile?: UserProfileData) => {
+  // Fetch carousel ads with location-based and category-based filtering
+  // API requires app_id and category_id. Location params from user profile for hierarchical filtering.
+  const fetchAds = useCallback(async (id?: number, profile?: UserProfileData, categoryId?: number | null) => {
     try {
-      // Build URL with location parameters from user profile
       const params = new URLSearchParams();
+      if (id) params.append('app_id', id.toString());
+      if (categoryId != null) params.append('category_id', categoryId.toString());
 
-      if (id) {
-        params.append('app_id', id.toString());
-      }
-
-      // Use set_country/set_state/set_district if available, otherwise fall back to country/state/district
       const countryId = profile?.set_country || profile?.country;
       const stateId = profile?.set_state || profile?.state;
       const districtId = profile?.set_district || profile?.district;
-
-      if (countryId) {
-        params.append('country_id', countryId.toString());
-      }
-      if (stateId) {
-        params.append('state_id', stateId.toString());
-      }
-      if (districtId) {
-        params.append('district_id', districtId.toString());
-      }
+      if (countryId) params.append('country_id', countryId.toString());
+      if (stateId) params.append('state_id', stateId.toString());
+      if (districtId) params.append('district_id', districtId.toString());
 
       const url = `${API_BASE_URL}/advertisement/carousel?${params.toString()}`;
       const response = await axios.get(url);
@@ -319,26 +320,33 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
     }
   }, []);
 
+  const initializingRef = React.useRef(false);
+  const lastAppNameRef = React.useRef<string | undefined>(undefined);
+
+  // Single init effect: run only when appName changes (not when appId gets set later by parent)
   useEffect(() => {
-    // Reset state when appName changes
-    setAppInfo(null);
+    if (lastAppNameRef.current === appName && initializingRef.current) return;
+    lastAppNameRef.current = appName;
+    initializingRef.current = true;
+
+    if (!appInfoFromParent) setInternalAppInfo(null);
     setTopIcons([]);
     setAds([]);
     setCurrentAdIndex(0);
 
     const initializeHeader = async () => {
       await fetchUserProfile();
-      const info = await fetchAppInfo();
-      const targetAppId = appId || info?.id;
+      const effectiveAppId = appId ?? appInfoProp?.id;
+      const info = effectiveAppId != null && appInfoFromParent && appInfoProp
+        ? appInfoProp
+        : await fetchAppInfo();
+      const targetAppId = effectiveAppId ?? info?.id;
       fetchTopIcons(targetAppId);
 
-      // Get user profile data for location-based ad filtering
-      // Use external profile if provided, otherwise try to get from internal state or localStorage
       let profileData: UserProfileData | undefined;
       if (externalUserProfile?.profile) {
         profileData = externalUserProfile.profile;
       } else {
-        // Try to get from localStorage as fallback
         try {
           const storedUser = localStorage.getItem('user');
           if (storedUser) {
@@ -359,10 +367,44 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
         }
       }
 
-      fetchAds(targetAppId, profileData);
+      if (targetAppId != null || !appInfoFromParent) {
+        fetchAds(targetAppId ?? undefined, profileData, selectedCategoryId ?? undefined);
+      }
+      initializingRef.current = false;
     };
     initializeHeader();
-  }, [appId, appName, fetchAppInfo, fetchTopIcons, fetchAds, fetchUserProfile, externalUserProfile]);
+  }, [appName, appInfoFromParent]);
+
+  // When app id or selected category becomes available/changes, fetch ads (category_id is required by API)
+  useEffect(() => {
+    if (!showAds) return;
+    const effectiveAppId = appId ?? appInfoProp?.id;
+    if (effectiveAppId == null || selectedCategoryId == null) return;
+    let profileData: UserProfileData | undefined;
+    if (externalUserProfile?.profile) {
+      profileData = externalUserProfile.profile;
+    } else {
+      try {
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+          const userData = JSON.parse(storedUser);
+          if (userData?.profile) {
+            profileData = {
+              set_country: userData.profile.set_country,
+              set_state: userData.profile.set_state,
+              set_district: userData.profile.set_district,
+              country: userData.profile.country,
+              state: userData.profile.state,
+              district: userData.profile.district
+            };
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+    fetchAds(effectiveAppId, profileData, selectedCategoryId);
+  }, [appId, appInfoProp?.id, showAds, selectedCategoryId]);
 
   // Auto-rotate carousel
   useEffect(() => {
@@ -452,9 +494,9 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
               {/* Horizontally Scrollable Top Icons (My Apps) */}
               <div className="flex gap-3 overflow-x-auto scrollbar-hide flex-1">
                 {topIcons.length > 0 ? (
-                  topIcons.map((icon) => (
+                  topIcons.map((icon, index) => (
                     <a
-                      key={icon.id}
+                      key={`top-${icon.id}-${icon.name}-${index}`}
                       href={icon.url || `/mobile/${icon.name.toLowerCase().replace(/\s+/g, '')}`}
                       onClick={(e) => {
                         e.preventDefault();
@@ -618,7 +660,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
             <div className="relative h-32 overflow-hidden">
               {ads.map((ad, index) => (
                 <a
-                  key={ad.id}
+                  key={`ad-${ad.id}-${index}`}
                   href={ad.url}
                   className={`absolute inset-0 transition-opacity duration-500 ${
                     index === currentAdIndex ? 'opacity-100' : 'opacity-0 pointer-events-none'
@@ -747,7 +789,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                     <div className="grid grid-cols-3 gap-3">
                       {apps.map((app) => (
                         <a
-                          key={app.id}
+                          key={`${groupName}-${app.id}-${app.name}`}
                           href={app.url}
                           onClick={(e) => {
                             e.preventDefault();

@@ -724,6 +724,10 @@ HeaderAd.belongsTo(District, { foreignKey: 'district_id', as: 'district' });
 HeaderAd.belongsTo(User, { foreignKey: 'created_by', as: 'creator' });
 HeaderAd.belongsTo(User, { foreignKey: 'approved_by', as: 'approver' });
 
+// HeaderAd has many HeaderAdsSlot (for date-based scheduling)
+HeaderAd.hasMany(HeaderAdsSlot, { foreignKey: 'header_ads_id', as: 'slots' });
+HeaderAdsSlot.belongsTo(HeaderAd, { foreignKey: 'header_ads_id', as: 'ad' });
+
 // ============================================
 // SUPPORT CONVERSATION ASSOCIATIONS
 // ============================================

@@ -145,6 +145,9 @@ export const MobileAppPage: React.FC = () => {
       <div className={`min-h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
         <MobileHeader
           appName={appName}
+          appInfoFromParent={true}
+          appInfo={appInfo}
+          selectedCategoryId={selectedCategoryId}
           darkMode={darkMode}
           onDarkModeToggle={toggleDarkMode}
           userProfile={userProfile}
@@ -171,6 +174,9 @@ export const MobileAppPage: React.FC = () => {
       <MobileHeader
         appId={appInfo?.id}
         appName={appName}
+        appInfoFromParent={true}
+        appInfo={appInfo}
+        selectedCategoryId={selectedCategoryId}
         darkMode={darkMode}
         onDarkModeToggle={toggleDarkMode}
         userProfile={userProfile}
