@@ -5,6 +5,11 @@ import * as controller from '../controllers/mediaDashboardController.js';
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
+const OFFLINE_MEDIA_MAX_SIZE = 500 * 1024 * 1024; // 500MB
+const uploadOfflineMedia = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: OFFLINE_MEDIA_MAX_SIZE }
+});
 
 // ============================================
 // SOCIAL LINKS
@@ -30,13 +35,19 @@ router.get('/switcher/:channelId', authenticate, controller.getSwitcher);
 router.put('/switcher/:channelId', authenticate, controller.updateSwitcher);
 
 // ============================================
-// OFFLINE MEDIA
+// OFFLINE MEDIA (500MB max file size)
 // ============================================
+const handleOfflineMediaMulterError = (err, req, res, next) => {
+  if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(413).json({ success: false, message: 'File size exceeds 500MB limit' });
+  }
+  next(err);
+};
 router.get('/offline-media/:channelId', authenticate, controller.getOfflineMedia);
-router.post('/offline-media/:channelId', authenticate, upload.fields([
+router.post('/offline-media/:channelId', authenticate, uploadOfflineMedia.fields([
   { name: 'media_file', maxCount: 1 },
   { name: 'thumbnail', maxCount: 1 }
-]), controller.uploadOfflineMedia);
+]), handleOfflineMediaMulterError, controller.uploadOfflineMedia);
 router.delete('/offline-media/:id', authenticate, controller.deleteOfflineMedia);
 router.put('/offline-media/:id/default', authenticate, controller.setDefaultOfflineMedia);
 

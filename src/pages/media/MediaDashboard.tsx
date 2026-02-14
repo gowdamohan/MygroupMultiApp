@@ -63,6 +63,7 @@ interface SwitcherData {
   active_source: 'live' | 'mymedia' | 'offline';
   live_url: string | null;
   mymedia_url: string | null;
+  offline_media_id?: number | null;
   offlineMedia?: { media_file_url: string; media_type: string; thumbnail_url?: string } | null;
 }
 
@@ -146,6 +147,11 @@ export const MediaDashboard: React.FC = () => {
   const [offlineTitle, setOfflineTitle] = useState('');
   const [offlineType, setOfflineType] = useState<'video' | 'audio'>('video');
   const offlineFileRef = useRef<HTMLInputElement>(null);
+  const offlineMediaFileRef = useRef<HTMLInputElement>(null); // For Offline Media tab
+  const [offlineUploadError, setOfflineUploadError] = useState<string | null>(null);
+  const MAX_OFFLINE_FILE_SIZE = 500 * 1024 * 1024; // 500MB
+  const [livePreviewLoaded, setLivePreviewLoaded] = useState(false);
+  const [mymediaPreviewLoaded, setMymediaPreviewLoaded] = useState(false);
 
   useEffect(() => {
     if (channelId) {
@@ -344,6 +350,15 @@ export const MediaDashboard: React.FC = () => {
     }
   };
 
+  // Convert YouTube/watch URLs to embed URL for iframe
+  const toEmbedUrl = (url: string): string => {
+    const t = url.trim();
+    if (!t) return '';
+    const ytMatch = t.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+    if (ytMatch) return `https://www.youtube.com/embed/${ytMatch[1]}`;
+    return t; // Already embed or other stream URL
+  };
+
   // Format time ago
   const formatTimeAgo = (dateString: string) => {
     const date = new Date(dateString);
@@ -420,9 +435,17 @@ export const MediaDashboard: React.FC = () => {
     setUploadingMymedia(false);
   };
 
-  // Upload offline media
+  // Upload offline media (called from Offline Media tab)
   const handleUploadOfflineMedia = async () => {
-    if (!offlineFile || !offlineTitle.trim()) return;
+    setOfflineUploadError(null);
+    if (!offlineFile || !offlineTitle.trim()) {
+      setOfflineUploadError('Please provide a title and select a file.');
+      return;
+    }
+    if (offlineFile.size > MAX_OFFLINE_FILE_SIZE) {
+      setOfflineUploadError(`File size exceeds 500MB limit. Your file is ${(offlineFile.size / (1024 * 1024)).toFixed(1)}MB.`);
+      return;
+    }
     setUploadingOffline(true);
     try {
       const token = localStorage.getItem('accessToken');
@@ -433,15 +456,34 @@ export const MediaDashboard: React.FC = () => {
       fd.append('is_default', '0');
 
       await axios.post(`${API_BASE_URL}/media-dashboard/offline-media/${channelId}`, fd, {
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
+        maxContentLength: MAX_OFFLINE_FILE_SIZE,
+        maxBodyLength: MAX_OFFLINE_FILE_SIZE
       });
 
       setOfflineFile(null);
       setOfflineTitle('');
       if (offlineFileRef.current) offlineFileRef.current.value = '';
+      if (offlineMediaFileRef.current) offlineMediaFileRef.current.value = '';
+      setOfflineUploadError(null);
       fetchOfflineMedia();
-    } catch (error) { console.error('Error uploading offline media:', error); }
+    } catch (error: any) {
+      const msg = error?.response?.status === 413
+        ? 'File size exceeds 500MB limit.'
+        : error?.response?.data?.message || 'Failed to upload. Please try again.';
+      setOfflineUploadError(msg);
+      console.error('Error uploading offline media:', error);
+    }
     setUploadingOffline(false);
+  };
+
+  const handleOfflineFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    setOfflineFile(file);
+    setOfflineUploadError(null);
+    if (file && file.size > MAX_OFFLINE_FILE_SIZE) {
+      setOfflineUploadError(`File size exceeds 500MB limit. Your file is ${(file.size / (1024 * 1024)).toFixed(1)}MB.`);
+    }
   };
 
   // Set source as active output
@@ -536,17 +578,17 @@ export const MediaDashboard: React.FC = () => {
 
 
 
-  // Render media based on switcher state
+  // Render media based on switcher state (synced across Output, Switcher, Preview)
   const renderMedia = () => {
     if (!switcher) return <div className="w-full h-full bg-gray-900 flex items-center justify-center text-gray-500">Loading...</div>;
 
     const { active_source, live_url, mymedia_url, offlineMedia } = switcher;
 
     if (active_source === 'live' && live_url) {
-      return <iframe src={live_url} className="w-full h-full" allowFullScreen />;
+      return <iframe src={toEmbedUrl(live_url)} className="w-full h-full" allowFullScreen />;
     }
     if (active_source === 'mymedia' && mymedia_url) {
-      return <iframe src={mymedia_url} className="w-full h-full" allowFullScreen />;
+      return <iframe src={toEmbedUrl(mymedia_url)} className="w-full h-full" allowFullScreen />;
     }
     if (active_source === 'offline' && offlineMedia) {
       if (offlineMedia.media_type === 'video') {
@@ -635,8 +677,8 @@ export const MediaDashboard: React.FC = () => {
               Preview
             </button>
             <button onClick={() => setActiveTab('offline')}
-              className={`px-6 py-2 font-bold text-sm transition-colors ${activeTab === 'offline' ? 'bg-red-600 text-white' : 'bg-gray-500 text-white hover:bg-gray-400'}`}>
-              Offline
+              className={`px-6 py-2 font-bold text-sm transition-colors ${activeTab === 'offline' ? 'bg-amber-600 text-white' : 'bg-gray-500 text-white hover:bg-gray-400'}`}>
+              Offline Media
             </button>
           </div>
         </div>
@@ -763,140 +805,158 @@ export const MediaDashboard: React.FC = () => {
             </div>
           </div>
         ) : activeTab === 'preview' ? (
-          // PREVIEW TAB - Three columns with Preview/Upload/Output for each source
-          <div className="flex-1 flex bg-gray-600 min-h-0 p-3 gap-3">
+          // PREVIEW TAB - Compact columns: Input → Preview → Submit → Output
+          <div className="flex-1 flex bg-gray-600 min-h-0 p-3 gap-3 overflow-auto">
             {/* Column 1 - Other stream url */}
-            <div className="flex-1 flex flex-col bg-gray-700 rounded-lg overflow-hidden border-2 border-gray-500">
-              <div className="bg-gray-800 px-3 py-2 text-white font-bold text-sm border-b border-gray-600">Other stream url</div>
-              {/* Preview Section */}
-              <div className="p-2">
-                <button className="w-full bg-gray-600 text-white py-1 px-3 text-sm font-semibold rounded hover:bg-gray-500">Preview</button>
-              </div>
-              {/* Video Preview */}
-              <div className="flex-1 mx-2 bg-black relative min-h-[120px] border border-gray-600">
-                {switcher?.live_url ? (
-                  <iframe src={switcher.live_url} className="w-full h-full" allowFullScreen />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-gray-500 text-sm">No stream</div>
-                )}
-              </div>
-              {/* Upload/Submit Buttons */}
-              <div className="flex gap-2 p-2">
-                <input type="text" value={previewLiveUrl} onChange={(e) => setPreviewLiveUrl(e.target.value)} placeholder="Enter stream URL" className="flex-1 px-2 py-1 text-xs rounded border border-gray-500 bg-gray-600 text-white" />
-              </div>
-              <div className="flex gap-2 px-2 pb-2">
-                <button onClick={handleSubmitLiveUrl} disabled={uploadingLive} className="flex-1 bg-gray-500 text-white py-2 font-bold text-sm hover:bg-gray-400 disabled:opacity-50">
-                  {uploadingLive ? 'Saving...' : 'Upload'}
+            <div className="flex-1 flex flex-col min-w-0 bg-gray-700 rounded-lg overflow-hidden border-2 border-gray-500">
+              <div className="bg-gray-800 px-3 py-1.5 text-white font-bold text-sm border-b border-gray-600">Other stream url</div>
+              <div className="p-2 space-y-2">
+                <input type="text" value={previewLiveUrl} onChange={(e) => { const v = e.target.value; setPreviewLiveUrl(v); setLivePreviewLoaded(prev => (v === previewLiveUrl ? prev : false)); }} placeholder="YouTube, live stream, or embed URL" className="w-full px-2 py-1.5 text-xs rounded border border-gray-500 bg-gray-600 text-white placeholder-gray-400" />
+                <div className="bg-black relative h-[80px] border border-gray-600 rounded overflow-hidden">
+                  {previewLiveUrl.trim() ? (
+                    <iframe src={toEmbedUrl(previewLiveUrl)} className="w-full h-full" allowFullScreen onLoad={() => setLivePreviewLoaded(true)} />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-500 text-xs">Paste URL to preview</div>
+                  )}
+                </div>
+                <button onClick={handleSubmitLiveUrl} disabled={uploadingLive || !previewLiveUrl.trim() || !livePreviewLoaded} className="w-full bg-gray-500 text-white py-1.5 font-bold text-sm rounded hover:bg-gray-400 disabled:opacity-50 disabled:cursor-not-allowed">
+                  {uploadingLive ? 'Saving...' : 'Submit'}
                 </button>
-                <button onClick={handleSubmitLiveUrl} disabled={uploadingLive} className="flex-1 bg-gray-500 text-white py-2 font-bold text-sm hover:bg-gray-400 disabled:opacity-50">Submit</button>
               </div>
-              {/* Output Section */}
-              <div className="bg-red-600 text-white text-center py-1 font-bold text-sm">Output</div>
-              <div className="mx-2 mb-2 bg-black relative h-[100px] border border-gray-600 mt-2">
-                {switcher?.active_source === 'live' && switcher?.live_url ? (
-                  <iframe src={switcher.live_url} className="w-full h-full" allowFullScreen />
+              <div className="bg-red-600 text-white text-center py-0.5 font-bold text-xs">Output</div>
+              <div className="mx-2 mb-2 bg-black relative h-[60px] border border-gray-600 rounded overflow-hidden">
+                {switcher?.live_url ? (
+                  <iframe src={toEmbedUrl(switcher.live_url)} className="w-full h-full" allowFullScreen />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-gray-500 text-xs">Not on output</div>
+                  <div className="w-full h-full flex items-center justify-center text-gray-500 text-xs">Not saved yet</div>
                 )}
               </div>
-              <button onClick={() => handleSetActiveSource('live')} className={`mx-2 mb-2 py-1 text-sm font-bold ${switcher?.active_source === 'live' ? 'bg-green-600 text-white' : 'bg-gray-500 text-white hover:bg-gray-400'}`}>
+              <button onClick={() => handleSetActiveSource('live')} className={`mx-2 mb-2 py-1 text-sm font-bold rounded ${switcher?.active_source === 'live' ? 'bg-green-600 text-white' : 'bg-gray-500 text-white hover:bg-gray-400'}`}>
                 {switcher?.active_source === 'live' ? 'On Air' : 'Set as Output'}
               </button>
             </div>
 
             {/* Column 2 - Mystream Url */}
-            <div className="flex-1 flex flex-col bg-gray-700 rounded-lg overflow-hidden border-2 border-gray-500">
-              <div className="bg-gray-800 px-3 py-2 text-white font-bold text-sm border-b border-gray-600">Mystream_Url</div>
-              <div className="p-2">
-                <button className="w-full bg-gray-600 text-white py-1 px-3 text-sm font-semibold rounded hover:bg-gray-500">Preview</button>
-              </div>
-              <div className="flex-1 mx-2 bg-black relative min-h-[120px] border border-gray-600">
-                {switcher?.mymedia_url ? (
-                  <iframe src={switcher.mymedia_url} className="w-full h-full" allowFullScreen />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-gray-500 text-sm">No stream</div>
-                )}
-              </div>
-              <div className="flex gap-2 p-2">
-                <input type="text" value={previewMymediaUrl} onChange={(e) => setPreviewMymediaUrl(e.target.value)} placeholder="Enter mystream URL" className="flex-1 px-2 py-1 text-xs rounded border border-gray-500 bg-gray-600 text-white" />
-              </div>
-              <div className="flex gap-2 px-2 pb-2">
-                <button onClick={handleSubmitMymediaUrl} disabled={uploadingMymedia} className="flex-1 bg-gray-500 text-white py-2 font-bold text-sm hover:bg-gray-400 disabled:opacity-50">
-                  {uploadingMymedia ? 'Saving...' : 'Upload'}
+            <div className="flex-1 flex flex-col min-w-0 bg-gray-700 rounded-lg overflow-hidden border-2 border-gray-500">
+              <div className="bg-gray-800 px-3 py-1.5 text-white font-bold text-sm border-b border-gray-600">Mystream_Url</div>
+              <div className="p-2 space-y-2">
+                <input type="text" value={previewMymediaUrl} onChange={(e) => { const v = e.target.value; setPreviewMymediaUrl(v); setMymediaPreviewLoaded(prev => (v === previewMymediaUrl ? prev : false)); }} placeholder="YouTube, live stream, or embed URL" className="w-full px-2 py-1.5 text-xs rounded border border-gray-500 bg-gray-600 text-white placeholder-gray-400" />
+                <div className="bg-black relative h-[80px] border border-gray-600 rounded overflow-hidden">
+                  {previewMymediaUrl.trim() ? (
+                    <iframe src={toEmbedUrl(previewMymediaUrl)} className="w-full h-full" allowFullScreen onLoad={() => setMymediaPreviewLoaded(true)} />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-500 text-xs">Paste URL to preview</div>
+                  )}
+                </div>
+                <button onClick={handleSubmitMymediaUrl} disabled={uploadingMymedia || !previewMymediaUrl.trim() || !mymediaPreviewLoaded} className="w-full bg-gray-500 text-white py-1.5 font-bold text-sm rounded hover:bg-gray-400 disabled:opacity-50 disabled:cursor-not-allowed">
+                  {uploadingMymedia ? 'Saving...' : 'Submit'}
                 </button>
-                <button onClick={handleSubmitMymediaUrl} disabled={uploadingMymedia} className="flex-1 bg-gray-500 text-white py-2 font-bold text-sm hover:bg-gray-400 disabled:opacity-50">Submit</button>
               </div>
-              <div className="bg-red-600 text-white text-center py-1 font-bold text-sm">Output</div>
-              <div className="mx-2 mb-2 bg-black relative h-[100px] border border-gray-600 mt-2">
-                {switcher?.active_source === 'mymedia' && switcher?.mymedia_url ? (
-                  <iframe src={switcher.mymedia_url} className="w-full h-full" allowFullScreen />
+              <div className="bg-red-600 text-white text-center py-0.5 font-bold text-xs">Output</div>
+              <div className="mx-2 mb-2 bg-black relative h-[60px] border border-gray-600 rounded overflow-hidden">
+                {switcher?.mymedia_url ? (
+                  <iframe src={toEmbedUrl(switcher.mymedia_url)} className="w-full h-full" allowFullScreen />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-gray-500 text-xs">Not on output</div>
+                  <div className="w-full h-full flex items-center justify-center text-gray-500 text-xs">Not saved yet</div>
                 )}
               </div>
-              <button onClick={() => handleSetActiveSource('mymedia')} className={`mx-2 mb-2 py-1 text-sm font-bold ${switcher?.active_source === 'mymedia' ? 'bg-green-600 text-white' : 'bg-gray-500 text-white hover:bg-gray-400'}`}>
+              <button onClick={() => handleSetActiveSource('mymedia')} className={`mx-2 mb-2 py-1 text-sm font-bold rounded ${switcher?.active_source === 'mymedia' ? 'bg-green-600 text-white' : 'bg-gray-500 text-white hover:bg-gray-400'}`}>
                 {switcher?.active_source === 'mymedia' ? 'On Air' : 'Set as Output'}
               </button>
             </div>
 
-            {/* Column 3 - Offline Media */}
-            <div className="flex-1 flex flex-col bg-amber-100 rounded-lg overflow-hidden border-2 border-amber-400">
-              <div className="bg-amber-200 px-3 py-2 text-amber-900 font-bold text-sm border-b border-amber-300">Offline Media</div>
-              <div className="p-2">
-                <button className="w-full bg-amber-300 text-amber-900 py-1 px-3 text-sm font-semibold rounded hover:bg-amber-400">Preview</button>
-              </div>
-              <div className="flex-1 mx-2 bg-amber-50 relative min-h-[120px] border border-amber-300 flex items-center justify-center">
-                {offlineMediaList.length > 0 ? (
-                  <select value={selectedOfflineId || ''} onChange={(e) => setSelectedOfflineId(e.target.value ? parseInt(e.target.value) : null)} className="w-full h-full px-2 text-sm bg-amber-50">
-                    <option value="">Select offline media</option>
-                    {offlineMediaList.map(m => (
-                      <option key={m.id} value={m.id}>{m.title} ({m.media_type})</option>
-                    ))}
-                  </select>
-                ) : (
-                  <div className="text-amber-600 text-sm">No offline media</div>
-                )}
-              </div>
-              <div className="flex flex-col gap-2 p-2">
-                <input type="text" value={offlineTitle} onChange={(e) => setOfflineTitle(e.target.value)} placeholder="Media title" className="px-2 py-1 text-xs rounded border border-amber-400 bg-white" />
-                <select value={offlineType} onChange={(e) => setOfflineType(e.target.value as 'video' | 'audio')} className="px-2 py-1 text-xs rounded border border-amber-400 bg-white">
-                  <option value="video">Video</option>
-                  <option value="audio">Audio</option>
+            {/* Column 3 - Offline Media (dropdown + preview + Submit; uploads in Offline Media tab) */}
+            <div className="flex-1 flex flex-col min-w-0 bg-amber-100 rounded-lg overflow-hidden border-2 border-amber-400">
+              <div className="bg-amber-200 px-3 py-1.5 text-amber-900 font-bold text-sm border-b border-amber-300">Offline Media</div>
+              <div className="p-2 space-y-2">
+                <select value={selectedOfflineId || ''} onChange={(e) => setSelectedOfflineId(e.target.value ? parseInt(e.target.value) : null)} className="w-full px-2 py-1.5 text-xs rounded border border-amber-400 bg-white">
+                  <option value="">Select offline media</option>
+                  {offlineMediaList.map(m => (
+                    <option key={m.id} value={m.id}>{m.title} ({m.media_type})</option>
+                  ))}
                 </select>
-                <input ref={offlineFileRef} type="file" accept="video/*,audio/*" onChange={(e) => setOfflineFile(e.target.files?.[0] || null)} className="text-xs" />
-              </div>
-              <div className="flex gap-2 px-2 pb-2">
-                <button onClick={handleUploadOfflineMedia} disabled={uploadingOffline || !offlineFile} className="flex-1 bg-amber-400 text-amber-900 py-2 font-bold text-sm hover:bg-amber-500 disabled:opacity-50">
-                  {uploadingOffline ? 'Uploading...' : 'Upload'}
+                <div className="bg-amber-50 relative h-[80px] border border-amber-300 rounded overflow-hidden flex items-center justify-center">
+                  {(() => {
+                    const sel = offlineMediaList.find(m => m.id === selectedOfflineId);
+                    if (!sel) return <div className="text-amber-600 text-xs">Select media to preview</div>;
+                    if (sel.media_type === 'video') return <video src={sel.media_file_url} key={sel.id} className="w-full h-full object-contain" controls />;
+                    return (
+                      <div key={sel.id} className="relative w-full h-full">
+                        {sel.thumbnail_url && <img src={sel.thumbnail_url} className="absolute inset-0 w-full h-full object-cover opacity-60" alt="" />}
+                        <audio src={sel.media_file_url} controls className="relative z-10 w-full mt-6" />
+                      </div>
+                    );
+                  })()}
+                </div>
+                <button onClick={() => selectedOfflineId && handleSetActiveSource('offline', selectedOfflineId)} disabled={!selectedOfflineId} className="w-full bg-amber-400 text-amber-900 py-1.5 font-bold text-sm rounded hover:bg-amber-500 disabled:opacity-50">
+                  Submit / Set as Output
                 </button>
-                <button onClick={() => selectedOfflineId && handleSetActiveSource('offline', selectedOfflineId)} disabled={!selectedOfflineId} className="flex-1 bg-amber-400 text-amber-900 py-2 font-bold text-sm hover:bg-amber-500 disabled:opacity-50">Submit</button>
               </div>
-              <div className="bg-red-600 text-white text-center py-1 font-bold text-sm">Output</div>
-              <div className="mx-2 mb-2 bg-amber-50 relative h-[100px] border border-amber-300 mt-2 flex items-center justify-center">
+              <div className="bg-red-600 text-white text-center py-0.5 font-bold text-xs">Output</div>
+              <div className="mx-2 mb-2 bg-amber-50 relative h-[60px] border border-amber-300 rounded overflow-hidden flex items-center justify-center">
                 {switcher?.active_source === 'offline' && switcher?.offlineMedia ? (
-                  switcher.offlineMedia.thumbnail_url ? (
-                    <img src={switcher.offlineMedia.thumbnail_url} className="w-full h-full object-cover" alt="Offline media" />
+                  switcher.offlineMedia.media_type === 'video' ? (
+                    <video src={switcher.offlineMedia.media_file_url} className="w-full h-full object-contain" controls />
+                  ) : switcher.offlineMedia.thumbnail_url ? (
+                    <img src={switcher.offlineMedia.thumbnail_url} className="w-full h-full object-cover" alt="Offline" />
                   ) : (
-                    <span className="text-amber-600 text-xs">Playing: {switcher.offlineMedia.media_type}</span>
+                    <span className="text-amber-600 text-xs">Playing</span>
                   )
+                ) : switcher?.offline_media_id ? (
+                  (() => { const m = offlineMediaList.find(x => x.id === switcher.offline_media_id); return m ? (m.media_type === 'video' ? <video src={m.media_file_url} className="w-full h-full object-contain" controls /> : <img src={m.thumbnail_url} className="w-full h-full object-cover" alt="" />) : <span className="text-amber-500 text-xs">Saved</span>; })()
                 ) : (
                   <div className="text-amber-500 text-xs">Not on output</div>
                 )}
               </div>
-              <button onClick={() => selectedOfflineId && handleSetActiveSource('offline', selectedOfflineId)} className={`mx-2 mb-2 py-1 text-sm font-bold ${switcher?.active_source === 'offline' ? 'bg-green-600 text-white' : 'bg-amber-400 text-amber-900 hover:bg-amber-500'}`}>
+              <button onClick={() => selectedOfflineId && handleSetActiveSource('offline', selectedOfflineId)} className={`mx-2 mb-2 py-1 text-sm font-bold rounded ${switcher?.active_source === 'offline' ? 'bg-green-600 text-white' : 'bg-amber-400 text-amber-900 hover:bg-amber-500'}`}>
                 {switcher?.active_source === 'offline' ? 'On Air' : 'Set as Output'}
               </button>
             </div>
           </div>
+        ) : activeTab === 'offline' ? (
+          // OFFLINE MEDIA TAB - Upload form
+          <div className="flex-1 flex bg-gray-600 min-h-0 p-4 overflow-auto">
+            <div className="max-w-xl w-full bg-amber-50 rounded-lg border-2 border-amber-400 p-6 shadow-lg">
+              <h2 className="text-xl font-bold text-amber-900 mb-4">Upload Offline Media</h2>
+              <p className="text-sm text-amber-800 mb-4">Upload video or audio files (max 500MB). Files will appear in the Preview tab dropdown.</p>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-amber-900 mb-1">Title</label>
+                  <input type="text" value={offlineTitle} onChange={(e) => setOfflineTitle(e.target.value)} placeholder="Enter media title" className="w-full px-3 py-2 rounded border border-amber-400 bg-white text-gray-800 focus:ring-2 focus:ring-amber-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-amber-900 mb-1">Media Type</label>
+                  <select value={offlineType} onChange={(e) => setOfflineType(e.target.value as 'video' | 'audio')} className="w-full px-3 py-2 rounded border border-amber-400 bg-white text-gray-800">
+                    <option value="video">Video</option>
+                    <option value="audio">Audio</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-amber-900 mb-1">File (video or audio, max 500MB)</label>
+                  <input ref={offlineMediaFileRef} type="file" accept="video/*,audio/*" onChange={handleOfflineFileChange} className="w-full px-3 py-2 text-sm border border-amber-400 rounded bg-white file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-amber-400 file:text-amber-900 file:font-bold file:cursor-pointer" />
+                  {offlineFile && <p className="mt-1 text-xs text-amber-700">Selected: {offlineFile.name} ({(offlineFile.size / (1024 * 1024)).toFixed(2)} MB)</p>}
+                </div>
+                {offlineUploadError && (
+                  <div className="p-3 rounded bg-red-100 text-red-700 text-sm">{offlineUploadError}</div>
+                )}
+                <button onClick={handleUploadOfflineMedia} disabled={uploadingOffline || !offlineFile || !offlineTitle.trim() || (offlineFile?.size || 0) > MAX_OFFLINE_FILE_SIZE} className="w-full bg-amber-500 text-amber-900 py-3 font-bold rounded hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed">
+                  {uploadingOffline ? 'Uploading...' : 'Upload'}
+                </button>
+              </div>
+              {offlineMediaList.length > 0 && (
+                <p className="mt-4 text-sm text-amber-700">You have {offlineMediaList.length} offline media file(s). Select them in the Preview tab to set as output.</p>
+              )}
+            </div>
+          </div>
         ) : (
-          // SWITCHER/OFFLINE TABS - Original switcher design
+          // SWITCHER TAB - Main output + visual switcher + preview panels
           <div className="flex-1 flex bg-gray-600 min-h-0 p-2 gap-2">
             <div className="flex-1 flex flex-col">
               <div className="flex-1 bg-gray-900 relative min-h-[250px] border-2 border-gray-500">{renderMedia()}</div>
               <div className="flex gap-2 mt-2">
                 <button onClick={() => handleSetActiveSource('live')} className={`flex-1 py-2 font-bold text-center ${switcher?.active_source === 'live' ? 'bg-blue-600 text-white' : 'bg-gray-400 text-gray-800'}`}>Band</button>
                 <button onClick={() => handleSetActiveSource('mymedia')} className={`flex-1 py-2 font-bold text-center ${switcher?.active_source === 'mymedia' ? 'bg-blue-600 text-white' : 'bg-gray-400 text-gray-800'}`}>Video</button>
-                <button onClick={() => selectedOfflineId && handleSetActiveSource('offline', selectedOfflineId)} className={`flex-1 py-2 font-bold text-center ${switcher?.active_source === 'offline' ? 'bg-red-600 text-white' : 'bg-gray-400 text-gray-800'}`}>Audio</button>
+                <button onClick={() => (selectedOfflineId ?? switcher?.offline_media_id ?? offlineMediaList[0]?.id) && handleSetActiveSource('offline', selectedOfflineId ?? switcher?.offline_media_id ?? offlineMediaList[0]?.id!)} className={`flex-1 py-2 font-bold text-center ${switcher?.active_source === 'offline' ? 'bg-red-600 text-white' : 'bg-gray-400 text-gray-800'}`}>Audio</button>
               </div>
               <div className="flex gap-2 mt-2">
                 <div className="flex-1 bg-gray-800 h-16 flex items-center justify-center"><Wifi className="text-gray-400" size={24} /></div>
@@ -904,27 +964,51 @@ export const MediaDashboard: React.FC = () => {
                 <div className="flex-1 bg-gray-800 h-16 flex items-center justify-center"><div className="flex gap-0.5">{[...Array(15)].map((_, i) => (<div key={i} className="w-1 bg-blue-400" style={{ height: Math.random() * 25 + 5 }} />))}</div></div>
               </div>
             </div>
-            <div className="w-32 flex flex-col items-center justify-center gap-4">
-              <div className="bg-gray-300 rounded px-3 py-1"><span className="text-sm font-bold">ON</span><span className="text-sm font-bold text-red-600 bg-red-200 px-1 ml-1">AIR</span></div>
-              <div className="bg-gray-400 rounded-lg p-2 flex flex-col items-center h-48 w-16 relative"><div className="flex-1 w-full bg-gray-300 rounded relative"><div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-10 h-8 bg-gray-600 rounded shadow-lg cursor-pointer" /></div></div>
-              <div className="flex flex-col gap-3">
-                <div className={`w-6 h-6 rounded-full ${switcher?.active_source === 'live' ? 'bg-green-500' : 'bg-gray-400'} shadow-lg`} />
-                <div className={`w-6 h-6 rounded-full ${switcher?.active_source === 'mymedia' ? 'bg-red-500' : 'bg-gray-400'} shadow-lg`} />
-                <div className={`w-6 h-6 rounded-full ${switcher?.active_source === 'offline' ? 'bg-red-500' : 'bg-gray-400'} shadow-lg`} />
+            {/* Visual Switcher with animated ON AIR glow */}
+            <div className="w-36 flex flex-col items-center justify-center gap-2 bg-gray-800 rounded-lg py-4 px-3 border-2 border-gray-600">
+              <div className="relative overflow-hidden rounded px-3 py-1.5 bg-gray-700 mb-1">
+                <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, transparent, rgba(239,68,68,0.6), transparent)', animation: 'onair-glow 2s ease-in-out infinite' }} />
+                <style>{`@keyframes onair-glow { 0% { transform: translateY(-100%); } 100% { transform: translateY(100%); } }`}</style>
+                <span className="relative z-10 text-sm font-bold text-white">ON</span>
+                <span className="relative z-10 text-sm font-bold text-red-600 bg-red-200 px-1 ml-1 rounded">AIR</span>
+              </div>
+              <div className="flex flex-col gap-5 py-2">
+                <button onClick={() => handleSetActiveSource('live')} className="flex flex-col items-center gap-1 group" title="Other stream url (Live)">
+                  <div className={`w-10 h-10 rounded-full shadow-lg transition-all cursor-pointer ${switcher?.active_source === 'live' ? 'bg-red-500 ring-4 ring-red-300 ring-opacity-50' : 'bg-gray-500 hover:bg-gray-400'}`} />
+                  <span className="text-xs font-medium text-gray-300 group-hover:text-white">Live URL</span>
+                </button>
+                <button onClick={() => handleSetActiveSource('mymedia')} className="flex flex-col items-center gap-1 group" title="Mystream_Url">
+                  <div className={`w-10 h-10 rounded-full shadow-lg transition-all cursor-pointer ${switcher?.active_source === 'mymedia' ? 'bg-red-500 ring-4 ring-red-300 ring-opacity-50' : 'bg-gray-500 hover:bg-gray-400'}`} />
+                  <span className="text-xs font-medium text-gray-300 group-hover:text-white">MyMedia</span>
+                </button>
+                <button onClick={() => { const id = selectedOfflineId ?? switcher?.offline_media_id ?? offlineMediaList[0]?.id; if (id) handleSetActiveSource('offline', id); }} disabled={!offlineMediaList.length} className="flex flex-col items-center gap-1 group disabled:opacity-60 disabled:cursor-not-allowed" title="Offline Media">
+                  <div className={`w-10 h-10 rounded-full shadow-lg transition-all cursor-pointer ${switcher?.active_source === 'offline' ? 'bg-red-500 ring-4 ring-red-300 ring-opacity-50' : 'bg-gray-500 hover:bg-gray-400'} ${!offlineMediaList.length ? 'cursor-not-allowed' : ''}`} />
+                  <span className="text-xs font-medium text-gray-300 group-hover:text-white">Offline</span>
+                </button>
               </div>
             </div>
+            {/* Right-side preview panels - highlight active source */}
             <div className="w-48 flex flex-col gap-2">
-              <div className="flex-1 bg-gray-800 rounded overflow-hidden border border-gray-500">
-                <div className="bg-gray-700 px-2 py-1 text-xs text-white font-bold">Other stream url</div>
-                <div className="h-20 flex items-center justify-center">{switcher?.live_url ? <iframe src={switcher.live_url} className="w-full h-full" /> : <span className="text-gray-500 text-xs">No stream</span>}</div>
+              <div className={`flex-1 rounded overflow-hidden border-2 transition-all ${switcher?.active_source === 'live' ? 'border-red-500 shadow-lg shadow-red-500/40 ring-2 ring-red-400/50' : 'border-gray-500 bg-gray-800'}`}>
+                <div className={`px-2 py-1 text-xs font-bold flex items-center gap-1 ${switcher?.active_source === 'live' ? 'bg-red-600 text-white' : 'bg-gray-700 text-white'}`}>
+                  {switcher?.active_source === 'live' && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
+                  Other stream url
+                </div>
+                <div className="h-20 flex items-center justify-center bg-black">{switcher?.live_url ? <iframe src={toEmbedUrl(switcher.live_url)} className="w-full h-full" allowFullScreen /> : <span className="text-gray-500 text-xs">No stream</span>}</div>
               </div>
-              <div className="flex-1 bg-gray-800 rounded overflow-hidden border border-gray-500">
-                <div className="bg-gray-700 px-2 py-1 text-xs text-white font-bold">Mystream Url</div>
-                <div className="h-20 flex items-center justify-center">{switcher?.mymedia_url ? <iframe src={switcher.mymedia_url} className="w-full h-full" /> : <span className="text-gray-500 text-xs">No stream</span>}</div>
+              <div className={`flex-1 rounded overflow-hidden border-2 transition-all ${switcher?.active_source === 'mymedia' ? 'border-red-500 shadow-lg shadow-red-500/40 ring-2 ring-red-400/50' : 'border-gray-500 bg-gray-800'}`}>
+                <div className={`px-2 py-1 text-xs font-bold flex items-center gap-1 ${switcher?.active_source === 'mymedia' ? 'bg-red-600 text-white' : 'bg-gray-700 text-white'}`}>
+                  {switcher?.active_source === 'mymedia' && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
+                  Mystream Url
+                </div>
+                <div className="h-20 flex items-center justify-center bg-black">{switcher?.mymedia_url ? <iframe src={toEmbedUrl(switcher.mymedia_url)} className="w-full h-full" allowFullScreen /> : <span className="text-gray-500 text-xs">No stream</span>}</div>
               </div>
-              <div className="flex-1 bg-gray-800 rounded overflow-hidden border border-gray-500">
-                <div className="bg-gray-700 px-2 py-1 text-xs text-white font-bold">Offline Media</div>
-                <div className="h-20 flex items-center justify-center">{switcher?.offlineMedia?.thumbnail_url ? <img src={switcher.offlineMedia.thumbnail_url} className="w-full h-full object-cover" /> : <span className="text-gray-500 text-xs">No media</span>}</div>
+              <div className={`flex-1 rounded overflow-hidden border-2 transition-all ${switcher?.active_source === 'offline' ? 'border-red-500 shadow-lg shadow-red-500/40 ring-2 ring-red-400/50' : 'border-gray-500 bg-gray-800'}`}>
+                <div className={`px-2 py-1 text-xs font-bold flex items-center gap-1 ${switcher?.active_source === 'offline' ? 'bg-red-600 text-white' : 'bg-gray-700 text-white'}`}>
+                  {switcher?.active_source === 'offline' && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
+                  Offline Media
+                </div>
+                <div className="h-20 flex items-center justify-center bg-black">{switcher?.offlineMedia?.thumbnail_url ? <img src={switcher.offlineMedia.thumbnail_url} className="w-full h-full object-cover" alt="" /> : switcher?.offlineMedia ? <span className="text-gray-500 text-xs">Playing</span> : <span className="text-gray-500 text-xs">No media</span>}</div>
               </div>
             </div>
           </div>
