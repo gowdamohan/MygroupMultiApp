@@ -251,12 +251,14 @@ export const getMyMediaLanguages = async (req, res) => {
  * Get media channels with filters
  * GET /api/v1/mymedia/channels
  * Query params: type, country_id, state_id, district_id, category_id, language_id
+ * - status uses 'active' (media_channel.status ENUM: pending, active, inactive, rejected)
+ * - category_id is the selected subcategory from the frontend (filters by channel's category_id)
  */
 export const getMyMediaChannels = async (req, res) => {
   try {
     const { type, country_id, state_id, district_id, category_id, language_id } = req.query;
 
-    // First find MyMedia app
+    // Find MyMedia app by name (e.g. "mymedia", "MyMedia")
     const app = await GroupCreate.findOne({
       where: { name: { [Op.like]: '%mymedia%' } }
     });
@@ -268,35 +270,19 @@ export const getMyMediaChannels = async (req, res) => {
       });
     }
 
-    // Find the 'Tv' category in app_categories for this app
-    const tvCategory = await AppCategory.findOne({
-      where: {
-        app_id: app.id,
-        category_name: { [Op.like]: '%Tv%' },
-        status: 1
-      }
-    });
-
-    // Build where clause
+    // Build where clause: app_id, is_active, and status = 'active' (schema has pending|active|inactive|rejected, not 'approved')
     const whereClause = {
       app_id: app.id,
       is_active: 1,
-      status: 'approved'
+      status: 'active'
     };
 
-    // Filter by Tv category if found, otherwise fallback to media_type
-    if (tvCategory) {
-      whereClause.parent_category_id = tvCategory.id;
-    } else {
-      whereClause.media_type = 'Tv';
-    }
-
     if (type) whereClause.select_type = type;
-    if (country_id) whereClause.country_id = country_id;
-    if (state_id) whereClause.state_id = state_id;
-    if (district_id) whereClause.district_id = district_id;
-    if (category_id) whereClause.category_id = category_id;
-    if (language_id) whereClause.language_id = language_id;
+    if (country_id) whereClause.country_id = parseInt(country_id, 10);
+    if (state_id) whereClause.state_id = parseInt(state_id, 10);
+    if (district_id) whereClause.district_id = parseInt(district_id, 10);
+    if (category_id) whereClause.category_id = parseInt(category_id, 10);
+    if (language_id) whereClause.language_id = parseInt(language_id, 10);
 
     const channels = await MediaChannel.findAll({
       where: whereClause,
@@ -319,6 +305,10 @@ export const getMyMediaChannels = async (req, res) => {
       ],
       order: [['media_name_english', 'ASC']]
     });
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[mymedia/channels]', { appId: app.id, whereClause, count: channels.length });
+    }
 
     res.json({
       success: true,
