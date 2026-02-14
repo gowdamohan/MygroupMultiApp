@@ -783,7 +783,7 @@ export const bookFranchiseHeaderAd = async (req, res) => {
  * GET /api/v1/advertisement/carousel
  * Query params:
  * - app_id (required) - Application ID
- * - category_id (required) - App category ID for category-based filtering
+ * - category_id (optional) - App category ID for category-based filtering; when omitted, returns ads for app regardless of category
  * - country_id (optional) - User's country for location filtering
  * - state_id (optional) - User's state for location filtering
  * - district_id (optional) - User's district for location filtering
@@ -795,23 +795,15 @@ export const getCarouselAds = async (req, res) => {
     const today = new Date().toISOString().split('T')[0];
     const selectedDate = selected_date || today;
 
-    // Validate required parameters: app_id and category_id are both required
     if (!app_id) {
       return res.status(400).json({
         success: false,
         message: 'app_id is required'
       });
     }
-    if (!category_id) {
-      return res.status(400).json({
-        success: false,
-        message: 'category_id is required for category-based filtering'
-      });
-    }
 
-    // Parse IDs
     const appId = parseInt(app_id, 10);
-    const categoryId = parseInt(category_id, 10);
+    const categoryId = category_id != null && category_id !== '' ? parseInt(category_id, 10) : null;
     const countryId = country_id ? parseInt(country_id, 10) : null;
     const stateId = state_id ? parseInt(state_id, 10) : null;
     const districtId = district_id ? parseInt(district_id, 10) : null;
@@ -935,12 +927,12 @@ export const getCarouselAds = async (req, res) => {
     const prioritySlots = ['branch_ads1', 'regional_ads1', 'branch_ads2', 'head_office_ads1'];
     const carouselAds = [null, null, null, null]; // Initialize with 4 null slots
 
-    // Base where for header_ads (HeaderAdsManagement): app_id, category_id (required), is_active
+    // Base where for header_ads (HeaderAdsManagement): app_id, optional category_id, is_active
     const baseWhereClause = {
       status: 'active',
       is_active: 1,
       app_id: appId,
-      category_id: categoryId
+      ...(categoryId != null && { category_id: categoryId })
     };
 
     // Get location conditions (uses FranchiseHolder association)
@@ -1006,7 +998,7 @@ export const getCarouselAds = async (req, res) => {
     const fallbackAds = await HeaderAdsManagementCorporate.findAll({
       where: {
         app_id: appId,
-        app_category_id: categoryId
+        ...(categoryId != null && { app_category_id: categoryId })
       },
       include: [{ model: GroupCreate, as: 'app', attributes: ['id', 'name'] }],
       limit: 4,

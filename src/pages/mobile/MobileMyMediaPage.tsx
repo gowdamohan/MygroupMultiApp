@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { ChevronDown, X, Eye, Heart, UserPlus, FileText, Play } from 'lucide-react';
+import { ChevronDown, X, Eye, Heart, UserPlus, FileText, Play, MapPin } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { MobileHeader, getMobileHeaderHeight } from '../../components/mobile/MobileHeader';
@@ -78,10 +78,26 @@ type SelectType = 'International' | 'National' | 'Regional' | 'Local';
 
 const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const DAYS_ABBREV = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+// 48 time slots: 24 hours × 30-minute intervals (00:00 … 23:30)
 const TIME_SLOTS = ['00:00', '00:30', '01:00', '01:30', '02:00', '02:30', '03:00', '03:30', '04:00', '04:30', '05:00', '05:30',
   '06:00', '06:30', '07:00', '07:30', '08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
   '12:00', '12:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30',
   '18:00', '18:30', '19:00', '19:30', '20:00', '20:30', '21:00', '21:30', '22:00', '22:30', '23:00', '23:30'];
+
+/** Convert 24h time string (e.g. "13:30" or "08:00:00") to 12h "H:MM AM/PM" */
+function formatTime12h(time24: string): string {
+  const part = time24.trim().substring(0, 5);
+  const [hStr, mStr] = part.split(':');
+  const h = parseInt(hStr || '0', 10);
+  const m = parseInt(mStr || '0', 10);
+  const period = h >= 12 ? 'PM' : 'AM';
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  const mm = m.toString().padStart(2, '0');
+  return `${h12}:${mm} ${period}`;
+}
+
+/** 4 days for TV/Radio: Yesterday, Today, Tomorrow, Day after tomorrow (day_of_week 0–6 for API) */
+const SCHEDULE_DAY_LABELS = ['Yesterday', 'Today', 'Tomorrow', 'Day after tomorrow'] as const;
 
 export const MobileMyMediaPage: React.FC = () => {
   // Get app name from URL params (e.g., /mobile/mymedia or /mobile/mycompany)
@@ -105,11 +121,16 @@ export const MobileMyMediaPage: React.FC = () => {
   const [selectedParentCategory, setSelectedParentCategory] = useState<number | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<number | null>(null);
-  // selectedDay is index in "current-day-first" order (0 = today)
-  const [selectedDay, setSelectedDay] = useState<number>(0);
-  const orderedDayIndices = useMemo(() => {
+  // selectedDay: 0=Yesterday, 1=Today, 2=Tomorrow, 3=Day after tomorrow
+  const [selectedDay, setSelectedDay] = useState<number>(1);
+  const scheduleDayIndices = useMemo(() => {
     const today = new Date().getDay();
-    return Array.from({ length: 7 }, (_, i) => (today + i) % 7);
+    return [
+      (today + 6) % 7,  // Yesterday
+      today,             // Today
+      (today + 1) % 7,   // Tomorrow
+      (today + 2) % 7    // Day after tomorrow
+    ];
   }, []);
 
   // Location filters - same pattern as MediaRegistrationForm
@@ -372,11 +393,22 @@ export const MobileMyMediaPage: React.FC = () => {
     }
   };
 
+  /** Monday of the week containing the given date (local time), as YYYY-MM-DD for API weekStart */
+  const getWeekStartString = (date: Date): string => {
+    const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const day = d.getDay();
+    const mondayOffset = day === 0 ? -6 : 1 - day;
+    d.setDate(d.getDate() + mondayOffset);
+    const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), dayNum = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${dayNum}`;
+  };
+
   const fetchAllSchedules = async () => {
-    const dayParam = orderedDayIndices[selectedDay];
+    const dayParam = scheduleDayIndices[selectedDay];
+    const weekStartStr = getWeekStartString(new Date());
     const schedulePromises = channels.map(async (channel) => {
       try {
-        const response = await axios.get(`${API_BASE_URL}/mymedia/schedules/${channel.id}?day=${dayParam}`);
+        const response = await axios.get(`${API_BASE_URL}/mymedia/schedules/${channel.id}?day=${dayParam}&weekStart=${weekStartStr}`);
         if (response.data.success) {
           return { channelId: channel.id, schedules: response.data.data.schedules };
         }
@@ -395,13 +427,22 @@ export const MobileMyMediaPage: React.FC = () => {
   };
 
   const getScheduleForTimeSlot = (channelId: number, timeSlot: string): Schedule | null => {
+    const result = getScheduleAndSlotForTimeSlot(channelId, timeSlot);
+    return result ? result.schedule : null;
+  };
+
+  /** Returns schedule and matching slot for title + time range display; maps media_schedules_slot start/end to cells. */
+  const getScheduleAndSlotForTimeSlot = (
+    channelId: number,
+    timeSlot: string
+  ): { schedule: Schedule; slot: { start_time: string; end_time: string } } | null => {
     const schedules = channelSchedules[channelId] || [];
     for (const schedule of schedules) {
       for (const slot of schedule.slots) {
         const slotStart = slot.start_time.substring(0, 5);
         const slotEnd = slot.end_time.substring(0, 5);
         if (timeSlot >= slotStart && timeSlot < slotEnd) {
-          return schedule;
+          return { schedule, slot };
         }
       }
     }
@@ -572,19 +613,23 @@ export const MobileMyMediaPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Days Row - Only show for TV/Radio categories; order starts with today, 3-letter labels */}
+        {/* Days Row - Only for TV/Radio: Yesterday, Today, Tomorrow, Day after tomorrow; Today = amber */}
         {isStreamCategory() && (
           <div className="sticky top-[158px] z-20 bg-gray-200 px-2 py-2">
             <div className="flex gap-2 overflow-x-auto scrollbar-hide">
-              {orderedDayIndices.map((dayIdx, idx) => (
+              {SCHEDULE_DAY_LABELS.map((label, idx) => (
                 <button
-                  key={dayIdx}
+                  key={label}
                   onClick={() => setSelectedDay(idx)}
-                  className={`px-4 py-2 rounded-lg text-sm whitespace-nowrap transition-colors ${
-                    selectedDay === idx ? 'bg-teal-700 text-white' : 'bg-white text-gray-700 hover:bg-gray-100'
+                  className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+                    selectedDay === idx
+                      ? idx === 1
+                        ? 'bg-amber-500 text-white shadow'
+                        : 'bg-teal-700 text-white'
+                      : 'bg-white text-gray-700 hover:bg-gray-100'
                   }`}
                 >
-                  {DAYS_ABBREV[dayIdx]}
+                  {label}
                 </button>
               ))}
             </div>
@@ -635,59 +680,93 @@ export const MobileMyMediaPage: React.FC = () => {
             ))}
           </div>
         ) : isStreamCategory() ? (
-          /* TV / Radio Schedule Grid */
-          <div className="bg-white overflow-x-auto">
-            {/* Time Headers */}
-            <div className="flex border-b sticky top-0 bg-gray-100 z-10">
-              <div className="w-24 flex-shrink-0 p-2 font-semibold text-gray-700 border-r bg-gray-200">
-                Channel
-              </div>
-              {TIME_SLOTS.slice(0, 6).map((time) => (
-                <div key={time} className="w-24 flex-shrink-0 p-2 text-center text-sm font-medium text-gray-600 border-r">
-                  {time}
-                </div>
-              ))}
-            </div>
+          /* TV / Radio Schedule Grid: 48 time slots (30-min), 12h display, NOW marker on Today */
+          (() => {
+            const now = new Date();
+            const currentSlot = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes() < 30 ? '00' : '30'}`;
+            const currentSlotIndex = TIME_SLOTS.indexOf(currentSlot);
+            const showNowMarker = selectedDay === 1 && currentSlotIndex >= 0;
+            const slotWidthPx = 80;
+            const channelColWidthPx = 96;
+            const nowLineLeft = channelColWidthPx + currentSlotIndex * slotWidthPx;
 
-            {/* Channel Rows */}
-            {channels.map((channel) => (
-              <div key={channel.id} className="flex border-b cursor-pointer hover:bg-gray-50" onClick={() => handleChannelClick(channel)}>
-                {/* Channel Logo */}
-                <div className="w-24 flex-shrink-0 p-2 border-r bg-gray-50 flex items-center justify-center relative">
-                  {channel.media_logo ? (
-                    <img
-                      src={`${BACKEND_URL}${channel.media_logo}`}
-                      alt={channel.media_name_english}
-                      className="w-16 h-12 object-contain"
-                    />
-                  ) : (
-                    <div className="w-16 h-12 bg-gray-200 rounded flex items-center justify-center text-xs text-gray-500">
-                      {channel.media_name_english.substring(0, 2).toUpperCase()}
-                    </div>
-                  )}
-                  {/* Play overlay */}
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 hover:opacity-100 transition-opacity">
-                    <Play size={24} className="text-white" fill="white" />
+            return (
+              <div className="bg-white overflow-x-auto relative">
+                {/* Time Headers - all 48 slots in 12h format */}
+                <div className="flex border-b sticky top-0 bg-gray-100 z-10 min-w-max">
+                  <div className="w-24 flex-shrink-0 p-2 font-semibold text-gray-700 border-r bg-gray-200">
+                    Channel
                   </div>
-                </div>
-                {/* Time Slots */}
-                {TIME_SLOTS.slice(0, 6).map((time) => {
-                  const schedule = getScheduleForTimeSlot(channel.id, time);
-                  return (
-                    <div key={time} className="w-24 flex-shrink-0 p-2 border-r text-xs">
-                      {schedule ? (
-                        <div className="bg-teal-50 p-1 rounded text-teal-700 truncate" title={schedule.title}>
-                          {schedule.title}
-                        </div>
-                      ) : (
-                        <div className="text-gray-300">-</div>
-                      )}
+                  {TIME_SLOTS.map((time) => (
+                    <div key={time} className="flex-shrink-0 p-1.5 text-center text-xs font-medium text-gray-600 border-r" style={{ minWidth: slotWidthPx }}>
+                      {formatTime12h(time)}
                     </div>
-                  );
-                })}
+                  ))}
+                </div>
+
+                {/* Current time "NOW" arrow/line – only when Today is selected; shows which slot is "channel now running" */}
+                {showNowMarker && (
+                  <>
+                    <div
+                      className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-20 pointer-events-none"
+                      style={{ left: nowLineLeft + slotWidthPx / 2 - 1 }}
+                      aria-hidden
+                    />
+                    <div
+                      className="absolute z-30 pointer-events-none flex flex-col items-center"
+                      style={{ left: nowLineLeft + slotWidthPx / 2 - 20, top: 4 }}
+                    >
+                      <MapPin size={20} className="text-red-500 drop-shadow" fill="#ef4444" stroke="#b91c1c" />
+                      <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow mt-0.5">
+                        NOW
+                      </span>
+                    </div>
+                  </>
+                )}
+
+                {/* Channel Rows - each cell shows media_schedules.title + time range */}
+                {channels.map((channel) => (
+                  <div key={channel.id} className="flex border-b cursor-pointer hover:bg-gray-50 min-w-max" onClick={() => handleChannelClick(channel)}>
+                    <div className="w-24 flex-shrink-0 p-2 border-r bg-gray-50 flex items-center justify-center relative">
+                      {channel.media_logo ? (
+                        <img
+                          src={`${BACKEND_URL}${channel.media_logo}`}
+                          alt={channel.media_name_english}
+                          className="w-16 h-12 object-contain"
+                        />
+                      ) : (
+                        <div className="w-16 h-12 bg-gray-200 rounded flex items-center justify-center text-xs text-gray-500">
+                          {channel.media_name_english.substring(0, 2).toUpperCase()}
+                        </div>
+                      )}
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 hover:opacity-100 transition-opacity">
+                        <Play size={24} className="text-white" fill="white" />
+                      </div>
+                    </div>
+                    {TIME_SLOTS.map((time) => {
+                      const result = getScheduleAndSlotForTimeSlot(channel.id, time);
+                      return (
+                        <div key={time} className="flex-shrink-0 p-1.5 border-r text-xs" style={{ minWidth: slotWidthPx }}>
+                          {result ? (
+                            <div className="bg-teal-50 p-1.5 rounded text-teal-700 min-w-0">
+                              <div className="font-medium break-words leading-tight" title={result.schedule.title}>
+                                {result.schedule.title}
+                              </div>
+                              <div className="text-[10px] text-teal-600 mt-0.5 leading-tight">
+                                {formatTime12h(result.slot.start_time)} – {formatTime12h(result.slot.end_time)}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-gray-300">-</div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            );
+          })()
         ) : (
           /* Default Card Grid for other categories (Web, Youtube, etc.) */
           <div className="p-4 grid grid-cols-2 gap-3">
