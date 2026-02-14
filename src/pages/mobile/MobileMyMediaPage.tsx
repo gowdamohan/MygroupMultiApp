@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { ChevronDown, X, Eye, Heart, UserPlus, FileText, Play } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
-import { MobileLayout } from '../../layouts/MobileLayout';
+import { MobileHeader, getMobileHeaderHeight } from '../../components/mobile/MobileHeader';
+import { MobileFooter, MOBILE_FOOTER_HEIGHT } from '../../components/mobile/MobileFooter';
 import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
 import { ChannelDetailView } from '../../components/mobile/ChannelDetailView';
 import { EPaperMagazineView } from '../../components/mobile/EPaperMagazineView';
@@ -76,6 +77,7 @@ interface Schedule {
 type SelectType = 'International' | 'National' | 'Regional' | 'Local';
 
 const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const DAYS_ABBREV = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const TIME_SLOTS = ['00:00', '00:30', '01:00', '01:30', '02:00', '02:30', '03:00', '03:30', '04:00', '04:30', '05:00', '05:30',
   '06:00', '06:30', '07:00', '07:30', '08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
   '12:00', '12:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30',
@@ -103,7 +105,12 @@ export const MobileMyMediaPage: React.FC = () => {
   const [selectedParentCategory, setSelectedParentCategory] = useState<number | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<number | null>(null);
-  const [selectedDay, setSelectedDay] = useState<number>(new Date().getDay());
+  // selectedDay is index in "current-day-first" order (0 = today)
+  const [selectedDay, setSelectedDay] = useState<number>(0);
+  const orderedDayIndices = useMemo(() => {
+    const today = new Date().getDay();
+    return Array.from({ length: 7 }, (_, i) => (today + i) % 7);
+  }, []);
 
   // Location filters - same pattern as MediaRegistrationForm
   const [countries, setCountries] = useState<Country[]>([]);
@@ -245,7 +252,7 @@ export const MobileMyMediaPage: React.FC = () => {
     }
   }, [selectedType, selectedCountry, selectedState, selectedDistrict, selectedCategory, selectedLanguage]);
 
-  // Fetch schedules when channels or day changes
+  // Fetch schedules when channels or day changes (day = 0-6 for API)
   useEffect(() => {
     if (channels.length > 0) {
       fetchAllSchedules();
@@ -347,20 +354,29 @@ export const MobileMyMediaPage: React.FC = () => {
       if (selectedCategory) params.append('category_id', selectedCategory.toString());
       if (selectedLanguage) params.append('language_id', selectedLanguage.toString());
 
-      const response = await axios.get(`${API_BASE_URL}/mymedia/channels?${params.toString()}`);
+      const url = `${API_BASE_URL}/mymedia/channels?${params.toString()}`;
+      const response = await axios.get(url);
       if (response.data.success) {
-        setChannels(response.data.data);
+        const data = response.data.data;
+        setChannels(Array.isArray(data) ? data : []);
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[MyMedia] channels API response:', { url, count: Array.isArray(data) ? data.length : 0, data });
+        }
+      } else {
+        console.warn('[MyMedia] channels API success=false:', response.data);
+        setChannels([]);
       }
     } catch (error) {
-      console.error('Error fetching channels:', error);
+      console.error('[MyMedia] Error fetching channels:', error);
       setChannels([]);
     }
   };
 
   const fetchAllSchedules = async () => {
+    const dayParam = orderedDayIndices[selectedDay];
     const schedulePromises = channels.map(async (channel) => {
       try {
-        const response = await axios.get(`${API_BASE_URL}/mymedia/schedules/${channel.id}?day=${selectedDay}`);
+        const response = await axios.get(`${API_BASE_URL}/mymedia/schedules/${channel.id}?day=${dayParam}`);
         if (response.data.success) {
           return { channelId: channel.id, schedules: response.data.data.schedules };
         }
@@ -440,17 +456,28 @@ export const MobileMyMediaPage: React.FC = () => {
     return <IconComponent size={24} />;
   };
 
+  const headerHeight = getMobileHeaderHeight(true, true, true);
+
   if (loading) {
     return (
-      <MobileLayout
-        darkMode={darkMode}
-        onDarkModeToggle={toggleDarkMode}
-        appName={appName || 'mymedia'}
-      >
-        <div className="flex items-center justify-center min-h-[60vh]">
+      <div className={`min-h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+        <MobileHeader
+          appName={appName || 'mymedia'}
+          appId={appInfo?.id}
+          appInfoFromParent={!!appInfo}
+          appInfo={appInfo ?? null}
+          selectedCategoryId={selectedParentCategory}
+          darkMode={darkMode}
+          onDarkModeToggle={toggleDarkMode}
+          showTopIcons={true}
+          showAds={true}
+          showDarkModeToggle={true}
+          showProfileButton={true}
+        />
+        <div style={{ paddingTop: headerHeight, minHeight: `calc(100vh - ${MOBILE_FOOTER_HEIGHT}px)` }} className="flex items-center justify-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600"></div>
         </div>
-      </MobileLayout>
+      </div>
     );
   }
 
@@ -491,12 +518,21 @@ export const MobileMyMediaPage: React.FC = () => {
   }
 
   return (
-    <MobileLayout
-      darkMode={darkMode}
-      onDarkModeToggle={toggleDarkMode}
-      appName={appName || 'mymedia'}
-    >
-      <div className="pb-20">
+    <div className={`min-h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+      <MobileHeader
+        appName={appName || 'mymedia'}
+        appId={appInfo?.id}
+        appInfoFromParent={!!appInfo}
+        appInfo={appInfo ?? null}
+        selectedCategoryId={selectedParentCategory}
+        darkMode={darkMode}
+        onDarkModeToggle={toggleDarkMode}
+        showTopIcons={true}
+        showAds={true}
+        showDarkModeToggle={true}
+        showProfileButton={true}
+      />
+      <div className="pb-20" style={{ paddingTop: headerHeight, paddingBottom: MOBILE_FOOTER_HEIGHT + 16 }}>
         {/* Filter Row */}
         <div className="sticky top-0 z-30 bg-teal-700 px-2 py-2">
           <div className="flex gap-2 overflow-x-auto scrollbar-hide">
@@ -536,19 +572,19 @@ export const MobileMyMediaPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Days Row - Only show for TV/Radio categories */}
+        {/* Days Row - Only show for TV/Radio categories; order starts with today, 3-letter labels */}
         {isStreamCategory() && (
           <div className="sticky top-[158px] z-20 bg-gray-200 px-2 py-2">
             <div className="flex gap-2 overflow-x-auto scrollbar-hide">
-              {DAYS_OF_WEEK.map((day, idx) => (
+              {orderedDayIndices.map((dayIdx, idx) => (
                 <button
-                  key={day}
+                  key={dayIdx}
                   onClick={() => setSelectedDay(idx)}
                   className={`px-4 py-2 rounded-lg text-sm whitespace-nowrap transition-colors ${
                     selectedDay === idx ? 'bg-teal-700 text-white' : 'bg-white text-gray-700 hover:bg-gray-100'
                   }`}
                 >
-                  {day}
+                  {DAYS_ABBREV[dayIdx]}
                 </button>
               ))}
             </div>
@@ -686,28 +722,6 @@ export const MobileMyMediaPage: React.FC = () => {
             ))}
           </div>
         )}
-
-        {/* Footer - Category Navigation (6 fixed parent categories) */}
-        <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t shadow-lg">
-          <div className="grid grid-cols-6">
-            {parentCategories.map((category) => (
-              <button
-                key={category.id}
-                onClick={() => handleParentCategorySelect(category.id)}
-                className={`flex flex-col items-center gap-1 py-3 transition-colors ${
-                  selectedParentCategory === category.id
-                    ? 'bg-teal-700 text-white'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                <div className="w-6 h-6 flex items-center justify-center">
-                  {renderCategoryIcon(category)}
-                </div>
-                <span className="text-[10px] whitespace-nowrap truncate max-w-[50px]">{category.category_name}</span>
-              </button>
-            ))}
-          </div>
-        </div>
 
       {/* Type Dropdown Modal */}
       <AnimatePresence>
@@ -928,7 +942,16 @@ export const MobileMyMediaPage: React.FC = () => {
       </AnimatePresence>
 
       </div>
-    </MobileLayout>
+
+      <MobileFooter
+        appName={appName || 'mymedia'}
+        appId={appInfo?.id}
+        selectedCategoryId={selectedParentCategory}
+        onCategorySelect={(categoryId) => handleParentCategorySelect(categoryId)}
+        maxCategories={6}
+        darkMode={darkMode}
+      />
+    </div>
   );
 };
 
