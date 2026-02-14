@@ -96,6 +96,13 @@ export const uploadCategoryImage = multer({
   fileFilter: categoryImageFileFilter
 }).single('category_image');
 
+// Single media logo upload (memory buffer for Wasabi)
+export const uploadMediaLogo = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: categoryImageFileFilter
+}).single('media_logo');
+
 // Helper function to delete old files
 export const deleteFile = (filePath) => {
   if (!filePath) return;

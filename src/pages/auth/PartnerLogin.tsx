@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { User, Lock, ArrowLeft, LogIn, Mail, KeyRound } from 'lucide-react';
+import { User, Lock, ArrowLeft, LogIn, Mail, KeyRound, LayoutGrid } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
 import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
@@ -65,8 +65,8 @@ export const PartnerLogin: React.FC = () => {
 
   const fetchApps = async () => {
     try {
-      // Fetch apps from group_create table
-      const response = await axios.get(`${API_BASE_URL}/groups`);
+      // Fetch only apps that have a custom form configured (for partner login/registration)
+      const response = await axios.get(`${API_BASE_URL}/groups?has_custom_form=1`);
       if (response.data.success) {
         setApps(response.data.data);
       }
@@ -280,35 +280,47 @@ export const PartnerLogin: React.FC = () => {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
-                {apps.map((app) => (
-                  <motion.button
-                    key={app.id}
-                    onClick={() => handleAppSelect(app)}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="flex flex-col items-center gap-3 p-6 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl hover:shadow-lg transition-all duration-300 border-2 border-transparent hover:border-blue-300"
-                  >
-                    {app.details?.logo ? (
-                      <img
-                        src={`${app.details.logo}`}
-                        alt={app.name}
-                        className="w-16 h-16 object-contain"
-                      />
-                    ) : (
-                      <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white font-bold text-2xl">
-                        {app.name.charAt(0)}
-                      </div>
-                    )}
-                    <div className="text-center">
-                      <p className="font-semibold text-gray-900 text-sm">{app.name}</p>
-                      {app.apps_name && (
-                        <p className="text-xs text-gray-500 mt-1">{app.apps_name}</p>
+              {apps.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+                  <div className="rounded-full bg-blue-50 p-5 mb-4">
+                    <LayoutGrid className="w-12 h-12 text-blue-500" strokeWidth={1.5} />
+                  </div>
+                  <p className="text-lg font-semibold text-gray-700 mb-2">No partner apps available</p>
+                  <p className="text-sm text-gray-500 max-w-md">
+                    No apps with partner registration are configured yet. Contact your administrator to set up a custom form for an app.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
+                  {apps.map((app) => (
+                    <motion.button
+                      key={app.id}
+                      onClick={() => handleAppSelect(app)}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      className="flex flex-col items-center gap-3 p-6 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl hover:shadow-lg transition-all duration-300 border-2 border-transparent hover:border-blue-300"
+                    >
+                      {app.details?.logo ? (
+                        <img
+                          src={`${app.details.logo}`}
+                          alt={app.name}
+                          className="w-16 h-16 object-contain"
+                        />
+                      ) : (
+                        <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white font-bold text-2xl">
+                          {app.name.charAt(0)}
+                        </div>
                       )}
-                    </div>
-                  </motion.button>
-                ))}
-              </div>
+                      <div className="text-center">
+                        <p className="font-semibold text-gray-900 text-sm">{app.name}</p>
+                        {app.apps_name && (
+                          <p className="text-xs text-gray-500 mt-1">{app.apps_name}</p>
+                        )}
+                      </div>
+                    </motion.button>
+                  ))}
+                </div>
+              )}
             </motion.div>
           ) : (
             // Login/Forgot Password Form Screen

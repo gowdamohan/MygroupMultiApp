@@ -21,7 +21,7 @@ export default function DashboardRouter() {
   }
 
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/" replace />;
   }
 
   // Get user roles from groups array

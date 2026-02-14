@@ -46,7 +46,7 @@ export default function ForgotPassword() {
             <p className="text-sm text-gray-500 mb-6">
               Didn't receive the email? Check your spam folder or try again.
             </p>
-            <Link to="/login">
+            <Link to="/auth/login">
               <Button className="w-full">
                 Back to Login
               </Button>
@@ -61,7 +61,7 @@ export default function ForgotPassword() {
     <div className="min-h-screen bg-gradient-to-br from-primary-50 to-primary-100 flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <Link to="/login" className="inline-flex items-center text-sm text-primary-600 hover:text-primary-700 mb-4">
+          <Link to="/auth/login" className="inline-flex items-center text-sm text-primary-600 hover:text-primary-700 mb-4">
             <ArrowLeft size={16} className="mr-1" />
             Back to Login
           </Link>
@@ -102,7 +102,7 @@ export default function ForgotPassword() {
 
             <div className="text-center text-sm text-gray-600">
               Remember your password?{' '}
-              <Link to="/login" className="text-primary-600 hover:text-primary-700 font-medium">
+              <Link to="/auth/login" className="text-primary-600 hover:text-primary-700 font-medium">
                 Sign in
               </Link>
             </div>

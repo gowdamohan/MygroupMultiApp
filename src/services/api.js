@@ -177,9 +177,8 @@ api.interceptors.response.use(
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('lastActivity');
         
-        // Redirect to login
         if (typeof window !== 'undefined') {
-          window.location.href = '/login';
+          window.location.href = '/';
         }
         return Promise.reject(refreshError);
       }

@@ -107,26 +107,23 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
     fetchCountries();
   }, []);
 
-  // Fetch states based on select type and country
+  // Fetch states only for Regional/Local when country is selected
   useEffect(() => {
-    if (selectType === 'National' && formData.countryId) {
-      // For National: fetch states for selected country
+    if ((selectType === 'Regional' || selectType === 'Local') && formData.countryId) {
       fetchStates(parseInt(formData.countryId));
-    } else if (selectType === 'Regional' || selectType === 'Local') {
-      // For Regional/Local: fetch all states (default country ID 1 - India)
-      fetchStates(1);
     } else {
       setStates([]);
     }
   }, [selectType, formData.countryId]);
 
+  // Fetch districts only for Local when state is selected
   useEffect(() => {
-    if (formData.stateId) {
+    if (selectType === 'Local' && formData.stateId) {
       fetchDistricts(parseInt(formData.stateId));
     } else {
       setDistricts([]);
     }
-  }, [formData.stateId]);
+  }, [selectType, formData.stateId]);
 
   const fetchCountries = async () => {
     try {
@@ -575,62 +572,65 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
             </select>
           </div>
 
-          {/* Country - enabled only for National */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Country {selectType === 'National' && <span className="text-red-500">*</span>}
-            </label>
-            <select
-              value={formData.countryId}
-              onChange={(e) => setFormData({ ...formData, countryId: e.target.value, stateId: '', districtId: '' })}
-              disabled={selectType !== 'National'}
-              required={selectType === 'National'}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
-            >
-              <option value="">Select a country</option>
-              {countries.map((country) => (
-                <option key={country.id} value={country.id}>{country.country}</option>
-              ))}
-            </select>
-          </div>
+          {/* Location: International = hidden; National = country only; Regional = country + state; Local = all */}
+          {selectType !== 'International' && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Country <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formData.countryId}
+                  onChange={(e) => setFormData({ ...formData, countryId: e.target.value, stateId: '', districtId: '' })}
+                  required
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                >
+                  <option value="">Select a country</option>
+                  {countries.map((country) => (
+                    <option key={country.id} value={country.id}>{country.country}</option>
+                  ))}
+                </select>
+              </div>
 
-          {/* State - enabled for National, Regional */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              State {(selectType === 'National' || selectType === 'Regional') && <span className="text-red-500">*</span>}
-            </label>
-            <select
-              value={formData.stateId}
-              onChange={(e) => setFormData({ ...formData, stateId: e.target.value, districtId: '' })}
-              disabled={selectType !== 'National' && selectType !== 'Regional'}
-              required={selectType === 'National' || selectType === 'Regional'}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
-            >
-              <option value="">Select a state</option>
-              {states.map((state) => (
-                <option key={state.id} value={state.id}>{state.state}</option>
-              ))}
-            </select>
-          </div>
+              {(selectType === 'Regional' || selectType === 'Local') && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    State <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={formData.stateId}
+                    onChange={(e) => setFormData({ ...formData, stateId: e.target.value, districtId: '' })}
+                    required
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  >
+                    <option value="">Select a state</option>
+                    {states.map((state) => (
+                      <option key={state.id} value={state.id}>{state.state}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
-          {/* District - enabled for National, Regional, Local */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              District {(selectType === 'National' || selectType === 'Regional' || selectType === 'Local') && <span className="text-red-500">*</span>}
-            </label>
-            <select
-              value={formData.districtId}
-              onChange={(e) => setFormData({ ...formData, districtId: e.target.value })}
-              disabled={selectType === 'International'}
-              required={selectType === 'National' || selectType === 'Regional' || selectType === 'Local'}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
-            >
-              <option value="">Select a district</option>
-              {districts.map((district) => (
-                <option key={district.id} value={district.id}>{district.district}</option>
-              ))}
-            </select>
-          </div>
+              {selectType === 'Local' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    District <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={formData.districtId}
+                    onChange={(e) => setFormData({ ...formData, districtId: e.target.value })}
+                    required
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  >
+                    <option value="">Select a district</option>
+                    {districts.map((district) => (
+                      <option key={district.id} value={district.id}>{district.district}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </>
+          )}
 
           {/* Language */}
           <div>
@@ -776,8 +776,17 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
               disabled={loading}
               className="flex-1 bg-primary-600 text-white px-6 py-3 rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
             >
-              <Save size={20} />
-              {loading ? 'Registering...' : 'Register Channel'}
+              {loading ? (
+                <>
+                  <span className="inline-block w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Please wait...
+                </>
+              ) : (
+                <>
+                  <Save size={20} />
+                  Register Channel
+                </>
+              )}
             </button>
           </div>
         </form>

@@ -4,7 +4,8 @@ import axios from 'axios';
 import {
   ArrowLeft, User, MapPin, Share2, Eye, Send,
   DollarSign, Megaphone, FileText, Award, Newspaper, Image, Users,
-  ChevronDown, ChevronRight, Menu, X, LogOut, Wifi, Calendar, Upload, MessageCircle
+  ChevronDown, ChevronRight, Menu, X, LogOut, Wifi, Calendar, Upload, MessageCircle,
+  ToggleLeft, ToggleRight, Edit3, Tv
 } from 'lucide-react';
 import { DocumentUpload } from './DocumentUpload';
 import { TimeTable } from './TimeTable';
@@ -38,9 +39,21 @@ interface UploadCategory {
 
 interface ChannelInfo {
   id: number;
+  app_id?: number;
+  category_id?: number;
   media_name_english: string;
   media_name_regional: string | null;
   media_logo: string | null;
+  media_logo_url?: string | null;
+  status?: string;
+  is_active?: number;
+  isActive?: boolean;
+}
+
+interface MainCategory {
+  id: number;
+  category_name: string;
+  is_disabled?: boolean;
 }
 
 // Tab items for the horizontal scroll bar
@@ -96,8 +109,12 @@ export const MediaDashboard: React.FC = () => {
   const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
   const [activeMenu, setActiveMenu] = useState('dashboard');
   const [channelInfo, setChannelInfo] = useState<ChannelInfo | null>(null);
+  const [allChannels, setAllChannels] = useState<ChannelInfo[]>([]);
+  const [mainCategories, setMainCategories] = useState<MainCategory[]>([]);
   const [uploadCategories, setUploadCategories] = useState<UploadCategory[]>([]);
   const [selectedUploadCategory, setSelectedUploadCategory] = useState<UploadCategory | null>(null);
+  const [channelToggleLoading, setChannelToggleLoading] = useState<number | null>(null);
+  const [categoriesExpanded, setCategoriesExpanded] = useState<Record<number, boolean>>({});
 
   // New state for the redesigned dashboard
   const [activeTab, setActiveTab] = useState<TabItem>('output');
@@ -141,6 +158,12 @@ export const MediaDashboard: React.FC = () => {
       fetchOfflineMedia();
     }
   }, [channelId]);
+
+  useEffect(() => {
+    if (channelInfo?.app_id) {
+      fetchMainCategories(channelInfo.app_id);
+    }
+  }, [channelInfo?.app_id]);
 
   // Real-time clock update every second
   useEffect(() => {
@@ -208,11 +231,49 @@ export const MediaDashboard: React.FC = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (response.data.success) {
-        const channel = response.data.data.find((c: any) => c.id === parseInt(channelId || '0'));
+        const list = response.data.data || [];
+        setAllChannels(list);
+        const channel = list.find((c: any) => c.id === parseInt(channelId || '0'));
         if (channel) setChannelInfo(channel);
       }
     } catch (error) {
       console.error('Error fetching channel info:', error);
+    }
+  };
+
+  const fetchMainCategories = async (appId: number) => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const response = await axios.get(`${API_BASE_URL}/partner/media-categories/${appId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.success) {
+        setMainCategories(response.data.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching main categories:', error);
+    }
+  };
+
+  const handleChannelStatusToggle = async (ch: ChannelInfo) => {
+    setChannelToggleLoading(ch.id);
+    try {
+      const token = localStorage.getItem('accessToken');
+      const response = await axios.post(
+        `${API_BASE_URL}/partner/channel/${ch.id}/toggle-status`,
+        { status: !(ch.isActive ?? ch.is_active === 1) },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (response.data.success) {
+        setAllChannels(prev => prev.map(c => c.id === ch.id ? { ...c, isActive: !(c.isActive ?? c.is_active === 1), is_active: c.is_active === 1 ? 0 : 1 } : c));
+        if (channelInfo?.id === ch.id) {
+          setChannelInfo(prev => prev ? { ...prev, isActive: !(prev.isActive ?? prev.is_active === 1), is_active: prev.is_active === 1 ? 0 : 1 } : null);
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling channel status:', error);
+    } finally {
+      setChannelToggleLoading(null);
     }
   };
 
@@ -888,8 +949,8 @@ export const MediaDashboard: React.FC = () => {
           <div className="p-4 border-b border-teal-700">
             <div className="flex flex-col items-center">
               <div className="w-16 h-16 rounded-full overflow-hidden border-3 border-teal-400 shadow-lg mb-3 bg-white">
-                {channelInfo?.media_logo ? (
-                  <img src={`${BACKEND_URL}${channelInfo.media_logo}`} alt="Channel" className="w-full h-full object-cover" />
+                {(channelInfo?.media_logo_url || channelInfo?.media_logo) ? (
+                  <img src={channelInfo.media_logo_url || `${BACKEND_URL}${channelInfo.media_logo}`} alt="Channel" className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full bg-gradient-to-br from-teal-400 to-cyan-500 flex items-center justify-center"><Wifi className="text-white" size={28} /></div>
                 )}
@@ -902,6 +963,59 @@ export const MediaDashboard: React.FC = () => {
               )}
             </div>
           </div>
+          {sidebarOpen && mainCategories.length > 0 && (
+            <div className="px-3 py-2 border-b border-teal-700">
+              <p className="text-xs font-semibold text-teal-300 uppercase tracking-wider mb-2">My Channels</p>
+              <div className="space-y-1">
+                {mainCategories.map((cat) => {
+                  const channelsInCategory = allChannels.filter((c: any) => c.category_id === cat.id);
+                  if (channelsInCategory.length === 0) return null;
+                  const isExpanded = categoriesExpanded[cat.id] !== false;
+                  return (
+                    <div key={cat.id} className="rounded-lg overflow-hidden">
+                      <button
+                        onClick={() => setCategoriesExpanded(prev => ({ ...prev, [cat.id]: !isExpanded }))}
+                        className="w-full flex items-center justify-between px-2 py-1.5 text-teal-200 hover:bg-teal-700 rounded text-left text-sm"
+                      >
+                        <span className="font-medium">{cat.category_name}</span>
+                        {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                      </button>
+                      {isExpanded && (
+                        <div className="ml-2 mt-1 space-y-1 border-l border-teal-600 pl-2">
+                          {channelsInCategory.map((ch: any) => (
+                            <div key={ch.id} className="flex items-center gap-1 py-1">
+                              <button
+                                onClick={() => navigate(`/media/dashboard/${ch.id}`)}
+                                className={`flex-1 min-w-0 text-left text-xs truncate py-1 px-2 rounded ${ch.id === parseInt(channelId || '0') ? 'bg-teal-600 text-white' : 'text-teal-200 hover:bg-teal-700'}`}
+                                title={ch.media_name_english}
+                              >
+                                {ch.media_name_english}
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleChannelStatusToggle(ch); }}
+                                disabled={channelToggleLoading === ch.id}
+                                className={`p-1 rounded ${ch.isActive ?? ch.is_active === 1 ? 'text-green-400' : 'text-gray-400'}`}
+                                title={ch.isActive ?? ch.is_active === 1 ? 'Active' : 'Inactive'}
+                              >
+                                {channelToggleLoading === ch.id ? <span className="animate-spin block w-4 h-4 border border-current border-t-transparent rounded-full" /> : (ch.isActive ?? ch.is_active === 1 ? <ToggleRight size={14} /> : <ToggleLeft size={14} />)}
+                              </button>
+                              <button
+                                onClick={() => navigate('/partner/my-channel-list')}
+                                className="p-1 text-teal-300 hover:text-white rounded"
+                                title="Edit channel"
+                              >
+                                <Edit3 size={14} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           <div className="flex-1 overflow-y-auto py-4 px-3"><nav className="space-y-1">{menuItems.map(item => renderMenuItem(item))}</nav></div>
           <div className="p-3 border-t border-teal-700">
             <button onClick={() => navigate('/partner/my-channel-list')} className="w-full flex items-center gap-3 px-3 py-2.5 text-teal-300 hover:bg-teal-700 rounded-lg transition-colors">
@@ -919,8 +1033,8 @@ export const MediaDashboard: React.FC = () => {
               <div className="p-4 border-b border-teal-700 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-teal-400 bg-white">
-                    {channelInfo?.media_logo ? (
-                      <img src={`${BACKEND_URL}${channelInfo.media_logo}`} alt="Channel" className="w-full h-full object-cover" />
+                    {(channelInfo?.media_logo_url || channelInfo?.media_logo) ? (
+                      <img src={channelInfo.media_logo_url || `${BACKEND_URL}${channelInfo.media_logo}`} alt="Channel" className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full bg-gradient-to-br from-teal-400 to-cyan-500 flex items-center justify-center"><Wifi className="text-white" size={16} /></div>
                     )}

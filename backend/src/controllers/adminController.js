@@ -18,6 +18,7 @@ import {
   ClientRegistration
 } from '../models/index.js';
 import { uploadFile } from '../services/wasabiService.js';
+import sharp from 'sharp';
 
 /**
  * ============================================
@@ -2221,7 +2222,7 @@ export const getAppById = async (req, res) => {
   }
 };
 
-// Get partners for an app
+// Get partners for an app (only returns partners when the app has a custom form configured)
 export const getAppPartners = async (req, res) => {
   try {
     const { appId } = req.params;
@@ -2231,15 +2232,22 @@ export const getAppPartners = async (req, res) => {
       where: { create_id: appId }
     });
 
+    // Only show partners for apps that have a custom form configured
+    if (!appDetails?.custom_form) {
+      return res.json({
+        success: true,
+        data: [],
+        form_definition: null
+      });
+    }
+
     let formDefinition = null;
-    if (appDetails?.custom_form) {
-      try {
-        formDefinition = typeof appDetails.custom_form === 'string'
-          ? JSON.parse(appDetails.custom_form)
-          : appDetails.custom_form;
-      } catch (e) {
-        console.error('Error parsing custom_form:', e);
-      }
+    try {
+      formDefinition = typeof appDetails.custom_form === 'string'
+        ? JSON.parse(appDetails.custom_form)
+        : appDetails.custom_form;
+    } catch (e) {
+      console.error('Error parsing custom_form:', e);
     }
 
     // Query ClientRegistration as the primary source and include User data
@@ -2609,7 +2617,7 @@ export const getMediaChannels = async (req, res) => {
     const channels = await MediaChannel.findAll({
       where: {
         app_id: app_id,
-        category_id: category_id
+        parent_category_id: category_id
       },
       include: [
         {
@@ -2731,6 +2739,89 @@ export const updateMediaChannelActive = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to update media channel active status',
+      error: error.message
+    });
+  }
+};
+
+// Update media channel details (admin)
+export const updateMediaChannel = async (req, res) => {
+  try {
+    const { channelId } = req.params;
+    const {
+      media_name_english,
+      media_name_regional,
+      country_id,
+      state_id,
+      district_id,
+      language_id
+    } = req.body;
+
+    const { MediaChannel } = await import('../models/index.js');
+
+    const channel = await MediaChannel.findByPk(channelId);
+
+    if (!channel) {
+      return res.status(404).json({
+        success: false,
+        message: 'Media channel not found'
+      });
+    }
+
+    const updateData = {};
+    if (media_name_english !== undefined) updateData.media_name_english = media_name_english;
+    if (media_name_regional !== undefined) updateData.media_name_regional = media_name_regional || null;
+    if (country_id !== undefined) updateData.country_id = country_id ? parseInt(country_id) : null;
+    if (state_id !== undefined) updateData.state_id = state_id ? parseInt(state_id) : null;
+    if (district_id !== undefined) updateData.district_id = district_id ? parseInt(district_id) : null;
+    if (language_id !== undefined) updateData.language_id = language_id ? parseInt(language_id) : null;
+
+    if (req.file && req.file.buffer) {
+      let quality = 80;
+      let buffer;
+      while (quality > 10) {
+        buffer = await sharp(req.file.buffer)
+          .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
+          .jpeg({ quality, progressive: true })
+          .toBuffer();
+        if (buffer.length <= 100 * 1024) break;
+        quality -= 10;
+      }
+      const folder = `media_logos/app_${channel.app_id}`;
+      const result = await uploadFile(buffer, `media-logo-${channelId}-${Date.now()}.jpg`, 'image/jpeg', folder);
+      if (result.success && result.fileName) {
+        updateData.media_logo = result.fileName;
+      }
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No valid fields to update'
+      });
+    }
+
+    await channel.update(updateData);
+
+    const updated = await MediaChannel.findByPk(channelId, {
+      include: [
+        { model: Language, as: 'language', attributes: ['id', 'lang_1', 'lang_2'], required: false },
+        { model: Country, as: 'country', attributes: ['id', 'country'], required: false },
+        { model: State, as: 'state', attributes: ['id', 'state'], required: false },
+        { model: District, as: 'district', attributes: ['id', 'district'], required: false }
+      ]
+    });
+
+    res.json({
+      success: true,
+      message: 'Media channel updated successfully',
+      data: updated
+    });
+  } catch (error) {
+    console.error('Error updating media channel:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update media channel',
       error: error.message
     });
   }

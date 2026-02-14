@@ -1,17 +1,23 @@
+import { Op } from 'sequelize';
 import { GroupCreate, CreateDetails, User } from '../models/index.js';
 
 /**
- * Get all groups/applications
+ * Get all groups/applications.
+ * Query param: has_custom_form=1 - return only groups whose create_details has custom_form IS NOT NULL (for partner login).
  */
 export const getAllGroups = async (req, res) => {
   try {
+    const { has_custom_form: hasCustomForm } = req.query;
+    const includeDetails = {
+      model: CreateDetails,
+      as: 'details'
+    };
+    if (hasCustomForm === '1' || hasCustomForm === 'true') {
+      includeDetails.required = true;
+      includeDetails.where = { custom_form: { [Op.ne]: null } };
+    }
     const groups = await GroupCreate.findAll({
-      include: [
-        {
-          model: CreateDetails,
-          as: 'details'
-        }
-      ],
+      include: [includeDetails],
       order: [['id', 'ASC']]
     });
 

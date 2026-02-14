@@ -59,7 +59,8 @@ import {
   generatePartnerPortalAccess,
   getMediaChannels,
   updateMediaChannelStatus,
-  updateMediaChannelActive
+  updateMediaChannelActive,
+  updateMediaChannel
 } from '../controllers/adminController.js';
 import { getProfile, createProfile, updateProfile } from '../controllers/profileController.js';
 import {
@@ -70,7 +71,7 @@ import {
   toggleAccountsUserStatus
 } from '../controllers/accountsUserController.js';
 import { authenticate } from '../middleware/auth.js';
-import { uploadAppImages, uploadCountryAssets, uploadCategoryImage as uploadCategoryImageMiddleware, uploadProfileImages } from '../middleware/upload.js';
+import { uploadAppImages, uploadCountryAssets, uploadCategoryImage as uploadCategoryImageMiddleware, uploadProfileImages, uploadMediaLogo } from '../middleware/upload.js';
 
 const router = express.Router();
 
@@ -241,6 +242,7 @@ router.post('/partner-portal-access', generatePartnerPortalAccess);
 router.get('/media-channels', getMediaChannels);
 router.put('/media-channels/:channelId/status', updateMediaChannelStatus);
 router.put('/media-channels/:channelId/active', updateMediaChannelActive);
+router.put('/media-channels/:channelId', uploadMediaLogo, updateMediaChannel);
 
 /**
  * ============================================

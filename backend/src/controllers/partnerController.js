@@ -483,17 +483,22 @@ export const registerPartner = async (req, res) => {
     // Generate tokens
     const tokens = generateTokens(user);
 
+    // Include groups so frontend ProtectedRoute can allow partner dashboard access
+    const partnerGroup = await Group.findOne({ where: { name: 'partner' } });
+    const userWithGroups = {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      first_name: user.first_name,
+      identification_code: identificationCode,
+      groups: partnerGroup ? [{ id: partnerGroup.id, name: partnerGroup.name }] : [{ name: 'partner' }]
+    };
+
     res.status(201).json({
       success: true,
       message: 'Registration successful! Welcome email sent.',
       data: {
-        user: {
-          id: user.id,
-          username: user.username,
-          email: user.email,
-          first_name: user.first_name,
-          identification_code: identificationCode
-        },
+        user: userWithGroups,
         ...tokens,
         dashboardRoute: '/dashboard/partner'
       }

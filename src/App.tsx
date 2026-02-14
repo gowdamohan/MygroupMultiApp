@@ -19,7 +19,6 @@ import { MediaChannelDashboard } from './pages/dashboard/MediaChannelDashboard';
 import { PartnerDashboard } from './pages/dashboard/PartnerDashboard';
 import { MediaDashboard } from './pages/media/MediaDashboard';
 import { AppDashboard } from './pages/app/AppDashboard';
-import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import { MobileAppPage } from './pages/mobile/MobileAppPage';
@@ -45,8 +44,7 @@ function App() {
           {/* Home */}
           <Route path="/" element={<HomePage />} />
 
-          {/* Authentication Routes */}
-          <Route path="/login" element={<Login />} />
+          {/* Authentication Routes - use /partner, /admin/login, /auth/login, etc. per role */}
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />

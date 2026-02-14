@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { API_BASE_URL } from '../../config/api.config';
-import { Eye, LogIn, X, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Eye, LogIn, X, ToggleLeft, ToggleRight, Users } from 'lucide-react';
 
 interface FormFieldInfo {
   raw: string | number;
@@ -371,8 +371,18 @@ export const PartnersManagement: React.FC<PartnersManagementProps> = ({ appId, a
                   <tbody className="divide-y divide-gray-200">
                     {partners.length === 0 ? (
                       <tr>
-                        <td colSpan={tableHeaders.length + 5} className="px-6 py-12 text-center text-gray-500">
-                          No {activeStatusTab} partners found
+                        <td colSpan={tableHeaders.length + 5} className="px-6 py-16 text-center">
+                          <div className="flex flex-col items-center justify-center gap-3 text-gray-500">
+                            <div className="rounded-full bg-gray-100 p-4">
+                              <Users className="w-10 h-10 text-gray-400" strokeWidth={1.5} />
+                            </div>
+                            <p className="text-base font-medium text-gray-600">No {activeStatusTab} partners</p>
+                            <p className="text-sm text-gray-400 max-w-sm">
+                              {activeStatusTab === 'All'
+                                ? 'Partners will appear here once they register. Ensure this app has a custom form configured.'
+                                : `No ${activeStatusTab.toLowerCase()} partners in this app.`}
+                            </p>
+                          </div>
                         </td>
                       </tr>
                     ) : (

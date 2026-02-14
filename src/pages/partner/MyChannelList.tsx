@@ -93,12 +93,12 @@ export const MyChannelList: React.FC = () => {
   };
 
   const handleViewClick = async (channel: MediaChannel) => {
+    if (channel.status !== 'active') return;
     // If passcode not set OR passcode status is OFF, go directly to dashboard
     if (!channel.hasPasscode || !channel.passcodeStatus) {
       navigate(`/media/dashboard/${channel.id}`);
       return;
     }
-
     // Passcode is set and status is ON, show passcode modal
     setSelectedChannel(channel);
     setPasscode(['', '', '', '']);
@@ -503,12 +503,18 @@ export const MyChannelList: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap text-center">
-                      <button
-                        onClick={() => handleViewClick(channel)}
-                        className="px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors"
-                      >
-                        View
-                      </button>
+                      {channel.status === 'active' ? (
+                        <button
+                          onClick={() => handleViewClick(channel)}
+                          className="px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors"
+                        >
+                          View
+                        </button>
+                      ) : (
+                        <span className="text-xs text-gray-500" title={`Status: ${channel.status}. View available after admin approval.`}>
+                          Pending approval
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}

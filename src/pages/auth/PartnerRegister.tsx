@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Mail, Lock } from 'lucide-react';
 import axios from 'axios';
 import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface AppDetails {
   id: number;
@@ -55,6 +56,7 @@ type RegistrationStep = 'email' | 'otp' | 'password' | 'customForm';
 
 export const PartnerRegister: React.FC = () => {
   const navigate = useNavigate();
+  const { updateUser } = useAuth();
 
   // Get app name from URL
   const getAppNameFromUrl = () => {
@@ -133,7 +135,7 @@ export const PartnerRegister: React.FC = () => {
         return;
       }
 
-      const response = await axios.get(`${API_BASE_URL}/groups`);
+      const response = await axios.get(`${API_BASE_URL}/groups?has_custom_form=1`);
       if (response.data.success) {
         const foundApp = response.data.data.find((a: AppDetails) => a.name === queryString);
         if (foundApp) {
@@ -342,26 +344,25 @@ export const PartnerRegister: React.FC = () => {
       });
 
       if (response.data.success) {
-        // Clear localStorage on successful registration
+        const { user: userData, accessToken, refreshToken } = response.data.data;
+
+        // Clear registration storage
         localStorage.removeItem(STORAGE_KEY);
 
-        // Store authentication tokens for auto-login
-        if (response.data.data.accessToken) {
-          localStorage.setItem('accessToken', response.data.data.accessToken);
-        }
-        if (response.data.data.refreshToken) {
-          localStorage.setItem('refreshToken', response.data.data.refreshToken);
-        }
-        if (response.data.data.user) {
-          localStorage.setItem('user', JSON.stringify(response.data.data.user));
+        // Store authentication tokens and user for auto-login
+        if (accessToken) localStorage.setItem('accessToken', accessToken);
+        if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
+        if (userData) {
+          localStorage.setItem('user', JSON.stringify(userData));
+          updateUser(userData); // Update AuthContext so ProtectedRoute sees authenticated partner
         }
 
         setSuccess('Registration successful! Redirecting to your dashboard...');
 
-        // Redirect to partner dashboard after successful registration
+        // Redirect to partner dashboard (short delay so user sees success message)
         setTimeout(() => {
-          navigate('/dashboard/partner');
-        }, 1500);
+          navigate('/dashboard/partner', { replace: true });
+        }, 800);
       }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Registration failed');

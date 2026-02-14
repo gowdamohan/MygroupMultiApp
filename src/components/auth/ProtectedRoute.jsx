@@ -23,9 +23,9 @@ export default function ProtectedRoute({ children, allowedRoles = [] }) {
     );
   }
 
-  // Redirect to login if not authenticated
+  // Redirect to home (user can choose partner/admin/client login from there)
   if (!isAuthenticated) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return <Navigate to="/" state={{ from: location }} replace />;
   }
 
   // Check role-based access if roles are specified

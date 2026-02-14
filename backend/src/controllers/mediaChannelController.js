@@ -2,6 +2,7 @@ import { Op } from 'sequelize';
 import path from 'path';
 import fs from 'fs';
 import sharp from 'sharp';
+import { uploadFile as wasabiUploadFile, getSignedReadUrl } from '../services/wasabiService.js';
 import {
   MediaChannel,
   AppCategory,
@@ -25,12 +26,13 @@ export const getMediaCategories = async (req, res) => {
     const { appId } = req.params;
     const userId = req.user?.id; // From auth middleware
 
-    // Get all categories for this app (parent categories only)
+    // Get all main categories (parent_id IS NULL), exclude "Mygod"
     const categories = await AppCategory.findAll({
       where: {
         app_id: appId,
         parent_id: null,
-        status: 1
+        status: 1,
+        category_name: { [Op.ne]: 'Mygod' }
       },
       order: [['sort_order', 'ASC'], ['category_name', 'ASC']]
     });
@@ -201,35 +203,20 @@ export const getLanguages = async (req, res) => {
 };
 
 /**
- * Helper function to compress image to ~100KB
+ * Compress image to ~100KB and return buffer (for Wasabi upload)
  */
-const compressImage = async (inputPath, outputPath) => {
-  try {
-    let quality = 80;
-    let compressed = false;
-
-    while (!compressed && quality > 10) {
-      await sharp(inputPath)
-        .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
-        .jpeg({ quality, progressive: true })
-        .toFile(outputPath);
-
-      const stats = fs.statSync(outputPath);
-      const fileSizeKB = stats.size / 1024;
-
-      if (fileSizeKB <= 100) {
-        compressed = true;
-      } else {
-        quality -= 10;
-        fs.unlinkSync(outputPath); // Delete and try again
-      }
-    }
-
-    return outputPath;
-  } catch (error) {
-    console.error('Image compression error:', error);
-    throw error;
+const compressImageToBuffer = async (inputPath) => {
+  let quality = 80;
+  let buffer;
+  while (quality > 10) {
+    buffer = await sharp(inputPath)
+      .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality, progressive: true })
+      .toBuffer();
+    if (buffer.length <= 100 * 1024) break;
+    quality -= 10;
   }
+  return buffer;
 };
 
 /**
@@ -287,24 +274,22 @@ export const createMediaChannel = async (req, res) => {
       });
     }
 
-    // Handle file upload and compression
+    // Handle logo: compress and upload to Wasabi, store key in media_logo
     let mediaLogoPath = null;
     if (req.file) {
-      const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'media-logos');
-      if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true });
+      try {
+        const buffer = await compressImageToBuffer(req.file.path);
+        const folder = `media_logos/app_${app_id}`;
+        const result = await wasabiUploadFile(buffer, `media-logo-${userId}-${Date.now()}.jpg`, 'image/jpeg', folder);
+        if (result.success && result.fileName) {
+          mediaLogoPath = result.fileName;
+        }
+      } catch (uploadErr) {
+        console.error('Wasabi media logo upload error:', uploadErr);
       }
-
-      const timestamp = Date.now();
-      const filename = `media-logo-${userId}-${timestamp}.jpg`;
-      const outputPath = path.join(uploadDir, filename);
-
-      await compressImage(req.file.path, outputPath);
-
-      // Delete original uploaded file
-      fs.unlinkSync(req.file.path);
-
-      mediaLogoPath = `/uploads/media-logos/${filename}`;
+      if (req.file.path && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
     }
 
     // Create media channel record
@@ -356,6 +341,8 @@ export const getMyChannels = async (req, res) => {
       },
       attributes: [
         'id',
+        'app_id',
+        'category_id',
         'media_logo',
         'media_name_english',
         'media_name_regional',
@@ -368,15 +355,32 @@ export const getMyChannels = async (req, res) => {
       order: [['created_at', 'DESC']]
     });
 
-    // Add placeholder values for followers, ratings, earnings (can be implemented later)
-    const channelsWithStats = channels.map(channel => ({
-      ...channel.toJSON(),
-      followers: 0,
-      ratings: 0,
-      earnings: 0,
-      hasPasscode: !!channel.passcode,
-      passcodeStatus: channel.passcode_status === 1,
-      isActive: channel.is_active === 1
+    // Add placeholder values and signed URL for Wasabi media_logo
+    const channelsWithStats = await Promise.all(channels.map(async (channel) => {
+      const json = channel.toJSON();
+      let mediaLogoUrl = null;
+      if (json.media_logo) {
+        if (json.media_logo.startsWith('/')) {
+          mediaLogoUrl = json.media_logo;
+        } else {
+          try {
+            const signed = await getSignedReadUrl(json.media_logo, 3600);
+            if (signed.success) mediaLogoUrl = signed.signedUrl;
+          } catch (e) {
+            console.error('Signed URL for media_logo failed:', e);
+          }
+        }
+      }
+      return {
+        ...json,
+        media_logo_url: mediaLogoUrl || json.media_logo,
+        followers: 0,
+        ratings: 0,
+        earnings: 0,
+        hasPasscode: !!channel.passcode,
+        passcodeStatus: channel.passcode_status === 1,
+        isActive: channel.is_active === 1
+      };
     }));
 
     res.json({
