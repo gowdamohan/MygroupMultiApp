@@ -426,6 +426,7 @@ export const MyChannelList: React.FC = () => {
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Logo</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Media Type</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Media Name</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Followers</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Ratings</th>
@@ -449,6 +450,14 @@ export const MyChannelList: React.FC = () => {
                           />
                         ) : (
                           <Tv className="text-gray-400" size={24} />
+                        )}
+                      </div>
+                    </td>
+                     <td className="px-4 py-4 whitespace-nowrap">
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">{channel.parentCategory.category_name}</div>
+                        {channel.media_type && (
+                          <div className="text-sm text-gray-500">{channel.media_type}</div>
                         )}
                       </div>
                     </td>
