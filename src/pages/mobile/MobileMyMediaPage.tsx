@@ -53,6 +53,7 @@ interface District {
 interface Channel {
   id: number;
   media_logo: string;
+  media_logo_url?: string;
   media_name_english: string;
   media_name_regional: string;
   select_type: string;
@@ -268,10 +269,10 @@ export const MobileMyMediaPage: React.FC = () => {
 
   // Fetch channels when filters change
   useEffect(() => {
-    if (selectedCategory) {
+    if (selectedParentCategory) {
       fetchChannels();
     }
-  }, [selectedType, selectedCountry, selectedState, selectedDistrict, selectedCategory, selectedLanguage]);
+  }, [selectedType, selectedCountry, selectedState, selectedDistrict, selectedParentCategory, selectedCategory, selectedLanguage]);
 
   // Fetch schedules when channels or day changes (day = 0-6 for API)
   useEffect(() => {
@@ -299,7 +300,7 @@ export const MobileMyMediaPage: React.FC = () => {
           const firstParent = parents[0];
           if (firstParent.children && firstParent.children.length > 0) {
             setSubCategories(firstParent.children);
-            setSelectedCategory(firstParent.children[0].id);
+            setSelectedCategory(null); // Default to "All" subcategories
           } else {
             setSubCategories([]);
             setSelectedCategory(null);
@@ -320,7 +321,7 @@ export const MobileMyMediaPage: React.FC = () => {
     const parent = parentCategories.find(p => p.id === parentId);
     if (parent && parent.children && parent.children.length > 0) {
       setSubCategories(parent.children);
-      setSelectedCategory(parent.children[0].id);
+      setSelectedCategory(null); // Default to "All" subcategories
     } else {
       setSubCategories([]);
       setSelectedCategory(null);
@@ -372,7 +373,10 @@ export const MobileMyMediaPage: React.FC = () => {
       if (selectedCountry) params.append('country_id', selectedCountry);
       if (selectedState) params.append('state_id', selectedState);
       if (selectedDistrict) params.append('district_id', selectedDistrict);
-      if (selectedCategory) params.append('category_id', selectedCategory.toString());
+      // category_id = parent category from footer (media_channel.category_id stores parent)
+      if (selectedParentCategory) params.append('category_id', selectedParentCategory.toString());
+      // parent_category_id = subcategory from dropdown (media_channel.parent_category_id stores subcategory)
+      if (selectedCategory) params.append('parent_category_id', selectedCategory.toString());
       if (selectedLanguage) params.append('language_id', selectedLanguage.toString());
 
       const url = `${API_BASE_URL}/mymedia/channels?${params.toString()}`;
@@ -454,8 +458,9 @@ export const MobileMyMediaPage: React.FC = () => {
   };
 
   const getSelectedCategoryName = () => {
+    if (!selectedCategory) return 'All';
     const cat = subCategories.find((c: Category) => c.id === selectedCategory);
-    return cat?.category_name || 'Category';
+    return cat?.category_name || 'All';
   };
 
   const getSelectedLanguageName = () => {
@@ -538,7 +543,7 @@ export const MobileMyMediaPage: React.FC = () => {
       <EPaperMagazineView
         channelId={selectedChannel.id}
         channelName={selectedChannel.media_name_english}
-        channelLogo={selectedChannel.media_logo}
+        channelLogo={selectedChannel.media_logo_url || selectedChannel.media_logo}
         onBack={handleBackToList}
         onViewDetails={handleViewChannelDetails}
       />
@@ -551,7 +556,7 @@ export const MobileMyMediaPage: React.FC = () => {
       <TVChannelView
         channelId={selectedChannel.id}
         channelName={selectedChannel.media_name_english}
-        channelLogo={selectedChannel.media_logo}
+        channelLogo={selectedChannel.media_logo_url || selectedChannel.media_logo}
         onBack={handleBackToList}
         onViewDetails={handleViewChannelDetails}
       />
@@ -653,9 +658,9 @@ export const MobileMyMediaPage: React.FC = () => {
               >
                 {/* Channel Logo/Thumbnail */}
                 <div className="aspect-[3/4] bg-gray-100 relative">
-                  {channel.media_logo ? (
+                  {(channel.media_logo_url || channel.media_logo) ? (
                     <img
-                      src={`${BACKEND_URL}${channel.media_logo}`}
+                      src={channel.media_logo_url || (channel.media_logo?.startsWith('http') ? channel.media_logo : `${BACKEND_URL}${channel.media_logo}`)}
                       alt={channel.media_name_english}
                       className="w-full h-full object-contain p-4"
                     />
@@ -728,9 +733,9 @@ export const MobileMyMediaPage: React.FC = () => {
                 {channels.map((channel) => (
                   <div key={channel.id} className="flex border-b cursor-pointer hover:bg-gray-50 min-w-max" onClick={() => handleChannelClick(channel)}>
                     <div className="w-24 flex-shrink-0 p-2 border-r bg-gray-50 flex items-center justify-center relative">
-                      {channel.media_logo ? (
+                      {(channel.media_logo_url || channel.media_logo) ? (
                         <img
-                          src={`${BACKEND_URL}${channel.media_logo}`}
+                          src={channel.media_logo_url || (channel.media_logo?.startsWith('http') ? channel.media_logo : `${BACKEND_URL}${channel.media_logo}`)}
                           alt={channel.media_name_english}
                           className="w-16 h-12 object-contain"
                         />
@@ -778,9 +783,9 @@ export const MobileMyMediaPage: React.FC = () => {
               >
                 {/* Channel Logo */}
                 <div className="aspect-video bg-gray-100 relative flex items-center justify-center">
-                  {channel.media_logo ? (
+                  {(channel.media_logo_url || channel.media_logo) ? (
                     <img
-                      src={`${BACKEND_URL}${channel.media_logo}`}
+                      src={channel.media_logo_url || (channel.media_logo?.startsWith('http') ? channel.media_logo : `${BACKEND_URL}${channel.media_logo}`)}
                       alt={channel.media_name_english}
                       className="w-full h-full object-contain p-2"
                     />
@@ -860,6 +865,21 @@ export const MobileMyMediaPage: React.FC = () => {
               onClick={(e) => e.stopPropagation()}
             >
               <h3 className="font-semibold mb-3">Select Category</h3>
+              {/* "All" option - shows all channels under parent category */}
+              <button
+                onClick={() => {
+                  setSelectedCategory(null);
+                  setShowCategoryDropdown(false);
+                }}
+                className={`w-full text-left px-3 py-2 rounded-lg mb-1 flex items-center gap-2 ${
+                  selectedCategory === null ? 'bg-teal-600 text-white' : 'hover:bg-gray-100'
+                }`}
+              >
+                <div className="w-5 h-5 flex items-center justify-center">
+                  <Eye size={16} />
+                </div>
+                All
+              </button>
               {subCategories.length === 0 ? (
                 <p className="text-gray-500 text-sm">No subcategories available</p>
               ) : (

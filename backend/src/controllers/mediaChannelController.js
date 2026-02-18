@@ -26,13 +26,18 @@ export const getMediaCategories = async (req, res) => {
     const { appId } = req.params;
     const userId = req.user?.id; // From auth middleware
 
-    // Get all main categories (parent_id IS NULL), exclude "Mygod"
+    // Get all main categories (parent_id IS NULL), exclude "Mygod" and addon categories
     const categories = await AppCategory.findAll({
       where: {
         app_id: appId,
         parent_id: null,
         status: 1,
-        category_name: { [Op.ne]: 'Mygod' }
+        category_name: { [Op.ne]: 'Mygod' },
+        [Op.or]: [
+          { category_type: { [Op.ne]: 'addon' } },
+          { category_type: null },
+          { category_type: '' }
+        ]
       },
       order: [['sort_order', 'ASC'], ['category_name', 'ASC']]
     });
@@ -144,7 +149,7 @@ export const getMediaSubCategories = async (req, res) => {
         const registrationCount = await MediaChannel.count({
           where: {
             user_id: userId,
-            category_id: subCat.id,
+            parent_category_id: subCat.id,
             app_id: appId
           }
         });
@@ -203,13 +208,49 @@ export const getLanguages = async (req, res) => {
 };
 
 /**
- * Compress image to ~100KB and return buffer (for Wasabi upload)
+ * Helper function to compress image to ~100KB and save to file
+ * @param {string|Buffer} input - File path or Buffer
+ * @param {string} outputPath - Output file path
  */
-const compressImageToBuffer = async (inputPath) => {
+const compressImage = async (input, outputPath) => {
+  try {
+    let quality = 80;
+    let compressed = false;
+
+    while (!compressed && quality > 10) {
+      await sharp(input)
+        .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality, progressive: true })
+        .toFile(outputPath);
+
+      const stats = fs.statSync(outputPath);
+      const fileSizeKB = stats.size / 1024;
+
+      if (fileSizeKB <= 100) {
+        compressed = true;
+      } else {
+        quality -= 10;
+        fs.unlinkSync(outputPath); // Delete and try again
+      }
+    }
+
+    return outputPath;
+  } catch (error) {
+    console.error('Image compression error:', error);
+    throw error;
+  }
+};
+
+
+/**
+ * Compress image to ~100KB and return buffer (for Wasabi upload)
+ * @param {string|Buffer} input - File path or Buffer
+ */
+const compressImageToBuffer = async (input) => {
   let quality = 80;
   let buffer;
   while (quality > 10) {
-    buffer = await sharp(inputPath)
+    buffer = await sharp(input)
       .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
       .jpeg({ quality, progressive: true })
       .toBuffer();
@@ -229,6 +270,7 @@ export const createMediaChannel = async (req, res) => {
     const {
       app_id,
       category_id,
+      parent_category_id,
       select_type,
       country_id,
       state_id,
@@ -258,37 +300,64 @@ export const createMediaChannel = async (req, res) => {
     }
 
     // Check registration count limit
-    const existingCount = await MediaChannel.count({
-      where: {
-        user_id: userId,
-        category_id: category_id,
-        app_id: app_id
+    // If sub-category provided (parent_category_id), check sub-category limit; otherwise check main category limit
+    if (parent_category_id) {
+      const subCategory = await AppCategory.findByPk(parent_category_id);
+      if (subCategory) {
+        const existingCount = await MediaChannel.count({
+          where: {
+            user_id: userId,
+            parent_category_id: parent_category_id,
+            app_id: app_id
+          }
+        });
+        const maxCount = subCategory.registration_count || 1;
+        if (existingCount >= maxCount) {
+          return res.status(400).json({
+            success: false,
+            message: `Maximum ${maxCount} registration(s) allowed for this category`
+          });
+        }
       }
-    });
-
-    const maxCount = category.registration_count || 1;
-    if (existingCount >= maxCount) {
-      return res.status(400).json({
-        success: false,
-        message: `Maximum ${maxCount} registration(s) allowed for this category`
+    } else {
+      const existingCount = await MediaChannel.count({
+        where: {
+          user_id: userId,
+          category_id: category_id,
+          app_id: app_id
+        }
       });
+      const maxCount = category.registration_count || 1;
+      if (existingCount >= maxCount) {
+        return res.status(400).json({
+          success: false,
+          message: `Maximum ${maxCount} registration(s) allowed for this category`
+        });
+      }
     }
 
     // Handle logo: compress and upload to Wasabi, store key in media_logo
     let mediaLogoPath = null;
     if (req.file) {
       try {
-        const buffer = await compressImageToBuffer(req.file.path);
+        // Read file into buffer first to avoid EBUSY file lock on Windows
+        const fileBuffer = req.file.buffer || fs.readFileSync(req.file.path);
+        // Delete temp file immediately after reading into memory
+        if (req.file.path && fs.existsSync(req.file.path)) {
+          try { fs.unlinkSync(req.file.path); } catch (e) { /* ignore cleanup error */ }
+        }
+        const compressedBuffer = await compressImageToBuffer(fileBuffer);
         const folder = `media_logos/app_${app_id}`;
-        const result = await wasabiUploadFile(buffer, `media-logo-${userId}-${Date.now()}.jpg`, 'image/jpeg', folder);
+        const result = await wasabiUploadFile(compressedBuffer, `media-logo-${userId}-${Date.now()}.jpg`, 'image/jpeg', folder);
         if (result.success && result.fileName) {
           mediaLogoPath = result.fileName;
         }
       } catch (uploadErr) {
         console.error('Wasabi media logo upload error:', uploadErr);
-      }
-      if (req.file.path && fs.existsSync(req.file.path)) {
-        fs.unlinkSync(req.file.path);
+        // Clean up temp file if it still exists
+        if (req.file.path && fs.existsSync(req.file.path)) {
+          try { fs.unlinkSync(req.file.path); } catch (e) { /* ignore */ }
+        }
       }
     }
 
@@ -297,7 +366,7 @@ export const createMediaChannel = async (req, res) => {
       user_id: userId,
       app_id,
       category_id,
-      parent_category_id: category.parent_id,
+      parent_category_id: parent_category_id || null,
       media_type: category.category_name,
       select_type,
       country_id: country_id || null,
@@ -343,6 +412,10 @@ export const getMyChannels = async (req, res) => {
         'id',
         'app_id',
         'category_id',
+        'parent_category_id',
+        'media_type',
+        'periodical_type',
+        'periodical_schedule',
         'media_logo',
         'media_name_english',
         'media_name_regional',
@@ -351,6 +424,19 @@ export const getMyChannels = async (req, res) => {
         'passcode_status',
         'is_active',
         'created_at'
+      ],
+      include: [
+        {
+          model: AppCategory,
+          as: 'category',
+          attributes: ['id', 'category_name', 'category_type']
+        },
+        {
+          model: AppCategory,
+          as: 'parentCategory',
+          attributes: ['id', 'category_name', 'category_type'],
+          required: false
+        }
       ],
       order: [['created_at', 'DESC']]
     });
@@ -540,12 +626,13 @@ export const uploadProfilePhoto = async (req, res) => {
     const filename = `profile-${userId}-${timestamp}.jpg`;
     const outputPath = path.join(uploadDir, filename);
 
-    await compressImage(req.file.path, outputPath);
-
-    // Delete temp file
-    if (fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
+    // Read file into buffer to avoid EBUSY file lock on Windows
+    const fileBuffer = req.file.buffer || fs.readFileSync(req.file.path);
+    // Delete temp file immediately after reading into memory
+    if (req.file.path && fs.existsSync(req.file.path)) {
+      try { fs.unlinkSync(req.file.path); } catch (e) { /* ignore cleanup error */ }
     }
+    await compressImage(fileBuffer, outputPath);
 
     const profileImgPath = `/uploads/profile-photos/${filename}`;
     await user.update({ profile_img: profileImgPath });

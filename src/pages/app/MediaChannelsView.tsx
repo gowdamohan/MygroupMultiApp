@@ -29,6 +29,7 @@ interface MediaChannel {
   media_name_english: string;
   media_name_regional: string;
   media_logo: string;
+  media_logo_url?: string;
   status: string;
   is_active: number;
   created_at: string;
@@ -363,9 +364,9 @@ export const MediaChannelsView: React.FC<MediaChannelsViewProps> = ({ appId, cat
                         {formatDate(channel.created_at)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        {channel.media_logo ? (
+                        {(channel.media_logo_url || channel.media_logo) ? (
                           <img
-                            src={channel.media_logo.startsWith('http') ? channel.media_logo : (channel.media_logo.startsWith('/') ? BACKEND_URL + channel.media_logo : BACKEND_URL + '/' + channel.media_logo)}
+                            src={channel.media_logo_url || (channel.media_logo.startsWith('http') ? channel.media_logo : (channel.media_logo.startsWith('/') ? BACKEND_URL + channel.media_logo : BACKEND_URL + '/' + channel.media_logo))}
                             alt={channel.media_name_regional || channel.media_name_english}
                             className="h-10 w-10 object-contain rounded"
                           />
@@ -526,10 +527,10 @@ export const MediaChannelsView: React.FC<MediaChannelsViewProps> = ({ appId, cat
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Media Logo (optional)</label>
                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
-                  {(logoPreview || selectedChannel?.media_logo) ? (
+                  {(logoPreview || selectedChannel?.media_logo_url || selectedChannel?.media_logo) ? (
                     <div className="flex items-center gap-3">
                       <img
-                        src={logoPreview || (selectedChannel.media_logo.startsWith('http') ? selectedChannel.media_logo : BACKEND_URL + (selectedChannel.media_logo.startsWith('/') ? selectedChannel.media_logo : '/' + selectedChannel.media_logo))}
+                        src={logoPreview || selectedChannel.media_logo_url || (selectedChannel.media_logo.startsWith('http') ? selectedChannel.media_logo : BACKEND_URL + (selectedChannel.media_logo.startsWith('/') ? selectedChannel.media_logo : '/' + selectedChannel.media_logo))}
                         alt="Logo"
                         className="h-16 w-16 object-contain rounded"
                       />

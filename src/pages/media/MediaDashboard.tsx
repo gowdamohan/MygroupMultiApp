@@ -5,10 +5,12 @@ import {
   ArrowLeft, User, MapPin, Share2, Eye, Send,
   DollarSign, Megaphone, FileText, Award, Newspaper, Image, Users,
   ChevronDown, ChevronRight, Menu, X, LogOut, Wifi, Calendar, Upload, MessageCircle,
-  ToggleLeft, ToggleRight, Edit3, Tv
+  ToggleLeft, ToggleRight, Edit3, Tv, BookOpen
 } from 'lucide-react';
 import { DocumentUpload } from './DocumentUpload';
 import { TimeTable } from './TimeTable';
+import { MagazineUpload } from './MagazineUpload';
+import { EPaperUpload } from './EPaperUpload';
 import {
   SocialMediaSection,
   ViewSection,
@@ -41,6 +43,10 @@ interface ChannelInfo {
   id: number;
   app_id?: number;
   category_id?: number;
+  parent_category_id?: number;
+  media_type?: string;
+  periodical_type?: string;
+  periodical_schedule?: any;
   media_name_english: string;
   media_name_regional: string | null;
   media_logo: string | null;
@@ -48,6 +54,16 @@ interface ChannelInfo {
   status?: string;
   is_active?: number;
   isActive?: boolean;
+  category?: {
+    id: number;
+    category_name: string;
+    category_type?: string;
+  };
+  parentCategory?: {
+    id: number;
+    category_name: string;
+    category_type?: string;
+  };
 }
 
 interface MainCategory {
@@ -523,6 +539,24 @@ export const MediaDashboard: React.FC = () => {
     { id: 'gallery', label: 'Gallery', icon: Image, path: `/media/dashboard/${channelId}/gallery` },
     { id: 'team', label: 'Team', icon: Users, path: `/media/dashboard/${channelId}/team` },
     { id: 'timetable', label: 'Time Table', icon: Calendar, path: `/media/dashboard/${channelId}/timetable` },
+    // Conditional Magazine menu item
+    ...((channelInfo?.parentCategory?.category_name?.toLowerCase().includes('magazine') ||
+         channelInfo?.category?.category_type === 'Magazines') ? [{
+      id: 'magazine',
+      label: 'Magazine',
+      icon: BookOpen,
+      path: `/media/dashboard/${channelId}/magazine`
+    }] : []),
+    // Conditional E-Papers menu item
+    ...((channelInfo?.parentCategory?.category_name?.toLowerCase().includes('e-paper') ||
+         channelInfo?.parentCategory?.category_name?.toLowerCase().includes('epaper') ||
+         channelInfo?.category?.category_name?.toLowerCase().includes('e-paper') ||
+         channelInfo?.category?.category_name?.toLowerCase().includes('epaper')) ? [{
+      id: 'e-papers',
+      label: 'E-Papers',
+      icon: Newspaper,
+      path: `/media/dashboard/${channelId}/e-papers`
+    }] : []),
     // Dynamic upload categories
     ...(uploadMenuItems.length > 0 ? [{
       id: 'upload-section',
@@ -628,6 +662,26 @@ export const MediaDashboard: React.FC = () => {
     if (path.includes('/gallery')) return <GallerySection />;
     if (path.includes('/team')) return <TeamSection />;
     if (path.includes('/timetable')) return <TimeTable />;
+    if (path.includes('/magazine') && channelId && channelInfo?.category_id) {
+      return (
+        <MagazineUpload
+          channelId={parseInt(channelId)}
+          categoryId={channelInfo.category_id}
+          periodicalType={channelInfo.periodical_type}
+          periodicalSchedule={channelInfo.periodical_schedule}
+          onBack={() => navigate(`/media/dashboard/${channelId}`)}
+        />
+      );
+    }
+    if (path.includes('/e-papers') && channelId && channelInfo?.category_id) {
+      return (
+        <EPaperUpload
+          channelId={parseInt(channelId)}
+          categoryId={channelInfo.category_id}
+          onBack={() => navigate(`/media/dashboard/${channelId}`)}
+        />
+      );
+    }
 
     // Render header ad with carousel support
     const renderHeaderAd = (ads: HeaderAd[], currentIndex: number, defaultBg: string) => {
@@ -1149,8 +1203,8 @@ export const MediaDashboard: React.FC = () => {
               <div className="flex items-center gap-3">
                 <span className="text-sm font-medium text-gray-700">{channelInfo?.media_name_english}</span>
                 <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-teal-200 bg-white">
-                  {channelInfo?.media_logo ? (
-                    <img src={`${BACKEND_URL}${channelInfo.media_logo}`} alt="Channel" className="w-full h-full object-cover" />
+                  {(channelInfo?.media_logo_url || channelInfo?.media_logo) ? (
+                    <img src={channelInfo.media_logo_url || `${BACKEND_URL}${channelInfo.media_logo}`} alt="Channel" className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full bg-gradient-to-br from-teal-400 to-cyan-500 flex items-center justify-center"><Wifi className="text-white" size={16} /></div>
                   )}

@@ -24,6 +24,22 @@ import {
   HeaderAdsManagement,
   CompanyAdsManagement
 } from '../models/index.js';
+import { getSignedReadUrl } from '../services/wasabiService.js';
+
+/**
+ * Helper: Generate signed URL for a media_logo stored in Wasabi
+ */
+const getMediaLogoUrl = async (mediaLogo) => {
+  if (!mediaLogo) return null;
+  if (mediaLogo.startsWith('/')) return mediaLogo; // local path
+  try {
+    const signed = await getSignedReadUrl(mediaLogo, 3600);
+    if (signed.success) return signed.signedUrl;
+  } catch (e) {
+    console.error('Signed URL for media_logo failed:', e);
+  }
+  return null;
+};
 
 /**
  * MYMEDIA CONTROLLER
@@ -256,7 +272,7 @@ export const getMyMediaLanguages = async (req, res) => {
  */
 export const getMyMediaChannels = async (req, res) => {
   try {
-    const { type, country_id, state_id, district_id, category_id, language_id } = req.query;
+    const { type, country_id, state_id, district_id, category_id, parent_category_id, language_id } = req.query;
 
     // Find MyMedia app by name (e.g. "mymedia", "MyMedia")
     const app = await GroupCreate.findOne({
@@ -282,6 +298,7 @@ export const getMyMediaChannels = async (req, res) => {
     if (state_id) whereClause.state_id = parseInt(state_id, 10);
     if (district_id) whereClause.district_id = parseInt(district_id, 10);
     if (category_id) whereClause.category_id = parseInt(category_id, 10);
+    if (parent_category_id) whereClause.parent_category_id = parseInt(parent_category_id, 10);
     if (language_id) whereClause.language_id = parseInt(language_id, 10);
 
     const channels = await MediaChannel.findAll({
@@ -310,9 +327,16 @@ export const getMyMediaChannels = async (req, res) => {
       console.log('[mymedia/channels]', { appId: app.id, whereClause, count: channels.length });
     }
 
+    // Add signed URLs for Wasabi-stored media logos
+    const channelsWithUrls = await Promise.all(channels.map(async (channel) => {
+      const json = channel.toJSON();
+      const mediaLogoUrl = await getMediaLogoUrl(json.media_logo);
+      return { ...json, media_logo_url: mediaLogoUrl || json.media_logo };
+    }));
+
     res.json({
       success: true,
-      data: channels
+      data: channelsWithUrls
     });
   } catch (error) {
     console.error('Error fetching media channels:', error);
@@ -494,10 +518,17 @@ export const getChannelsByCategory = async (req, res) => {
       offset
     });
 
+    // Add signed URLs for Wasabi-stored media logos
+    const channelsWithUrls = await Promise.all(channels.map(async (channel) => {
+      const json = channel.toJSON();
+      const mediaLogoUrl = await getMediaLogoUrl(json.media_logo);
+      return { ...json, media_logo_url: mediaLogoUrl || json.media_logo };
+    }));
+
     res.json({
       success: true,
       data: {
-        channels,
+        channels: channelsWithUrls,
         pagination: {
           total: count,
           page: parseInt(page),
@@ -553,10 +584,15 @@ export const getChannelDetails = async (req, res) => {
       offlineMedia = await MediaOfflineMedia.findByPk(switcher.offline_media_id);
     }
 
+    // Add signed URL for Wasabi-stored media logo
+    const channelJson = channel.toJSON();
+    const mediaLogoUrl = await getMediaLogoUrl(channelJson.media_logo);
+    channelJson.media_logo_url = mediaLogoUrl || channelJson.media_logo;
+
     res.json({
       success: true,
       data: {
-        channel: channel.toJSON(),
+        channel: channelJson,
         socialLinks,
         awards,
         newsletters,

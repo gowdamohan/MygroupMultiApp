@@ -7,6 +7,7 @@ import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
 interface MediaChannel {
   id: number;
   media_logo: string | null;
+  media_logo_url?: string | null;
   media_name_english: string;
   media_name_regional: string | null;
   followers: number;
@@ -440,9 +441,9 @@ export const MyChannelList: React.FC = () => {
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{index + 1}</td>
                     <td className="px-4 py-4 whitespace-nowrap">
                       <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center">
-                        {channel.media_logo ? (
+                        {(channel.media_logo_url || channel.media_logo) ? (
                           <img
-                            src={`${BACKEND_URL}${channel.media_logo}`}
+                            src={channel.media_logo_url || (channel.media_logo?.startsWith('http') ? channel.media_logo : `${BACKEND_URL}${channel.media_logo}`)}
                             alt={channel.media_name_english}
                             className="w-full h-full object-cover"
                           />

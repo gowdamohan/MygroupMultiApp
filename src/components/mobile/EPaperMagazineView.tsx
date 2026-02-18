@@ -121,7 +121,7 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
           </button>
           <div className="flex-1 flex items-center gap-3" onClick={onViewDetails}>
             {channelLogo ? (
-              <img src={`${BACKEND_URL}${channelLogo}`} alt={channelName} className="w-10 h-10 rounded-lg object-contain bg-white" />
+              <img src={channelLogo.startsWith('http') ? channelLogo : `${BACKEND_URL}${channelLogo}`} alt={channelName} className="w-10 h-10 rounded-lg object-contain bg-white" />
             ) : (
               <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center text-lg font-bold">{channelName?.charAt(0)}</div>
             )}

@@ -54,7 +54,7 @@ interface SubCategory {
 }
 
 type SelectType = 'International' | 'National' | 'Regional' | 'Local';
-type PeriodicalType = 'Weekly' | 'Fortnightly' | 'Monthly' | 'Quarterly' | 'Half-yearly' | 'Yearly';
+type PeriodicalType = 'Weekly' | 'Bi-weekly' | 'Fortnightly' | 'Monthly' | 'Bimonthly' | 'Quarterly' | 'Half-yearly' | 'Annually' | 'Yearly' | 'Specialized' | 'Seasonal' | 'Others';
 
 const weekDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const months = [
@@ -255,15 +255,12 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
       const submitData = new FormData();
 
       submitData.append('app_id', appId.toString());
-      // If sub-category selected, use it as category_id, otherwise use parent category
+      // category_id = main category (parent_id IS NULL), parent_category_id = sub-category (parent_id IS NOT NULL)
       if (selectedSubCategoryId) {
-        submitData.append('category_id', selectedSubCategoryId);
-        submitData.append('parent_category_id', category.id.toString());
+        submitData.append('category_id', category.id.toString());
+        submitData.append('parent_category_id', selectedSubCategoryId);
       } else {
         submitData.append('category_id', category.id.toString());
-        if (parentCategory) {
-          submitData.append('parent_category_id', parentCategory.id.toString());
-        }
       }
       submitData.append('media_type', category.category_name);
       submitData.append('select_type', selectType);
@@ -283,7 +280,7 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
       }
 
       // Add periodical data for Magazine category_type
-      if ((category.category_type === 'magazine' || category.category_name.toLowerCase() === 'magazine') && formData.periodicalType) {
+      if ((category.category_type === 'Magazines' || category.category_name.toLowerCase().includes('magazine')) && formData.periodicalType) {
         submitData.append('periodical_type', formData.periodicalType);
         submitData.append('periodical_schedule', JSON.stringify(formData.periodicalSchedule));
       }
@@ -337,6 +334,7 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
           </div>
         );
 
+      case 'Bi-weekly':
       case 'Fortnightly':
         return (
           <div>
@@ -390,6 +388,31 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
           </div>
         );
 
+      case 'Bimonthly':
+        return (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Select 6 Months (Bimonthly)
+            </label>
+            <div className="grid grid-cols-2 gap-4">
+              {[1, 2, 3, 4, 5, 6].map((num) => (
+                <select
+                  key={num}
+                  value={formData.periodicalSchedule[`month${num}`] || ''}
+                  onChange={(e) => handlePeriodicalScheduleChange(`month${num}`, e.target.value)}
+                  required
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                >
+                  <option value="">Issue {num}</option>
+                  {months.map((month) => (
+                    <option key={month} value={month}>{month}</option>
+                  ))}
+                </select>
+              ))}
+            </div>
+          </div>
+        );
+
       case 'Quarterly':
         return (
           <div>
@@ -440,6 +463,7 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
           </div>
         );
 
+      case 'Annually':
       case 'Yearly':
         return (
           <div>
@@ -457,6 +481,52 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
                 <option key={month} value={month}>{month}</option>
               ))}
             </select>
+          </div>
+        );
+
+      case 'Specialized':
+      case 'Seasonal':
+        return (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Select Months of Publication
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {months.map((month) => (
+                <label key={month} className="flex items-center gap-2 p-2 border rounded-lg hover:bg-gray-50 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={(formData.periodicalSchedule.months || []).includes(month)}
+                    onChange={(e) => {
+                      const currentMonths = formData.periodicalSchedule.months || [];
+                      const updatedMonths = e.target.checked
+                        ? [...currentMonths, month]
+                        : currentMonths.filter((m: string) => m !== month);
+                      handlePeriodicalScheduleChange('months', updatedMonths);
+                    }}
+                    className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  />
+                  <span className="text-sm">{month}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        );
+
+      case 'Others':
+        return (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Describe Publication Schedule
+            </label>
+            <textarea
+              value={formData.periodicalSchedule.description || ''}
+              onChange={(e) => handlePeriodicalScheduleChange('description', e.target.value)}
+              required
+              rows={3}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              placeholder="Describe your publication schedule..."
+            />
           </div>
         );
 
@@ -729,8 +799,8 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
             </div>
           </div>
 
-          {/* Periodicals (for Magazine category_type) */}
-          {(category.category_type === 'magazine' || category.category_name.toLowerCase() === 'magazine') && (
+          {/* Periodicals (for Magazines category_type) */}
+          {(category.category_type === 'Magazines' || category.category_name.toLowerCase() === 'magazines') && (
             <>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -750,11 +820,14 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
                 >
                   <option value="">Select periodical type</option>
                   <option value="Weekly">Weekly</option>
-                  <option value="Fortnightly">Fortnightly</option>
+                  <option value="Bi-weekly">Bi-weekly / Fortnightly</option>
                   <option value="Monthly">Monthly</option>
+                  <option value="Bimonthly">Bimonthly</option>
                   <option value="Quarterly">Quarterly</option>
                   <option value="Half-yearly">Half-yearly</option>
-                  <option value="Yearly">Yearly</option>
+                  <option value="Annually">Annually / Yearly</option>
+                  <option value="Specialized">Specialized / Seasonal</option>
+                  <option value="Others">Others</option>
                 </select>
               </div>
 

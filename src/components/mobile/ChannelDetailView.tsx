@@ -135,8 +135,8 @@ export const ChannelDetailView: React.FC<ChannelDetailViewProps> = ({ channelId,
       {/* Channel Info Card */}
       <div className="bg-white shadow-sm">
         <div className="p-4 flex items-start gap-4">
-          {channel.media_logo ? (
-            <img src={`${BACKEND_URL}${channel.media_logo}`} alt={channel.media_name_english} className="w-20 h-20 rounded-lg object-contain bg-gray-100" />
+          {(channel.media_logo_url || channel.media_logo) ? (
+            <img src={channel.media_logo_url || (channel.media_logo?.startsWith('http') ? channel.media_logo : `${BACKEND_URL}${channel.media_logo}`)} alt={channel.media_name_english} className="w-20 h-20 rounded-lg object-contain bg-gray-100" />
           ) : (
             <div className="w-20 h-20 rounded-lg bg-gradient-to-br from-teal-500 to-teal-600 flex items-center justify-center text-white text-2xl font-bold">
               {channel.media_name_english?.charAt(0)}

@@ -92,7 +92,7 @@ const MediaChannel = sequelize.define('media_channel', {
     allowNull: true
   },
   periodical_type: {
-    type: DataTypes.ENUM('Weekly', 'Fortnightly', 'Monthly', 'Quarterly', 'Half-yearly', 'Yearly'),
+    type: DataTypes.ENUM('Weekly', 'Bi-weekly', 'Fortnightly', 'Monthly', 'Bimonthly', 'Quarterly', 'Half-yearly', 'Annually', 'Yearly', 'Specialized', 'Seasonal', 'Others'),
     allowNull: true
   },
   periodical_schedule: {

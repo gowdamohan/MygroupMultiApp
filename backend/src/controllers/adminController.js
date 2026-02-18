@@ -17,7 +17,7 @@ import {
   UserGroup,
   ClientRegistration
 } from '../models/index.js';
-import { uploadFile } from '../services/wasabiService.js';
+import { uploadFile, getSignedReadUrl } from '../services/wasabiService.js';
 import sharp from 'sharp';
 
 /**
@@ -2617,7 +2617,7 @@ export const getMediaChannels = async (req, res) => {
     const channels = await MediaChannel.findAll({
       where: {
         app_id: app_id,
-        parent_category_id: category_id
+        category_id: category_id
       },
       include: [
         {
@@ -2648,9 +2648,28 @@ export const getMediaChannels = async (req, res) => {
       order: [['created_at', 'DESC']]
     });
 
+    // Add signed URLs for Wasabi-stored media logos
+    const channelsWithUrls = await Promise.all(channels.map(async (ch) => {
+      const json = ch.toJSON();
+      let mediaLogoUrl = null;
+      if (json.media_logo) {
+        if (json.media_logo.startsWith('/')) {
+          mediaLogoUrl = json.media_logo;
+        } else {
+          try {
+            const signed = await getSignedReadUrl(json.media_logo, 3600);
+            if (signed.success) mediaLogoUrl = signed.signedUrl;
+          } catch (e) {
+            console.error('Signed URL for media_logo failed:', e);
+          }
+        }
+      }
+      return { ...json, media_logo_url: mediaLogoUrl || json.media_logo };
+    }));
+
     res.json({
       success: true,
-      data: channels
+      data: channelsWithUrls
     });
   } catch (error) {
     console.error('Error fetching media channels:', error);
