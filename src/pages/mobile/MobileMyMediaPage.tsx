@@ -162,7 +162,13 @@ export const MobileMyMediaPage: React.FC = () => {
   // Check if current category is E-Paper or Magazine type
   const isDocumentCategory = (): boolean => {
     const name = getCurrentParentCategoryName();
-    return name.includes('e-paper') || name.includes('epaper') || name.includes('magazine');
+    return (
+      name.includes('e-paper') ||
+      name.includes('epaper') ||
+      name.includes('e paper') ||
+      name.includes('newspaper') ||
+      name.includes('magazine')
+    );
   };
 
   // Check if current category is TV or Radio type

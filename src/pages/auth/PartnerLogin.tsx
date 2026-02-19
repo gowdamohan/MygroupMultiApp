@@ -43,11 +43,22 @@ export const PartnerLogin: React.FC = () => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [forgotTimer, setForgotTimer] = useState(0);
 
   // Fetch apps on mount and check for AppId in URL
   useEffect(() => {
     fetchApps();
   }, []);
+
+  // Timer countdown for forgot-password OTP resend
+  useEffect(() => {
+    if (forgotTimer > 0) {
+      const interval = setInterval(() => {
+        setForgotTimer(prev => prev - 1);
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [forgotTimer]);
 
   // Check for app name in URL after apps are loaded
   useEffect(() => {
@@ -143,6 +154,7 @@ export const PartnerLogin: React.FC = () => {
     setForgotOtp('');
     setNewPassword('');
     setConfirmPassword('');
+    setForgotTimer(0);
   };
 
   const handleBackToLogin = () => {
@@ -153,23 +165,32 @@ export const PartnerLogin: React.FC = () => {
     setForgotOtp('');
     setNewPassword('');
     setConfirmPassword('');
+    setForgotTimer(0);
   };
 
   // Step 1: Send OTP for forgot password
-  const handleSendForgotOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSendForgotOtp = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     setError('');
     setSubmitting(true);
+
+    if (!selectedApp?.id) {
+      setError('Please select an app first');
+      setSubmitting(false);
+      return;
+    }
 
     try {
       const response = await axios.post(`${API_BASE_URL}/auth/partner/forgot-password/send-otp`, {
         email: forgotEmail,
-        app_id: selectedApp?.id
+        app_id: selectedApp.id
       });
 
       if (response.data.success) {
         setSuccess('OTP sent to your email');
+        setForgotOtp('');
         setViewMode('forgot-otp');
+        setForgotTimer(60);
       }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to send OTP');
@@ -216,13 +237,24 @@ export const PartnerLogin: React.FC = () => {
       return;
     }
 
+    if (!forgotOtp || forgotOtp.length !== 6) {
+      setError('Please verify OTP first');
+      return;
+    }
+
+    if (!selectedApp?.id) {
+      setError('Please select an app first');
+      return;
+    }
+
     setSubmitting(true);
 
     try {
       const response = await axios.post(`${API_BASE_URL}/auth/partner/forgot-password/reset`, {
         email: forgotEmail,
+        otp: forgotOtp,
         password: newPassword,
-        app_id: selectedApp?.id
+        app_id: selectedApp.id
       });
 
       if (response.data.success) {
@@ -243,6 +275,12 @@ export const PartnerLogin: React.FC = () => {
     if (selectedApp) {
       navigate(`/partner/register?${selectedApp.name}`);
     }
+  };
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
   if (loading) {
@@ -536,6 +574,34 @@ export const PartnerLogin: React.FC = () => {
                       ) : (
                         <span>Verify OTP</span>
                       )}
+                    </button>
+
+                    <div className="text-center">
+                      {forgotTimer > 0 ? (
+                        <p className="text-sm text-gray-600">Resend Code in {formatTime(forgotTimer)}</p>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleSendForgotOtp()}
+                          className="text-sm text-blue-600 hover:text-blue-700 transition-colors"
+                        >
+                          Resend Code
+                        </button>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setViewMode('forgot-email');
+                        setForgotOtp('');
+                        setForgotTimer(0);
+                        setSuccess('');
+                        setError('');
+                      }}
+                      className="w-full text-sm text-gray-600 hover:text-gray-700 transition-colors"
+                    >
+                      Change email
                     </button>
                   </form>
                 )}

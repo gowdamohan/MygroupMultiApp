@@ -550,8 +550,12 @@ export const MediaDashboard: React.FC = () => {
     // Conditional E-Papers menu item
     ...((channelInfo?.parentCategory?.category_name?.toLowerCase().includes('e-paper') ||
          channelInfo?.parentCategory?.category_name?.toLowerCase().includes('epaper') ||
+         channelInfo?.parentCategory?.category_name?.toLowerCase().includes('e paper') ||
+         channelInfo?.parentCategory?.category_name?.toLowerCase().includes('newspaper') ||
          channelInfo?.category?.category_name?.toLowerCase().includes('e-paper') ||
-         channelInfo?.category?.category_name?.toLowerCase().includes('epaper')) ? [{
+         channelInfo?.category?.category_name?.toLowerCase().includes('epaper') ||
+         channelInfo?.category?.category_name?.toLowerCase().includes('e paper') ||
+         channelInfo?.category?.category_name?.toLowerCase().includes('newspaper')) ? [{
       id: 'e-papers',
       label: 'E-Papers',
       icon: Newspaper,
