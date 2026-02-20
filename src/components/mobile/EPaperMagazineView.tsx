@@ -49,6 +49,27 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
 
+  const normalizeUrl = (url?: string) => {
+    if (!url) return '';
+    const u = url.trim();
+    if (!u) return '';
+    if (u.startsWith('http://') || u.startsWith('https://') || u.startsWith('blob:') || u.startsWith('data:')) return u;
+    if (u.startsWith('/')) return `${BACKEND_URL}${u}`;
+    return `${BACKEND_URL}/${u}`;
+  };
+
+  const isPdfDocument = (doc: Document) => {
+    const docType = (doc.document_type || '').toLowerCase();
+    const url = (doc.file_url || '').toLowerCase();
+    return (
+      docType === 'pdf' ||
+      docType.includes('pdf') ||
+      url.endsWith('.pdf') ||
+      url.includes('.pdf?') ||
+      url.includes('.pdf#')
+    );
+  };
+
   const fetchDocuments = useCallback(async (pageNum: number, append = false) => {
     try {
       if (pageNum === 1) setLoading(true);
@@ -100,7 +121,9 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
   const years = Object.keys(groupedDocs).sort((a, b) => parseInt(b) - parseInt(a));
 
   const handleDownload = (doc: Document) => {
-    window.open(`${BACKEND_URL}${doc.file_url}`, '_blank');
+    const url = normalizeUrl(doc.file_url);
+    if (!url) return;
+    window.open(url, '_blank');
   };
 
   if (loading) {
@@ -192,7 +215,7 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
                                   >
                                     {doc.thumbnail_url ? (
                                       <img
-                                        src={`${BACKEND_URL}${doc.thumbnail_url}`}
+                                        src={normalizeUrl(doc.thumbnail_url)}
                                         alt={doc.title}
                                         className="w-full aspect-[3/4] object-cover"
                                         loading="lazy"
@@ -258,15 +281,15 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
               </button>
             </div>
             <div className="flex-1 flex items-center justify-center p-4" onClick={(e) => e.stopPropagation()}>
-              {selectedDoc.document_type === 'pdf' ? (
+              {isPdfDocument(selectedDoc) ? (
                 <iframe
-                  src={`${BACKEND_URL}${selectedDoc.file_url}`}
+                  src={normalizeUrl(selectedDoc.file_url)}
                   className="w-full h-full rounded-lg bg-white"
                   title={selectedDoc.title}
                 />
               ) : (
                 <img
-                  src={`${BACKEND_URL}${selectedDoc.file_url}`}
+                  src={normalizeUrl(selectedDoc.file_url)}
                   alt={selectedDoc.title}
                   className="max-w-full max-h-full object-contain rounded-lg"
                 />

@@ -45,15 +45,28 @@ transporter.verify((error, _success) => {
 /**
  * Send OTP email
  */
-export const sendOtpEmail = async (email, otp, appName = 'My Group') => {
+export const sendOtpEmail = async (email, otp, appName = 'My Group', purpose = 'registration') => {
   try {
+    const isPasswordReset = purpose === 'password_reset';
+    const subject = isPasswordReset
+      ? `Your OTP for ${appName} Password Reset`
+      : `Your OTP for ${appName} Registration`;
+    const headerTitle = isPasswordReset ? 'Password Reset' : 'Partner Registration';
+    const contentTitle = isPasswordReset ? 'Verification Code' : 'Email Verification';
+    const introHtml = isPasswordReset
+      ? `We received a request to reset your password for <strong>${appName}</strong>. To continue, please use the following One-Time Password (OTP):`
+      : `Thank you for registering as a partner with <strong>${appName}</strong>. To complete your registration, please use the following One-Time Password (OTP):`;
+    const introText = isPasswordReset
+      ? `We received a request to reset your password for ${appName}.`
+      : `Thank you for registering as a partner with ${appName}.`;
+
     const mailOptions = {
       from: {
         name: SMTP_FROM_NAME,
         address: SMTP_USER
       },
       to: email,
-      subject: `Your OTP for ${appName} Registration`,
+      subject,
       html: `
         <!DOCTYPE html>
         <html>
@@ -115,13 +128,13 @@ export const sendOtpEmail = async (email, otp, appName = 'My Group') => {
         <body>
           <div class="container">
             <div class="header">
-              <h1>Partner Registration</h1>
+              <h1>${headerTitle}</h1>
               <p>${appName}</p>
             </div>
             <div class="content">
-              <h2>Email Verification</h2>
+              <h2>${contentTitle}</h2>
               <p>Hello,</p>
-              <p>Thank you for registering as a partner with <strong>${appName}</strong>. To complete your registration, please use the following One-Time Password (OTP):</p>
+              <p>${introHtml}</p>
               
               <div class="otp-box">
                 <p style="margin: 0; color: #666; font-size: 14px;">Your OTP Code</p>
@@ -150,11 +163,11 @@ export const sendOtpEmail = async (email, otp, appName = 'My Group') => {
         </html>
       `,
       text: `
-        Your OTP for ${appName} Registration
+        ${subject}
         
         Hello,
         
-        Thank you for registering as a partner with ${appName}.
+        ${introText}
         
         Your OTP Code: ${otp}
         

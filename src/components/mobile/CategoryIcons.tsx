@@ -150,7 +150,7 @@ export const getCategoryIcon = (categoryName: string): React.FC<IconProps> => {
   
   if (name.includes('tv') || name.includes('television')) return TVIcon;
   if (name.includes('radio')) return RadioIcon;
-  if (name.includes('e-paper') || name.includes('epaper') || name.includes('newspaper')) return EPaperIcon;
+  if (name.includes('e-paper') || name.includes('epaper') || name.includes('e paper') || name.includes('newspaper')) return EPaperIcon;
   if (name.includes('magazine')) return MagazineIcon;
   if (name.includes('web') || name.includes('website')) return WebIcon;
   if (name.includes('youtube') || name.includes('video')) return YouTubeIcon;

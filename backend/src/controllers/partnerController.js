@@ -753,13 +753,25 @@ export const sendPartnerForgotPasswordOtp = async (req, res) => {
     });
 
     // Send OTP via email
-    await sendOtpEmail(email, otp, appName);
-    console.log(`Forgot Password OTP sent to ${email}: ${otp}`);
+    try {
+      await sendOtpEmail(email, otp, appName, 'password_reset');
+      console.log(`Forgot Password OTP sent to ${email}: ${otp}`);
 
-    res.json({
-      success: true,
-      message: 'OTP sent to your email'
-    });
+      res.json({
+        success: true,
+        message: 'OTP sent to your email',
+        ...(process.env.NODE_ENV === 'development' && { otp })
+      });
+    } catch (emailError) {
+      console.error('Email sending failed:', emailError);
+
+      // Even if email fails, we still have OTP in database for testing
+      res.json({
+        success: true,
+        message: 'OTP generated. Check console for OTP (email service may be unavailable).',
+        ...(process.env.NODE_ENV === 'development' && { otp })
+      });
+    }
   } catch (error) {
     console.error('Send forgot password OTP error:', error);
     res.status(500).json({
@@ -818,24 +830,24 @@ export const verifyPartnerForgotPasswordOtp = async (req, res) => {
  */
 export const resetPartnerPassword = async (req, res) => {
   try {
-    const { email, password, app_id } = req.body;
+    const { email, otp, password, app_id } = req.body;
 
-    if (!email || !password || !app_id) {
+    if (!email || !otp || !password || !app_id) {
       return res.status(400).json({
         success: false,
-        message: 'Email, password, and app_id are required'
+        message: 'Email, OTP, password, and app_id are required'
       });
     }
 
-    // Verify OTP was validated (check if OTP exists for this email)
+    // Verify OTP (must match the latest OTP stored for this email)
     const otpRecord = await ClientRegisterOtp.findOne({
-      where: { email_id: email }
+      where: { email_id: email, otp: otp }
     });
 
     if (!otpRecord) {
       return res.status(400).json({
         success: false,
-        message: 'Please verify OTP first'
+        message: 'Invalid OTP'
       });
     }
 

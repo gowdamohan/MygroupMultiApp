@@ -131,8 +131,10 @@ export const MobileAppPage: React.FC = () => {
     }
   };
 
-  // If appName is 'mymedia', render MobileMyMediaPage
-  if (appName === 'mymedia') {
+  const normalizedAppName = (appName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  // If appName is 'mymedia' (any case/format), render MobileMyMediaPage
+  if (normalizedAppName === 'mymedia') {
     return <MobileMyMediaPage />;
   }
 
