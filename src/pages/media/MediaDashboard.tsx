@@ -540,7 +540,7 @@ export const MediaDashboard: React.FC = () => {
     { id: 'team', label: 'Team', icon: Users, path: `/media/dashboard/${channelId}/team` },
     { id: 'timetable', label: 'Time Table', icon: Calendar, path: `/media/dashboard/${channelId}/timetable` },
     // Conditional Magazine menu item
-    ...((channelInfo?.parentCategory?.category_name?.toLowerCase().includes('magazine') ||
+    ...((channelInfo?.category?.category_name?.toLowerCase().includes('magazine') ||
          channelInfo?.category?.category_type === 'Magazines') ? [{
       id: 'magazine',
       label: 'Magazine',
@@ -548,8 +548,8 @@ export const MediaDashboard: React.FC = () => {
       path: `/media/dashboard/${channelId}/magazine`
     }] : []),
     // Conditional E-Papers menu item
-    ...((channelInfo?.parentCategory?.category_name?.toLowerCase().includes('e-paper') ||
-         channelInfo?.parentCategory?.category_name?.toLowerCase().includes('epaper') ||
+    ...((channelInfo?.category?.category_name?.toLowerCase().includes('e-paper') ||
+         channelInfo?.category?.category_name?.toLowerCase().includes('epaper') ||
          channelInfo?.category?.category_name?.toLowerCase().includes('e-paper') ||
          channelInfo?.category?.category_name?.toLowerCase().includes('epaper')) ? [{
       id: 'e-papers',
@@ -1104,54 +1104,6 @@ export const MediaDashboard: React.FC = () => {
           {sidebarOpen && mainCategories.length > 0 && (
             <div className="px-3 py-2 border-b border-teal-700">
               <p className="text-xs font-semibold text-teal-300 uppercase tracking-wider mb-2">My Channels</p>
-              <div className="space-y-1">
-                {mainCategories.map((cat) => {
-                  const channelsInCategory = allChannels.filter((c: any) => c.category_id === cat.id);
-                  if (channelsInCategory.length === 0) return null;
-                  const isExpanded = categoriesExpanded[cat.id] !== false;
-                  return (
-                    <div key={cat.id} className="rounded-lg overflow-hidden">
-                      <button
-                        onClick={() => setCategoriesExpanded(prev => ({ ...prev, [cat.id]: !isExpanded }))}
-                        className="w-full flex items-center justify-between px-2 py-1.5 text-teal-200 hover:bg-teal-700 rounded text-left text-sm"
-                      >
-                        <span className="font-medium">{cat.category_name}</span>
-                        {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                      </button>
-                      {isExpanded && (
-                        <div className="ml-2 mt-1 space-y-1 border-l border-teal-600 pl-2">
-                          {channelsInCategory.map((ch: any) => (
-                            <div key={ch.id} className="flex items-center gap-1 py-1">
-                              <button
-                                onClick={() => navigate(`/media/dashboard/${ch.id}`)}
-                                className={`flex-1 min-w-0 text-left text-xs truncate py-1 px-2 rounded ${ch.id === parseInt(channelId || '0') ? 'bg-teal-600 text-white' : 'text-teal-200 hover:bg-teal-700'}`}
-                                title={ch.media_name_english}
-                              >
-                                {ch.media_name_english}
-                              </button>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handleChannelStatusToggle(ch); }}
-                                disabled={channelToggleLoading === ch.id}
-                                className={`p-1 rounded ${ch.isActive ?? ch.is_active === 1 ? 'text-green-400' : 'text-gray-400'}`}
-                                title={ch.isActive ?? ch.is_active === 1 ? 'Active' : 'Inactive'}
-                              >
-                                {channelToggleLoading === ch.id ? <span className="animate-spin block w-4 h-4 border border-current border-t-transparent rounded-full" /> : (ch.isActive ?? ch.is_active === 1 ? <ToggleRight size={14} /> : <ToggleLeft size={14} />)}
-                              </button>
-                              <button
-                                onClick={() => navigate('/partner/my-channel-list')}
-                                className="p-1 text-teal-300 hover:text-white rounded"
-                                title="Edit channel"
-                              >
-                                <Edit3 size={14} />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
             </div>
           )}
           <div className="flex-1 overflow-y-auto py-4 px-3"><nav className="space-y-1">{menuItems.map(item => renderMenuItem(item))}</nav></div>
