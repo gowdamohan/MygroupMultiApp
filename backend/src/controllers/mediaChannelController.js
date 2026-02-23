@@ -279,23 +279,30 @@ export const createMediaChannel = async (req, res) => {
       media_name_english,
       media_name_regional,
       periodical_type,
-      periodical_schedule
+      periodical_schedule,
+      distribution_districts
     } = req.body;
 
-    // Validate required fields
-    if (!app_id || !category_id || !select_type || !media_name_english) {
-      return res.status(400).json({
-        success: false,
-        message: 'Missing required fields'
-      });
-    }
-
-    // Get category details
+    // Get category details first to determine if Magazine/E-Paper
     const category = await AppCategory.findByPk(category_id);
     if (!category) {
       return res.status(404).json({
         success: false,
         message: 'Category not found'
+      });
+    }
+
+    // Check if category is Magazine or E-Paper (select_type not required for these)
+    const isMagazineOrEPaper = category.category_name &&
+      (category.category_name.toLowerCase().includes('magazine') ||
+       category.category_name.toLowerCase().includes('e-paper') ||
+       category.category_name.toLowerCase().includes('epaper'));
+
+    // Validate required fields - select_type not required for Magazine/E-Paper
+    if (!app_id || !category_id || !media_name_english || (!isMagazineOrEPaper && !select_type)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields'
       });
     }
 
@@ -361,6 +368,18 @@ export const createMediaChannel = async (req, res) => {
       }
     }
 
+    // Parse distribution_districts if provided
+    let parsedDistributionDistricts = null;
+    if (distribution_districts) {
+      try {
+        parsedDistributionDistricts = typeof distribution_districts === 'string'
+          ? JSON.parse(distribution_districts)
+          : distribution_districts;
+      } catch (e) {
+        console.error('Error parsing distribution_districts:', e);
+      }
+    }
+
     // Create media channel record
     const mediaChannel = await MediaChannel.create({
       user_id: userId,
@@ -368,7 +387,7 @@ export const createMediaChannel = async (req, res) => {
       category_id,
       parent_category_id: parent_category_id || null,
       media_type: category.category_name,
-      select_type,
+      select_type: isMagazineOrEPaper ? null : select_type,
       country_id: country_id || null,
       state_id: state_id || null,
       district_id: district_id || null,
@@ -378,6 +397,7 @@ export const createMediaChannel = async (req, res) => {
       media_logo: mediaLogoPath,
       periodical_type: periodical_type || null,
       periodical_schedule: periodical_schedule ? JSON.parse(periodical_schedule) : null,
+      distribution_districts: parsedDistributionDistricts,
       status: 'pending'
     });
 

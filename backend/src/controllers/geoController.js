@@ -6,7 +6,7 @@ import { Country, State, District, Education, Profession } from '../models/index
 export const getCountries = async (req, res) => {
   try {
     const countries = await Country.findAll({
-      attributes: ['id', 'country', 'code', 'country_flag', 'phone_code'],
+      attributes: ['id', 'country', 'code', 'country_flag', 'phone_code', 'locking_json'],
       order: [['country', 'ASC']]
     });
 

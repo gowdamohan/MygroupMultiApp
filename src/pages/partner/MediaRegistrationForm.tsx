@@ -22,6 +22,7 @@ interface MediaRegistrationFormProps {
 interface Country {
   id: number;
   country: string;
+  locking_json?: { lockStates?: boolean; lockDistricts?: boolean } | null;
 }
 
 interface State {
@@ -71,6 +72,12 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  // Check if category is Magazine or E-Paper
+  const isMagazineOrEPaper =
+    category.category_name.toLowerCase().includes('magazine') ||
+    category.category_name.toLowerCase().includes('e-paper') ||
+    category.category_name.toLowerCase().includes('epaper');
+
   // Form data
   const [selectType, setSelectType] = useState<SelectType>('National');
   const [countries, setCountries] = useState<Country[]>([]);
@@ -80,6 +87,8 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
   const [parentCategory, setParentCategory] = useState<ParentCategory | null>(null);
   const [subCategories, setSubCategories] = useState<SubCategory[]>([]);
   const [selectedSubCategoryId, setSelectedSubCategoryId] = useState<string>('');
+  const [selectedCountryLocking, setSelectedCountryLocking] = useState<{ lockStates?: boolean; lockDistricts?: boolean } | null>(null);
+  const [distributionDistricts, setDistributionDistricts] = useState<number[]>([]);
 
   const [formData, setFormData] = useState({
     countryId: '',
@@ -107,23 +116,43 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
     fetchCountries();
   }, []);
 
-  // Fetch states only for Regional/Local when country is selected
+  // Fetch states when country is selected
   useEffect(() => {
-    if ((selectType === 'Regional' || selectType === 'Local') && formData.countryId) {
-      fetchStates(parseInt(formData.countryId));
+    if (isMagazineOrEPaper) {
+      // Magazine/E-Paper: fetch states if country selected and states not locked
+      if (formData.countryId && !selectedCountryLocking?.lockStates) {
+        fetchStates(parseInt(formData.countryId));
+      } else {
+        setStates([]);
+      }
     } else {
-      setStates([]);
+      // Other media: use selectType logic
+      if ((selectType === 'Regional' || selectType === 'Local') && formData.countryId) {
+        fetchStates(parseInt(formData.countryId));
+      } else {
+        setStates([]);
+      }
     }
-  }, [selectType, formData.countryId]);
+  }, [isMagazineOrEPaper, selectType, formData.countryId, selectedCountryLocking]);
 
-  // Fetch districts only for Local when state is selected
+  // Fetch districts when state is selected
   useEffect(() => {
-    if (selectType === 'Local' && formData.stateId) {
-      fetchDistricts(parseInt(formData.stateId));
+    if (isMagazineOrEPaper) {
+      // Magazine/E-Paper: fetch districts if state selected and districts not locked
+      if (formData.stateId && !selectedCountryLocking?.lockDistricts) {
+        fetchDistricts(parseInt(formData.stateId));
+      } else {
+        setDistricts([]);
+      }
     } else {
-      setDistricts([]);
+      // Other media: use selectType logic
+      if (selectType === 'Local' && formData.stateId) {
+        fetchDistricts(parseInt(formData.stateId));
+      } else {
+        setDistricts([]);
+      }
     }
-  }, [selectType, formData.stateId]);
+  }, [isMagazineOrEPaper, selectType, formData.stateId, selectedCountryLocking]);
 
   const fetchCountries = async () => {
     try {
@@ -263,7 +292,11 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
         submitData.append('category_id', category.id.toString());
       }
       submitData.append('media_type', category.category_name);
-      submitData.append('select_type', selectType);
+
+      // Only send select_type for non-Magazine/E-Paper categories
+      if (!isMagazineOrEPaper) {
+        submitData.append('select_type', selectType);
+      }
 
       if (formData.countryId) submitData.append('country_id', formData.countryId);
       if (formData.stateId) submitData.append('state_id', formData.stateId);
@@ -283,6 +316,11 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
       if ((category.category_type === 'Magazines' || category.category_name.toLowerCase().includes('magazine')) && formData.periodicalType) {
         submitData.append('periodical_type', formData.periodicalType);
         submitData.append('periodical_schedule', JSON.stringify(formData.periodicalSchedule));
+      }
+
+      // Add distribution districts for Magazine/E-Paper
+      if (isMagazineOrEPaper && distributionDistricts.length > 0) {
+        submitData.append('distribution_districts', JSON.stringify(distributionDistricts));
       }
 
       const response = await axios.post(
@@ -621,37 +659,45 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
             </div>
           )}
 
-          {/* Select Type */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Select Type <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={selectType}
-              onChange={(e) => {
-                setSelectType(e.target.value as SelectType);
-                setFormData({ ...formData, countryId: '', stateId: '', districtId: '' });
-              }}
-              required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            >
-              <option value="International">International</option>
-              <option value="National">National</option>
-              <option value="Regional">Regional</option>
-              <option value="Local">Local</option>
-            </select>
-          </div>
+          {/* Select Type - Hidden for Magazine/E-Paper */}
+          {!isMagazineOrEPaper && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Type <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={selectType}
+                onChange={(e) => {
+                  setSelectType(e.target.value as SelectType);
+                  setFormData({ ...formData, countryId: '', stateId: '', districtId: '' });
+                }}
+                required
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              >
+                <option value="International">International</option>
+                <option value="National">National</option>
+                <option value="Regional">Regional</option>
+                <option value="Local">Local</option>
+              </select>
+            </div>
+          )}
 
-          {/* Location: International = hidden; National = country only; Regional = country + state; Local = all */}
-          {selectType !== 'International' && (
+          {/* Location Fields */}
+          {isMagazineOrEPaper ? (
             <>
+              {/* Magazine/E-Paper: Location based on locking_json */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Country <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={formData.countryId}
-                  onChange={(e) => setFormData({ ...formData, countryId: e.target.value, stateId: '', districtId: '' })}
+                  onChange={(e) => {
+                    const selectedCountry = countries.find(c => c.id === parseInt(e.target.value));
+                    setSelectedCountryLocking(selectedCountry?.locking_json || null);
+                    setFormData({ ...formData, countryId: e.target.value, stateId: '', districtId: '' });
+                    setDistributionDistricts([]);
+                  }}
                   required
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 >
@@ -662,14 +708,18 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
                 </select>
               </div>
 
-              {(selectType === 'Regional' || selectType === 'Local') && (
+              {/* State - Show if not locked */}
+              {!selectedCountryLocking?.lockStates && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     State <span className="text-red-500">*</span>
                   </label>
                   <select
                     value={formData.stateId}
-                    onChange={(e) => setFormData({ ...formData, stateId: e.target.value, districtId: '' })}
+                    onChange={(e) => {
+                      setFormData({ ...formData, stateId: e.target.value, districtId: '' });
+                      setDistributionDistricts([]);
+                    }}
                     required
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   >
@@ -681,15 +731,15 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
                 </div>
               )}
 
-              {selectType === 'Local' && (
+              {/* District - Show if not locked */}
+              {!selectedCountryLocking?.lockDistricts && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    District <span className="text-red-500">*</span>
+                    District
                   </label>
                   <select
                     value={formData.districtId}
                     onChange={(e) => setFormData({ ...formData, districtId: e.target.value })}
-                    required
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   >
                     <option value="">Select a district</option>
@@ -698,6 +748,68 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
                     ))}
                   </select>
                 </div>
+              )}
+            </>
+          ) : (
+            <>
+              {/* Other media types: Location based on selectType */}
+              {selectType !== 'International' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Country <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={formData.countryId}
+                      onChange={(e) => setFormData({ ...formData, countryId: e.target.value, stateId: '', districtId: '' })}
+                      required
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    >
+                      <option value="">Select a country</option>
+                      {countries.map((country) => (
+                        <option key={country.id} value={country.id}>{country.country}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {(selectType === 'Regional' || selectType === 'Local') && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        State <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        value={formData.stateId}
+                        onChange={(e) => setFormData({ ...formData, stateId: e.target.value, districtId: '' })}
+                        required
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      >
+                        <option value="">Select a state</option>
+                        {states.map((state) => (
+                          <option key={state.id} value={state.id}>{state.state}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {selectType === 'Local' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        District <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        value={formData.districtId}
+                        onChange={(e) => setFormData({ ...formData, districtId: e.target.value })}
+                        required
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      >
+                        <option value="">Select a district</option>
+                        {districts.map((district) => (
+                          <option key={district.id} value={district.id}>{district.district}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </>
               )}
             </>
           )}
@@ -833,6 +945,59 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
 
               {renderPeriodicalSchedule()}
             </>
+          )}
+
+          {/* Distribution (Circulation) - Only for Magazine/E-Paper */}
+          {isMagazineOrEPaper && !selectedCountryLocking?.lockDistricts && districts.length > 0 && (
+            <div className="border-t pt-6 mt-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Distribution (Circulation)</h3>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Distribution Districts
+                </label>
+                <div className="border border-gray-300 rounded-lg p-4 max-h-60 overflow-y-auto">
+                  <div className="flex justify-between items-center mb-3">
+                    <span className="text-xs text-gray-500">
+                      {distributionDistricts.length} district(s) selected
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (distributionDistricts.length === districts.length) {
+                          setDistributionDistricts([]);
+                        } else {
+                          setDistributionDistricts(districts.map(d => d.id));
+                        }
+                      }}
+                      className="text-xs text-primary-600 hover:text-primary-700 font-medium"
+                    >
+                      {distributionDistricts.length === districts.length ? 'Deselect All' : 'Select All'}
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {districts.map((district) => (
+                      <label key={district.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={distributionDistricts.includes(district.id)}
+                          onChange={(e) => {
+                            const updated = e.target.checked
+                              ? [...distributionDistricts, district.id]
+                              : distributionDistricts.filter(id => id !== district.id);
+                            setDistributionDistricts(updated);
+                          }}
+                          className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                        />
+                        <span className="text-sm">{district.district}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Select all districts where this publication is distributed
+                </p>
+              </div>
+            </div>
           )}
 
           {/* Submit Button */}

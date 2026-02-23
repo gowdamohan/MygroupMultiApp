@@ -45,7 +45,7 @@ const MediaChannel = sequelize.define('media_channel', {
   },
   select_type: {
     type: DataTypes.ENUM('International', 'National', 'Regional', 'Local'),
-    allowNull: false
+    allowNull: true
   },
   country_id: {
     type: DataTypes.INTEGER,
@@ -98,6 +98,11 @@ const MediaChannel = sequelize.define('media_channel', {
   periodical_schedule: {
     type: DataTypes.JSON,
     allowNull: true
+  },
+  distribution_districts: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    comment: 'Array of district IDs for Magazine/E-Paper distribution circulation'
   },
   status: {
     type: DataTypes.ENUM('pending', 'active', 'inactive', 'rejected'),
