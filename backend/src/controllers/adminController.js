@@ -1971,6 +1971,7 @@ export const getAppsForAdminLogin = async (req, res) => {
         appsWithUsers.push({
           id: app.id,
           name: app.name,
+          apps_name: app.apps_name || null,
           logo: app.details?.logo || null,
           user_count: userCount
         });
@@ -2396,15 +2397,27 @@ export const updatePartnerStatus = async (req, res) => {
     const { appId, partnerId } = req.params;
     const { active } = req.body;
 
-    // Find the partner
+    // Find the partner user by ID
     const partner = await User.findOne({
-      where: { id: partnerId, group_id: appId }
+      where: { id: partnerId }
     });
 
     if (!partner) {
       return res.status(404).json({
         success: false,
         message: 'Partner not found'
+      });
+    }
+
+    // Verify the partner belongs to this app via client_registration
+    const clientReg = await ClientRegistration.findOne({
+      where: { user_id: partnerId, group_id: appId }
+    });
+
+    if (!clientReg) {
+      return res.status(404).json({
+        success: false,
+        message: 'Partner not found for this app'
       });
     }
 
@@ -2442,15 +2455,27 @@ export const updatePartnerDetails = async (req, res) => {
     const { appId, partnerId } = req.params;
     const { email, custom_form_data } = req.body;
 
-    // Find the partner user
+    // Find the partner user by ID
     const partner = await User.findOne({
-      where: { id: partnerId, group_id: appId }
+      where: { id: partnerId }
     });
 
     if (!partner) {
       return res.status(404).json({
         success: false,
         message: 'Partner not found'
+      });
+    }
+
+    // Verify the partner belongs to this app via client_registration
+    const appClientReg = await ClientRegistration.findOne({
+      where: { user_id: partnerId, group_id: appId }
+    });
+
+    if (!appClientReg) {
+      return res.status(404).json({
+        success: false,
+        message: 'Partner not found for this app'
       });
     }
 
@@ -2493,7 +2518,7 @@ export const updatePartnerDetails = async (req, res) => {
 
     // Fetch updated data
     const updatedPartner = await User.findOne({
-      where: { id: partnerId, group_id: appId },
+      where: { id: partnerId },
       include: [{
         model: ClientRegistration,
         as: 'clientRegistration',

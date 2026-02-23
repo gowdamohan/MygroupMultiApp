@@ -6,6 +6,7 @@ import {
   GroupCreate,
   CreateDetails,
   UserRegistration,
+  ClientRegistration,
   Country,
   State,
   District,
@@ -640,13 +641,27 @@ export const clientLogin = async (req, res) => {
 
 /**
  * Partner Login
+ * Supports app-wise authentication: if app_id is provided, verifies the partner belongs to that app
  */
 export const partnerLogin = async (req, res) => {
   try {
-    const { identity, password, remember } = req.body;
+    const { identity, password, remember, app_id } = req.body;
+
+    if (!app_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'App ID is required'
+      });
+    }
+
+    // Find user by email or username AND group_id (app_id) to get the correct user record for the specific app
+    const whereClause = {
+      [Op.or]: [{ email: identity }, { username: identity }],
+      group_id: app_id
+    };
 
     const user = await User.findOne({
-      where: { [Op.or]: [{ email: identity }, { username: identity }] },
+      where: whereClause,
       include: [
         {
           model: Group,

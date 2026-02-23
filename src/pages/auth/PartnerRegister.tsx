@@ -275,6 +275,7 @@ export const PartnerRegister: React.FC = () => {
 
       if (response.data.success) {
         setSuccess('Email verified successfully!');
+        // Always go to password step - each app registration creates a new user record
         setStep('password');
       }
     } catch (err: any) {
@@ -382,6 +383,41 @@ export const PartnerRegister: React.FC = () => {
       ...prev,
       [fieldId]: value
     }));
+
+  const handleCheckboxChange = (fieldId: string, option: string, checked: boolean) => {
+    setCustomFormData(prev => {
+      const current = Array.isArray(prev[fieldId]) ? prev[fieldId] : [];
+      if (checked) {
+        return { ...prev, [fieldId]: [...current, option] };
+      } else {
+        return { ...prev, [fieldId]: current.filter((v: string) => v !== option) };
+      }
+    });
+  };
+
+  const handleFileChange = (fieldId: string, file: File | null) => {
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setCustomFormData(prev => ({
+          ...prev,
+          [fieldId]: {
+            name: file.name,
+            type: file.type,
+            size: file.size,
+            data: reader.result
+          }
+        }));
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setCustomFormData(prev => {
+        const updated = { ...prev };
+        delete updated[fieldId];
+        return updated;
+      });
+    }
+  };
 
     // Handle cascading dropdowns based on mapping field
     const field = customFormFields.find(f => f.id === fieldId);
@@ -658,6 +694,121 @@ export const PartnerRegister: React.FC = () => {
                         required={field.required}
                         className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#057284] focus:border-transparent"
                       />
+                    )}
+
+                    {/* Number Input */}
+                    {field.field_type === 'number' && (
+                      <input
+                        type="number"
+                        value={customFormData[field.id] || ''}
+                        onChange={(e) => handleCustomFormChange(field.id, e.target.value)}
+                        placeholder={field.placeholder || ''}
+                        required={field.required}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#057284] focus:border-transparent"
+                      />
+                    )}
+
+                    {/* Email Input */}
+                    {field.field_type === 'email' && (
+                      <input
+                        type="email"
+                        value={customFormData[field.id] || ''}
+                        onChange={(e) => handleCustomFormChange(field.id, e.target.value)}
+                        placeholder={field.placeholder || ''}
+                        required={field.required}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#057284] focus:border-transparent"
+                      />
+                    )}
+
+                    {/* Tel Input */}
+                    {field.field_type === 'tel' && (
+                      <input
+                        type="tel"
+                        value={customFormData[field.id] || ''}
+                        onChange={(e) => handleCustomFormChange(field.id, e.target.value)}
+                        placeholder={field.placeholder || ''}
+                        required={field.required}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#057284] focus:border-transparent"
+                      />
+                    )}
+
+                    {/* Textarea */}
+                    {field.field_type === 'textarea' && (
+                      <textarea
+                        value={customFormData[field.id] || ''}
+                        onChange={(e) => handleCustomFormChange(field.id, e.target.value)}
+                        placeholder={field.placeholder || ''}
+                        required={field.required}
+                        rows={4}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#057284] focus:border-transparent resize-vertical"
+                      />
+                    )}
+
+                    {/* Radio Buttons */}
+                    {field.field_type === 'radio' && (
+                      <div className="space-y-2">
+                        {field.options?.map((option, idx) => (
+                          <label key={idx} className="flex items-center gap-3 cursor-pointer">
+                            <input
+                              type="radio"
+                              name={`radio_${field.id}`}
+                              value={option}
+                              checked={customFormData[field.id] === option}
+                              onChange={(e) => handleCustomFormChange(field.id, e.target.value)}
+                              required={field.required && !customFormData[field.id]}
+                              className="w-4 h-4 text-[#057284] focus:ring-[#057284]"
+                            />
+                            <span className="text-sm text-gray-700">{option}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Checkbox */}
+                    {field.field_type === 'checkbox' && (
+                      <div className="space-y-2">
+                        {field.options?.map((option, idx) => (
+                          <label key={idx} className="flex items-center gap-3 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              value={option}
+                              checked={Array.isArray(customFormData[field.id]) && customFormData[field.id].includes(option)}
+                              onChange={(e) => handleCheckboxChange(field.id, option, e.target.checked)}
+                              className="w-4 h-4 text-[#057284] focus:ring-[#057284] rounded"
+                            />
+                            <span className="text-sm text-gray-700">{option}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Date Input */}
+                    {field.field_type === 'date' && (
+                      <input
+                        type="date"
+                        value={customFormData[field.id] || ''}
+                        onChange={(e) => handleCustomFormChange(field.id, e.target.value)}
+                        required={field.required}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#057284] focus:border-transparent"
+                      />
+                    )}
+
+                    {/* File Upload */}
+                    {field.field_type === 'file' && (
+                      <div>
+                        <input
+                          type="file"
+                          onChange={(e) => handleFileChange(field.id, e.target.files?.[0] || null)}
+                          required={field.required && !customFormData[field.id]}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#057284] focus:border-transparent file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-[#057284] file:text-white hover:file:bg-[#045a6a]"
+                          accept="image/*,.pdf,.doc,.docx"
+                        />
+                        {customFormData[field.id] && (
+                          <p className="mt-1 text-xs text-green-600">
+                            ✓ {customFormData[field.id].name} uploaded
+                          </p>
+                        )}
+                      </div>
                     )}
 
                     {/* Dropdown without mapping - use options array */}

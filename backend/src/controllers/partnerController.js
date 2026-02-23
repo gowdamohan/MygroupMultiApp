@@ -51,81 +51,58 @@ export const sendPartnerOtp = async (req, res) => {
       });
     }
 
-    // Check if email already exists in users table
+    // Check if a user with this email already exists for THIS specific app
     const existingUser = await User.findOne({
-      where: { email }
+      where: { email, group_id: app_id }
     });
 
     if (existingUser) {
-      // Check if user is registering for this specific app (group_id = app_id)
-      if (existingUser.group_id === parseInt(app_id)) {
-        // Check client_registration table for this user and app
-        const clientReg = await ClientRegistration.findOne({
-          where: {
-            user_id: existingUser.id,
-            group_id: app_id
-          }
-        });
-
-        if (clientReg) {
-          // Registration record exists
-          if (clientReg.status === 'active') {
-            // Registration completed - redirect to login
-            return res.status(400).json({
-              success: false,
-              message: 'Email already registered. Please login.',
-              code: 'ALREADY_REGISTERED',
-              redirect: 'login'
-            });
-          } else {
-            // Registration not completed - redirect to Step 4 (custom form)
-            return res.json({
-              success: true,
-              message: 'Continue your registration',
-              code: 'REGISTRATION_INCOMPLETE',
-              redirect: 'customForm',
-              data: {
-                user_id: existingUser.id,
-                email: existingUser.email,
-                step: 'customForm'
-              }
-            });
-          }
-        } else {
-          // User exists but no client_registration record
-          // Check if user.active = 0 (password step completed, needs custom form)
-          if (existingUser.active === 0) {
-            return res.json({
-              success: true,
-              message: 'Continue your registration',
-              code: 'REGISTRATION_INCOMPLETE',
-              redirect: 'customForm',
-              data: {
-                user_id: existingUser.id,
-                email: existingUser.email,
-                step: 'customForm'
-              }
-            });
-          } else {
-            // User is active - fully registered
-            return res.status(400).json({
-              success: false,
-              message: 'Email already registered. Please login.',
-              code: 'ALREADY_REGISTERED',
-              redirect: 'login'
-            });
-          }
+      // User record exists for this app - check registration status
+      const clientReg = await ClientRegistration.findOne({
+        where: {
+          user_id: existingUser.id,
+          group_id: app_id
         }
-      } else {
-        // User exists but for a different app - allow registration for this app
-        // But we can't create duplicate email, so reject
+      });
+
+      if (clientReg && clientReg.status === 'active') {
+        // Fully registered for this app - redirect to login
         return res.status(400).json({
           success: false,
-          message: 'Email already registered with another application.',
-          code: 'EMAIL_EXISTS_OTHER_APP'
+          message: 'Email already registered for this app. Please login.',
+          code: 'ALREADY_REGISTERED',
+          redirect: 'login'
+        });
+      }
+
+      if (existingUser.active === 0) {
+        // User created (password set) but custom form not completed
+        return res.json({
+          success: true,
+          message: 'Continue your registration',
+          code: 'REGISTRATION_INCOMPLETE',
+          redirect: 'customForm',
+          data: {
+            user_id: existingUser.id,
+            email: existingUser.email,
+            step: 'customForm'
+          }
+        });
+      }
+
+      // User is active but no active client_reg - treat as fully registered
+      if (existingUser.active === 1) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email already registered for this app. Please login.',
+          code: 'ALREADY_REGISTERED',
+          redirect: 'login'
         });
       }
     }
+
+    // No user record for this app (may exist for other apps - that's fine)
+    // Proceed with OTP generation
 
     // Get app name for email template
     let appName = 'My Group';
@@ -252,30 +229,39 @@ export const setPartnerPassword = async (req, res) => {
       });
     }
 
-    // Check if user already exists
+    // Check if user already exists for THIS specific app
     let user = await User.findOne({
-      where: { email }
+      where: { email, group_id: app_id }
     });
 
     if (user) {
-      // User exists - check if password step already completed
-      if (user.active === 0) {
-        // Password already set, return user_id for next step
-        return res.json({
-          success: true,
-          message: 'Password already set. Continue to next step.',
-          data: {
-            user_id: user.id,
-            email: user.email
-          }
-        });
-      } else {
+      // User already exists for this app
+      const clientReg = await ClientRegistration.findOne({
+        where: {
+          user_id: user.id,
+          group_id: app_id
+        }
+      });
+
+      if (clientReg && clientReg.status === 'active') {
         return res.status(400).json({
           success: false,
-          message: 'Email already registered'
+          message: 'Email already registered for this app'
         });
       }
+
+      // User exists but registration incomplete - allow to continue
+      return res.json({
+        success: true,
+        message: 'Continue to next step.',
+        data: {
+          user_id: user.id,
+          email: user.email
+        }
+      });
     }
+
+    // No user record for this app - create a new one (even if email exists for other apps)
 
     // Get partner group
     const partnerGroup = await Group.findOne({
@@ -334,9 +320,9 @@ export const setPartnerPassword = async (req, res) => {
 
 /**
  * Generate partner identification code
- * Format: {app_code}-{country_code}{5-digit-number}
- * Example: MM-IND000001
- * The running number is unique per combination of app_code and country_code
+ * Format: {country_code}{app_code}-{6-digit-number}
+ * Example: INDMM-000001
+ * The running number is unique per combination of country_code and app_code
  */
 const generatePartnerIdentificationCode = async (countryId, stateId, appId) => {
   // Get country code
@@ -355,12 +341,12 @@ const generatePartnerIdentificationCode = async (countryId, stateId, appId) => {
     appCode = app.code.toUpperCase();
   }
 
-  // Get the next sequential number for this app_code + country_code combination
+  // Get the next sequential number for this country_code + app_code combination
   // Find the last user with this pattern
   const lastUser = await User.findOne({
     where: {
       identification_code: {
-        [Op.like]: `${appCode}-${countryCode}%`
+        [Op.like]: `${countryCode}${appCode}-%`
       }
     },
     order: [['id', 'DESC']]
@@ -373,9 +359,9 @@ const generatePartnerIdentificationCode = async (countryId, stateId, appId) => {
     sequenceNumber = parseInt(lastSequence, 10) + 1;
   }
 
-  // Build identification code: {app_code}-{country_code}{6-digit-number}
-  // Format: MM-IND000001
-  const identificationCode = `${appCode}-${countryCode}${String(sequenceNumber).padStart(6, '0')}`;
+  // Build identification code: {country_code}{app_code}-{6-digit-number}
+  // Format: INDMM-000001
+  const identificationCode = `${countryCode}${appCode}-${String(sequenceNumber).padStart(6, '0')}`;
 
   return identificationCode;
 };
@@ -449,19 +435,25 @@ export const registerPartner = async (req, res) => {
 
     await user.update(updateData);
 
-    // Update client_registration - keep status as 'pending' for admin approval
-    await ClientRegistration.update(
-      {
+    // Find or create client_registration for this user and app (supports multi-app registration)
+    const [clientReg, created] = await ClientRegistration.findOrCreate({
+      where: {
+        user_id: user_id,
+        group_id: app_id
+      },
+      defaults: {
         status: 'pending',
         custom_form_data: custom_form_data || {}
-      },
-      {
-        where: {
-          user_id: user_id,
-          group_id: app_id
-        }
       }
-    );
+    });
+
+    if (!created) {
+      // Update existing record - keep status as 'pending' for admin approval
+      await clientReg.update({
+        status: 'pending',
+        custom_form_data: custom_form_data || {}
+      });
+    }
 
     // Delete OTP record after successful registration
     await ClientRegisterOtp.destroy({
@@ -537,15 +529,15 @@ export const createPartnerAccount = async (req, res) => {
       });
     }
 
-    // Check if user already exists
+    // Check if user already exists for THIS specific app
     const existingUser = await User.findOne({
-      where: { email }
+      where: { email, group_id: app_id }
     });
 
     if (existingUser) {
       return res.status(400).json({
         success: false,
-        message: 'Email already registered'
+        message: 'Email already registered for this app'
       });
     }
 
@@ -561,16 +553,13 @@ export const createPartnerAccount = async (req, res) => {
       });
     }
 
-    // Create username from email
-    const username = email.split('@')[0];
-
     // Create user with basic info - set as INACTIVE by default
     // Admin will need to activate the partner after reviewing their registration
     const user = await User.create({
-      username: username,
+      username: email, // Store full email as username
       email: email,
       password: password,
-      first_name: username,
+      first_name: email.split('@')[0],
       group_id: app_id, // Store app_id in group_id field
       created_on: Math.floor(Date.now() / 1000),
       active: 0 // Set inactive by default - requires admin approval

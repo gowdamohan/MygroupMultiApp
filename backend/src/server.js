@@ -34,6 +34,7 @@ import appsRoutes from './routes/apps.routes.js';
 import advertisementRoutes from './routes/advertisement.routes.js';
 import supportRoutes from './routes/support.routes.js';
 import walletRoutes from './routes/wallet.routes.js';
+import partnerAdsRoutes from './routes/partnerAds.routes.js';
 import { cleanupExpiredTokens, markInactiveUsers } from './utils/tokenCleanup.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -136,6 +137,7 @@ app.use(`${API_PREFIX}/apps`, appsRoutes);
 app.use(`${API_PREFIX}/advertisement`, advertisementRoutes);
 app.use(`${API_PREFIX}/support`, supportRoutes);
 app.use(`${API_PREFIX}/wallet`, walletRoutes);
+app.use(`${API_PREFIX}/partner-ads`, partnerAdsRoutes);
 
 // Member login route (direct access)
 import { memberLogin } from './controllers/memberController.js';

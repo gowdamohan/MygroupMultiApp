@@ -16,7 +16,6 @@ const User = sequelize.define('users', {
   username: {
     type: DataTypes.STRING(100),
     allowNull: false,
-    unique: true,
     validate: {
       len: [3, 100]
       // Removed isAlphanumeric to allow email format in username
@@ -25,7 +24,6 @@ const User = sequelize.define('users', {
   email: {
     type: DataTypes.STRING(254),
     allowNull: false,
-    unique: true,
     validate: {
       isEmail: true
     }

@@ -3,11 +3,11 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Users, Grid3x3, FileText, Globe, GraduationCap,
-  Briefcase, Languages, Image, Heart, Building2, Database, HeadphonesIcon,
+  Briefcase, Languages, Heart, Building2, Database, HeadphonesIcon,
   LogOut, ChevronDown, ChevronRight, Menu, X, Bell, Search, User,
-  Settings, Shield, Package, MapPin, Award, Newspaper, Calendar,
+  Shield, Package, MapPin,
   Briefcase as Career, UserCheck, Milestone, MessageSquare, Mail,
-  FileCheck, Scale, Lock, Copyright, FolderTree
+  Lock, FolderTree
 } from 'lucide-react';
 
 // Import admin pages
@@ -24,6 +24,8 @@ import { AccountsLogin } from '../admin/AccountsLogin';
 import { CreateCategoryPage } from '../admin/CreateCategory';
 import { AdminSupportChat } from '../admin/AdminSupportChat';
 import { Profile } from '../admin/Profile';
+
+
 interface MenuItem {
   id: string;
   label: string;
@@ -96,6 +98,7 @@ export const AdminDashboardNew: React.FC = () => {
       case '/admin/support-chat':
         console.log('Rendering Support Chart');
         return <AdminSupportChat />;
+
       default:
         return (
           <div className="p-6">
@@ -224,6 +227,7 @@ export const AdminDashboardNew: React.FC = () => {
         { id: 'feedback-db', label: 'Feedback Database', icon: MessageSquare, path: '/admin/feedback-database' }
       ]
     },
+
     {
       id: 'supports',
       label: 'Supports',

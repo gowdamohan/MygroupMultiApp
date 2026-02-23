@@ -9,8 +9,12 @@ import {
   ToggleLeft,
   ToggleRight,
   Tv,
-  Link,
-  MessageSquare
+  MessageSquare,
+  ChevronDown,
+  ChevronRight,
+  Megaphone,
+  FileText,
+  Settings
 } from 'lucide-react';
 import axios from 'axios';
 import { API_BASE_URL } from '../../config/api.config';
@@ -18,6 +22,13 @@ import { PartnersManagement } from './PartnersManagement';
 import { MediaChannelsView } from './MediaChannelsView';
 import { FooterManagement } from './FooterManagement';
 import { AppSupportChat } from './AppSupportChat';
+import { AppPartnerAds } from './AppPartnerAds';
+import { FooterPageManager } from '../corporate/FooterPageManager';
+import { FooterPageListManager } from '../corporate/FooterPageListManager';
+import { SocialMediaLinks } from '../corporate/SocialMediaLinks';
+import { Gallery } from '../corporate/Gallery';
+import { FooterFaqManager } from '../corporate/FooterFaqManager';
+import { AppApplicationDetails } from './AppApplicationDetails';
 
 interface AppInfo {
   id: number;
@@ -87,6 +98,7 @@ export const AppDashboard: React.FC = () => {
   const [activeView, setActiveView] = useState<'partners' | string>('partners');
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+  const [expandedMenus, setExpandedMenus] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     // Get user from localStorage
@@ -144,10 +156,39 @@ export const AppDashboard: React.FC = () => {
     setActiveView(`category-${categoryId}`);
   };
 
-  const menuItems = [
-    { icon: Users, label: 'Partners', path: `/app/${appId}/dashboard`, view: 'partners' as const },
-    { icon: Link, label: 'Footer Links', path: `/app/${appId}/footer`, view: 'footer' as const },
-    { icon: MessageSquare, label: 'Support Chat', path: `/app/${appId}/support`, view: 'support' as const },
+  const toggleMenu = (menuLabel: string) => {
+    setExpandedMenus(prev => {
+      const next = new Set(prev);
+      if (next.has(menuLabel)) next.delete(menuLabel);
+      else next.add(menuLabel);
+      return next;
+    });
+  };
+
+  const menuItems: Array<{
+    icon: any;
+    label: string;
+    view?: string;
+    children?: Array<{ label: string; view: string }>;
+  }> = [
+    { icon: Users, label: 'Partners', view: 'partners' },
+    {
+      icon: Settings, label: 'Footer',
+      children: [
+        { label: 'About the App', view: 'footer-about' },
+        { label: 'Newsletter', view: 'footer-newsletter' },
+        { label: 'Gallery', view: 'footer-gallery' },
+        { label: 'Awards', view: 'footer-awards' },
+        { label: 'Social Media Links', view: 'footer-social' },
+        { label: 'T&C of Partners', view: 'footer-tnc-partners' },
+        { label: 'T&C', view: 'footer-tnc' },
+        { label: 'Privacy Policies', view: 'footer-privacy' },
+        { label: 'FAQs', view: 'footer-faq' },
+      ]
+    },
+    { icon: MessageSquare, label: 'Support Chat', view: 'support' },
+    { icon: Megaphone, label: 'Partner Ads', view: 'partner-ads' },
+    { icon: FileText, label: 'App Details', view: 'app-details' },
   ];
 
   if (loading) {
@@ -193,22 +234,65 @@ export const AppDashboard: React.FC = () => {
         </div>
 
         {/* Menu Items */}
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-          {/* Partners Menu Item */}
-          {menuItems.map((item) => (
-            <button
-              key={item.path}
-              onClick={() => setActiveView(item.view)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                activeView === item.view
-                  ? 'bg-blue-50 text-blue-600'
-                  : 'text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              <item.icon size={20} />
-              {sidebarOpen && <span className="font-medium">{item.label}</span>}
-            </button>
-          ))}
+        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+          {menuItems.map((item) => {
+            const Icon = item.icon;
+            const isParentActive = item.children
+              ? item.children.some(c => activeView === c.view)
+              : activeView === item.view;
+
+            if (item.children) {
+              const isExpanded = expandedMenus.has(item.label);
+              return (
+                <div key={item.label}>
+                  <button
+                    onClick={() => toggleMenu(item.label)}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                      isParentActive ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    <Icon size={20} />
+                    {sidebarOpen && (
+                      <>
+                        <span className="font-medium flex-1 text-left">{item.label}</span>
+                        {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                      </>
+                    )}
+                  </button>
+                  {sidebarOpen && isExpanded && (
+                    <div className="ml-6 mt-1 space-y-1 border-l-2 border-gray-200 pl-3">
+                      {item.children.map(child => (
+                        <button
+                          key={child.view}
+                          onClick={() => setActiveView(child.view)}
+                          className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+                            activeView === child.view
+                              ? 'bg-blue-50 text-blue-600 font-medium'
+                              : 'text-gray-600 hover:bg-gray-100'
+                          }`}
+                        >
+                          {child.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
+            return (
+              <button
+                key={item.label}
+                onClick={() => item.view && setActiveView(item.view)}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                  isParentActive ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <Icon size={20} />
+                {sidebarOpen && <span className="font-medium">{item.label}</span>}
+              </button>
+            );
+          })}
 
           {/* Category Menu Items */}
           {sidebarOpen && categories.length > 0 && (
@@ -251,7 +335,7 @@ export const AppDashboard: React.FC = () => {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 p-8">
+      <main className="flex-1 p-8 overflow-y-auto">
         <div className="max-w-7xl mx-auto">
           {activeView === 'partners' && (
             <PartnersManagement appId={appId} appName={appInfo?.name} />
@@ -262,6 +346,21 @@ export const AppDashboard: React.FC = () => {
           {activeView === 'support' && (
             <AppSupportChat appId={appId} />
           )}
+          {/* Footer submenu views */}
+          {activeView === 'footer-about' && <FooterPageListManager pageType="about_app" pageTitle="About the App" />}
+          {activeView === 'footer-newsletter' && <FooterPageListManager pageType="newsletter" pageTitle="Newsletter" />}
+          {activeView === 'footer-gallery' && <Gallery />}
+          {activeView === 'footer-awards' && <FooterPageListManager pageType="awards" pageTitle="Awards" />}
+          {activeView === 'footer-social' && <SocialMediaLinks />}
+          {activeView === 'footer-tnc-partners' && <FooterPageManager pageType="tnc_partners" pageTitle="T&C of Partners" />}
+          {activeView === 'footer-tnc' && <FooterPageManager pageType="terms" pageTitle="Terms & Conditions" />}
+          {activeView === 'footer-privacy' && <FooterPageManager pageType="privacy_policy" pageTitle="Privacy Policies" />}
+          {activeView === 'footer-faq' && <FooterFaqManager />}
+          {/* Partner Ads */}
+          {activeView === 'partner-ads' && <AppPartnerAds appId={appId} />}
+          {/* App Details */}
+          {activeView === 'app-details' && <AppApplicationDetails appId={appId} appName={appInfo?.name} />}
+          {/* Category views */}
           {activeView.startsWith('category-') && selectedCategoryId && (
             <MediaChannelsView
               appId={appId}

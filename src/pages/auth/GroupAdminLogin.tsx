@@ -11,7 +11,16 @@ interface AppDetails {
   logo?: string;
   apps_name?: string;
   dashboard_route?: string;
+  user_count?: number;
 }
+
+// Category grouping for display
+const CATEGORY_MAP: { label: string; match: string[] }[] = [
+  { label: 'My Apps', match: ['My Apps'] },
+  { label: 'My Company', match: ['My Company'] },
+  { label: 'Online Apps', match: ['My Online Apps'] },
+  { label: 'Offline Apps', match: ['My Offline Apps'] },
+];
 
 export const GroupAdminLogin: React.FC = () => {
   const navigate = useNavigate();
@@ -159,7 +168,7 @@ export const GroupAdminLogin: React.FC = () => {
         </button>
       )}
 
-      <div className="relative w-full max-w-4xl z-10">
+      <div className="relative w-full max-w-6xl z-10">
         <AnimatePresence mode="wait">
           {!selectedApp ? (
             // App Selection Screen
@@ -186,31 +195,40 @@ export const GroupAdminLogin: React.FC = () => {
                   No apps available
                 </div>
               ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {apps.map((app) => (
-                    <motion.button
-                      key={app.id}
-                      onClick={() => handleAppSelect(app)}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      className="flex flex-col items-center gap-3 p-6 bg-white rounded-xl shadow-md hover:shadow-xl transition-all border border-gray-200 hover:border-blue-400"
-                    >
-                      {app.logo ? (
-                        <img
-                          src={`${app.logo}`}
-                          alt={app.name}
-                          className="w-16 h-16 object-contain"
-                        />
-                      ) : (
-                        <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white text-2xl font-bold">
-                          {app.name.charAt(0).toUpperCase()}
+                <div className="space-y-8">
+                  {CATEGORY_MAP.map((cat) => {
+                    const catApps = apps.filter(a => cat.match.includes(a.apps_name || ''));
+                    if (catApps.length === 0) return null;
+                    return (
+                      <div key={cat.label}>
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4 px-1">
+                          {cat.label}
+                        </h3>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                          {catApps.map((app) => (
+                            <motion.button
+                              key={app.id}
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.97 }}
+                              onClick={() => handleAppSelect(app)}
+                              className="flex flex-col items-center gap-3 p-5 bg-white rounded-xl shadow-md hover:shadow-xl transition-all border border-gray-200 hover:border-blue-400 cursor-pointer"
+                            >
+                              {app.logo ? (
+                                <img src={app.logo} alt={app.name} className="w-14 h-14 object-contain rounded-lg" />
+                              ) : (
+                                <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center text-white text-xl font-bold shadow">
+                                  {app.name.charAt(0).toUpperCase()}
+                                </div>
+                              )}
+                              <span className="text-sm font-medium text-gray-800 text-center leading-tight line-clamp-2">
+                                {app.name}
+                              </span>
+                            </motion.button>
+                          ))}
                         </div>
-                      )}
-                      <span className="text-sm font-medium text-gray-900 text-center line-clamp-2">
-                        {app.name}
-                      </span>
-                    </motion.button>
-                  ))}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </motion.div>

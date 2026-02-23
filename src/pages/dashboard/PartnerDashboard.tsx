@@ -5,7 +5,8 @@ import {
   LayoutDashboard, User, Lock, Video, List, MessageSquare,
   Mail, LogOut, ChevronDown, ChevronRight, Menu, X,
   HelpCircle, MessageCircle, ChevronLeft, ChevronRightIcon,
-  Users, Star, TrendingUp, DollarSign, Megaphone, Wallet
+  Users, Star, TrendingUp, DollarSign, Megaphone, Wallet,
+  Settings, BookOpen, Newspaper, Image, Award, Share2, Scale, ShieldCheck, FileCheck
 } from 'lucide-react';
 import { EditProfile } from '../partner/EditProfile';
 import { ChangePassword } from '../partner/ChangePassword';
@@ -16,6 +17,11 @@ import { Feedback } from '../partner/Feedback';
 import { LiveChat } from '../partner/LiveChat';
 import { HeaderAdsBooking } from '../partner/HeaderAdsBooking';
 import { SupportChat } from '../partner/SupportChat';
+import { FooterPageManager } from '../corporate/FooterPageManager';
+import { FooterPageListManager } from '../corporate/FooterPageListManager';
+import { SocialMediaLinks } from '../corporate/SocialMediaLinks';
+import { Gallery } from '../corporate/Gallery';
+import { FooterFaqManager } from '../corporate/FooterFaqManager';
 import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
 
 interface MenuItem {
@@ -26,12 +32,16 @@ interface MenuItem {
   children?: MenuItem[];
 }
 
-interface HeaderAd {
+interface PartnerAd {
   id: number;
-  header_ads_file_path: string;
-  header_ads_url: string;
-  headers_type: string;
-  file_type: string;
+  app_id: number;
+  image_path: string | null;
+  image_url: string | null;
+  scrolling_text: string | null;
+  type: 'ads1' | 'ads2' | null;
+  slot: number | null;
+  is_active: number;
+  signed_url?: string | null;
 }
 
 interface UserProfile {
@@ -53,9 +63,10 @@ export const PartnerDashboard: React.FC = () => {
   const [activeMenu, setActiveMenu] = useState('dashboard');
   const [user, setUser] = useState<any>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [headerAds, setHeaderAds] = useState<HeaderAd[]>([]);
+  const [partnerAds, setPartnerAds] = useState<PartnerAd[]>([]);
   const [currentAdIndex, setCurrentAdIndex] = useState(0);
   const [isAccountActive, setIsAccountActive] = useState<boolean>(true);
+  const [appName, setAppName] = useState<string>('');
 
   const fetchUserProfile = useCallback(async () => {
     try {
@@ -71,19 +82,20 @@ export const PartnerDashboard: React.FC = () => {
     }
   }, []);
 
-  const fetchHeaderAds = useCallback(async () => {
+  const fetchPartnerAds = useCallback(async () => {
     try {
       const token = localStorage.getItem('accessToken');
       const selectedApp = localStorage.getItem('selectedApp');
       const appId = selectedApp ? JSON.parse(selectedApp).id : 1;
-      const response = await axios.get(`${API_BASE_URL}/partner/header-ads?app_id=${appId}`, {
-        headers: { Authorization: `Bearer ${token}` }
+      const response = await axios.get(`${API_BASE_URL}/partner-ads`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { app_id: appId, type: 'ads1', limit: 100 }
       });
       if (response.data.success) {
-        setHeaderAds(response.data.data || []);
+        setPartnerAds((response.data.data || []).filter((ad: PartnerAd) => ad.is_active === 1));
       }
     } catch (error) {
-      console.error('Error fetching header ads:', error);
+      console.error('Error fetching partner ads:', error);
     }
   }, []);
 
@@ -95,31 +107,43 @@ export const PartnerDashboard: React.FC = () => {
       // Check if user account is active (active === 1 means active)
       setIsAccountActive(parsedUser.active === 1 || parsedUser.active === true);
       fetchUserProfile();
-      fetchHeaderAds();
+      fetchPartnerAds();
     } else {
       navigate('/partner');
     }
-  }, [navigate, fetchUserProfile, fetchHeaderAds]);
+
+    // Get app name from selectedApp
+    const selectedApp = localStorage.getItem('selectedApp');
+    if (selectedApp) {
+      try {
+        const app = JSON.parse(selectedApp);
+        setAppName((app.name || '').toLowerCase());
+      } catch (e) {
+        setAppName('');
+      }
+    }
+  }, [navigate, fetchUserProfile, fetchPartnerAds]);
 
   // Auto-rotate carousel
   useEffect(() => {
-    if (headerAds.length > 1) {
+    if (partnerAds.length > 1) {
       const interval = setInterval(() => {
-        setCurrentAdIndex((prev) => (prev + 1) % headerAds.length);
+        setCurrentAdIndex((prev) => (prev + 1) % partnerAds.length);
       }, 5000);
       return () => clearInterval(interval);
     }
-  }, [headerAds.length]);
+  }, [partnerAds.length]);
 
   const nextAd = () => {
-    setCurrentAdIndex((prev) => (prev + 1) % headerAds.length);
+    setCurrentAdIndex((prev) => (prev + 1) % partnerAds.length);
   };
 
   const prevAd = () => {
-    setCurrentAdIndex((prev) => (prev - 1 + headerAds.length) % headerAds.length);
+    setCurrentAdIndex((prev) => (prev - 1 + partnerAds.length) % partnerAds.length);
   };
 
-  const menuItems: MenuItem[] = [
+  // Common menu items for ALL partner dashboards
+  const commonMenuItems: MenuItem[] = [
     {
       id: 'dashboard',
       label: 'Dashboard',
@@ -135,6 +159,32 @@ export const PartnerDashboard: React.FC = () => {
         { id: 'change-password', label: 'Change Password', icon: Lock, path: '/partner/change-password' }
       ]
     },
+    {
+      id: 'footer',
+      label: 'Footer',
+      icon: Settings,
+      children: [
+        { id: 'about-app', label: 'About the App', icon: BookOpen, path: '/partner/footer/about-app' },
+        { id: 'newsletter', label: 'Newsletter', icon: Newspaper, path: '/partner/footer/newsletter' },
+        { id: 'gallery', label: 'Gallery', icon: Image, path: '/partner/footer/gallery' },
+        { id: 'awards', label: 'Awards', icon: Award, path: '/partner/footer/awards' },
+        { id: 'social-media', label: 'Social Media Links', icon: Share2, path: '/partner/footer/social-media' },
+        { id: 'tnc-partners', label: 'T&C of Partners', icon: Scale, path: '/partner/footer/tnc-partners' },
+        { id: 'tnc', label: 'Terms & Conditions', icon: FileCheck, path: '/partner/footer/tnc' },
+        { id: 'privacy-policy', label: 'Privacy Policies', icon: ShieldCheck, path: '/partner/footer/privacy' },
+        { id: 'faq', label: 'FAQs', icon: HelpCircle, path: '/partner/footer/faq' }
+      ]
+    },
+    {
+      id: 'support-chat',
+      label: 'Support Chat',
+      icon: MessageCircle,
+      path: '/partner/support-chat'
+    }
+  ];
+
+  // App-specific menu items for Mymedia
+  const mymediaMenuItems: MenuItem[] = [
     {
       id: 'create-media',
       label: 'Create Media',
@@ -163,11 +213,19 @@ export const PartnerDashboard: React.FC = () => {
       children: [
         { id: 'enquiry', label: 'Enquiry', icon: Mail, path: '/partner/enquiry' },
         { id: 'feedback', label: 'Feedback and Suggestions', icon: MessageSquare, path: '/partner/feedback' },
-        { id: 'live-chat', label: 'Chat', icon: MessageCircle, path: '/partner/live-chat' },
-        { id: 'support-chat', label: 'Support Chat', icon: MessageCircle, path: '/partner/support-chat' }
+        { id: 'live-chat', label: 'Chat', icon: MessageCircle, path: '/partner/live-chat' }
       ]
     }
   ];
+
+  // Build final menu: common items + app-specific items
+  const getAppSpecificMenuItems = (): MenuItem[] => {
+    if (appName === 'mymedia') return mymediaMenuItems;
+    // Other apps can add their specific items here in the future
+    return [];
+  };
+
+  const menuItems: MenuItem[] = [...commonMenuItems, ...getAppSpecificMenuItems()];
 
   const toggleMenu = (menuId: string) => {
     setExpandedMenus(prev =>
@@ -228,66 +286,79 @@ export const PartnerDashboard: React.FC = () => {
     );
   };
 
-  const renderHeaderAdsCarousel = () => {
-    if (headerAds.length === 0) {
-      return (
-        <div className="bg-gradient-to-r from-primary-500 to-primary-600 rounded-xl h-32 flex items-center justify-center text-white">
-          <p className="text-lg font-medium">Welcome to Partner Dashboard</p>
-        </div>
-      );
-    }
+  // Get all scrolling texts from active partner ads
+  const scrollingTexts = partnerAds
+    .filter(ad => ad.scrolling_text && ad.scrolling_text.trim())
+    .map(ad => ad.scrolling_text!.trim());
 
-    const currentAd = headerAds[currentAdIndex];
-    return (
-      <div className="relative rounded-xl overflow-hidden h-32 md:h-40 bg-gray-100">
-        {currentAd.file_type === 'video' ? (
-          <video
-            src={`${BACKEND_URL}${currentAd.header_ads_file_path}`}
-            className="w-full h-full object-cover"
-            autoPlay
-            muted
-            loop
-          />
-        ) : (
+  // Get ads with images for the carousel
+  const adsWithImages = partnerAds.filter(ad => ad.signed_url || ad.image_url);
+
+  const renderHeaderAdsSection = () => (
+    <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500">
+      {/* Partner Ads Image Carousel */}
+      {adsWithImages.length > 0 ? (
+        <div className="relative h-36 md:h-48 overflow-hidden">
           <img
-            src={`${BACKEND_URL}${currentAd.header_ads_file_path}`}
-            alt="Header Ad"
+            src={adsWithImages[currentAdIndex % adsWithImages.length]?.signed_url || adsWithImages[currentAdIndex % adsWithImages.length]?.image_url || ''}
+            alt="Partner Ad"
             className="w-full h-full object-cover"
           />
-        )}
-        {headerAds.length > 1 && (
-          <>
-            <button
-              onClick={prevAd}
-              className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-white/80 hover:bg-white rounded-full flex items-center justify-center shadow-md transition-colors"
-            >
-              <ChevronLeft size={20} />
-            </button>
-            <button
-              onClick={nextAd}
-              className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-white/80 hover:bg-white rounded-full flex items-center justify-center shadow-md transition-colors"
-            >
-              <ChevronRightIcon size={20} />
-            </button>
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
-              {headerAds.map((_, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => setCurrentAdIndex(idx)}
-                  className={`w-2 h-2 rounded-full transition-colors ${idx === currentAdIndex ? 'bg-white' : 'bg-white/50'}`}
-                />
-              ))}
-            </div>
-          </>
-        )}
-      </div>
-    );
-  };
+          {/* Overlay gradient */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
+          {adsWithImages.length > 1 && (
+            <>
+              <button
+                onClick={prevAd}
+                className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-white/80 hover:bg-white rounded-full flex items-center justify-center shadow-md transition-colors"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <button
+                onClick={nextAd}
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-white/80 hover:bg-white rounded-full flex items-center justify-center shadow-md transition-colors"
+              >
+                <ChevronRightIcon size={18} />
+              </button>
+              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+                {adsWithImages.map((_ad: PartnerAd, idx: number) => (
+                  <button
+                    key={_ad.id}
+                    onClick={() => setCurrentAdIndex(idx)}
+                    className={`w-2 h-2 rounded-full transition-colors ${idx === (currentAdIndex % adsWithImages.length) ? 'bg-white' : 'bg-white/50'}`}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      ) : (
+        <div className="h-24 md:h-32 flex items-center justify-center">
+          <div className="text-center text-white">
+            <Megaphone className="mx-auto mb-2" size={28} />
+            <p className="text-sm font-medium opacity-90">Welcome to Partner Dashboard</p>
+          </div>
+        </div>
+      )}
+
+      {/* Scrolling Text Marquee */}
+      {scrollingTexts.length > 0 && (
+        <div className="bg-black/20 py-1.5 overflow-hidden">
+          <div className="animate-marquee whitespace-nowrap">
+            <span className="text-white text-sm font-medium mx-8">
+              {scrollingTexts.join('  •  ')}
+            </span>
+            <span className="text-white text-sm font-medium mx-8">
+              {scrollingTexts.join('  •  ')}
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 
   const renderDashboard = () => (
     <div className="space-y-6">
-      {/* Header Ads Carousel */}
-      {renderHeaderAdsCarousel()}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -454,6 +525,24 @@ export const PartnerDashboard: React.FC = () => {
         return <div className="p-6"><h2 className="text-2xl font-bold">My Wallet</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
       case '/partner/support-chat':
         return <SupportChat />;
+      case '/partner/footer/about-app':
+        return <FooterPageListManager pageType="about_app" pageTitle="About the App" />;
+      case '/partner/footer/newsletter':
+        return <FooterPageListManager pageType="newsletter" pageTitle="Newsletter" />;
+      case '/partner/footer/gallery':
+        return <Gallery />;
+      case '/partner/footer/awards':
+        return <FooterPageListManager pageType="awards" pageTitle="Awards" />;
+      case '/partner/footer/social-media':
+        return <SocialMediaLinks />;
+      case '/partner/footer/tnc-partners':
+        return <FooterPageManager pageType="tnc_partners" pageTitle="T&C of Partners" />;
+      case '/partner/footer/tnc':
+        return <FooterPageManager pageType="terms" pageTitle="Terms & Conditions" />;
+      case '/partner/footer/privacy':
+        return <FooterPageManager pageType="privacy_policy" pageTitle="Privacy Policies" />;
+      case '/partner/footer/faq':
+        return <FooterFaqManager />;
       default:
         return renderDashboard();
     }
@@ -648,29 +737,29 @@ export const PartnerDashboard: React.FC = () => {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <header className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4 shadow-sm">
-          <div className="flex items-center gap-4">
+        {/* Navigation Bar */}
+        <div className="h-12 bg-white border-b border-gray-200 flex items-center justify-between px-4 shadow-sm flex-shrink-0">
+          <div className="flex items-center gap-3">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="hidden lg:block p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="hidden lg:block p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
             >
-              <Menu size={20} />
+              <Menu size={18} />
             </button>
             <button
               onClick={() => setMobileSidebarOpen(true)}
-              className="lg:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="lg:hidden p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
             >
-              <Menu size={20} />
+              <Menu size={18} />
             </button>
-            <h1 className="text-lg font-semibold text-gray-800">Partner Dashboard</h1>
+            <h1 className="text-sm font-semibold text-gray-800">Partner Dashboard</h1>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <div className="hidden sm:block text-right">
-              <p className="text-sm font-medium text-gray-700">{userProfile?.first_name || user?.username}</p>
-              <p className="text-xs text-gray-500">{userProfile?.identification_code || 'Partner'}</p>
+              <p className="text-xs font-medium text-gray-700">{userProfile?.first_name || user?.username}</p>
+              <p className="text-[10px] text-gray-500">{userProfile?.identification_code || 'Partner'}</p>
             </div>
-            <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-gray-200">
+            <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-gray-200">
               {userProfile?.profile_img ? (
                 <img
                   src={`${BACKEND_URL}${userProfile.profile_img}`}
@@ -679,12 +768,17 @@ export const PartnerDashboard: React.FC = () => {
                 />
               ) : (
                 <div className="w-full h-full bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center">
-                  <User className="text-white" size={16} />
+                  <User className="text-white" size={14} />
                 </div>
               )}
             </div>
           </div>
-        </header>
+        </div>
+
+        {/* Partner Ads Header Section */}
+        <div className="flex-shrink-0">
+          {renderHeaderAdsSection()}
+        </div>
 
         {/* Content */}
         <main className="flex-1 overflow-y-auto p-4 md:p-6">

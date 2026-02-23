@@ -28,10 +28,17 @@ export const getAllApps = async (req, res) => {
   }
 };
 
-// Get all applications
+// Get all applications (optionally filtered by app_id)
 export const getApplications = async (req, res) => {
   try {
+    const { app_id } = req.query;
+    const whereClause = {};
+    if (app_id) {
+      whereClause.app_id = app_id;
+    }
+
     const applications = await ApplicationsManagement.findAll({
+      where: whereClause,
       include: [
         {
           model: GroupCreate,
