@@ -320,9 +320,9 @@ export const setPartnerPassword = async (req, res) => {
 
 /**
  * Generate partner identification code
- * Format: {country_code}{app_code}-{6-digit-number}
- * Example: INDMM-000001
- * The running number is unique per combination of country_code and app_code
+ * Format: {app_code}-{country_code}{state_code}{7-digit-number}
+ * Example: MM-INKA0000001
+ * The running number is unique per combination of app_code, country_code and state_code
  */
 const generatePartnerIdentificationCode = async (countryId, stateId, appId) => {
   // Get country code
@@ -334,6 +334,15 @@ const generatePartnerIdentificationCode = async (countryId, stateId, appId) => {
     }
   }
 
+  // Get state code
+  let stateCode = '';
+  if (stateId) {
+    const state = await State.findByPk(stateId);
+    if (state && state.code) {
+      stateCode = state.code.toUpperCase();
+    }
+  }
+
   // Get app code from group_create
   let appCode = '';
   const app = await GroupCreate.findByPk(appId);
@@ -341,12 +350,12 @@ const generatePartnerIdentificationCode = async (countryId, stateId, appId) => {
     appCode = app.code.toUpperCase();
   }
 
-  // Get the next sequential number for this country_code + app_code combination
+  // Get the next sequential number for this app_code + country_code + state_code combination
   // Find the last user with this pattern
   const lastUser = await User.findOne({
     where: {
       identification_code: {
-        [Op.like]: `${countryCode}${appCode}-%`
+        [Op.like]: `${appCode}-${countryCode}${stateCode}%`
       }
     },
     order: [['id', 'DESC']]
@@ -354,14 +363,14 @@ const generatePartnerIdentificationCode = async (countryId, stateId, appId) => {
 
   let sequenceNumber = 1;
   if (lastUser && lastUser.identification_code) {
-    // Extract the last 6 digits (000001)
-    const lastSequence = lastUser.identification_code.slice(-6);
+    // Extract the last 7 digits (0000001)
+    const lastSequence = lastUser.identification_code.slice(-7);
     sequenceNumber = parseInt(lastSequence, 10) + 1;
   }
 
-  // Build identification code: {country_code}{app_code}-{6-digit-number}
-  // Format: INDMM-000001
-  const identificationCode = `${countryCode}${appCode}-${String(sequenceNumber).padStart(6, '0')}`;
+  // Build identification code: {app_code}-{country_code}{state_code}{7-digit-number}
+  // Format: MM-INKA0000001
+  const identificationCode = `${appCode}-${countryCode}${stateCode}${String(sequenceNumber).padStart(7, '0')}`;
 
   return identificationCode;
 };
@@ -392,19 +401,31 @@ export const registerPartner = async (req, res) => {
     }
 
     // Extract country_id and state_id from custom_form_data
+    // The custom_form_data keys are field IDs (e.g., field_1709123456789),
+    // so we need to look up the form definition to find which field maps to 'country' and 'state'
     let countryId = null;
     let stateId = null;
 
     if (custom_form_data) {
-      // Check for country and state in custom form data
-      for (const [key, value] of Object.entries(custom_form_data)) {
-        const lowerKey = key.toLowerCase();
-        if (lowerKey.includes('country') && value) {
-          countryId = parseInt(value) || null;
+      try {
+        // Get the custom form definition to find field mappings
+        const details = await CreateDetails.findOne({ where: { create_id: app_id } });
+        if (details && details.custom_form) {
+          const formConfig = JSON.parse(details.custom_form);
+          const fields = formConfig.fields || [];
+
+          // Find country and state field IDs from the mapping property
+          for (const field of fields) {
+            if (field.mapping === 'country' && custom_form_data[field.id]) {
+              countryId = parseInt(custom_form_data[field.id]) || null;
+            }
+            if (field.mapping === 'state' && custom_form_data[field.id]) {
+              stateId = parseInt(custom_form_data[field.id]) || null;
+            }
+          }
         }
-        if (lowerKey.includes('state') && value) {
-          stateId = parseInt(value) || null;
-        }
+      } catch (e) {
+        console.error('Error parsing custom form config for identification code:', e);
       }
     }
 
