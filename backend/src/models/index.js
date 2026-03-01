@@ -62,6 +62,7 @@ import FranchiseOfferAd from './FranchiseOfferAd.js';
 import PartnerAdsManagement from './PartnerAdsManagement.js';
 import FranchiseOfficeAddress from './FranchiseOfficeAddress.js';
 import MyGroupProfile from './MyGroupProfile.js';
+import OwnerDetails from './OwnerDetails.js';
 
 // ============================================
 // USER ASSOCIATIONS
@@ -760,6 +761,18 @@ User.hasMany(Wallet, { foreignKey: 'user_id', as: 'wallets' });
 Wallet.hasMany(WalletTransaction, { foreignKey: 'wallet_id', as: 'transactions' });
 WalletTransaction.belongsTo(Wallet, { foreignKey: 'wallet_id', as: 'wallet' });
 
+// ============================================
+// OWNER DETAILS ASSOCIATIONS
+// ============================================
+
+// OwnerDetails belongs to User
+OwnerDetails.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
+User.hasOne(OwnerDetails, { foreignKey: 'user_id', as: 'ownerDetails' });
+
+// OwnerDetails belongs to ClientRegistration
+OwnerDetails.belongsTo(ClientRegistration, { foreignKey: 'registration_id', as: 'registration' });
+ClientRegistration.hasOne(OwnerDetails, { foreignKey: 'registration_id', as: 'ownerDetails' });
+
 // Export all models
 export {
   User,
@@ -825,6 +838,7 @@ export {
   FranchiseOfferAd,
   PartnerAdsManagement,
   FranchiseOfficeAddress,
-  MyGroupProfile
+  MyGroupProfile,
+  OwnerDetails
 };
 

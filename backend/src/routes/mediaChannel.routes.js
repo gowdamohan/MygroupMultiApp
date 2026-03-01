@@ -31,6 +31,7 @@ import {
   deleteSchedule
 } from '../controllers/mediaChannelController.js';
 import { authenticate } from '../middleware/auth.js';
+import { getOwnerDetails, saveOwnerDetails, deleteOwnerDocument } from '../controllers/ownerDetailsController.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -140,6 +141,51 @@ router.get('/user-profile', authenticate, getUserProfile);
  * @access  Private (Partner)
  */
 router.post('/profile-photo', authenticate, upload.single('profile_photo'), uploadProfilePhoto);
+
+// ===========================
+// OWNER DETAILS ROUTES
+// ===========================
+
+// Multer config for owner details file uploads (memory storage for Wasabi)
+const ownerDetailsUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png|gif|webp|pdf/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    if (extname) return cb(null, true);
+    cb(new Error('Only image and PDF files are allowed'));
+  }
+});
+
+/**
+ * @route   GET /api/v1/partner/owner-details
+ * @desc    Get owner details for logged-in partner
+ * @access  Private (Partner)
+ */
+router.get('/owner-details', authenticate, getOwnerDetails);
+
+/**
+ * @route   POST /api/v1/partner/owner-details
+ * @desc    Save/update owner details with file uploads
+ * @access  Private (Partner)
+ */
+router.post('/owner-details', authenticate, ownerDetailsUpload.fields([
+  { name: 'photo', maxCount: 1 },
+  { name: 'logo', maxCount: 1 },
+  { name: 'id_proof', maxCount: 1 },
+  { name: 'address_proof', maxCount: 1 },
+  { name: 'other_documents', maxCount: 10 },
+  { name: 'company_registration_docs', maxCount: 10 },
+  { name: 'company_taxation_docs', maxCount: 10 }
+]), saveOwnerDetails);
+
+/**
+ * @route   DELETE /api/v1/partner/owner-details/document
+ * @desc    Delete a document from owner details
+ * @access  Private (Partner)
+ */
+router.delete('/owner-details/document', authenticate, deleteOwnerDocument);
 
 /**
  * @route   GET /api/v1/partner/channel/:id/check-passcode

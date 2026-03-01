@@ -14,7 +14,8 @@ import {
   Language,
   PartnerHeaderAds,
   MediaSchedule,
-  MediaScheduleSlot
+  MediaScheduleSlot,
+  ClientRegistration
 } from '../models/index.js';
 
 /**
@@ -581,7 +582,7 @@ export const getUserProfile = async (req, res) => {
 
     const user = await User.findOne({
       where: { id: userId },
-      attributes: ['id', 'profile_img', 'identification_code', 'first_name', 'last_name', 'email', 'username']
+      attributes: ['id', 'profile_img', 'identification_code', 'first_name', 'last_name', 'email', 'username', 'group_id']
     });
 
     if (!user) {
@@ -591,9 +592,27 @@ export const getUserProfile = async (req, res) => {
       });
     }
 
+    // Get client_registration status
+    let registrationStatus = 'pending';
+    if (user.group_id) {
+      const clientReg = await ClientRegistration.findOne({
+        where: { user_id: userId, group_id: user.group_id },
+        attributes: ['status']
+      });
+      if (clientReg) {
+        registrationStatus = clientReg.status;
+      }
+    }
+
+    const userData = user.toJSON();
+    delete userData.group_id; // Don't expose group_id to frontend
+
     res.json({
       success: true,
-      data: user
+      data: {
+        ...userData,
+        registration_status: registrationStatus
+      }
     });
   } catch (error) {
     console.error('Get user profile error:', error);

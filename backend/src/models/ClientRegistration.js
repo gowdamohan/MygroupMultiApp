@@ -28,7 +28,7 @@ const ClientRegistration = sequelize.define('client_registration', {
     allowNull: true
   },
   status: {
-    type: DataTypes.ENUM('pending', 'active', 'inactive'),
+    type: DataTypes.ENUM('pending', 'submitted', 'verified', 'processed_for_approve', 'active', 'inactive'),
     defaultValue: 'pending'
   },
   created_at: {

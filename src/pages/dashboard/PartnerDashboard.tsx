@@ -4,7 +4,7 @@ import axios from 'axios';
 import {
   LayoutDashboard, User, Lock, Video, List, MessageSquare,
   Mail, LogOut, ChevronDown, ChevronRight, Menu, X,
-  HelpCircle, MessageCircle, ChevronLeft, ChevronRightIcon,
+  HelpCircle, MessageCircle,
   Users, Star, TrendingUp, DollarSign, Megaphone, Wallet,
   Settings, BookOpen, Newspaper, Image, Award, Share2, Scale, ShieldCheck, FileCheck
 } from 'lucide-react';
@@ -22,6 +22,7 @@ import { FooterPageListManager } from '../corporate/FooterPageListManager';
 import { SocialMediaLinks } from '../corporate/SocialMediaLinks';
 import { Gallery } from '../corporate/Gallery';
 import { FooterFaqManager } from '../corporate/FooterFaqManager';
+import { OwnerDetailsForm } from '../partner/OwnerDetailsForm';
 import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
 
 interface MenuItem {
@@ -52,6 +53,7 @@ interface UserProfile {
   last_name: string | null;
   email: string;
   username: string;
+  registration_status?: string;
 }
 
 export const PartnerDashboard: React.FC = () => {
@@ -64,8 +66,7 @@ export const PartnerDashboard: React.FC = () => {
   const [user, setUser] = useState<any>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [partnerAds, setPartnerAds] = useState<PartnerAd[]>([]);
-  const [currentAdIndex, setCurrentAdIndex] = useState(0);
-  const [isAccountActive, setIsAccountActive] = useState<boolean>(true);
+  const [registrationStatus, setRegistrationStatus] = useState<string>('pending');
   const [appName, setAppName] = useState<string>('');
 
   const fetchUserProfile = useCallback(async () => {
@@ -76,6 +77,10 @@ export const PartnerDashboard: React.FC = () => {
       });
       if (response.data.success) {
         setUserProfile(response.data.data);
+        // Set registration status from API response
+        if (response.data.data.registration_status) {
+          setRegistrationStatus(response.data.data.registration_status);
+        }
       }
     } catch (error) {
       console.error('Error fetching user profile:', error);
@@ -104,8 +109,6 @@ export const PartnerDashboard: React.FC = () => {
     if (userData) {
       const parsedUser = JSON.parse(userData);
       setUser(parsedUser);
-      // Check if user account is active (active === 1 means active)
-      setIsAccountActive(parsedUser.active === 1 || parsedUser.active === true);
       fetchUserProfile();
       fetchPartnerAds();
     } else {
@@ -123,24 +126,6 @@ export const PartnerDashboard: React.FC = () => {
       }
     }
   }, [navigate, fetchUserProfile, fetchPartnerAds]);
-
-  // Auto-rotate carousel
-  useEffect(() => {
-    if (partnerAds.length > 1) {
-      const interval = setInterval(() => {
-        setCurrentAdIndex((prev) => (prev + 1) % partnerAds.length);
-      }, 5000);
-      return () => clearInterval(interval);
-    }
-  }, [partnerAds.length]);
-
-  const nextAd = () => {
-    setCurrentAdIndex((prev) => (prev + 1) % partnerAds.length);
-  };
-
-  const prevAd = () => {
-    setCurrentAdIndex((prev) => (prev - 1 + partnerAds.length) % partnerAds.length);
-  };
 
   // Common menu items for ALL partner dashboards
   const commonMenuItems: MenuItem[] = [
@@ -225,7 +210,16 @@ export const PartnerDashboard: React.FC = () => {
     return [];
   };
 
-  const menuItems: MenuItem[] = [...commonMenuItems, ...getAppSpecificMenuItems()];
+  const isPending = ['pending', 'submitted', 'verified', 'processed_for_approve'].includes(registrationStatus);
+
+  // IDs allowed when registration is not yet active
+  const pendingAllowedIds = ['dashboard', 'profile', 'edit-profile', 'change-password', 'support-chat'];
+
+  // Filter menu items based on registration status
+  const allMenuItems: MenuItem[] = [...commonMenuItems, ...getAppSpecificMenuItems()];
+  const menuItems: MenuItem[] = isPending
+    ? allMenuItems.filter(item => pendingAllowedIds.includes(item.id))
+    : allMenuItems;
 
   const toggleMenu = (menuId: string) => {
     setExpandedMenus(prev =>
@@ -294,68 +288,66 @@ export const PartnerDashboard: React.FC = () => {
   // Get ads with images for the carousel
   const adsWithImages = partnerAds.filter(ad => ad.signed_url || ad.image_url);
 
-  const renderHeaderAdsSection = () => (
-    <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500">
-      {/* Partner Ads Image Carousel */}
-      {adsWithImages.length > 0 ? (
-        <div className="relative h-36 md:h-48 overflow-hidden">
-          <img
-            src={adsWithImages[currentAdIndex % adsWithImages.length]?.signed_url || adsWithImages[currentAdIndex % adsWithImages.length]?.image_url || ''}
-            alt="Partner Ad"
-            className="w-full h-full object-cover"
-          />
-          {/* Overlay gradient */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
-          {adsWithImages.length > 1 && (
-            <>
-              <button
-                onClick={prevAd}
-                className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-white/80 hover:bg-white rounded-full flex items-center justify-center shadow-md transition-colors"
-              >
-                <ChevronLeft size={18} />
-              </button>
-              <button
-                onClick={nextAd}
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-white/80 hover:bg-white rounded-full flex items-center justify-center shadow-md transition-colors"
-              >
-                <ChevronRightIcon size={18} />
-              </button>
-              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
-                {adsWithImages.map((_ad: PartnerAd, idx: number) => (
-                  <button
-                    key={_ad.id}
-                    onClick={() => setCurrentAdIndex(idx)}
-                    className={`w-2 h-2 rounded-full transition-colors ${idx === (currentAdIndex % adsWithImages.length) ? 'bg-white' : 'bg-white/50'}`}
-                  />
-                ))}
+  const renderHeaderAdsSection = () => {
+    const ad1 = adsWithImages[0] || null;
+    const ad2 = adsWithImages[1] || null;
+
+    return (
+      <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 h-full flex flex-col">
+        {/* Two Ad Images Side by Side */}
+        <div className="flex-1 flex gap-1 min-h-0">
+          {ad1 ? (
+            <div className="flex-1 overflow-hidden">
+              <img
+                src={ad1.signed_url || ad1.image_url || ''}
+                alt="Partner Ad 1"
+                className="w-full h-full object-cover"
+              />
+            </div>
+          ) : (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center text-white">
+                <Megaphone className="mx-auto mb-1" size={24} />
+                <p className="text-xs font-medium opacity-90">Ad Space 1</p>
               </div>
-            </>
+            </div>
+          )}
+          {ad2 ? (
+            <div className="flex-1 overflow-hidden">
+              <img
+                src={ad2.signed_url || ad2.image_url || ''}
+                alt="Partner Ad 2"
+                className="w-full h-full object-cover"
+              />
+            </div>
+          ) : (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center text-white">
+                <Megaphone className="mx-auto mb-1" size={24} />
+                <p className="text-xs font-medium opacity-90">Ad Space 2</p>
+              </div>
+            </div>
           )}
         </div>
-      ) : (
-        <div className="h-24 md:h-32 flex items-center justify-center">
-          <div className="text-center text-white">
-            <Megaphone className="mx-auto mb-2" size={28} />
-            <p className="text-sm font-medium opacity-90">Welcome to Partner Dashboard</p>
-          </div>
-        </div>
-      )}
 
-      {/* Scrolling Text Marquee */}
-      {scrollingTexts.length > 0 && (
-        <div className="bg-black/20 py-1.5 overflow-hidden">
-          <div className="animate-marquee whitespace-nowrap">
-            <span className="text-white text-sm font-medium mx-8">
-              {scrollingTexts.join('  •  ')}
-            </span>
-            <span className="text-white text-sm font-medium mx-8">
-              {scrollingTexts.join('  •  ')}
-            </span>
-          </div>
+        {/* Scrolling Text Marquee */}
+        <div className="bg-black/20 py-1.5 overflow-hidden flex-shrink-0">
+          {scrollingTexts.length > 0 ? (
+            <div className="animate-marquee whitespace-nowrap">
+              <span className="text-white text-sm font-medium mx-8">
+                {scrollingTexts.join('  •  ')}
+              </span>
+              <span className="text-white text-sm font-medium mx-8">
+                {scrollingTexts.join('  •  ')}
+              </span>
+            </div>
+          ) : (
+            <p className="text-white/60 text-sm text-center">Welcome to Partner Dashboard</p>
+          )}
         </div>
-      )}
-    </div>
-  );
+      </div>
+    );
+  };
 
   const renderDashboard = () => (
     <div className="space-y-6">
@@ -462,45 +454,23 @@ export const PartnerDashboard: React.FC = () => {
     </div>
   );
 
-  // Render inactive account message
+  // Render owner details / profile completion form for inactive accounts
   const renderInactiveMessage = () => (
-    <div className="flex flex-col items-center justify-center h-full p-8">
-      <div className="bg-white rounded-2xl shadow-xl p-8 max-w-lg w-full text-center">
-        <div className="w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-6">
-          <svg className="w-10 h-10 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-        </div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-3">Account Pending Activation</h2>
-        <p className="text-gray-600 mb-6">
-          Your account is currently <span className="font-semibold text-yellow-600">inactive</span>.
-          Please contact the administrator to activate your account and access all features.
-        </p>
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-          <p className="text-sm text-yellow-800">
-            <strong>What you can do:</strong><br />
-            • Contact support for assistance<br />
-            • Wait for admin approval<br />
-            • Check back later
-          </p>
-        </div>
-        <button
-          onClick={handleLogout}
-          className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
-        >
-          Logout
-        </button>
-      </div>
-    </div>
+    <OwnerDetailsForm
+      registrationStatus={registrationStatus}
+      onStatusChange={(newStatus) => {
+        setRegistrationStatus(newStatus);
+      }}
+    />
   );
 
   const renderContent = () => {
-    // If account is inactive, show the inactive message
-    if (!isAccountActive) {
+    const path = location.pathname;
+
+    // If not active, only allow profile, change-password, and support-chat routes
+    if (isPending && path !== '/partner/edit-profile' && path !== '/partner/change-password' && path !== '/partner/support-chat') {
       return renderInactiveMessage();
     }
-
-    const path = location.pathname;
 
     switch (path) {
       case '/dashboard/partner':
@@ -557,6 +527,15 @@ export const PartnerDashboard: React.FC = () => {
         } hidden lg:block bg-gray-800 transition-all duration-300 overflow-hidden shadow-lg`}
       >
         <div className="h-full flex flex-col">
+          {/* Sidebar Toggle */}
+          <div className="flex justify-end px-2 pt-2 flex-shrink-0">
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+            >
+              <Menu size={16} />
+            </button>
+          </div>
           {/* User Profile */}
           <div className="p-4 border-b border-gray-700">
             <div className="flex flex-col items-center">
@@ -586,69 +565,67 @@ export const PartnerDashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* Menu Items - Hidden when account is inactive */}
+          {/* Menu Items */}
           <div className="flex-1 overflow-y-auto py-4 px-3">
-            {isAccountActive ? (
-              <nav className="space-y-1">
-                {menuItems.map(item => {
-                  const isExpanded = expandedMenus.includes(item.id);
-                  const isActive = activeMenu === item.id || location.pathname === item.path;
-                  const hasChildren = item.children && item.children.length > 0;
+            <nav className="space-y-1">
+              {menuItems.map(item => {
+                const isExpanded = expandedMenus.includes(item.id);
+                const isActive = activeMenu === item.id || location.pathname === item.path;
+                const hasChildren = item.children && item.children.length > 0;
 
-                  return (
-                    <div key={item.id}>
-                      <button
-                        onClick={() => handleMenuClick(item)}
-                        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg transition-colors ${
-                          isActive
-                            ? 'bg-primary-600 text-white'
-                            : 'text-gray-300 hover:bg-gray-700 hover:text-white'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <item.icon size={18} />
-                          {sidebarOpen && <span className="text-sm font-medium">{item.label}</span>}
-                        </div>
-                        {sidebarOpen && hasChildren && (
-                          isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />
-                        )}
-                      </button>
-
-                      {hasChildren && isExpanded && sidebarOpen && (
-                        <div className="mt-1 ml-4 space-y-1">
-                          {item.children!.map(child => {
-                            const childActive = location.pathname === child.path;
-                            return (
-                              <button
-                                key={child.id}
-                                onClick={() => handleMenuClick(child)}
-                                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm ${
-                                  childActive
-                                    ? 'bg-primary-600/50 text-white'
-                                    : 'text-gray-400 hover:bg-gray-700 hover:text-white'
-                                }`}
-                              >
-                                <child.icon size={16} />
-                                <span>{child.label}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
+                return (
+                  <div key={item.id}>
+                    <button
+                      onClick={() => handleMenuClick(item)}
+                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg transition-colors ${
+                        isActive
+                          ? 'bg-primary-600 text-white'
+                          : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <item.icon size={18} />
+                        {sidebarOpen && <span className="text-sm font-medium">{item.label}</span>}
+                      </div>
+                      {sidebarOpen && hasChildren && (
+                        isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />
                       )}
-                    </div>
-                  );
-                })}
-              </nav>
-            ) : (
-              /* Inactive account - show disabled menu */
-              <div className="text-center py-8 px-4">
-                <div className="w-12 h-12 bg-yellow-600/20 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <svg className="w-6 h-6 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m0 0v2m0-2h2m-2 0H10m4-6V9a4 4 0 00-8 0v2m-2 0h12a2 2 0 012 2v6a2 2 0 01-2 2H6a2 2 0 01-2-2v-6a2 2 0 012-2z" />
-                  </svg>
-                </div>
-                <p className="text-yellow-400 text-sm font-medium">Account Inactive</p>
-                <p className="text-gray-500 text-xs mt-1">Menu disabled</p>
+                    </button>
+
+                    {hasChildren && isExpanded && sidebarOpen && (
+                      <div className="mt-1 ml-4 space-y-1">
+                        {item.children!.map(child => {
+                          const childActive = location.pathname === child.path;
+                          return (
+                            <button
+                              key={child.id}
+                              onClick={() => handleMenuClick(child)}
+                              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm ${
+                                childActive
+                                  ? 'bg-primary-600/50 text-white'
+                                  : 'text-gray-400 hover:bg-gray-700 hover:text-white'
+                              }`}
+                            >
+                              <child.icon size={16} />
+                              <span>{child.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </nav>
+            {isPending && (
+              <div className="mt-4 mx-2 p-3 bg-yellow-600/20 rounded-lg">
+                <p className="text-yellow-400 text-xs font-medium text-center">
+                  {registrationStatus === 'pending' ? 'Complete Your Profile' :
+                   registrationStatus === 'submitted' ? 'Profile Submitted' :
+                   registrationStatus === 'verified' ? 'Profile Verified' :
+                   registrationStatus === 'processed_for_approve' ? 'Processing Approval' :
+                   'Account Pending Approval'}
+                </p>
               </div>
             )}
           </div>
@@ -703,19 +680,18 @@ export const PartnerDashboard: React.FC = () => {
                 )}
               </div>
 
-              {/* Menu Items - Hidden when account is inactive */}
+              {/* Menu Items */}
               <div className="flex-1 overflow-y-auto py-4 px-3">
-                {isAccountActive ? (
-                  menuItems.map(item => renderMenuItem(item))
-                ) : (
-                  <div className="text-center py-8 px-4">
-                    <div className="w-12 h-12 bg-yellow-600/20 rounded-full flex items-center justify-center mx-auto mb-3">
-                      <svg className="w-6 h-6 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m0 0v2m0-2h2m-2 0H10m4-6V9a4 4 0 00-8 0v2m-2 0h12a2 2 0 012 2v6a2 2 0 01-2 2H6a2 2 0 01-2-2v-6a2 2 0 012-2z" />
-                      </svg>
-                    </div>
-                    <p className="text-yellow-400 text-sm font-medium">Account Inactive</p>
-                    <p className="text-gray-500 text-xs mt-1">Menu disabled</p>
+                {menuItems.map(item => renderMenuItem(item))}
+                {isPending && (
+                  <div className="mt-4 mx-2 p-3 bg-yellow-600/20 rounded-lg">
+                    <p className="text-yellow-400 text-xs font-medium text-center">
+                      {registrationStatus === 'pending' ? 'Complete Your Profile' :
+                       registrationStatus === 'submitted' ? 'Profile Submitted' :
+                       registrationStatus === 'verified' ? 'Profile Verified' :
+                       registrationStatus === 'processed_for_approve' ? 'Processing Approval' :
+                       'Account Pending Approval'}
+                    </p>
                   </div>
                 )}
               </div>
@@ -737,46 +713,18 @@ export const PartnerDashboard: React.FC = () => {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Navigation Bar */}
-        <div className="h-12 bg-white border-b border-gray-200 flex items-center justify-between px-4 shadow-sm flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="hidden lg:block p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <Menu size={18} />
-            </button>
-            <button
-              onClick={() => setMobileSidebarOpen(true)}
-              className="lg:hidden p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <Menu size={18} />
-            </button>
-            <h1 className="text-sm font-semibold text-gray-800">Partner Dashboard</h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="hidden sm:block text-right">
-              <p className="text-xs font-medium text-gray-700">{userProfile?.first_name || user?.username}</p>
-              <p className="text-[10px] text-gray-500">{userProfile?.identification_code || 'Partner'}</p>
-            </div>
-            <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-gray-200">
-              {userProfile?.profile_img ? (
-                <img
-                  src={`${BACKEND_URL}${userProfile.profile_img}`}
-                  alt="Profile"
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center">
-                  <User className="text-white" size={14} />
-                </div>
-              )}
-            </div>
-          </div>
+        {/* Mobile menu toggle - visible only on small screens */}
+        <div className="lg:hidden h-10 bg-white border-b border-gray-200 flex items-center px-4 flex-shrink-0">
+          <button
+            onClick={() => setMobileSidebarOpen(true)}
+            className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <Menu size={18} />
+          </button>
         </div>
 
-        {/* Partner Ads Header Section */}
-        <div className="flex-shrink-0">
+        {/* Partner Ads Header Section - height matches sidebar */}
+        <div className="flex-shrink-0 h-48 md:h-56">
           {renderHeaderAdsSection()}
         </div>
 
