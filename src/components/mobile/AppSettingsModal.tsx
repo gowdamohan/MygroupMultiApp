@@ -48,6 +48,7 @@ export const AppSettingsModal: React.FC<AppSettingsModalProps> = ({
 
   const getSocialIcon = (platform: string) => {
     const iconClass = "w-6 h-6";
+    if (!platform) return <Globe className={iconClass} />;
     switch (platform.toLowerCase()) {
       case 'facebook': return <div className={`${iconClass} bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold`}>f</div>;
       case 'instagram': return <div className={`${iconClass} bg-gradient-to-br from-purple-600 via-pink-500 to-orange-400 rounded-lg flex items-center justify-center text-white text-xs`}>📷</div>;
@@ -62,30 +63,30 @@ export const AppSettingsModal: React.FC<AppSettingsModalProps> = ({
     setExpandedSection(expandedSection === section ? null : section);
   };
 
-  if (!isOpen) return null;
-
   const displayLogo = appLogo || appIcon;
 
   return (
-    <>
-      {/* Backdrop */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.3 }}
-        className="fixed inset-0 z-[100] bg-black/50"
-        onClick={onClose}
-      />
+    <AnimatePresence>
+      {isOpen && (
+        <>
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="fixed inset-0 z-[100] bg-black/50"
+            onClick={onClose}
+          />
 
-      {/* Slide-in Panel from Right */}
-      <motion.div
-        initial={{ x: '100%' }}
-        animate={{ x: 0 }}
-        exit={{ x: '100%' }}
-        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-        className="fixed top-0 right-0 bottom-0 z-[101] w-[85%] max-w-sm bg-white shadow-2xl overflow-y-auto"
-      >
+          {/* Slide-in Panel from Right */}
+          <motion.div
+            initial={{ x: '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '100%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+            className="fixed top-0 right-0 bottom-0 z-[101] w-[85%] max-w-sm bg-white shadow-2xl overflow-y-auto"
+          >
         {/* Header with App Logo and Name */}
         <div className="sticky top-0 bg-gradient-to-r from-teal-600 to-teal-500 px-4 py-4 flex items-center justify-between z-10">
           <div className="flex items-center gap-3">
@@ -240,10 +241,12 @@ export const AppSettingsModal: React.FC<AppSettingsModalProps> = ({
             )}
           </div>
         </div>
-      </motion.div>
-    </>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
   );
 };
 
-export default AppSettingsModal;
+
 

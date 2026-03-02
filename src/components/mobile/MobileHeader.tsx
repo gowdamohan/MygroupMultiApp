@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { User, Moon, Sun, ChevronLeft, ChevronRight, X, MoreHorizontal } from 'lucide-react';
+import { User, ChevronLeft, ChevronRight, X, Search, Menu } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
 import { authAPI } from '../../services/api';
-import UserProfileModal from './UserProfileModal';
-import AppSettingsModal from './AppSettingsModal';
+import { UserProfileModal } from './UserProfileModal';
+import { AppSettingsModal } from './AppSettingsModal';
 
 export interface TopIcon {
   id: number;
@@ -473,26 +473,22 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
   return (
     <>
       <div className="fixed top-0 left-0 right-0 z-50">
-        {/* Section A: Top Navigation Bar with Icons */}
+        {/* Section A: Top Navigation Bar with Icons - Updated with pink/rose background */}
         {showTopIcons && (
-          <div className="bg-teal-600 px-2 py-2">
-            <div className="flex items-center">
-              {/* Fixed "More" Icon on the Left */}
+          <div className="bg-gradient-to-r from-pink-200 via-pink-100 to-pink-200 px-3 py-2 shadow-sm">
+            <div className="flex items-center gap-2">
+              {/* Fixed Menu Icon on the Left */}
               <button
                 onClick={() => setShowMoreAppsModal(true)}
-                className="flex flex-col items-center min-w-[50px] cursor-pointer mr-2 flex-shrink-0"
+                className="flex flex-col items-center min-w-[60px] cursor-pointer flex-shrink-0"
               >
-                <div className="w-8 h-8 rounded-full bg-white/30 flex items-center justify-center">
-                  <MoreHorizontal size={18} className="text-white" />
+                <div className="w-10 h-10 rounded-lg bg-white shadow-sm flex items-center justify-center hover:shadow-md transition-shadow">
+                  <Menu size={20} className="text-gray-700" />
                 </div>
-                <span className="text-xs text-white mt-1">More</span>
               </button>
 
-              {/* Divider */}
-              <div className="w-px h-10 bg-white/30 mr-2 flex-shrink-0" />
-
-              {/* Horizontally Scrollable Top Icons (My Apps) */}
-              <div className="flex gap-3 overflow-x-auto scrollbar-hide flex-1">
+              {/* Horizontally Scrollable Top Icons (My Apps) - Updated styling */}
+              <div className="flex gap-2 overflow-x-auto scrollbar-hide flex-1">
                 {topIcons.length > 0 ? (
                   topIcons.map((icon, index) => (
                     <a
@@ -507,38 +503,47 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                           window.location.href = icon.url || `/mobile/${icon.name.toLowerCase().replace(/\s+/g, '')}`;
                         }
                       }}
-                      className={`flex flex-col items-center min-w-[50px] cursor-pointer ${
-                        selectedApp?.id === icon.id ? 'opacity-100' : 'opacity-80'
+                      className={`flex flex-col items-center min-w-[60px] cursor-pointer transition-all ${
+                        selectedApp?.id === icon.id ? 'scale-105' : 'opacity-90 hover:opacity-100'
                       }`}
                     >
-                      {icon.icon ? (
-                        <img
-                          src={icon.icon.startsWith('http') ? icon.icon : `${BACKEND_URL}${icon.icon}`}
-                          alt={icon.name}
-                          className="w-8 h-8 object-contain rounded-full"
-                        />
-                      ) : icon.logo ? (
-                        <img
-                          src={icon.logo.startsWith('http') ? icon.logo : `${BACKEND_URL}${icon.logo}`}
-                          alt={icon.name}
-                          className="w-8 h-8 object-contain rounded-full"
-                        />
-                      ) : (
-                        <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
-                          <span className="text-white font-bold text-xs">
+                      <div className={`w-10 h-10 rounded-lg shadow-sm flex items-center justify-center transition-all ${
+                        selectedApp?.id === icon.id
+                          ? 'bg-red-500 shadow-md'
+                          : icon.background_color
+                            ? `bg-white`
+                            : 'bg-white'
+                      }`}>
+                        {icon.icon ? (
+                          <img
+                            src={icon.icon.startsWith('http') ? icon.icon : `${BACKEND_URL}${icon.icon}`}
+                            alt={icon.name}
+                            className="w-6 h-6 object-contain"
+                          />
+                        ) : icon.logo ? (
+                          <img
+                            src={icon.logo.startsWith('http') ? icon.logo : `${BACKEND_URL}${icon.logo}`}
+                            alt={icon.name}
+                            className="w-6 h-6 object-contain"
+                          />
+                        ) : (
+                          <span className={`font-bold text-sm ${selectedApp?.id === icon.id ? 'text-white' : 'text-gray-700'}`}>
                             {icon.name?.charAt(0) || 'A'}
                           </span>
-                        </div>
-                      )}
-                      <span className="text-xs text-white mt-1 truncate max-w-[50px]">
+                        )}
+                      </div>
+                      <span className={`text-[10px] mt-1 truncate max-w-[60px] font-medium ${
+                        selectedApp?.id === icon.id ? 'text-gray-900' : 'text-gray-700'
+                      }`}>
                         {icon.name}
                       </span>
                     </a>
                   ))
                 ) : (
-                  // Fallback placeholder icons
-                  ['Mychat', 'Mydiary', 'Mymedia', 'Myjoy', 'Mybank', 'Myshop'].map((name) => {
-                    const fallbackUrl = `/mobile/${name.toLowerCase()}`;
+                  // Fallback placeholder icons with updated styling
+                  ['Home', 'My Chat', 'My Media', 'My Video', 'My Go'].map((name) => {
+                    const fallbackUrl = `/mobile/${name.toLowerCase().replace(/\s+/g, '')}`;
+                    const isSelected = name.toLowerCase().replace(/\s+/g, '') === appName?.toLowerCase();
                     return (
                       <a
                         key={name}
@@ -553,14 +558,20 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                             window.location.href = fallbackUrl;
                           }
                         }}
-                        className="flex flex-col items-center min-w-[50px] cursor-pointer"
+                        className={`flex flex-col items-center min-w-[60px] cursor-pointer transition-all ${
+                          isSelected ? 'scale-105' : 'opacity-90 hover:opacity-100'
+                        }`}
                       >
-                        <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
-                          <span className="text-white font-bold text-xs">
+                        <div className={`w-10 h-10 rounded-lg shadow-sm flex items-center justify-center ${
+                          isSelected ? 'bg-red-500' : 'bg-white'
+                        }`}>
+                          <span className={`font-bold text-sm ${isSelected ? 'text-white' : 'text-gray-700'}`}>
                             {name.charAt(0)}
                           </span>
                         </div>
-                        <span className="text-xs text-white mt-1 truncate max-w-[50px]">
+                        <span className={`text-[10px] mt-1 truncate max-w-[60px] font-medium ${
+                          isSelected ? 'text-gray-900' : 'text-gray-700'
+                        }`}>
                           {name}
                         </span>
                       </a>
@@ -572,141 +583,117 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
           </div>
         )}
 
-        {/* Section B: User & App Info Bar */}
-        <div className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-teal-500'} border-b`}>
-          <div className="flex items-center justify-between px-4 py-3">
-            {/* Left: Logged-in User Profile Icon */}
+        {/* Section B: User Profile & Search Bar - Updated design */}
+        <div className="bg-gradient-to-r from-pink-200 via-pink-100 to-pink-200 px-4 py-3">
+          <div className="flex items-center justify-between gap-3">
+            {/* Left: User Profile Icon */}
             {showProfileButton && (
               <button
                 onClick={handleProfileClick}
-                className={`p-2 ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} rounded-full transition-colors`}
+                className="flex-shrink-0"
               >
                 {userProfile?.profile_img ? (
                   <img
                     src={userProfile.profile_img.startsWith('http') ? userProfile.profile_img : `${BACKEND_URL}${userProfile.profile_img}`}
                     alt="Profile"
-                    className="w-8 h-8 rounded-full object-cover border-2 border-teal-500"
+                    className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm"
                   />
                 ) : (
-                  <div className="w-8 h-8 rounded-full bg-teal-500 flex items-center justify-center">
-                    <User size={18} className="text-white" />
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-500 flex items-center justify-center shadow-sm border-2 border-white">
+                    <User size={20} className="text-white" />
                   </div>
                 )}
               </button>
             )}
 
-            {/* Right: Dark Mode Toggle & Currently Selected App Logo */}
-            <div className="flex items-center gap-3">
-              {/* Dark Mode Toggle */}
-              {showDarkModeToggle && onDarkModeToggle && (
-                <button
-                  onClick={onDarkModeToggle}
-                  className={`p-2 ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} rounded-full transition-colors`}
-                >
-                  {darkMode ? (
-                    <Sun size={20} className="text-yellow-400" />
-                  ) : (
-                    <Moon size={20} className="text-gray-700" />
-                  )}
-                </button>
-              )}
+            {/* Right: Search Bar, Menu, and Pinterest Icon */}
+            <div className="flex items-center gap-2 flex-1 justify-end">
+              {/* Search Icon */}
+              <button className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center hover:shadow-md transition-shadow">
+                <Search size={20} className="text-gray-700" />
+              </button>
 
-              {/* Currently Selected App Logo */}
+              {/* Menu Icon */}
+              <button className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center hover:shadow-md transition-shadow">
+                <Menu size={20} className="text-gray-700" />
+              </button>
+
+              {/* Pinterest-style Icon (using app logo or default) */}
               <button
                 onClick={handleAppNameClick}
-                className={`flex items-center gap-2 ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} rounded-lg px-2 py-1 transition-colors`}
+                className="w-10 h-10 rounded-full bg-red-600 shadow-sm flex items-center justify-center hover:shadow-md transition-shadow"
               >
-                {/* Show selected app logo or fallback to app info */}
-                {selectedApp?.logo ? (
+                {displayLogo || displayIcon ? (
                   <img
-                    src={selectedApp.logo.startsWith('http') ? selectedApp.logo : `${BACKEND_URL}${selectedApp.logo}`}
-                    alt={selectedApp.name || 'App'}
-                    className="w-8 h-8 rounded-full object-contain"
-                  />
-                ) : selectedApp?.icon ? (
-                  <img
-                    src={selectedApp.icon.startsWith('http') ? selectedApp.icon : `${BACKEND_URL}${selectedApp.icon}`}
-                    alt={selectedApp.name || 'App'}
-                    className="w-8 h-8 rounded-full object-contain"
-                  />
-                ) : displayLogo ? (
-                  <img
-                    src={displayLogo.startsWith('http') ? displayLogo : `${BACKEND_URL}${displayLogo}`}
+                    src={(displayLogo || displayIcon)!.startsWith('http') ? (displayLogo || displayIcon) : `${BACKEND_URL}${displayLogo || displayIcon}`}
                     alt={appInfo?.name || 'App'}
-                    className="w-8 h-8 rounded-full object-contain"
-                  />
-                ) : displayIcon ? (
-                  <img
-                    src={displayIcon.startsWith('http') ? displayIcon : `${BACKEND_URL}${displayIcon}`}
-                    alt={appInfo?.name || 'App'}
-                    className="w-8 h-8 rounded-full object-contain"
+                    className="w-6 h-6 object-contain"
                   />
                 ) : (
-                  <div className="w-8 h-8 rounded-full bg-teal-500 flex items-center justify-center text-white font-bold text-sm">
-                    {(selectedApp?.name || appInfo?.name || appName || 'M').charAt(0).toUpperCase()}
-                  </div>
+                  <span className="text-white font-bold text-sm">
+                    {(selectedApp?.name || appInfo?.name || appName || 'P').charAt(0).toUpperCase()}
+                  </span>
                 )}
-                <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  {selectedApp?.name || appInfo?.name || appName || 'App'}
-                </span>
               </button>
             </div>
           </div>
         </div>
 
-        {/* Carousel Ads Section */}
+        {/* Carousel Ads Section - Updated with rounded corners and better styling */}
         {showAds && ads.length > 0 && (
-          <div className="relative bg-gray-100">
-            <div className="relative h-32 overflow-hidden">
-              {ads.map((ad, index) => (
-                <a
-                  key={`ad-${ad.id}-${index}`}
-                  href={ad.url}
-                  className={`absolute inset-0 transition-opacity duration-500 ${
-                    index === currentAdIndex ? 'opacity-100' : 'opacity-0 pointer-events-none'
-                  }`}
-                >
-                  <img
-                    src={`${ad.image}`}
-                    alt={ad.title}
-                    className="w-full h-full object-cover"
-                  />
-                </a>
-              ))}
+          <div className="bg-gradient-to-r from-pink-200 via-pink-100 to-pink-200 px-4 pb-3">
+            <div className="relative rounded-2xl overflow-hidden shadow-lg">
+              <div className="relative h-32 overflow-hidden">
+                {ads.map((ad, index) => (
+                  <a
+                    key={`ad-${ad.id}-${index}`}
+                    href={ad.url}
+                    className={`absolute inset-0 transition-opacity duration-500 ${
+                      index === currentAdIndex ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                    }`}
+                  >
+                    <img
+                      src={`${ad.image}`}
+                      alt={ad.title}
+                      className="w-full h-full object-cover"
+                    />
+                  </a>
+                ))}
 
-              {/* Navigation Arrows */}
+                {/* Navigation Arrows - Updated styling */}
+                {ads.length > 1 && (
+                  <>
+                    <button
+                      onClick={handlePrevAd}
+                      className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 bg-white/90 hover:bg-white rounded-full transition-all shadow-md"
+                    >
+                      <ChevronLeft size={18} className="text-gray-700" />
+                    </button>
+                    <button
+                      onClick={handleNextAd}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-white/90 hover:bg-white rounded-full transition-all shadow-md"
+                    >
+                      <ChevronRight size={18} className="text-gray-700" />
+                    </button>
+                  </>
+                )}
+              </div>
+
+              {/* Dots Navigation - Updated styling */}
               {ads.length > 1 && (
-                <>
-                  <button
-                    onClick={handlePrevAd}
-                    className="absolute left-2 top-1/2 -translate-y-1/2 p-1 bg-black/30 hover:bg-black/50 rounded-full transition-colors"
-                  >
-                    <ChevronLeft size={20} className="text-white" />
-                  </button>
-                  <button
-                    onClick={handleNextAd}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 bg-black/30 hover:bg-black/50 rounded-full transition-colors"
-                  >
-                    <ChevronRight size={20} className="text-white" />
-                  </button>
-                </>
+                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+                  {ads.map((_, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setCurrentAdIndex(index)}
+                      className={`w-2 h-2 rounded-full transition-all ${
+                        index === currentAdIndex ? 'bg-red-500 w-4' : 'bg-white/70'
+                      }`}
+                    />
+                  ))}
+                </div>
               )}
             </div>
-
-            {/* Dots Navigation */}
-            {ads.length > 1 && (
-              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
-                {ads.map((_, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setCurrentAdIndex(index)}
-                    className={`w-2 h-2 rounded-full transition-colors ${
-                      index === currentAdIndex ? 'bg-white' : 'bg-white/50'
-                    }`}
-                  />
-                ))}
-              </div>
-            )}
           </div>
         )}
       </div>
@@ -853,11 +840,12 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
   );
 };
 
-// Export header height calculation helper
+// Export header height calculation helper - Updated for new design
 export const getMobileHeaderHeight = (showTopIcons: boolean = true, showAds: boolean = true, hasAds: boolean = false) => {
-  let height = 60; // Main header bar
-  if (showTopIcons) height += 50; // Top icons bar
-  if (showAds && hasAds) height += 128; // Carousel ads
+  let height = 0;
+  if (showTopIcons) height += 70; // Top icons bar (increased for new design)
+  height += 66; // User profile & search bar
+  if (showAds && hasAds) height += 152; // Carousel ads with padding (increased for rounded design)
   return height;
 };
 

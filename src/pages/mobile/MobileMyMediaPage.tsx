@@ -585,59 +585,49 @@ export const MobileMyMediaPage: React.FC = () => {
         showProfileButton={true}
       />
       <div className="pb-20" style={{ paddingTop: headerHeight, paddingBottom: MOBILE_FOOTER_HEIGHT + 16 }}>
-        {/* Filter Row */}
-        <div className="sticky top-0 z-30 bg-teal-700 px-2 py-2">
+        {/* Filter Row - Updated design with white background and rounded buttons */}
+        <div className="sticky z-30 bg-white shadow-sm px-3 py-3 border-b border-gray-200" style={{ top: headerHeight }}>
           <div className="flex gap-2 overflow-x-auto scrollbar-hide">
-            {/* Type Dropdown */}
+            {/* Category Dropdown */}
             <button
-              onClick={() => setShowTypeDropdown(!showTypeDropdown)}
-              className="flex items-center gap-1 bg-teal-600 text-white px-3 py-2 rounded-lg text-sm whitespace-nowrap"
+              onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
+              className="flex items-center gap-1.5 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap hover:bg-gray-50 transition-colors shadow-sm"
             >
-              {selectedType} <ChevronDown size={16} />
+              Category <ChevronDown size={16} />
             </button>
 
             {/* Location Button - show based on type */}
             {selectedType !== 'International' && (
               <button
                 onClick={() => setShowLocationModal(true)}
-                className="flex items-center gap-1 bg-white text-teal-700 px-3 py-2 rounded-lg text-sm whitespace-nowrap"
+                className="flex items-center gap-1.5 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap hover:bg-gray-50 transition-colors shadow-sm"
               >
-                {getLocationLabel()}
+                Location <ChevronDown size={16} />
               </button>
             )}
-
-            {/* Category Dropdown */}
-            <button
-              onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
-              className="flex items-center gap-1 bg-teal-600 text-white px-3 py-2 rounded-lg text-sm whitespace-nowrap"
-            >
-              {getSelectedCategoryName()} <ChevronDown size={16} />
-            </button>
 
             {/* Language Dropdown */}
             <button
               onClick={() => setShowLanguageDropdown(!showLanguageDropdown)}
-              className="flex items-center gap-1 bg-teal-600 text-white px-3 py-2 rounded-lg text-sm whitespace-nowrap"
+              className="flex items-center gap-1.5 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap hover:bg-gray-50 transition-colors shadow-sm"
             >
-              {getSelectedLanguageName()} <ChevronDown size={16} />
+              Languages <ChevronDown size={16} />
             </button>
           </div>
         </div>
 
-        {/* Days Row - Only for TV/Radio: Yesterday, Today, Tomorrow, Day after tomorrow; Today = amber */}
+        {/* Days Row - Only for TV/Radio: Yesterday, Today, Tomorrow, Saturday - Updated design */}
         {isStreamCategory() && (
-          <div className="sticky top-[158px] z-20 bg-gray-200 px-2 py-2">
+          <div className="sticky z-20 bg-white border-b border-gray-200 px-3 py-2.5" style={{ top: headerHeight + 60 }}>
             <div className="flex gap-2 overflow-x-auto scrollbar-hide">
               {SCHEDULE_DAY_LABELS.map((label, idx) => (
                 <button
                   key={label}
                   onClick={() => setSelectedDay(idx)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+                  className={`px-5 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition-all ${
                     selectedDay === idx
-                      ? idx === 1
-                        ? 'bg-amber-500 text-white shadow'
-                        : 'bg-teal-700 text-white'
-                      : 'bg-white text-gray-700 hover:bg-gray-100'
+                      ? 'bg-red-500 text-white shadow-md'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
                   {label}
@@ -654,16 +644,16 @@ export const MobileMyMediaPage: React.FC = () => {
             <p>No channels found for the selected filters</p>
           </div>
         ) : isDocumentCategory() ? (
-          /* E-Paper / Magazine Card Grid */
-          <div className="p-4 grid grid-cols-2 gap-3">
+          /* E-Paper / Magazine Card Grid - Updated design */
+          <div className="p-4 grid grid-cols-2 gap-4 bg-gray-50">
             {channels.map((channel) => (
               <div
                 key={channel.id}
                 onClick={() => handleChannelClick(channel)}
-                className="bg-white rounded-lg shadow-sm overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
+                className="bg-white rounded-xl shadow-md overflow-hidden cursor-pointer hover:shadow-xl hover:scale-105 transition-all duration-200"
               >
                 {/* Channel Logo/Thumbnail */}
-                <div className="aspect-[3/4] bg-gray-100 relative">
+                <div className="aspect-[3/4] bg-gradient-to-br from-gray-50 to-gray-100 relative">
                   {(channel.media_logo_url || channel.media_logo) ? (
                     <img
                       src={channel.media_logo_url || (channel.media_logo?.startsWith('http') ? channel.media_logo : `${BACKEND_URL}${channel.media_logo}`)}
@@ -671,20 +661,20 @@ export const MobileMyMediaPage: React.FC = () => {
                       className="w-full h-full object-contain p-4"
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-red-100 to-red-200">
-                      <FileText size={48} className="text-red-400" />
+                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-pink-100 to-pink-200">
+                      <FileText size={48} className="text-pink-400" />
                     </div>
                   )}
                   {/* Category Badge */}
-                  <div className="absolute top-2 right-2 px-2 py-0.5 bg-teal-600 text-white text-xs rounded-full">
+                  <div className="absolute top-2 right-2 px-2.5 py-1 bg-red-500 text-white text-xs font-semibold rounded-full shadow-md">
                     {channel.select_type}
                   </div>
                 </div>
                 {/* Channel Info */}
-                <div className="p-3">
-                  <h3 className="font-medium text-gray-900 text-sm truncate">{channel.media_name_english}</h3>
+                <div className="p-3 bg-white">
+                  <h3 className="font-semibold text-gray-900 text-sm truncate">{channel.media_name_english}</h3>
                   {channel.media_name_regional && (
-                    <p className="text-xs text-gray-500 truncate">{channel.media_name_regional}</p>
+                    <p className="text-xs text-gray-600 truncate mt-0.5">{channel.media_name_regional}</p>
                   )}
                 </div>
               </div>
@@ -702,14 +692,14 @@ export const MobileMyMediaPage: React.FC = () => {
             const nowLineLeft = channelColWidthPx + currentSlotIndex * slotWidthPx;
 
             return (
-              <div className="bg-white overflow-x-auto relative">
-                {/* Time Headers - all 48 slots in 12h format */}
-                <div className="flex border-b sticky top-0 bg-gray-100 z-10 min-w-max">
-                  <div className="w-24 flex-shrink-0 p-2 font-semibold text-gray-700 border-r bg-gray-200">
-                    Channel
+              <div className="bg-white overflow-x-auto relative shadow-inner">
+                {/* Time Headers - all 48 slots in 12h format - Updated styling */}
+                <div className="flex border-b sticky top-0 bg-gradient-to-b from-gray-50 to-gray-100 z-10 min-w-max shadow-sm">
+                  <div className="w-24 flex-shrink-0 p-3 font-bold text-gray-800 border-r bg-white">
+                    CHANNELS
                   </div>
                   {TIME_SLOTS.map((time) => (
-                    <div key={time} className="flex-shrink-0 p-1.5 text-center text-xs font-medium text-gray-600 border-r" style={{ minWidth: slotWidthPx }}>
+                    <div key={time} className="flex-shrink-0 p-2 text-center text-xs font-semibold text-gray-700 border-r" style={{ minWidth: slotWidthPx }}>
                       {formatTime12h(time)}
                     </div>
                   ))}
@@ -735,10 +725,10 @@ export const MobileMyMediaPage: React.FC = () => {
                   </>
                 )}
 
-                {/* Channel Rows - each cell shows media_schedules.title + time range */}
+                {/* Channel Rows - each cell shows media_schedules.title + time range - Updated styling */}
                 {channels.map((channel) => (
-                  <div key={channel.id} className="flex border-b cursor-pointer hover:bg-gray-50 min-w-max" onClick={() => handleChannelClick(channel)}>
-                    <div className="w-24 flex-shrink-0 p-2 border-r bg-gray-50 flex items-center justify-center relative">
+                  <div key={channel.id} className="flex border-b border-gray-200 cursor-pointer hover:bg-pink-50/30 min-w-max transition-colors" onClick={() => handleChannelClick(channel)}>
+                    <div className="w-24 flex-shrink-0 p-2 border-r border-gray-200 bg-white flex items-center justify-center relative group">
                       {(channel.media_logo_url || channel.media_logo) ? (
                         <img
                           src={channel.media_logo_url || (channel.media_logo?.startsWith('http') ? channel.media_logo : `${BACKEND_URL}${channel.media_logo}`)}
@@ -746,29 +736,37 @@ export const MobileMyMediaPage: React.FC = () => {
                           className="w-16 h-12 object-contain"
                         />
                       ) : (
-                        <div className="w-16 h-12 bg-gray-200 rounded flex items-center justify-center text-xs text-gray-500">
+                        <div className="w-16 h-12 bg-gradient-to-br from-gray-100 to-gray-200 rounded flex items-center justify-center text-xs font-bold text-gray-600">
                           {channel.media_name_english.substring(0, 2).toUpperCase()}
                         </div>
                       )}
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 hover:opacity-100 transition-opacity">
-                        <Play size={24} className="text-white" fill="white" />
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Play size={24} className="text-white drop-shadow-lg" fill="white" />
                       </div>
                     </div>
                     {TIME_SLOTS.map((time) => {
                       const result = getScheduleAndSlotForTimeSlot(channel.id, time);
+                      const isCurrentSlot = selectedDay === 1 && time === currentSlot;
                       return (
-                        <div key={time} className="flex-shrink-0 p-1.5 border-r text-xs" style={{ minWidth: slotWidthPx }}>
+                        <div key={time} className={`flex-shrink-0 p-1.5 border-r border-gray-200 text-xs ${isCurrentSlot ? 'bg-red-50' : ''}`} style={{ minWidth: slotWidthPx }}>
                           {result ? (
-                            <div className="bg-teal-50 p-1.5 rounded text-teal-700 min-w-0">
-                              <div className="font-medium break-words leading-tight" title={result.schedule.title}>
+                            <div className={`p-1.5 rounded min-w-0 ${isCurrentSlot ? 'bg-red-100 border border-red-300' : 'bg-pink-50 border border-pink-200'}`}>
+                              <div className="font-semibold break-words leading-tight text-gray-800" title={result.schedule.title}>
                                 {result.schedule.title}
                               </div>
-                              <div className="text-[10px] text-teal-600 mt-0.5 leading-tight">
-                                {formatTime12h(result.slot.start_time)} – {formatTime12h(result.slot.end_time)}
+                              <div className={`text-[10px] mt-0.5 leading-tight font-medium ${isCurrentSlot ? 'text-red-600' : 'text-gray-600'}`}>
+                                {formatTime12h(result.slot.start_time)} - {formatTime12h(result.slot.end_time)}
                               </div>
+                              {/* LIVE indicator for current time slot */}
+                              {isCurrentSlot && (
+                                <div className="mt-1 inline-flex items-center gap-1 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
+                                  <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span>
+                                  LIVE
+                                </div>
+                              )}
                             </div>
                           ) : (
-                            <div className="text-gray-300">-</div>
+                            <div className="text-gray-300 text-center">-</div>
                           )}
                         </div>
                       );
@@ -779,33 +777,33 @@ export const MobileMyMediaPage: React.FC = () => {
             );
           })()
         ) : (
-          /* Default Card Grid for other categories (Web, Youtube, etc.) */
-          <div className="p-4 grid grid-cols-2 gap-3">
+          /* Default Card Grid for other categories (Web, Youtube, etc.) - Updated design */
+          <div className="p-4 grid grid-cols-2 gap-4 bg-gray-50">
             {channels.map((channel) => (
               <div
                 key={channel.id}
                 onClick={() => handleChannelClick(channel)}
-                className="bg-white rounded-lg shadow-sm overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
+                className="bg-white rounded-xl shadow-md overflow-hidden cursor-pointer hover:shadow-xl hover:scale-105 transition-all duration-200"
               >
                 {/* Channel Logo */}
-                <div className="aspect-video bg-gray-100 relative flex items-center justify-center">
+                <div className="aspect-video bg-gradient-to-br from-gray-50 to-gray-100 relative flex items-center justify-center">
                   {(channel.media_logo_url || channel.media_logo) ? (
                     <img
                       src={channel.media_logo_url || (channel.media_logo?.startsWith('http') ? channel.media_logo : `${BACKEND_URL}${channel.media_logo}`)}
                       alt={channel.media_name_english}
-                      className="w-full h-full object-contain p-2"
+                      className="w-full h-full object-contain p-3"
                     />
                   ) : (
-                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-teal-500 to-teal-600 flex items-center justify-center text-white text-2xl font-bold">
+                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-pink-400 to-pink-500 flex items-center justify-center text-white text-2xl font-bold shadow-lg">
                       {channel.media_name_english?.charAt(0)}
                     </div>
                   )}
                 </div>
                 {/* Channel Info */}
-                <div className="p-3">
-                  <h3 className="font-medium text-gray-900 text-sm truncate">{channel.media_name_english}</h3>
+                <div className="p-3 bg-white">
+                  <h3 className="font-semibold text-gray-900 text-sm truncate">{channel.media_name_english}</h3>
                   <div className="flex items-center gap-2 mt-1">
-                    <span className="text-xs text-gray-500">{channel.select_type}</span>
+                    <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full">{channel.select_type}</span>
                   </div>
                 </div>
               </div>
@@ -813,24 +811,24 @@ export const MobileMyMediaPage: React.FC = () => {
           </div>
         )}
 
-      {/* Type Dropdown Modal */}
+      {/* Type Dropdown Modal - Updated design */}
       <AnimatePresence>
         {showTypeDropdown && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center"
+            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
             onClick={() => setShowTypeDropdown(false)}
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-lg p-4 w-64"
+              className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="font-semibold mb-3">Select Type</h3>
+              <h3 className="font-bold text-lg mb-4 text-gray-900">Select Type</h3>
               {(['International', 'National', 'Regional', 'Local'] as SelectType[]).map((type) => (
                 <button
                   key={type}
@@ -841,8 +839,8 @@ export const MobileMyMediaPage: React.FC = () => {
                       setShowLocationModal(true);
                     }
                   }}
-                  className={`w-full text-left px-3 py-2 rounded-lg mb-1 ${
-                    selectedType === type ? 'bg-teal-600 text-white' : 'hover:bg-gray-100'
+                  className={`w-full text-left px-4 py-3 rounded-xl mb-2 font-medium transition-all ${
+                    selectedType === type ? 'bg-red-500 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
                   {type}
@@ -853,41 +851,41 @@ export const MobileMyMediaPage: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Category Dropdown Modal */}
+      {/* Category Dropdown Modal - Updated design */}
       <AnimatePresence>
         {showCategoryDropdown && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center"
+            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
             onClick={() => setShowCategoryDropdown(false)}
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-lg p-4 w-64 max-h-[70vh] overflow-y-auto"
+              className="bg-white rounded-2xl p-6 w-full max-w-sm max-h-[70vh] overflow-y-auto shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="font-semibold mb-3">Select Category</h3>
+              <h3 className="font-bold text-lg mb-4 text-gray-900">Select Category</h3>
               {/* "All" option - shows all channels under parent category */}
               <button
                 onClick={() => {
                   setSelectedCategory(null);
                   setShowCategoryDropdown(false);
                 }}
-                className={`w-full text-left px-3 py-2 rounded-lg mb-1 flex items-center gap-2 ${
-                  selectedCategory === null ? 'bg-teal-600 text-white' : 'hover:bg-gray-100'
+                className={`w-full text-left px-4 py-3 rounded-xl mb-2 flex items-center gap-3 font-medium transition-all ${
+                  selectedCategory === null ? 'bg-red-500 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
                 <div className="w-5 h-5 flex items-center justify-center">
-                  <Eye size={16} />
+                  <Eye size={18} />
                 </div>
                 All
               </button>
               {subCategories.length === 0 ? (
-                <p className="text-gray-500 text-sm">No subcategories available</p>
+                <p className="text-gray-500 text-sm px-4 py-2">No subcategories available</p>
               ) : (
                 subCategories.map((category: Category) => (
                   <button
@@ -896,8 +894,8 @@ export const MobileMyMediaPage: React.FC = () => {
                       setSelectedCategory(category.id);
                       setShowCategoryDropdown(false);
                     }}
-                    className={`w-full text-left px-3 py-2 rounded-lg mb-1 flex items-center gap-2 ${
-                      selectedCategory === category.id ? 'bg-teal-600 text-white' : 'hover:bg-gray-100'
+                    className={`w-full text-left px-4 py-3 rounded-xl mb-2 flex items-center gap-3 font-medium transition-all ${
+                      selectedCategory === category.id ? 'bg-red-500 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
                   >
                     <div className="w-5 h-5 flex items-center justify-center">
@@ -912,31 +910,31 @@ export const MobileMyMediaPage: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Language Dropdown Modal */}
+      {/* Language Dropdown Modal - Updated design */}
       <AnimatePresence>
         {showLanguageDropdown && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center"
+            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
             onClick={() => setShowLanguageDropdown(false)}
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-lg p-4 w-64 max-h-[70vh] overflow-y-auto"
+              className="bg-white rounded-2xl p-6 w-full max-w-sm max-h-[70vh] overflow-y-auto shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="font-semibold mb-3">Select Language</h3>
+              <h3 className="font-bold text-lg mb-4 text-gray-900">Select Language</h3>
               <button
                 onClick={() => {
                   setSelectedLanguage(null);
                   setShowLanguageDropdown(false);
                 }}
-                className={`w-full text-left px-3 py-2 rounded-lg mb-1 ${
-                  selectedLanguage === null ? 'bg-teal-600 text-white' : 'hover:bg-gray-100'
+                className={`w-full text-left px-4 py-3 rounded-xl mb-2 font-medium transition-all ${
+                  selectedLanguage === null ? 'bg-red-500 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
                 All Languages
@@ -948,8 +946,8 @@ export const MobileMyMediaPage: React.FC = () => {
                     setSelectedLanguage(lang.id);
                     setShowLanguageDropdown(false);
                   }}
-                  className={`w-full text-left px-3 py-2 rounded-lg mb-1 ${
-                    selectedLanguage === lang.id ? 'bg-teal-600 text-white' : 'hover:bg-gray-100'
+                  className={`w-full text-left px-4 py-3 rounded-xl mb-2 font-medium transition-all ${
+                    selectedLanguage === lang.id ? 'bg-red-500 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
                   {lang.lang_1}
@@ -960,38 +958,38 @@ export const MobileMyMediaPage: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Location Modal */}
+      {/* Location Modal - Updated design */}
       <AnimatePresence>
         {showLocationModal && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center"
+            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
             onClick={() => setShowLocationModal(false)}
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-lg p-4 w-80 max-h-[80vh] overflow-y-auto"
+              className="bg-white rounded-2xl p-6 w-full max-w-md max-h-[80vh] overflow-y-auto shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="font-semibold">Select Location</h3>
-                <button onClick={() => setShowLocationModal(false)} className="p-1 hover:bg-gray-100 rounded">
-                  <X size={20} />
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="font-bold text-lg text-gray-900">Select Location</h3>
+                <button onClick={() => setShowLocationModal(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                  <X size={20} className="text-gray-600" />
                 </button>
               </div>
 
               {/* Country Selection */}
               {(selectedType === 'National' || selectedType === 'Regional' || selectedType === 'Local') && (
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+                <div className="mb-5">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Country</label>
                   <select
                     value={selectedCountry}
                     onChange={(e) => setSelectedCountry(e.target.value)}
-                    className="w-full border rounded-lg px-3 py-2"
+                    className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-red-500 focus:outline-none transition-colors"
                   >
                     <option value="">Select Country</option>
                     {countries.map((country) => (
@@ -1003,12 +1001,12 @@ export const MobileMyMediaPage: React.FC = () => {
 
               {/* State Selection */}
               {(selectedType === 'Regional' || selectedType === 'Local') && selectedCountry && (
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
+                <div className="mb-5">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">State</label>
                   <select
                     value={selectedState}
                     onChange={(e) => setSelectedState(e.target.value)}
-                    className="w-full border rounded-lg px-3 py-2"
+                    className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-red-500 focus:outline-none transition-colors"
                   >
                     <option value="">Select State</option>
                     {states.map((state) => (
@@ -1020,12 +1018,12 @@ export const MobileMyMediaPage: React.FC = () => {
 
               {/* District Selection */}
               {selectedType === 'Local' && selectedState && (
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">District</label>
+                <div className="mb-5">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">District</label>
                   <select
                     value={selectedDistrict}
                     onChange={(e) => setSelectedDistrict(e.target.value)}
-                    className="w-full border rounded-lg px-3 py-2"
+                    className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-red-500 focus:outline-none transition-colors"
                   >
                     <option value="">Select District</option>
                     {districts.map((district) => (
@@ -1037,7 +1035,7 @@ export const MobileMyMediaPage: React.FC = () => {
 
               <button
                 onClick={() => setShowLocationModal(false)}
-                className="w-full bg-teal-600 text-white py-2 rounded-lg hover:bg-teal-700"
+                className="w-full bg-red-500 text-white py-3 rounded-xl hover:bg-red-600 font-semibold shadow-md transition-all"
               >
                 Apply
               </button>
