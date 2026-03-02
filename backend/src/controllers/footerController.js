@@ -23,6 +23,24 @@ const resolveImageUrl = async (imagePath) => {
 };
 
 /**
+ * Derive group_name from authenticated user's roles
+ * Corporate Login → 'corporate'
+ * Partner Dashboard → 'partner'
+ * App/Admin Dashboard → 'app_admin'
+ */
+const deriveGroupName = (user) => {
+  const roles = user?.groups ? user.groups.map(g => g.name) : [];
+
+  if (roles.includes('corporate')) return 'corporate';
+  if (roles.includes('partner')) return 'partner';
+  if (roles.includes('admin') || roles.includes('groups')) return 'app_admin';
+  // Fallback for other roles (head_office, regional, branch, etc.)
+  if (roles.includes('head_office') || roles.includes('regional') || roles.includes('branch')) return 'app_admin';
+
+  return 'corporate'; // default fallback
+};
+
+/**
  * ============================================
  * FOOTER PAGE MANAGEMENT
  * ============================================
@@ -34,9 +52,18 @@ export const getFooterPageByType = async (req, res) => {
     const { pageType } = req.params;
     const { group_name } = req.query;
 
+    // Use provided group_name or derive from user role
+    const resolvedGroupName = group_name || deriveGroupName(req.user);
+
     const where = { footer_page_type: pageType };
-    if (group_name) {
-      where.group_name = group_name;
+    if (resolvedGroupName) {
+      where.group_name = resolvedGroupName;
+    }
+
+    // Partner users can only see their own footer pages
+    const roles = req.user?.groups ? req.user.groups.map(g => g.name) : [];
+    if (roles.includes('partner')) {
+      where.user_id = req.user.id;
     }
 
     const page = await FooterPage.findOne({
@@ -77,7 +104,7 @@ export const saveFooterPage = async (req, res) => {
     } = req.body;
 
     const resolvedUserId = req.user?.id || user_id;
-    const resolvedGroupName = group_name || req.user?.group_name;
+    const resolvedGroupName = group_name || deriveGroupName(req.user);
 
     let imagePath = image || null;
     if (req.file) {
@@ -148,9 +175,16 @@ export const saveFooterPage = async (req, res) => {
 export const getFooterPagesByType = async (req, res) => {
   try {
     const { pageType, group_name } = req.query;
+    const resolvedGroupName = group_name || deriveGroupName(req.user);
     const where = {};
     if (pageType) where.footer_page_type = pageType;
-    if (group_name) where.group_name = group_name;
+    if (resolvedGroupName) where.group_name = resolvedGroupName;
+
+    // Partner users can only see their own footer pages
+    const roles = req.user?.groups ? req.user.groups.map(g => g.name) : [];
+    if (roles.includes('partner')) {
+      where.user_id = req.user.id;
+    }
 
     const pages = await FooterPage.findAll({
       where,
@@ -191,7 +225,7 @@ export const createFooterPageEntry = async (req, res) => {
     } = req.body;
 
     const resolvedUserId = req.user?.id || user_id;
-    const resolvedGroupName = group_name || req.user?.group_name;
+    const resolvedGroupName = group_name || deriveGroupName(req.user);
 
     let imagePath = image || null;
     if (req.file) {
@@ -249,11 +283,20 @@ export const updateFooterPageEntry = async (req, res) => {
     } = req.body;
 
     const resolvedUserId = req.user?.id || user_id;
-    const resolvedGroupName = group_name || req.user?.group_name;
+    const resolvedGroupName = group_name || deriveGroupName(req.user);
 
     const page = await FooterPage.findByPk(id);
     if (!page) {
       return res.status(404).json({ message: 'Footer page not found' });
+    }
+
+    // Partner users can only update their own footer pages
+    const roles = req.user?.groups ? req.user.groups.map(g => g.name) : [];
+    if (roles.includes('partner') && page.user_id !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only update your own footer pages'
+      });
     }
 
     let imagePath = page.image;
@@ -305,6 +348,15 @@ export const deleteFooterPageEntry = async (req, res) => {
       return res.status(404).json({ message: 'Footer page not found' });
     }
 
+    // Partner users can only delete their own footer pages
+    const roles = req.user?.groups ? req.user.groups.map(g => g.name) : [];
+    if (roles.includes('partner') && page.user_id !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only delete your own footer pages'
+      });
+    }
+
     await FooterPageImage.destroy({ where: { footer_page_id: id } });
     await page.destroy();
 
@@ -327,12 +379,19 @@ export const getFooterPageImages = async (req, res) => {
     let pageId = footer_page_id;
 
     if (!pageId && pageType) {
-      const page = await FooterPage.findOne({
-        where: {
-          footer_page_type: pageType,
-          ...(group_name ? { group_name } : {})
-        }
-      });
+      const resolvedGroupName = group_name || deriveGroupName(req.user);
+      const where = {
+        footer_page_type: pageType,
+        ...(resolvedGroupName ? { group_name: resolvedGroupName } : {})
+      };
+
+      // Partner users can only see their own footer pages
+      const roles = req.user?.groups ? req.user.groups.map(g => g.name) : [];
+      if (roles.includes('partner')) {
+        where.user_id = req.user.id;
+      }
+
+      const page = await FooterPage.findOne({ where });
       pageId = page?.id || null;
     }
 
@@ -364,7 +423,7 @@ export const addFooterPageImage = async (req, res) => {
   try {
     const { footer_page_id, group_name, user_id } = req.body;
     const resolvedUserId = req.user?.id || user_id;
-    const resolvedGroupName = group_name || req.user?.group_name;
+    const resolvedGroupName = group_name || deriveGroupName(req.user);
 
     if (!footer_page_id) {
       return res.status(400).json({ message: 'footer_page_id is required' });
@@ -431,7 +490,16 @@ export const deleteFooterPageImage = async (req, res) => {
 export const getFaqs = async (req, res) => {
   try {
     const { group_name } = req.query;
-    const where = group_name ? { group_name } : {};
+    const resolvedGroupName = group_name || (req.user ? deriveGroupName(req.user) : null);
+    const where = resolvedGroupName ? { group_name: resolvedGroupName } : {};
+
+    // Partner users can only see their own FAQs
+    if (req.user) {
+      const roles = req.user.groups ? req.user.groups.map(g => g.name) : [];
+      if (roles.includes('partner')) {
+        where.user_id = req.user.id;
+      }
+    }
 
     const faqs = await FooterFaq.findAll({
       where,
@@ -449,7 +517,7 @@ export const createFaq = async (req, res) => {
   try {
     const { question, answer, order_index, is_active, group_name, user_id } = req.body;
     const resolvedUserId = req.user?.id || user_id;
-    const resolvedGroupName = group_name || req.user?.group_name;
+    const resolvedGroupName = group_name || deriveGroupName(req.user);
 
     if (!question || !answer) {
       return res.status(400).json({ message: 'Question and answer are required' });
@@ -481,6 +549,15 @@ export const updateFaq = async (req, res) => {
       return res.status(404).json({ message: 'FAQ not found' });
     }
 
+    // Partner users can only update their own FAQs
+    const roles = req.user?.groups ? req.user.groups.map(g => g.name) : [];
+    if (roles.includes('partner') && faq.user_id !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only update your own FAQs'
+      });
+    }
+
     await faq.update({
       question,
       answer,
@@ -501,6 +578,15 @@ export const deleteFaq = async (req, res) => {
     const faq = await FooterFaq.findByPk(id);
     if (!faq) {
       return res.status(404).json({ message: 'FAQ not found' });
+    }
+
+    // Partner users can only delete their own FAQs
+    const roles = req.user?.groups ? req.user.groups.map(g => g.name) : [];
+    if (roles.includes('partner') && faq.user_id !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only delete your own FAQs'
+      });
     }
 
     await faq.destroy();
@@ -542,13 +628,22 @@ export const saveSocialMediaLink = async (req, res) => {
   try {
     const { id, title, url, group_name, user_id } = req.body;
     const resolvedUserId = req.user?.id || user_id;
-    const resolvedGroupName = group_name || req.user?.group_name;
+    const resolvedGroupName = group_name || deriveGroupName(req.user);
 
     if (id) {
       // Update existing link
       const link = await FooterPage.findByPk(id);
       if (!link) {
         return res.status(404).json({ message: 'Social media link not found' });
+      }
+
+      // Partner users can only update their own social media links
+      const roles = req.user?.groups ? req.user.groups.map(g => g.name) : [];
+      if (roles.includes('partner') && link.user_id !== req.user.id) {
+        return res.status(403).json({
+          success: false,
+          message: 'You can only update your own social media links'
+        });
       }
 
       await link.update({ title, url, group_name: resolvedGroupName, user_id: resolvedUserId });

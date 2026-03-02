@@ -56,6 +56,8 @@ import {
   getAppPartners,
   updatePartnerStatus,
   updatePartnerDetails,
+  approvePartner,
+  getAppsWithCustomForms,
   generatePartnerPortalAccess,
   getMediaChannels,
   updateMediaChannelStatus,
@@ -226,9 +228,11 @@ router.post('/corporate-user/:id/reset-password', resetCorporatePassword);
  * PARTNERS ROUTES
  * ============================================
  */
+router.get('/apps-with-custom-forms', getAppsWithCustomForms);
 router.get('/apps/:appId', getAppById);
 router.get('/apps/:appId/partners', getAppPartners);
 router.patch('/apps/:appId/partners/:partnerId/status', updatePartnerStatus);
+router.post('/apps/:appId/partners/:partnerId/approve', approvePartner);
 router.put('/apps/:appId/partners/:partnerId', updatePartnerDetails);
 
 // Partner portal access

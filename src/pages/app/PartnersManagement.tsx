@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { API_BASE_URL } from '../../config/api.config';
-import { Eye, LogIn, X, ToggleLeft, ToggleRight, Users } from 'lucide-react';
+import {
+  Eye, LogIn, X, ToggleLeft, ToggleRight, Users, CheckCircle, Clock,
+  FileText, Download, Shield, Filter, ChevronDown
+} from 'lucide-react';
 
 interface FormFieldInfo {
   raw: string | number;
@@ -41,6 +44,7 @@ interface Partner {
     custom_form_data: Record<string, any>;
     resolved_form_data?: Record<string, FormFieldInfo>;
   };
+  owner_details?: any;
 }
 
 interface TableHeader {
@@ -54,16 +58,26 @@ interface EditFormData {
   custom_form_data: Record<string, any>;
 }
 
+interface AppWithForm {
+  id: number;
+  group_name: string;
+  app_code: string;
+  form_definition: any;
+}
+
 interface PartnersManagementProps {
   appId: string | undefined;
   appName: string | undefined;
 }
 
 export const PartnersManagement: React.FC<PartnersManagementProps> = ({ appId, appName }) => {
-  const [activeAppTab, setActiveAppTab] = useState<'MyMedia' | 'MyGod'>('MyMedia');
+  const [appsWithForms, setAppsWithForms] = useState<AppWithForm[]>([]);
+  const [selectedAppId, setSelectedAppId] = useState<number | null>(null);
   const [activeStatusTab, setActiveStatusTab] = useState<'pending' | 'active' | 'inactive'>('pending');
+  const [allPartners, setAllPartners] = useState<Partner[]>([]);
   const [partners, setPartners] = useState<Partner[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingApps, setLoadingApps] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [tableHeaders, setTableHeaders] = useState<TableHeader[]>([]);
@@ -74,55 +88,80 @@ export const PartnersManagement: React.FC<PartnersManagementProps> = ({ appId, a
   const [saving, setSaving] = useState(false);
   const [editFormData, setEditFormData] = useState<EditFormData>({ email: '', custom_form_data: {} });
   const [updatingStatus, setUpdatingStatus] = useState<number | null>(null);
+  const [approving, setApproving] = useState(false);
+  // Custom form field filters
+  const [fieldFilters, setFieldFilters] = useState<Record<string, string>>({});
 
+  // Fetch apps with custom forms
   useEffect(() => {
-    if (appId) {
-      fetchPartners();
-    }
-  }, [appId, activeStatusTab]);
+    fetchAppsWithForms();
+  }, []);
 
-  const fetchPartners = async () => {
+  // Fetch partners when selected app changes
+  useEffect(() => {
+    if (selectedAppId) {
+      fetchPartners(selectedAppId);
+    }
+  }, [selectedAppId]);
+
+  // Re-filter when status tab or field filters change
+  useEffect(() => {
+    filterPartners();
+  }, [activeStatusTab, fieldFilters, allPartners]);
+
+  const fetchAppsWithForms = async () => {
+    try {
+      setLoadingApps(true);
+      const token = localStorage.getItem('accessToken');
+      const response = await axios.get(`${API_BASE_URL}/admin/apps-with-custom-forms`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.success) {
+        const apps: AppWithForm[] = response.data.data || [];
+        setAppsWithForms(apps);
+        // Auto-select first app or matching appId
+        if (apps.length > 0) {
+          const match = appId ? apps.find(a => a.id === parseInt(appId)) : null;
+          setSelectedAppId(match ? match.id : apps[0].id);
+        }
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to fetch apps');
+    } finally {
+      setLoadingApps(false);
+    }
+  };
+
+  const fetchPartners = async (fetchAppId: number) => {
     try {
       setLoading(true);
       const token = localStorage.getItem('accessToken');
-      const response = await axios.get(`${API_BASE_URL}/admin/apps/${appId}/partners`, {
+      const response = await axios.get(`${API_BASE_URL}/admin/apps/${fetchAppId}/partners`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
       if (response.data.success) {
-        const allPartners: Partner[] = response.data.data || [];
+        const fetched: Partner[] = response.data.data || [];
+        setAllPartners(fetched);
 
         // Store form definition if available
         if (response.data.form_definition?.fields) {
           setFormDefinition(response.data.form_definition.fields);
         }
 
-        // Extract headers from resolved_form_data (which includes labels)
+        // Extract headers from resolved_form_data
         const headersMap = new Map<string, TableHeader>();
-        allPartners.forEach((partner: Partner) => {
+        fetched.forEach((partner: Partner) => {
           const resolvedData = partner.client_registration?.resolved_form_data;
           if (resolvedData) {
             Object.entries(resolvedData).forEach(([key, fieldInfo]) => {
               if (!headersMap.has(key)) {
-                headersMap.set(key, {
-                  id: key,
-                  label: fieldInfo.label,
-                  order: fieldInfo.order
-                });
+                headersMap.set(key, { id: key, label: fieldInfo.label, order: fieldInfo.order });
               }
             });
           }
         });
-
-        // Sort headers by order
-        const sortedHeaders = Array.from(headersMap.values()).sort((a, b) => a.order - b.order);
-        setTableHeaders(sortedHeaders);
-
-        // Filter by status
-        const filtered = allPartners.filter(p =>
-          p.client_registration?.status === activeStatusTab
-        );
-        setPartners(filtered);
+        setTableHeaders(Array.from(headersMap.values()).sort((a, b) => a.order - b.order));
       }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to fetch partners');
@@ -130,6 +169,41 @@ export const PartnersManagement: React.FC<PartnersManagementProps> = ({ appId, a
       setLoading(false);
     }
   };
+
+  const filterPartners = useCallback(() => {
+    let filtered = [...allPartners];
+
+    // Filter by status tab
+    if (activeStatusTab === 'pending') {
+      filtered = filtered.filter(p =>
+        ['pending', 'submitted', 'verified', 'processed_for_approve'].includes(p.client_registration?.status || '')
+      );
+    } else if (activeStatusTab === 'active') {
+      filtered = filtered.filter(p =>
+        p.client_registration?.status === 'active' && p.active === 1
+      );
+    } else if (activeStatusTab === 'inactive') {
+      filtered = filtered.filter(p =>
+        p.client_registration?.status === 'inactive' || p.active === 0
+      );
+    }
+
+    // Apply custom form field filters
+    Object.entries(fieldFilters).forEach(([fieldId, filterValue]) => {
+      if (filterValue) {
+        filtered = filtered.filter(p => {
+          const raw = p.client_registration?.custom_form_data?.[fieldId];
+          const resolved = p.client_registration?.resolved_form_data?.[fieldId]?.resolved;
+          return String(raw) === filterValue || String(resolved) === filterValue;
+        });
+      }
+    });
+
+    setPartners(filtered);
+  }, [allPartners, activeStatusTab, fieldFilters]);
+
+  // Get fields that have options (for filter dropdowns)
+  const filterableFields = formDefinition?.filter(f => f.options && f.options.length > 0) || [];
 
 
 
@@ -139,7 +213,7 @@ export const PartnersManagement: React.FC<PartnersManagementProps> = ({ appId, a
       const token = localStorage.getItem('accessToken');
       const newStatus = partner.active === 1 ? 0 : 1;
 
-      await axios.patch(`${API_BASE_URL}/admin/apps/${appId}/partners/${partner.id}/status`, {
+      await axios.patch(`${API_BASE_URL}/admin/apps/${selectedAppId}/partners/${partner.id}/status`, {
         active: newStatus
       }, {
         headers: { Authorization: `Bearer ${token}` }
@@ -178,7 +252,7 @@ export const PartnersManagement: React.FC<PartnersManagementProps> = ({ appId, a
   };
 
   const handleSavePartner = async () => {
-    if (!selectedPartner || !appId) return;
+    if (!selectedPartner || !selectedAppId) return;
 
     setSaving(true);
     setError('');
@@ -187,7 +261,7 @@ export const PartnersManagement: React.FC<PartnersManagementProps> = ({ appId, a
     try {
       const token = localStorage.getItem('accessToken');
       const response = await axios.put(
-        `${API_BASE_URL}/admin/apps/${appId}/partners/${selectedPartner.id}`,
+        `${API_BASE_URL}/admin/apps/${selectedAppId}/partners/${selectedPartner.id}`,
         {
           email: editFormData.email,
           custom_form_data: editFormData.custom_form_data
@@ -231,16 +305,13 @@ export const PartnersManagement: React.FC<PartnersManagementProps> = ({ appId, a
       const token = localStorage.getItem('accessToken');
       const response = await axios.post(
         `${API_BASE_URL}/admin/partner-portal-access`,
-        { partner_id: partner.id, app_id: appId },
+        { partner_id: partner.id, app_id: selectedAppId },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
       if (response.data.success && response.data.data.accessToken) {
-        // Store partner's token temporarily
         localStorage.setItem('partnerAccessToken', response.data.data.accessToken);
         localStorage.setItem('partnerUser', JSON.stringify(response.data.data.user));
-
-        // Open partner portal in new tab
         window.open('/dashboard/partner', '_blank');
       }
     } catch (err: any) {
@@ -248,7 +319,41 @@ export const PartnersManagement: React.FC<PartnersManagementProps> = ({ appId, a
     }
   };
 
+  const handleApprovePartner = async (partner: Partner) => {
+    if (!selectedAppId) return;
+    setApproving(true);
+    setError('');
+    try {
+      const token = localStorage.getItem('accessToken');
+      await axios.post(
+        `${API_BASE_URL}/admin/apps/${selectedAppId}/partners/${partner.id}/approve`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setSuccess('Partner approved and activated successfully');
+      setShowModal(false);
+      setSelectedPartner(null);
+      await fetchPartners(selectedAppId);
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to approve partner');
+    } finally {
+      setApproving(false);
+    }
+  };
 
+  const getStatusBadge = (status: string) => {
+    const map: Record<string, { bg: string; text: string; label: string }> = {
+      pending: { bg: 'bg-yellow-100', text: 'text-yellow-700', label: 'Pending' },
+      submitted: { bg: 'bg-blue-100', text: 'text-blue-700', label: 'Submitted' },
+      verified: { bg: 'bg-indigo-100', text: 'text-indigo-700', label: 'Verified' },
+      processed_for_approve: { bg: 'bg-purple-100', text: 'text-purple-700', label: 'Processing' },
+      active: { bg: 'bg-green-100', text: 'text-green-700', label: 'Active' },
+      inactive: { bg: 'bg-red-100', text: 'text-red-700', label: 'Inactive' }
+    };
+    const s = map[status] || { bg: 'bg-gray-100', text: 'text-gray-700', label: status };
+    return <span className={`px-2 py-1 rounded-full text-xs font-medium ${s.bg} ${s.text}`}>{s.label}</span>;
+  };
 
   const getResolvedFormValue = (partner: Partner, fieldId: string) => {
     const resolvedData = partner.client_registration?.resolved_form_data;
@@ -287,31 +392,6 @@ export const PartnersManagement: React.FC<PartnersManagementProps> = ({ appId, a
 
       {/* Partners View */}
       <div className="space-y-4">
-          {/* App Tabs */}
-          <div className="flex gap-2 bg-gray-100 p-1 rounded-lg w-fit">
-            <button
-              onClick={() => setActiveAppTab('MyMedia')}
-              className={`px-6 py-2 rounded-md font-medium transition-colors ${
-                activeAppTab === 'MyMedia'
-                  ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              MyMedia
-            </button>
-            <button
-              onClick={() => setActiveAppTab('MyGod')}
-              className={`px-6 py-2 rounded-md font-medium transition-colors ${
-                activeAppTab === 'MyGod'
-                  ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              MyGod
-            </button>
-          </div>
-
-          {/* Status Tabs */}
           <div className="flex gap-2 bg-gray-50 p-1 rounded-lg w-fit">
             <button
               onClick={() => setActiveStatusTab('pending')}
@@ -403,24 +483,28 @@ export const PartnersManagement: React.FC<PartnersManagementProps> = ({ appId, a
                             </td>
                           ))}
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <button
-                              onClick={() => handleToggleStatus(partner)}
-                              disabled={updatingStatus === partner.id}
-                              className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg transition-colors text-sm ${
-                                partner.active === 1
-                                  ? 'bg-green-50 text-green-600 hover:bg-green-100'
-                                  : 'bg-red-50 text-red-600 hover:bg-red-100'
-                              }`}
-                            >
-                              {updatingStatus === partner.id ? (
-                                <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                              ) : partner.active === 1 ? (
-                                <ToggleRight size={16} />
-                              ) : (
-                                <ToggleLeft size={16} />
-                              )}
-                              {partner.active === 1 ? 'Active' : 'Inactive'}
-                            </button>
+                            {activeStatusTab === 'pending' ? (
+                              getStatusBadge(partner.client_registration?.status || 'pending')
+                            ) : (
+                              <button
+                                onClick={() => handleToggleStatus(partner)}
+                                disabled={updatingStatus === partner.id}
+                                className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg transition-colors text-sm ${
+                                  partner.active === 1
+                                    ? 'bg-green-50 text-green-600 hover:bg-green-100'
+                                    : 'bg-red-50 text-red-600 hover:bg-red-100'
+                                }`}
+                              >
+                                {updatingStatus === partner.id ? (
+                                  <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                ) : partner.active === 1 ? (
+                                  <ToggleRight size={16} />
+                                ) : (
+                                  <ToggleLeft size={16} />
+                                )}
+                                {partner.active === 1 ? 'Active' : 'Inactive'}
+                              </button>
+                            )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex gap-2">
@@ -429,7 +513,7 @@ export const PartnersManagement: React.FC<PartnersManagementProps> = ({ appId, a
                                 className="inline-flex items-center gap-1 px-3 py-1 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm"
                               >
                                 <Eye size={16} />
-                                Edit
+                                {activeStatusTab === 'pending' ? 'View' : 'Edit'}
                               </button>
                               <button
                                 onClick={() => handleAccessPartnerPortal(partner)}
@@ -450,14 +534,17 @@ export const PartnersManagement: React.FC<PartnersManagementProps> = ({ appId, a
           )}
         </div>
 
-      {/* Edit Partner Modal */}
+      {/* Partner Details / Approval Modal */}
       {showModal && selectedPartner && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden">
+          <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden">
             <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-900">
-                {isEditing ? 'Edit Partner' : 'Partner Details'}
-              </h2>
+              <div className="flex items-center gap-3">
+                <h2 className="text-xl font-bold text-gray-900">
+                  {activeStatusTab === 'pending' ? 'Review Partner' : isEditing ? 'Edit Partner' : 'Partner Details'}
+                </h2>
+                {getStatusBadge(selectedPartner.client_registration?.status || 'pending')}
+              </div>
               <button
                 onClick={() => { setShowModal(false); setIsEditing(false); setError(''); setSuccess(''); }}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -466,22 +553,17 @@ export const PartnersManagement: React.FC<PartnersManagementProps> = ({ appId, a
               </button>
             </div>
 
-            {/* Success/Error Messages */}
             {success && (
-              <div className="mx-6 mt-4 p-3 bg-green-50 text-green-700 rounded-lg text-sm">
-                {success}
-              </div>
+              <div className="mx-6 mt-4 p-3 bg-green-50 text-green-700 rounded-lg text-sm">{success}</div>
             )}
             {error && (
-              <div className="mx-6 mt-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm">
-                {error}
-              </div>
+              <div className="mx-6 mt-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm">{error}</div>
             )}
 
-            <div className="p-6 overflow-y-auto max-h-[60vh]">
-              <div className="space-y-4">
-                {/* Read-only fields */}
-                <div className="grid grid-cols-2 gap-4">
+            <div className="p-6 overflow-y-auto max-h-[70vh]">
+              <div className="space-y-6">
+                {/* Basic Info */}
+                <div className="grid grid-cols-3 gap-4">
                   <div>
                     <label className="text-sm font-medium text-gray-500">Partner ID</label>
                     <p className="text-gray-900">{selectedPartner.identification_code || '-'}</p>
@@ -491,110 +573,207 @@ export const PartnersManagement: React.FC<PartnersManagementProps> = ({ appId, a
                     <p className="text-gray-900">{formatDate(selectedPartner.created_on)}</p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-500">Status</label>
-                    <p className={selectedPartner.active === 1 ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
-                      {selectedPartner.active === 1 ? 'Active' : 'Inactive'}
-                    </p>
+                    <label className="text-sm font-medium text-gray-500">Email</label>
+                    {isEditing ? (
+                      <input type="email" value={editFormData.email} onChange={(e) => handleEditFormChange('email', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
+                    ) : (
+                      <p className="text-gray-900">{selectedPartner.email}</p>
+                    )}
                   </div>
                 </div>
 
-                <hr className="my-4" />
-
-                {/* Editable Email */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                  {isEditing ? (
-                    <input
-                      type="email"
-                      value={editFormData.email}
-                      onChange={(e) => handleEditFormChange('email', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  ) : (
-                    <p className="text-gray-900 py-2">{selectedPartner.email}</p>
-                  )}
-                </div>
-
-                {/* Editable Custom Form Fields */}
+                {/* Registration Form Data */}
                 {selectedPartner.client_registration?.resolved_form_data && Object.keys(selectedPartner.client_registration.resolved_form_data).length > 0 && (
                   <>
-                    <h3 className="text-lg font-semibold text-gray-900 mt-4 mb-3">Partner Information</h3>
+                    <hr />
+                    <h3 className="text-lg font-semibold text-gray-900">Registration Information</h3>
                     <div className="grid grid-cols-2 gap-4">
                       {Object.entries(selectedPartner.client_registration.resolved_form_data)
                         .sort(([, a], [, b]) => (a.order || 0) - (b.order || 0))
                         .map(([fieldId, fieldInfo]) => (
                         <div key={fieldId}>
-                          <label className="block text-sm font-medium text-gray-500 mb-1">
-                            {fieldInfo.label}
-                          </label>
+                          <label className="block text-sm font-medium text-gray-500 mb-1">{fieldInfo.label}</label>
                           {isEditing ? (
                             fieldInfo.options && fieldInfo.options.length > 0 ? (
-                              <select
-                                value={String(editFormData.custom_form_data[fieldId] || '')}
+                              <select value={String(editFormData.custom_form_data[fieldId] || '')}
                                 onChange={(e) => handleEditFormChange(fieldId, e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                              >
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg">
                                 <option value="">Select {fieldInfo.label}</option>
                                 {fieldInfo.options.map((option: string) => (
                                   <option key={option} value={option}>{option}</option>
                                 ))}
                               </select>
                             ) : fieldInfo.mapping ? (
-                              <p className="text-gray-500 py-2 italic">
-                                {String(fieldInfo.resolved || '-')} (mapped field - not editable)
-                              </p>
+                              <p className="text-gray-500 py-2 italic">{String(fieldInfo.resolved || '-')} (mapped)</p>
                             ) : (
-                              <input
-                                type="text"
-                                value={String(editFormData.custom_form_data[fieldId] || '')}
+                              <input type="text" value={String(editFormData.custom_form_data[fieldId] || '')}
                                 onChange={(e) => handleEditFormChange(fieldId, e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                              />
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
                             )
                           ) : (
-                            <p className="text-gray-900 py-2">{String(fieldInfo.resolved) || '-'}</p>
+                            <p className="text-gray-900 py-1">{String(fieldInfo.resolved) || '-'}</p>
                           )}
                         </div>
                       ))}
                     </div>
                   </>
                 )}
+
+                {/* Owner Details Section */}
+                {selectedPartner.owner_details && (
+                  <>
+                    <hr />
+                    <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                      <Shield size={18} /> Owner Details
+                      {getStatusBadge(selectedPartner.owner_details.status || 'draft')}
+                    </h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      {[
+                        { label: 'Name', value: selectedPartner.owner_details.name },
+                        { label: 'Display Name', value: selectedPartner.owner_details.display_name },
+                        { label: "Father's Name", value: selectedPartner.owner_details.father_name },
+                        { label: "Mother's Name", value: selectedPartner.owner_details.mother_name },
+                        { label: 'Mobile', value: selectedPartner.owner_details.mobile_no },
+                        { label: 'Email', value: selectedPartner.owner_details.email_id },
+                        { label: 'Date of Birth', value: selectedPartner.owner_details.dob },
+                        { label: 'Nationality', value: selectedPartner.owner_details.nationality },
+                        { label: 'Gender', value: selectedPartner.owner_details.gender },
+                        { label: 'Marital Status', value: selectedPartner.owner_details.marital_status },
+                        { label: 'Education', value: selectedPartner.owner_details.education },
+                        { label: 'Company Name', value: selectedPartner.owner_details.company_name },
+                        { label: 'Company Registration', value: selectedPartner.owner_details.company_registration },
+                        { label: 'Company Taxation', value: selectedPartner.owner_details.company_taxation },
+                      ].filter(item => item.value).map(item => (
+                        <div key={item.label}>
+                          <label className="block text-sm font-medium text-gray-500">{item.label}</label>
+                          <p className="text-gray-900">{item.value}</p>
+                        </div>
+                      ))}
+                      {selectedPartner.owner_details.address && (
+                        <div className="col-span-2">
+                          <label className="block text-sm font-medium text-gray-500">Address</label>
+                          <p className="text-gray-900">{selectedPartner.owner_details.address}</p>
+                        </div>
+                      )}
+                      {selectedPartner.owner_details.other_details && (
+                        <div className="col-span-2">
+                          <label className="block text-sm font-medium text-gray-500">Other Details</label>
+                          <p className="text-gray-900">{selectedPartner.owner_details.other_details}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Uploaded Documents */}
+                    <h4 className="text-md font-semibold text-gray-800 mt-4 flex items-center gap-2">
+                      <FileText size={16} /> Documents
+                    </h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      {[
+                        { label: 'Photo', url: selectedPartner.owner_details.photo_signed_url },
+                        { label: 'Logo', url: selectedPartner.owner_details.logo_signed_url },
+                        { label: 'ID Proof', url: selectedPartner.owner_details.id_proof_signed_url },
+                        { label: 'Address Proof', url: selectedPartner.owner_details.address_proof_signed_url },
+                      ].filter(doc => doc.url).map(doc => (
+                        <a key={doc.label} href={doc.url} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors border">
+                          {doc.label.includes('Photo') || doc.label.includes('Logo') ? (
+                            <img src={doc.url} alt={doc.label} className="w-10 h-10 object-cover rounded" />
+                          ) : (
+                            <Download size={16} className="text-blue-600" />
+                          )}
+                          <span className="text-sm text-gray-700">{doc.label}</span>
+                        </a>
+                      ))}
+                    </div>
+
+                    {/* Other Documents */}
+                    {Array.isArray(selectedPartner.owner_details.other_documents) && selectedPartner.owner_details.other_documents.length > 0 && (
+                      <div>
+                        <h5 className="text-sm font-medium text-gray-600 mb-2">Other Documents</h5>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedPartner.owner_details.other_documents.map((doc: any, i: number) => (
+                            <a key={i} href={doc.signed_url || doc.url} target="_blank" rel="noopener noreferrer"
+                              className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-xs hover:bg-blue-100">
+                              <Download size={12} /> {doc.original_name || `Document ${i + 1}`}
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Company Registration Docs */}
+                    {Array.isArray(selectedPartner.owner_details.company_registration_docs) && selectedPartner.owner_details.company_registration_docs.length > 0 && (
+                      <div>
+                        <h5 className="text-sm font-medium text-gray-600 mb-2">Company Registration Docs</h5>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedPartner.owner_details.company_registration_docs.map((doc: any, i: number) => (
+                            <a key={i} href={doc.signed_url || doc.url} target="_blank" rel="noopener noreferrer"
+                              className="flex items-center gap-1 px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg text-xs hover:bg-indigo-100">
+                              <Download size={12} /> {doc.original_name || `Doc ${i + 1}`}
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Company Taxation Docs */}
+                    {Array.isArray(selectedPartner.owner_details.company_taxation_docs) && selectedPartner.owner_details.company_taxation_docs.length > 0 && (
+                      <div>
+                        <h5 className="text-sm font-medium text-gray-600 mb-2">Company Taxation Docs</h5>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedPartner.owner_details.company_taxation_docs.map((doc: any, i: number) => (
+                            <a key={i} href={doc.signed_url || doc.url} target="_blank" rel="noopener noreferrer"
+                              className="flex items-center gap-1 px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg text-xs hover:bg-purple-100">
+                              <Download size={12} /> {doc.original_name || `Doc ${i + 1}`}
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* No owner details message */}
+                {!selectedPartner.owner_details && activeStatusTab === 'pending' && (
+                  <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-lg text-sm">
+                    Owner details not yet submitted by this partner.
+                  </div>
+                )}
               </div>
             </div>
 
+            {/* Footer Actions */}
             <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
               {isEditing ? (
                 <>
-                  <button
-                    onClick={handleCancelEdit}
-                    disabled={saving}
-                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleSavePartner}
-                    disabled={saving}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2"
-                  >
+                  <button onClick={handleCancelEdit} disabled={saving}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50">Cancel</button>
+                  <button onClick={handleSavePartner} disabled={saving}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
                     {saving && <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
                     {saving ? 'Saving...' : 'Save Changes'}
                   </button>
                 </>
               ) : (
                 <>
-                  <button
-                    onClick={() => { setShowModal(false); setError(''); setSuccess(''); }}
-                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-                  >
-                    Close
-                  </button>
-                  <button
-                    onClick={() => setIsEditing(true)}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    Edit Partner
-                  </button>
+                  <button onClick={() => { setShowModal(false); setError(''); setSuccess(''); }}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">Close</button>
+                  {activeStatusTab !== 'pending' && (
+                    <button onClick={() => setIsEditing(true)}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Edit Partner</button>
+                  )}
+                  {activeStatusTab === 'pending' && (
+                    <button
+                      onClick={() => handleApprovePartner(selectedPartner)}
+                      disabled={approving}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {approving && <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                      <CheckCircle size={16} />
+                      {approving ? 'Approving...' : 'Approve Partner'}
+                    </button>
+                  )}
                 </>
               )}
             </div>
@@ -604,4 +783,3 @@ export const PartnersManagement: React.FC<PartnersManagementProps> = ({ appId, a
     </div>
   );
 };
-

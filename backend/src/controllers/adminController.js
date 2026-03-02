@@ -15,7 +15,8 @@ import {
   AppCategoryCustomForm,
   User,
   UserGroup,
-  ClientRegistration
+  ClientRegistration,
+  OwnerDetails
 } from '../models/index.js';
 import { uploadFile, getSignedReadUrl } from '../services/wasabiService.js';
 import sharp from 'sharp';
@@ -2251,7 +2252,7 @@ export const getAppPartners = async (req, res) => {
       console.error('Error parsing custom_form:', e);
     }
 
-    // Query ClientRegistration as the primary source and include User data
+    // Query ClientRegistration as the primary source and include User and OwnerDetails data
     const clientRegistrations = await ClientRegistration.findAll({
       where: { group_id: appId },
       include: [
@@ -2259,6 +2260,11 @@ export const getAppPartners = async (req, res) => {
           model: User,
           as: 'user',
           attributes: ['id', 'identification_code', 'email', 'active', 'created_on', 'first_name', 'last_name', 'phone']
+        },
+        {
+          model: OwnerDetails,
+          as: 'ownerDetails',
+          required: false
         }
       ],
       order: [['created_at', 'DESC']]
@@ -2372,9 +2378,38 @@ export const getAppPartners = async (req, res) => {
           status: reg.status,
           custom_form_data: customFormData,
           resolved_form_data: resolvedFormData
-        }
+        },
+        owner_details: reg.ownerDetails ? reg.ownerDetails.toJSON() : null
       };
     });
+
+    // Generate signed URLs for owner_details file fields
+    for (const partner of partnersData) {
+      if (partner.owner_details) {
+        const od = partner.owner_details;
+        const fileFields = ['photo_path', 'logo_path', 'id_proof_path', 'address_proof_path'];
+        for (const field of fileFields) {
+          if (od[field]) {
+            try {
+              const result = await getSignedReadUrl(od[field]);
+              od[field.replace('_path', '_signed_url')] = result.signedUrl;
+            } catch (e) { /* ignore */ }
+          }
+        }
+        for (const docField of ['other_documents', 'company_registration_docs', 'company_taxation_docs']) {
+          if (Array.isArray(od[docField])) {
+            for (const doc of od[docField]) {
+              if (doc.path) {
+                try {
+                  const result = await getSignedReadUrl(doc.path);
+                  doc.signed_url = result.signedUrl;
+                } catch (e) { /* ignore */ }
+              }
+            }
+          }
+        }
+      }
+    }
 
     res.json({
       success: true,
@@ -2446,6 +2481,86 @@ export const updatePartnerStatus = async (req, res) => {
       message: 'Failed to update partner status',
       error: error.message
     });
+  }
+};
+
+// Approve partner - set active, update all 3 tables
+export const approvePartner = async (req, res) => {
+  try {
+    const { appId, partnerId } = req.params;
+
+    const partner = await User.findOne({ where: { id: partnerId } });
+    if (!partner) {
+      return res.status(404).json({ success: false, message: 'Partner not found' });
+    }
+
+    const clientReg = await ClientRegistration.findOne({
+      where: { user_id: partnerId, group_id: appId }
+    });
+    if (!clientReg) {
+      return res.status(404).json({ success: false, message: 'Partner not found for this app' });
+    }
+
+    // Update user active status
+    await partner.update({ active: 1 });
+
+    // Update client_registration status to active
+    await clientReg.update({ status: 'active', updated_at: new Date() });
+
+    // Update owner_details status if exists
+    const ownerDetails = await OwnerDetails.findOne({
+      where: { user_id: partnerId, registration_id: clientReg.id }
+    });
+    if (ownerDetails) {
+      await ownerDetails.update({ status: 'processed_for_approve', updated_at: new Date() });
+    }
+
+    res.json({
+      success: true,
+      message: 'Partner approved and activated successfully',
+      data: { id: partner.id, active: 1, status: 'active' }
+    });
+  } catch (error) {
+    console.error('Error approving partner:', error);
+    res.status(500).json({ success: false, message: 'Failed to approve partner', error: error.message });
+  }
+};
+
+// Get all apps that have custom_form configured
+export const getAppsWithCustomForms = async (req, res) => {
+  try {
+    const appsWithForms = await CreateDetails.findAll({
+      where: {
+        custom_form: { [Op.ne]: null }
+      },
+      include: [{
+        model: GroupCreate,
+        as: 'group',
+        attributes: ['id', 'name', 'code']
+      }],
+      attributes: ['id', 'create_id', 'custom_form']
+    });
+
+    const apps = appsWithForms
+      .filter(detail => detail.group && detail.custom_form)
+      .map(detail => {
+        let formDef = null;
+        try {
+          formDef = typeof detail.custom_form === 'string'
+            ? JSON.parse(detail.custom_form) : detail.custom_form;
+        } catch (e) { /* ignore */ }
+        return {
+          id: detail.group.id,
+          group_name: detail.group.name,
+          app_code: detail.group.code,
+          form_definition: formDef
+        };
+      });
+
+    res.json({ success: true, data: apps });
+  } catch (error) {
+    console.error('Error fetching apps with custom forms:', error.message, error.stack);
+    res.status(500).json({ success: false, message: 'Failed to fetch apps', error: error.message });
   }
 };
 

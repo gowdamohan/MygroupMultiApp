@@ -1,5 +1,6 @@
 import { verifyAccessToken } from '../utils/jwt.js';
 import User from '../models/User.js';
+import Group from '../models/Group.js';
 import UserActivity from '../models/UserActivity.js';
 
 // Constants for activity tracking
@@ -76,13 +77,20 @@ export const authenticate = async (req, res, next) => {
     // Verify token
     const decoded = verifyAccessToken(token);
 
-    // Find user with activity data
+    // Find user with activity data and groups
     const user = await User.findByPk(decoded.id, {
-      include: [{
-        model: UserActivity,
-        as: 'activity',
-        required: false
-      }]
+      include: [
+        {
+          model: UserActivity,
+          as: 'activity',
+          required: false
+        },
+        {
+          model: Group,
+          as: 'groups',
+          through: { attributes: [] }
+        }
+      ]
     });
 
     if (!user) {
@@ -104,11 +112,18 @@ export const authenticate = async (req, res, next) => {
 
     // Reload user with updated activity
     await user.reload({
-      include: [{
-        model: UserActivity,
-        as: 'activity',
-        required: false
-      }]
+      include: [
+        {
+          model: UserActivity,
+          as: 'activity',
+          required: false
+        },
+        {
+          model: Group,
+          as: 'groups',
+          through: { attributes: [] }
+        }
+      ]
     });
 
     // Attach user to request
