@@ -17,6 +17,9 @@ export default defineConfig(({ mode }) => {
                      env.VITE_API_URL ||
                      (isProduction ? '' : 'http://localhost:5000');
 
+                     console.log("🔥 VITE_BACKEND_URL =", env.VITE_BACKEND_URL);
+console.log("🔥 backendUrl =", backendUrl);
+
   return {
     plugins: [react()],
     define: {
