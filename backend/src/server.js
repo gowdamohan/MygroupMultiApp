@@ -73,7 +73,11 @@ app.use(helmet({
       imgSrc: ["'self'", "data:", "blob:", "*"],
       mediaSrc: ["'self'", "data:", "blob:", "*"],
       frameSrc: ["'self'"],
+      // CRITICAL FIX: Disable upgrade-insecure-requests CSP directive
+      // This prevents browser from forcing HTTPS when server only has HTTP
+      objectSrc: ["'none'"],
     },
+    // Do NOT include upgradeInsecureRequests directive
   },
   crossOriginEmbedderPolicy: false,
   crossOriginResourcePolicy: { policy: "cross-origin" },
@@ -84,6 +88,9 @@ app.use(helmet({
     includeSubDomains: true,
     preload: true,
   } : false,
+  // Disable upgrade-insecure-requests at the Helmet level
+  // This is the ROOT CAUSE of the HTTPS auto-upgrade on IP addresses
+  expectCT: false,
 }));
 
 app.use(cors({
@@ -91,27 +98,35 @@ app.use(cors({
   credentials: true
 }));
 
-// CRITICAL: Remove any HTTPS upgrade headers that would force browser to use HTTPS
-// This middleware runs FIRST to prevent any automatic HTTPS upgrades
+// CRITICAL FIX: Remove CSP upgrade-insecure-requests directive if Helmet added it
+// This prevents browser from auto-upgrading HTTP to HTTPS
 app.use((req, res, next) => {
-  // CRITICAL: Clear HSTS to allow HTTP (max-age=0 means don't cache HSTS policy)
-  res.set('Strict-Transport-Security', 'max-age=0');
+  // Get the current CSP header
+  const cspHeader = res.getHeader('Content-Security-Policy');
 
-  // Remove headers that might force HTTPS upgrade
-  res.removeHeader('X-Content-Type-Options');
+  if (cspHeader) {
+    // Remove upgrade-insecure-requests from CSP
+    const cspWithoutUpgrade = cspHeader
+      .replace(/;\s*upgrade-insecure-requests/gi, '')
+      .replace(/^upgrade-insecure-requests;\s*/gi, '')
+      .replace(/upgrade-insecure-requests/gi, '');
 
-  // Ensure we don't auto-redirect to HTTPS
-  if (req.headers['x-forwarded-proto']) {
-    delete req.headers['x-forwarded-proto'];
+    // Only set if there's content left
+    if (cspWithoutUpgrade.trim()) {
+      res.setHeader('Content-Security-Policy', cspWithoutUpgrade);
+    } else {
+      res.removeHeader('Content-Security-Policy');
+    }
   }
 
-  // Prevent browser from caching HTTPS redirects or any responses that might cause HTTPS upgrade
+  // Also disable HSTS to allow HTTP
+  res.set('Strict-Transport-Security', 'max-age=0');
+
+  // Prevent browser from caching HTTPS redirects
   res.set({
     'Cache-Control': 'no-cache, no-store, must-revalidate, public, max-age=0',
     'Pragma': 'no-cache',
     'Expires': '0',
-    // Explicitly allow HTTP - don't upgrade to HTTPS
-    'Upgrade-Insecure-Requests': '0',
   });
 
   next();
