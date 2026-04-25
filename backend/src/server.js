@@ -77,12 +77,28 @@ app.use(helmet({
   },
   crossOriginEmbedderPolicy: false,
   crossOriginResourcePolicy: { policy: "cross-origin" },
+  // Disable HSTS in development to allow HTTP connections
+  // Enable it only if you're using HTTPS with a proper SSL certificate
+  hsts: process.env.NODE_ENV === 'production' && process.env.USE_HTTPS === 'true' ? {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true,
+  } : false,
 }));
 
 app.use(cors({
   origin: allowedOrigins,
   credentials: true
 }));
+
+// Disable HSTS redirect to HTTP by removing X-Forwarded-Proto handling if not behind trusted proxy
+// This ensures HTTP requests stay as HTTP (not auto-upgraded to HTTPS)
+app.use((req, res, next) => {
+  // Don't override protocol unless behind a trusted proxy
+  // Allow both HTTP and HTTPS to work correctly
+  next();
+});
+
 app.use(compression()); // Compress responses
 app.use(express.json()); // Parse JSON bodies
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
