@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, User, Lock, Phone, Eye, EyeOff } from 'lucide-react';
 import axios from 'axios';
 import { RegisterStep2Form } from './RegisterStep2Form';
@@ -161,9 +162,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, allowClos
     setError('');
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black bg-opacity-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto relative z-[10000]">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white z-10">
           <h2 className="text-xl font-bold text-gray-800">
@@ -389,7 +390,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, allowClos
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
