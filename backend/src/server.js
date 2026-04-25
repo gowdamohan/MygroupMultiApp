@@ -94,14 +94,25 @@ app.use(cors({
 // CRITICAL: Remove any HTTPS upgrade headers that would force browser to use HTTPS
 // This middleware runs FIRST to prevent any automatic HTTPS upgrades
 app.use((req, res, next) => {
+  // CRITICAL: Clear HSTS to allow HTTP (max-age=0 means don't cache HSTS policy)
+  res.set('Strict-Transport-Security', 'max-age=0');
+
   // Remove headers that might force HTTPS upgrade
-  res.removeHeader('Strict-Transport-Security');
   res.removeHeader('X-Content-Type-Options');
 
   // Ensure we don't auto-redirect to HTTPS
   if (req.headers['x-forwarded-proto']) {
     delete req.headers['x-forwarded-proto'];
   }
+
+  // Prevent browser from caching HTTPS redirects or any responses that might cause HTTPS upgrade
+  res.set({
+    'Cache-Control': 'no-cache, no-store, must-revalidate, public, max-age=0',
+    'Pragma': 'no-cache',
+    'Expires': '0',
+    // Explicitly allow HTTP - don't upgrade to HTTPS
+    'Upgrade-Insecure-Requests': '0',
+  });
 
   next();
 });
@@ -126,6 +137,8 @@ app.use(limiter);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
+  // Explicitly tell browser this is HTTP and not to upgrade
+  res.set('Strict-Transport-Security', 'max-age=0');
   res.json({
     success: true,
     message: 'Server is running',

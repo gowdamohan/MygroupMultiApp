@@ -124,32 +124,47 @@ jobs:
             IMAGE_NAME="mygroup2025/multi-tenant-platform:latest"
             CONTAINER_NAME="multi-tenant-app"
 
-            # Pull the latest image
-            echo "📦 Ensuring host uploads directory exists and has correct ownership..."
+            # Ensure host uploads directory exists and has correct ownership
+            echo "📦 Setting up uploads directory..."
             sudo mkdir -p /var/app/uploads
             sudo chown -R 1001:1001 /var/app/uploads
             sudo chmod -R 755 /var/app/uploads
 
-            echo "📦 Pulling latest Docker image..."
+            # AGGRESSIVE CLEANUP: Kill any process on port 5000
+            echo "� Killing any process on port 5000..."
+            sudo lsof -ti :5000 | xargs sudo kill -9 2>/dev/null || true
+            sleep 1
+
+            # Stop container by name
+            echo "🛑 Stopping container by name..."
+            sudo docker stop $CONTAINER_NAME 2>/dev/null || true
+            sleep 1
+
+            # Kill container by name (force)
+            echo "🔴 Force killing container..."
+            sudo docker kill $CONTAINER_NAME 2>/dev/null || true
+            sleep 1
+
+            # Remove container
+            echo "🗑️  Removing container..."
+            sudo docker rm -f $CONTAINER_NAME 2>/dev/null || true
+            sleep 1
+
+            # Remove old image
+            echo "🧹 Removing old image..."
+            sudo docker rmi $IMAGE_NAME 2>/dev/null || true
+
+            # Prune all unused images and volumes
+            echo "🧹 Pruning unused Docker resources..."
+            sudo docker system prune -f --all 2>/dev/null || true
+
+            # Wait for port to be fully released
+            echo "⏳ Waiting for port 5000 to be released..."
+            sleep 3
+
+            # Pull the fresh latest image
+            echo "📦 Pulling fresh Docker image..."
             sudo docker pull $IMAGE_NAME
-
-            # Stop and remove old container if exists
-            echo "🛑 Stopping old container..."
-            if sudo docker ps | grep -q $CONTAINER_NAME; then
-              echo "Container is running, stopping..."
-              sudo docker stop $CONTAINER_NAME
-              sleep 2
-            fi
-
-            echo "Removing old container..."
-            sudo docker rm $CONTAINER_NAME 2>/dev/null || true
-
-            # Remove dangling images to free space
-            echo "🧹 Removing unused images..."
-            sudo docker image prune -f --all 2>/dev/null || true
-
-            # Wait a moment for port to be released
-            sleep 2
 
             # Run the new container
             echo "🚀 Starting new container..."
