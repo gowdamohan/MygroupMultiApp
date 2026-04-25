@@ -73,16 +73,65 @@ app.use(helmet({
       imgSrc: ["'self'", "data:", "blob:", "*"],
       mediaSrc: ["'self'", "data:", "blob:", "*"],
       frameSrc: ["'self'"],
+      // CRITICAL FIX: Disable upgrade-insecure-requests CSP directive
+      // This prevents browser from forcing HTTPS when server only has HTTP
+      objectSrc: ["'none'"],
     },
+    // Do NOT include upgradeInsecureRequests directive
   },
   crossOriginEmbedderPolicy: false,
   crossOriginResourcePolicy: { policy: "cross-origin" },
+  // Disable HSTS in development to allow HTTP connections
+  // Enable it only if you're using HTTPS with a proper SSL certificate
+  hsts: process.env.NODE_ENV === 'production' && process.env.USE_HTTPS === 'true' ? {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true,
+  } : false,
+  // Disable upgrade-insecure-requests at the Helmet level
+  // This is the ROOT CAUSE of the HTTPS auto-upgrade on IP addresses
+  expectCT: false,
 }));
 
 app.use(cors({
   origin: allowedOrigins,
   credentials: true
 }));
+
+// CRITICAL FIX: Remove CSP upgrade-insecure-requests directive if Helmet added it
+// This prevents browser from auto-upgrading HTTP to HTTPS
+app.use((req, res, next) => {
+  // Get the current CSP header
+  const cspHeader = res.getHeader('Content-Security-Policy');
+
+  if (cspHeader) {
+    // Remove upgrade-insecure-requests from CSP
+    const cspWithoutUpgrade = cspHeader
+      .replace(/;\s*upgrade-insecure-requests/gi, '')
+      .replace(/^upgrade-insecure-requests;\s*/gi, '')
+      .replace(/upgrade-insecure-requests/gi, '');
+
+    // Only set if there's content left
+    if (cspWithoutUpgrade.trim()) {
+      res.setHeader('Content-Security-Policy', cspWithoutUpgrade);
+    } else {
+      res.removeHeader('Content-Security-Policy');
+    }
+  }
+
+  // Also disable HSTS to allow HTTP
+  res.set('Strict-Transport-Security', 'max-age=0');
+
+  // Prevent browser from caching HTTPS redirects
+  res.set({
+    'Cache-Control': 'no-cache, no-store, must-revalidate, public, max-age=0',
+    'Pragma': 'no-cache',
+    'Expires': '0',
+  });
+
+  next();
+});
+
 app.use(compression()); // Compress responses
 app.use(express.json()); // Parse JSON bodies
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
@@ -103,6 +152,8 @@ app.use(limiter);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
+  // Explicitly tell browser this is HTTP and not to upgrade
+  res.set('Strict-Transport-Security', 'max-age=0');
   res.json({
     success: true,
     message: 'Server is running',

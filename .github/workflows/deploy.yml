@@ -99,8 +99,9 @@ jobs:
           cache-to: type=gha,mode=max
           platforms: linux/amd64
           build-args: |
-            VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL }}
-            VITE_BACKEND_URL=${{ secrets.VITE_BACKEND_URL }}
+            VITE_API_URL=${{ secrets.VITE_API_URL || '' }}
+            VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL || '/api/v1' }}
+            VITE_BACKEND_URL=${{ secrets.VITE_BACKEND_URL || '' }}
 
   # ===========================================================================
   # Deploy Job - Deploy to AWS EC2
@@ -124,27 +125,57 @@ jobs:
             IMAGE_NAME="mygroup2025/multi-tenant-platform:latest"
             CONTAINER_NAME="multi-tenant-app"
 
-            # Pull the latest image
-            echo "📦 Ensuring host uploads directory exists and has correct ownership..."
+            # Ensure host uploads directory exists and has correct ownership
+            echo "📦 Setting up uploads directory..."
             sudo mkdir -p /var/app/uploads
             sudo chown -R 1001:1001 /var/app/uploads
             sudo chmod -R 755 /var/app/uploads
-            echo "📦 Pulling latest Docker image..."
-            docker pull $IMAGE_NAME
 
-            # Stop and remove old container if exists
-            echo "🛑 Stopping old container..."
-            docker stop $CONTAINER_NAME 2>/dev/null || true
-            docker rm $CONTAINER_NAME 2>/dev/null || true
+            # AGGRESSIVE CLEANUP: Kill any process on port 5000
+            echo "� Killing any process on port 5000..."
+            sudo lsof -ti :5000 | xargs sudo kill -9 2>/dev/null || true
+            sleep 1
+
+            # Stop container by name
+            echo "🛑 Stopping container by name..."
+            sudo docker stop $CONTAINER_NAME 2>/dev/null || true
+            sleep 1
+
+            # Kill container by name (force)
+            echo "🔴 Force killing container..."
+            sudo docker kill $CONTAINER_NAME 2>/dev/null || true
+            sleep 1
+
+            # Remove container
+            echo "🗑️  Removing container..."
+            sudo docker rm -f $CONTAINER_NAME 2>/dev/null || true
+            sleep 1
+
+            # Remove old image
+            echo "🧹 Removing old image..."
+            sudo docker rmi $IMAGE_NAME 2>/dev/null || true
+
+            # Prune all unused images and volumes
+            echo "🧹 Pruning unused Docker resources..."
+            sudo docker system prune -f --all 2>/dev/null || true
+
+            # Wait for port to be fully released
+            echo "⏳ Waiting for port 5000 to be released..."
+            sleep 3
+
+            # Pull the fresh latest image
+            echo "📦 Pulling fresh Docker image..."
+            sudo docker pull $IMAGE_NAME
 
             # Run the new container
             echo "🚀 Starting new container..."
-            docker run -d \
+            sudo docker run -d \
               --name $CONTAINER_NAME \
               --restart unless-stopped \
               -p 5000:5000 \
               -e NODE_ENV=production \
               -e PORT=5000 \
+              -e USE_HTTPS=false \
               -e DB_HOST="${{ secrets.DB_HOST }}" \
               -e DB_PORT="${{ secrets.DB_PORT }}" \
               -e DB_NAME="${{ secrets.DB_NAME }}" \
@@ -158,11 +189,51 @@ jobs:
 
             # Clean up old images
             echo "🧹 Cleaning up old images..."
-            docker image prune -f
+            sudo docker image prune -f
 
             # Verify deployment
             echo "✅ Verifying deployment..."
             sleep 10
-            curl -f http://localhost:5000/health || exit 1
-            echo "🎉 Deployment successful!"
+
+            # Check if container is running
+            echo ""
+            echo "📋 Checking container status..."
+            if sudo docker ps | grep -q $CONTAINER_NAME; then
+              echo "✅ Container is running"
+              sudo docker ps | grep $CONTAINER_NAME
+            else
+              echo "❌ Container is not running"
+              echo "📄 Recent container logs:"
+              sudo docker logs $CONTAINER_NAME 2>&1 | tail -30
+              exit 1
+            fi
+
+            # Check port binding
+            echo ""
+            echo "📋 Checking port 5000..."
+            sudo netstat -tlnp 2>/dev/null | grep 5000 || echo "⚠️  Port 5000 may not be properly bound"
+
+            # Health check
+            echo ""
+            echo "📋 Testing health endpoint..."
+            if curl -f -v http://localhost:5000/health; then
+              echo ""
+              echo "✅ Health check passed!"
+            else
+              echo ""
+              echo "❌ Health check failed!"
+              echo "📄 Container logs:"
+              sudo docker logs $CONTAINER_NAME | tail -30
+              exit 1
+            fi
+
+            # Test asset loading
+            echo ""
+            echo "📋 Testing static asset serving..."
+            curl -I http://localhost:5000/ 2>&1 | head -10
+
+            echo ""
+            echo "🎉 Deployment verification complete!"
+            echo "📝 Access your app at: http://YOUR_EC2_IP:5000"
+            echo "⚠️  Make sure your AWS security group allows inbound traffic on port 5000"
 
