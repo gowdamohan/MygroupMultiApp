@@ -99,8 +99,8 @@ jobs:
           cache-to: type=gha,mode=max
           platforms: linux/amd64
           build-args: |
-            VITE_API_BASE_URL=${{ secrets.FRONTEND_URL }}/api/v1
-            VITE_BACKEND_URL=${{ secrets.FRONTEND_URL }}
+            VITE_API_BASE_URL=/api/v1
+            VITE_BACKEND_URL=
 
   # ===========================================================================
   # Deploy Job - Deploy to AWS EC2
@@ -129,13 +129,27 @@ jobs:
             sudo mkdir -p /var/app/uploads
             sudo chown -R 1001:1001 /var/app/uploads
             sudo chmod -R 755 /var/app/uploads
+
             echo "📦 Pulling latest Docker image..."
             sudo docker pull $IMAGE_NAME
 
             # Stop and remove old container if exists
             echo "🛑 Stopping old container..."
-            sudo docker stop $CONTAINER_NAME 2>/dev/null || true
+            if sudo docker ps | grep -q $CONTAINER_NAME; then
+              echo "Container is running, stopping..."
+              sudo docker stop $CONTAINER_NAME
+              sleep 2
+            fi
+
+            echo "Removing old container..."
             sudo docker rm $CONTAINER_NAME 2>/dev/null || true
+
+            # Remove dangling images to free space
+            echo "🧹 Removing unused images..."
+            sudo docker image prune -f --all 2>/dev/null || true
+
+            # Wait a moment for port to be released
+            sleep 2
 
             # Run the new container
             echo "🚀 Starting new container..."

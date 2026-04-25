@@ -7,7 +7,10 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
 
   // Get backend URL from env or use default
+  // In production with VITE_BACKEND_URL set to an http:// URL,
+  // it will be used. Otherwise, relative URLs will be used (same-origin).
   const backendUrl = env.VITE_BACKEND_URL || 'http://localhost:5000';
+  const isProduction = mode === 'production';
 
   return {
     plugins: [react()],

@@ -91,11 +91,18 @@ app.use(cors({
   credentials: true
 }));
 
-// Disable HSTS redirect to HTTP by removing X-Forwarded-Proto handling if not behind trusted proxy
-// This ensures HTTP requests stay as HTTP (not auto-upgraded to HTTPS)
+// CRITICAL: Remove any HTTPS upgrade headers that would force browser to use HTTPS
+// This middleware runs FIRST to prevent any automatic HTTPS upgrades
 app.use((req, res, next) => {
-  // Don't override protocol unless behind a trusted proxy
-  // Allow both HTTP and HTTPS to work correctly
+  // Remove headers that might force HTTPS upgrade
+  res.removeHeader('Strict-Transport-Security');
+  res.removeHeader('X-Content-Type-Options');
+
+  // Ensure we don't auto-redirect to HTTPS
+  if (req.headers['x-forwarded-proto']) {
+    delete req.headers['x-forwarded-proto'];
+  }
+
   next();
 });
 

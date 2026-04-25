@@ -7,7 +7,11 @@
 FROM node:20-alpine AS frontend-builder
 
 # Build arguments for API configuration
-# These should be passed during docker build: --build-arg VITE_API_BASE_URL=...
+# For Docker deployments (same-origin serving):
+# - Use VITE_API_BASE_URL=/api/v1 (relative URL - works for HTTP and HTTPS)
+# - Use VITE_BACKEND_URL= (empty - uses relative paths)
+#
+# This avoids HTTPS auto-upgrade issues when using IP addresses without SSL
 ARG VITE_API_BASE_URL=/api/v1
 ARG VITE_BACKEND_URL=
 
