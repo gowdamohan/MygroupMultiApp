@@ -99,8 +99,8 @@ jobs:
           cache-to: type=gha,mode=max
           platforms: linux/amd64
           build-args: |
-            VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL }}
-            VITE_BACKEND_URL=${{ secrets.VITE_BACKEND_URL }}
+            VITE_API_BASE_URL=${{ secrets.FRONTEND_URL }}/api/v1
+            VITE_BACKEND_URL=${{ secrets.FRONTEND_URL }}
 
   # ===========================================================================
   # Deploy Job - Deploy to AWS EC2
@@ -163,6 +163,46 @@ jobs:
             # Verify deployment
             echo "✅ Verifying deployment..."
             sleep 10
-            curl -f http://localhost:5000/health || exit 1
-            echo "🎉 Deployment successful!"
+
+            # Check if container is running
+            echo ""
+            echo "📋 Checking container status..."
+            if sudo docker ps | grep -q $CONTAINER_NAME; then
+              echo "✅ Container is running"
+              sudo docker ps | grep $CONTAINER_NAME
+            else
+              echo "❌ Container is not running"
+              echo "📄 Recent container logs:"
+              sudo docker logs $CONTAINER_NAME 2>&1 | tail -30
+              exit 1
+            fi
+
+            # Check port binding
+            echo ""
+            echo "📋 Checking port 5000..."
+            sudo netstat -tlnp 2>/dev/null | grep 5000 || echo "⚠️  Port 5000 may not be properly bound"
+
+            # Health check
+            echo ""
+            echo "📋 Testing health endpoint..."
+            if curl -f -v http://localhost:5000/health; then
+              echo ""
+              echo "✅ Health check passed!"
+            else
+              echo ""
+              echo "❌ Health check failed!"
+              echo "📄 Container logs:"
+              sudo docker logs $CONTAINER_NAME | tail -30
+              exit 1
+            fi
+
+            # Test asset loading
+            echo ""
+            echo "📋 Testing static asset serving..."
+            curl -I http://localhost:5000/ 2>&1 | head -10
+
+            echo ""
+            echo "🎉 Deployment verification complete!"
+            echo "📝 Access your app at: http://YOUR_EC2_IP:5000"
+            echo "⚠️  Make sure your AWS security group allows inbound traffic on port 5000"
 
