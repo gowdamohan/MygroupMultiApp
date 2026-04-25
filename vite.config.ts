@@ -6,11 +6,16 @@ export default defineConfig(({ mode }) => {
   // Load env file based on `mode` in the current working directory.
   const env = loadEnv(mode, process.cwd(), '');
 
-  // Get backend URL from env or use default
-  // In production with VITE_BACKEND_URL set to an http:// URL,
-  // it will be used. Otherwise, relative URLs will be used (same-origin).
-  const backendUrl = env.VITE_BACKEND_URL || 'http://localhost:5000';
+  // Get backend URL from env or use defaults based on environment
+  // VITE_API_URL or VITE_BACKEND_URL can be set in build args or .env file
+  // For development server proxy: defaults to http://localhost:5000
+  // For production builds: uses relative URLs by default (same-origin serving)
   const isProduction = mode === 'production';
+
+  // Try to get backend URL from various sources
+  const backendUrl = env.VITE_BACKEND_URL ||
+                     env.VITE_API_URL ||
+                     (isProduction ? '' : 'http://localhost:5000');
 
   return {
     plugins: [react()],

@@ -4,50 +4,72 @@
  * Centralized configuration for API endpoints and URLs.
  * All API-related URLs should be imported from this file.
  *
- * Environment Variables:
- * - VITE_API_BASE_URL: Full API base URL (e.g., http://18.61.71.16:5000/api/v1)
- * - VITE_BACKEND_URL: Backend server URL for static assets (e.g., http://18.61.71.16:5000)
+ * Supported Environment Variables:
  *
- * Production Mode (Same Origin):
- * - When frontend is served from the same server as the backend (e.g., Docker deployment),
- *   use relative URLs: VITE_API_BASE_URL=/api/v1 and VITE_BACKEND_URL= (empty)
- * - This avoids CSP issues and works automatically with any domain/IP
+ * SIMPLE FORMAT (RECOMMENDED):
+ * - VITE_API_URL: Base URL (e.g., http://13.127.190.207:5000)
+ *   Automatically appends /api/v1 for API calls
  *
- * When transitioning to a domain:
- * 1. Update .env file with new domain
- * 2. Update GitHub Actions secrets with new domain
- * 3. No code changes required!
+ * FULL FORMAT:
+ * - VITE_API_BASE_URL: Full API URL (e.g., http://13.127.190.207:5000/api/v1)
+ * - VITE_BACKEND_URL: Backend URL (e.g., http://13.127.190.207:5000)
+ *
+ * Examples:
+ * - Local dev:        VITE_API_URL=http://localhost:5001
+ * - Docker Compose:   VITE_API_URL=http://backend:5000
+ * - EC2/Staging:      VITE_API_URL=http://13.127.190.207:5000
+ * - Production:       VITE_API_URL=https://yourdomain.com
+ * - Same-origin:      VITE_API_URL= (empty/relative URLs)
  */
 
-// Detect if running in production with same-origin backend
+// Detect if running in production
 const isProduction = import.meta.env.PROD;
 
-// Default values for development - full URLs to the dev server
-// Using port 5001 since port 5000 is often used by other Windows services
+// Get API URL from environment (supports VITE_API_URL or VITE_API_BASE_URL)
+const apiUrlEnv = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL;
+const isFullApiUrl = apiUrlEnv?.endsWith('/api/v1');
+const baseApiUrl = isFullApiUrl ? apiUrlEnv : (apiUrlEnv ? `${apiUrlEnv}/api/v1` : '');
+
+// Default values
 const DEFAULT_DEV_API_BASE_URL = 'http://localhost:5001/api/v1';
 const DEFAULT_DEV_BACKEND_URL = 'http://localhost:5001';
-
-// Production defaults - relative URLs work when frontend is served from same origin
 const DEFAULT_PROD_API_BASE_URL = '/api/v1';
 const DEFAULT_PROD_BACKEND_URL = '';
 
 /**
- * API Base URL for all API calls
- * - Development: http://localhost:5001/api/v1
- * - Production (same-origin): /api/v1
- * - Production (different origin): https://api.yourdomain.com/api/v1
+ * API Base URL - automatically includes /api/v1 path
+ *
+ * Examples:
+ * - http://13.127.190.207:5000/api/v1 (EC2)
+ * - http://backend:5000/api/v1 (Docker)
+ * - /api/v1 (relative, same-origin)
  */
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ||
+export const API_BASE_URL = baseApiUrl ||
   (isProduction ? DEFAULT_PROD_API_BASE_URL : DEFAULT_DEV_API_BASE_URL);
 
 /**
- * Backend URL for static assets (uploads, images, etc.)
- * - Development: http://localhost:5000
- * - Production (same-origin): '' (empty, uses relative paths)
- * - Production (different origin): https://api.yourdomain.com
+ * Backend URL - for static assets (uploads, images)
+ * Automatically extracted from API_BASE_URL or set explicitly
  */
-export const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ??
-  (isProduction ? DEFAULT_PROD_BACKEND_URL : DEFAULT_DEV_BACKEND_URL);
+export const BACKEND_URL = (() => {
+  const explicitBackendUrl = import.meta.env.VITE_BACKEND_URL;
+  if (explicitBackendUrl !== undefined) {
+    return explicitBackendUrl;
+  }
+
+  // Remove /api/v1 from API_BASE_URL to get BACKEND_URL
+  if (API_BASE_URL.endsWith('/api/v1')) {
+    return API_BASE_URL.slice(0, -7);
+  }
+
+  // If API_BASE_URL is absolute, use as-is
+  if (API_BASE_URL.startsWith('http')) {
+    return API_BASE_URL;
+  }
+
+  // For relative URLs, return empty
+  return '';
+})();
 
 /**
  * Helper function to get the full URL for an uploaded file

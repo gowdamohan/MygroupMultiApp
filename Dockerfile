@@ -7,15 +7,30 @@
 FROM node:20-alpine AS frontend-builder
 
 # Build arguments for API configuration
-# For Docker deployments (same-origin serving):
-# - Use VITE_API_BASE_URL=/api/v1 (relative URL - works for HTTP and HTTPS)
-# - Use VITE_BACKEND_URL= (empty - uses relative paths)
+# Supports three environment variables with fallback chain:
 #
-# This avoids HTTPS auto-upgrade issues when using IP addresses without SSL
+# 1. VITE_API_URL (simple format)
+#    - Example: http://13.127.190.207:5000
+#    - Automatically appends /api/v1 for API calls
+#
+# 2. VITE_API_BASE_URL (full format)
+#    - Example: http://13.127.190.207:5000/api/v1
+#    - Defaults to /api/v1 (relative/same-origin)
+#
+# 3. VITE_BACKEND_URL (static assets)
+#    - Example: http://13.127.190.207:5000
+#    - Defaults to empty (relative/same-origin)
+#
+# For same-origin serving (RECOMMENDED for Docker):
+# - VITE_API_BASE_URL=/api/v1 and VITE_BACKEND_URL= (empty)
+# - This works with HTTP, HTTPS, IP, or domain automatically
+#
+ARG VITE_API_URL=
 ARG VITE_API_BASE_URL=/api/v1
 ARG VITE_BACKEND_URL=
 
 # Set environment variables for the build
+ENV VITE_API_URL=${VITE_API_URL}
 ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 ENV VITE_BACKEND_URL=${VITE_BACKEND_URL}
 
