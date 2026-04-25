@@ -130,16 +130,16 @@ jobs:
             sudo chown -R 1001:1001 /var/app/uploads
             sudo chmod -R 755 /var/app/uploads
             echo "📦 Pulling latest Docker image..."
-            docker pull $IMAGE_NAME
+            sudo docker pull $IMAGE_NAME
 
             # Stop and remove old container if exists
             echo "🛑 Stopping old container..."
-            docker stop $CONTAINER_NAME 2>/dev/null || true
-            docker rm $CONTAINER_NAME 2>/dev/null || true
+            sudo docker stop $CONTAINER_NAME 2>/dev/null || true
+            sudo docker rm $CONTAINER_NAME 2>/dev/null || true
 
             # Run the new container
             echo "🚀 Starting new container..."
-            docker run -d \
+            sudo docker run -d \
               --name $CONTAINER_NAME \
               --restart unless-stopped \
               -p 5000:5000 \
@@ -158,7 +158,7 @@ jobs:
 
             # Clean up old images
             echo "🧹 Cleaning up old images..."
-            docker image prune -f
+            sudo docker image prune -f
 
             # Verify deployment
             echo "✅ Verifying deployment..."
