@@ -169,6 +169,8 @@ jobs:
 
             # Run the new container
             echo "🚀 Starting new container..."
+            # NOTE: Using --network host to access RDS endpoint from container
+            # RDS endpoint is externally accessible, so we don't need bridge network
             sudo docker run -d \
               --name $CONTAINER_NAME \
               --restart unless-stopped \
