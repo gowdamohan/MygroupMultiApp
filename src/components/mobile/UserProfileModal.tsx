@@ -90,7 +90,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   appName = 'My Group'
 }) => {
   // Tab state
-  const [activeTab, setActiveTab] = useState<ProfileTab>('profile');
+  // No tab selected by default; user must pick one.
+  const [activeTab, setActiveTab] = useState<ProfileTab | null>(null);
   const [expandedSection, setExpandedSection] = useState<ExpandedSection>(null);
   
   // Form data states
@@ -138,6 +139,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   // Fetch initial data
   useEffect(() => {
     if (isOpen && isLoggedIn) {
+      // Reset whenever opened so nothing is auto-displayed.
+      setActiveTab(null);
       fetchFormFields();
       fetchUserRegistrationData();
       fetchSocialLinks();
@@ -460,7 +463,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           ))}
         </div>
 
-        {/* Tab Content */}
+        {/* Tab Content (render only after a tab is selected) */}
+        {activeTab && (
         <div className="p-4">
           {/* Profile Tab - Combined Profile and Personal fields */}
           {activeTab === 'profile' && (
@@ -859,6 +863,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             </div>
           )}
         </div>
+        )}
 
         {/* Menu Items */}
         <div className="border-t border-gray-200 px-4 py-4 space-y-1">
