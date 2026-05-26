@@ -20,6 +20,10 @@ const sequelize = new Sequelize(
       acquire: 30000,
       idle: 10000
     },
+    dialectOptions: {
+      connectTimeout: 10000,
+      timeout: 30000,
+    },
     define: {
       timestamps: true,
       underscored: false,
