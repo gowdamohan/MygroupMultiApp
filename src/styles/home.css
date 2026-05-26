@@ -1,0 +1,147 @@
+/* Home page – mobile-matched gradients, buttons, dark mode */
+
+.desktop-home {
+  scroll-behavior: smooth;
+}
+
+/* Desktop home top navbar — inline ads + store badges */
+.desktop-home .inline-header-ads-placeholder {
+  background: linear-gradient(90deg, #f5f3ff 0%, #eef2ff 50%, #f5f3ff 100%);
+}
+
+.desktop-home-main > section + section {
+  position: relative;
+}
+
+.desktop-home-main > section:not(:first-child):not(.home-gradient-bg):not(.home-footer)::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(100% - 2rem, 72rem);
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(124, 58, 237, 0.12) 20%,
+    rgba(124, 58, 237, 0.12) 80%,
+    transparent
+  );
+}
+
+body.dark-mode .desktop-home-main > section:not(:first-child):not(.home-gradient-bg):not(.home-footer)::before {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(167, 139, 250, 0.15) 20%,
+    rgba(167, 139, 250, 0.15) 80%,
+    transparent
+  );
+}
+
+.desktop-home,
+.desktop-home .home-section-transition,
+.desktop-home .home-card,
+.desktop-home .home-app-card,
+.desktop-home .home-nav-card {
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease,
+    transform 0.3s ease;
+}
+
+.home-gradient-bg {
+  background: linear-gradient(-45deg, #ac32e4, #7918f2, #4801ff);
+}
+
+.home-how-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.875rem 1.5rem;
+  border: 2px solid #fff;
+  border-radius: 25px;
+  color: #fff;
+  font-weight: 500;
+  background: transparent;
+  transition: background 0.3s, color 0.3s;
+  margin-bottom: 0.9375rem;
+}
+
+.home-how-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.home-nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.875rem 1rem;
+  border-radius: 25px;
+  color: #fff;
+  font-weight: 600;
+  background: linear-gradient(-45deg, #ac32e4, #7918f2, #4801ff);
+  border: none;
+  transition: opacity 0.2s, transform 0.2s;
+  margin-bottom: 0.75rem;
+}
+
+.home-nav-btn:hover {
+  opacity: 0.92;
+  transform: translateY(-1px);
+}
+
+/* Swiper overrides for home carousels */
+.home-swiper .swiper-pagination-bullet-active {
+  background: #7918f2;
+}
+
+.home-swiper .swiper-button-next,
+.home-swiper .swiper-button-prev {
+  color: #7918f2;
+}
+
+/* Dark mode (matches mobile body.dark-mode) */
+body.dark-mode .desktop-home {
+  background-color: #111827;
+  color: #f3f4f6;
+}
+
+body.dark-mode .desktop-home .home-section-light {
+  background-color: #1f2937 !important;
+}
+
+body.dark-mode .desktop-home .home-section-alt {
+  background-color: #111827 !important;
+}
+
+body.dark-mode .desktop-home .home-card {
+  background-color: #374151 !important;
+}
+
+body.dark-mode .desktop-home .home-text-primary {
+  color: #f9fafb !important;
+}
+
+body.dark-mode .desktop-home .home-text-secondary {
+  color: #d1d5db !important;
+}
+
+body.dark-mode .desktop-home .home-footer {
+  background-color: #030712 !important;
+}
+
+body.dark-mode .desktop-home .home-nav-card {
+  background-color: rgba(31, 41, 55, 0.8) !important;
+}
+
+body.dark-mode .desktop-home .home-app-card:hover {
+  box-shadow: 0 20px 40px -12px rgba(124, 58, 237, 0.25);
+}

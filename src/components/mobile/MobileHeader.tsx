@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { User, ChevronLeft, ChevronRight, X, Search, Menu } from 'lucide-react';
+import { User, ChevronLeft, ChevronRight, X, Search, Menu, Sun, Moon, Settings } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
 import { authAPI } from '../../services/api';
 import { UserProfileModal } from './UserProfileModal';
 import { AppSettingsModal } from './AppSettingsModal';
+import { AppDownloadBadges } from './AppDownloadBadges';
+import { InlineHeaderAds } from './InlineHeaderAds';
 
 export interface TopIcon {
   id: number;
@@ -79,10 +81,17 @@ interface MobileHeaderProps {
   showAds?: boolean;
   showDarkModeToggle?: boolean;
   showProfileButton?: boolean;
+  /** Desktop variant: gear icon and app-name settings entry. */
+  showSettingsButton?: boolean;
   headerBgColor?: string;
   topIconsBgColor?: string;
   customLogo?: string;
   customIcon?: string;
+  /** `desktop` uses a compact, professional navbar (no pink mobile styling). */
+  variant?: 'mobile' | 'desktop';
+  /** Desktop home: logo left, ads center, app-store badges right. */
+  desktopLayout?: 'default' | 'home';
+  showAppDownloadButtons?: boolean;
 }
 
 export const MobileHeader: React.FC<MobileHeaderProps> = ({
@@ -102,11 +111,17 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
   showAds = true,
   showDarkModeToggle = true,
   showProfileButton = true,
+  showSettingsButton = true,
   headerBgColor = 'bg-white',
   topIconsBgColor = 'bg-teal-600',
   customLogo,
-  customIcon
+  customIcon,
+  variant = 'mobile',
+  desktopLayout = 'default',
+  showAppDownloadButtons = false,
 }) => {
+  const isDesktopVariant = variant === 'desktop';
+  const isDesktopHomeLayout = isDesktopVariant && desktopLayout === 'home';
   // Internal state for modals and user profile
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showAppSettingsModal, setShowAppSettingsModal] = useState(false);
@@ -128,6 +143,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
 
   // Fetch user profile if not provided (when parent provides app info it usually provides profile too)
   const fetchUserProfile = useCallback(async () => {
+    if (!showProfileButton && externalUserProfile == null) return;
     if (externalUserProfile != null) return; // Don't fetch if provided as prop
     if (appInfoFromParent) return; // Parent (e.g. MobileAppPage) will provide profile
 
@@ -165,7 +181,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
       console.error('Error fetching user profile:', error);
       setInternalIsLoggedIn(false);
     }
-  }, [externalUserProfile, appInfoFromParent]);
+  }, [externalUserProfile, appInfoFromParent, showProfileButton]);
 
   // Fetch app info (only when parent does not provide it)
   const fetchAppInfo = useCallback(async () => {
@@ -367,7 +383,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
         }
       }
 
-      if (targetAppId != null || !appInfoFromParent) {
+      if (showAds && (targetAppId != null || !appInfoFromParent)) {
         fetchAds(targetAppId ?? undefined, profileData, selectedCategoryId ?? undefined);
       }
       initializingRef.current = false;
@@ -461,14 +477,6 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
   // Get the logo to display (custom or from app info)
   const displayLogo = customLogo || appInfo?.logo;
   const displayIcon = customIcon || appInfo?.icon;
-
-  // Calculate header height
-  const getHeaderHeight = () => {
-    let height = 60; // Main header bar
-    if (showTopIcons) height += 50; // Top icons bar
-    if (showAds && ads.length > 0) height += 128; // Carousel ads
-    return height;
-  };
 
   return (
     <>
@@ -583,64 +591,194 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
           </div>
         )}
 
-        {/* Section B: User Profile & Search Bar - Updated design */}
-        <div className="bg-gradient-to-r from-pink-200 via-pink-100 to-pink-200 px-4 py-3">
-          <div className="flex items-center justify-between gap-3">
-            {/* Left: User Profile Icon */}
+        {/* Section B: Profile bar — desktop variant or mobile pink bar */}
+        <div
+          className={
+            isDesktopVariant
+              ? `border-b transition-colors duration-300 ${
+                  darkMode
+                    ? 'bg-gray-900 border-gray-800 shadow-lg shadow-black/20'
+                    : 'bg-white border-gray-200 shadow-sm'
+                }`
+              : 'bg-gradient-to-r from-pink-200 via-pink-100 to-pink-200'
+          }
+        >
+          {isDesktopHomeLayout ? (
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-[80px] grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 sm:gap-4 lg:gap-6">
+              <div className="flex items-center gap-2.5 sm:gap-3 flex-shrink-0 min-w-0">
+                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center shadow-md shadow-purple-500/25 flex-shrink-0">
+                  {displayLogo || displayIcon ? (
+                    <img
+                      src={(displayLogo || displayIcon)!.startsWith('http') ? (displayLogo || displayIcon) : `${BACKEND_URL}${displayLogo || displayIcon}`}
+                      alt={appInfo?.name || 'My Group'}
+                      className="w-6 h-6 sm:w-7 sm:h-7 object-contain"
+                    />
+                  ) : (
+                    <span className="text-white font-bold text-base sm:text-lg">
+                      {(appInfo?.name || appName || 'M').charAt(0).toUpperCase()}
+                    </span>
+                  )}
+                </div>
+                <div className="hidden md:block min-w-0">
+                  <p className="text-sm font-semibold leading-tight text-gray-900 truncate">My Group</p>
+                  <p className="text-xs text-gray-500 truncate">Enterprise Platform</p>
+                </div>
+              </div>
+
+              <div className="min-w-0 flex justify-center px-1">
+                {showAds && (
+                  <InlineHeaderAds
+                    ads={ads}
+                    currentIndex={currentAdIndex}
+                    onPrev={handlePrevAd}
+                    onNext={handleNextAd}
+                    onSelect={setCurrentAdIndex}
+                  />
+                )}
+              </div>
+
+              {showAppDownloadButtons && (
+                <div className="flex-shrink-0">
+                  <AppDownloadBadges />
+                </div>
+              )}
+            </div>
+          ) : (
+          <div
+            className={`flex items-center justify-between gap-4 ${
+              isDesktopVariant ? 'relative max-w-7xl mx-auto px-6 lg:px-8 h-[72px]' : 'px-4 py-3'
+            }`}
+          >
             {showProfileButton && (
               <button
                 onClick={handleProfileClick}
-                className="flex-shrink-0"
+                className="flex-shrink-0 rounded-full ring-2 ring-transparent hover:ring-purple-500/30 transition-all duration-300"
+                aria-label="Open profile"
               >
                 {userProfile?.profile_img ? (
                   <img
                     src={userProfile.profile_img.startsWith('http') ? userProfile.profile_img : `${BACKEND_URL}${userProfile.profile_img}`}
                     alt="Profile"
-                    className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm"
+                    className={`w-10 h-10 rounded-full object-cover ${
+                      isDesktopVariant ? 'border-2 border-gray-200 dark:border-gray-700' : 'border-2 border-white shadow-sm'
+                    }`}
                   />
                 ) : (
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-500 flex items-center justify-center shadow-sm border-2 border-white">
-                    <User size={20} className="text-white" />
+                  <div
+                    className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                      isDesktopVariant
+                        ? 'bg-gradient-to-br from-purple-600 to-indigo-600 text-white'
+                        : 'bg-gradient-to-br from-blue-400 to-blue-500 text-white border-2 border-white shadow-sm'
+                    }`}
+                  >
+                    <User size={20} />
                   </div>
                 )}
               </button>
             )}
 
-            {/* Right: Search Bar, Menu, and Pinterest Icon */}
-            <div className="flex items-center gap-2 flex-1 justify-end">
-              {/* Search Icon */}
-              <button className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center hover:shadow-md transition-shadow">
-                <Search size={20} className="text-gray-700" />
-              </button>
-
-              {/* Menu Icon */}
-              <button className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center hover:shadow-md transition-shadow">
-                <Menu size={20} className="text-gray-700" />
-              </button>
-
-              {/* Pinterest-style Icon (using app logo or default) */}
-              <button
-                onClick={handleAppNameClick}
-                className="w-10 h-10 rounded-full bg-red-600 shadow-sm flex items-center justify-center hover:shadow-md transition-shadow"
-              >
-                {displayLogo || displayIcon ? (
-                  <img
-                    src={(displayLogo || displayIcon)!.startsWith('http') ? (displayLogo || displayIcon) : `${BACKEND_URL}${displayLogo || displayIcon}`}
-                    alt={appInfo?.name || 'App'}
-                    className="w-6 h-6 object-contain"
-                  />
+            {isDesktopVariant ? (
+              (() => {
+                const branding = (
+                  <>
+                    <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center shadow-md shadow-purple-500/25">
+                      {displayLogo || displayIcon ? (
+                        <img
+                          src={(displayLogo || displayIcon)!.startsWith('http') ? (displayLogo || displayIcon) : `${BACKEND_URL}${displayLogo || displayIcon}`}
+                          alt={appInfo?.name || 'My Group'}
+                          className="w-7 h-7 object-contain"
+                        />
+                      ) : (
+                        <span className="text-white font-bold text-lg">
+                          {(appInfo?.name || appName || 'M').charAt(0).toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                    <div className="hidden sm:block text-left">
+                      <p className={`text-sm font-semibold leading-tight ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                        My Group
+                      </p>
+                      <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                        Enterprise Platform
+                      </p>
+                    </div>
+                  </>
+                );
+                const brandingClass = 'flex items-center gap-3 absolute left-1/2 -translate-x-1/2';
+                return showSettingsButton ? (
+                  <button type="button" onClick={handleAppNameClick} className={brandingClass}>
+                    {branding}
+                  </button>
                 ) : (
-                  <span className="text-white font-bold text-sm">
-                    {(selectedApp?.name || appInfo?.name || appName || 'P').charAt(0).toUpperCase()}
-                  </span>
-                )}
-              </button>
+                  <div className={`${brandingClass} pointer-events-none select-none`}>{branding}</div>
+                );
+              })()
+            ) : null}
+
+            <div className={`flex items-center gap-2 ${isDesktopVariant ? 'ml-auto' : 'flex-1 justify-end'}`}>
+              {!isDesktopVariant && (
+                <>
+                  <button className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center hover:shadow-md transition-shadow">
+                    <Search size={20} className="text-gray-700" />
+                  </button>
+                  <button className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center hover:shadow-md transition-shadow">
+                    <Menu size={20} className="text-gray-700" />
+                  </button>
+                  <button
+                    onClick={handleAppNameClick}
+                    className="w-10 h-10 rounded-full bg-red-600 shadow-sm flex items-center justify-center hover:shadow-md transition-shadow"
+                  >
+                    {displayLogo || displayIcon ? (
+                      <img
+                        src={(displayLogo || displayIcon)!.startsWith('http') ? (displayLogo || displayIcon) : `${BACKEND_URL}${displayLogo || displayIcon}`}
+                        alt={appInfo?.name || 'App'}
+                        className="w-6 h-6 object-contain"
+                      />
+                    ) : (
+                      <span className="text-white font-bold text-sm">
+                        {(selectedApp?.name || appInfo?.name || appName || 'P').charAt(0).toUpperCase()}
+                      </span>
+                    )}
+                  </button>
+                </>
+              )}
+
+              {isDesktopVariant && showDarkModeToggle && onDarkModeToggle && (
+                <button
+                  type="button"
+                  onClick={onDarkModeToggle}
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 ${
+                    darkMode
+                      ? 'bg-gray-800 text-amber-400 hover:bg-gray-700'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                  aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+                >
+                  {darkMode ? <Sun size={20} /> : <Moon size={20} />}
+                </button>
+              )}
+
+              {isDesktopVariant && showSettingsButton && (
+                <button
+                  type="button"
+                  onClick={handleAppNameClick}
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 ${
+                    darkMode
+                      ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                  aria-label="App settings"
+                >
+                  <Settings size={20} />
+                </button>
+              )}
             </div>
           </div>
+          )}
         </div>
 
-        {/* Carousel Ads Section - Updated with rounded corners and better styling */}
-        {showAds && ads.length > 0 && (
+        {/* Carousel Ads Section - below navbar (mobile / default desktop) */}
+        {showAds && ads.length > 0 && !isDesktopHomeLayout && (
           <div className="bg-gradient-to-r from-pink-200 via-pink-100 to-pink-200 px-4 pb-3">
             <div className="relative rounded-2xl overflow-hidden shadow-lg">
               <div className="relative h-32 overflow-hidden">
@@ -700,7 +838,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
 
       {/* User Profile Modal */}
       <AnimatePresence>
-        {showProfileModal && (
+        {showProfileButton && showProfileModal && (
           <UserProfileModal
             isOpen={showProfileModal}
             onClose={() => setShowProfileModal(false)}
@@ -715,7 +853,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
 
       {/* App Settings Modal */}
       <AnimatePresence>
-        {showAppSettingsModal && (
+        {showSettingsButton && showAppSettingsModal && (
           <AppSettingsModal
             isOpen={showAppSettingsModal}
             onClose={() => setShowAppSettingsModal(false)}
@@ -840,12 +978,24 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
   );
 };
 
-// Export header height calculation helper - Updated for new design
-export const getMobileHeaderHeight = (showTopIcons: boolean = true, showAds: boolean = true, hasAds: boolean = false) => {
+/** Header offset for fixed `MobileHeader` — keep in sync with rendered sections. */
+export const getMobileHeaderHeight = (
+  showTopIcons: boolean = true,
+  showAds: boolean = true,
+  hasAds: boolean = false,
+  variant: 'mobile' | 'desktop' = 'mobile',
+  desktopLayout: 'default' | 'home' = 'default',
+) => {
+  if (variant === 'desktop' && desktopLayout === 'home') {
+    return 80;
+  }
+  if (variant === 'desktop' && !showTopIcons && !showAds) {
+    return 72;
+  }
   let height = 0;
-  if (showTopIcons) height += 70; // Top icons bar (increased for new design)
-  height += 66; // User profile & search bar
-  if (showAds && hasAds) height += 152; // Carousel ads with padding (increased for rounded design)
+  if (showTopIcons) height += 70;
+  height += variant === 'desktop' ? 72 : 66;
+  if (showAds && hasAds) height += 152;
   return height;
 };
 
