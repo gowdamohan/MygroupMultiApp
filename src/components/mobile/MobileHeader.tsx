@@ -484,19 +484,19 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
         {/* Section A: Top Navigation Bar with Icons - Updated with pink/rose background */}
         {showTopIcons && (
           <div className="bg-gradient-to-r from-pink-200 via-pink-100 to-pink-200 px-3 py-2 shadow-sm">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               {/* Fixed Menu Icon on the Left */}
               <button
                 onClick={() => setShowMoreAppsModal(true)}
                 className="flex flex-col items-center min-w-[60px] cursor-pointer flex-shrink-0"
               >
-                <div className="w-10 h-10 rounded-lg bg-white shadow-sm flex items-center justify-center hover:shadow-md transition-shadow">
+                <div className="w-10 h-10 rounded-2xl bg-white shadow-sm flex items-center justify-center hover:shadow-md transition-shadow">
                   <Menu size={20} className="text-gray-700" />
                 </div>
               </button>
 
               {/* Horizontally Scrollable Top Icons (My Apps) - Updated styling */}
-              <div className="flex gap-2 overflow-x-auto scrollbar-hide flex-1">
+              <div className="flex overflow-x-auto scrollbar-hide flex-1">
                 {topIcons.length > 0 ? (
                   topIcons.map((icon, index) => (
                     <a
@@ -511,11 +511,11 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                           window.location.href = icon.url || `/mobile/${icon.name.toLowerCase().replace(/\s+/g, '')}`;
                         }
                       }}
-                      className={`flex flex-col items-center min-w-[60px] cursor-pointer transition-all ${
+                      className={`flex flex-col items-center min-w-[50px] cursor-pointer transition-all ${
                         selectedApp?.id === icon.id ? 'scale-105' : 'opacity-90 hover:opacity-100'
                       }`}
                     >
-                      <div className={`w-10 h-10 rounded-lg shadow-sm flex items-center justify-center transition-all ${
+                      <div className={`w-10 h-10 rounded-2xl shadow-sm flex items-center justify-center transition-all ${
                         selectedApp?.id === icon.id
                           ? 'bg-red-500 shadow-md'
                           : icon.background_color
@@ -570,7 +570,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                           isSelected ? 'scale-105' : 'opacity-90 hover:opacity-100'
                         }`}
                       >
-                        <div className={`w-10 h-10 rounded-lg shadow-sm flex items-center justify-center ${
+                        <div className={`w-10 h-10 rounded-2xl shadow-sm flex items-center justify-center ${
                           isSelected ? 'bg-red-500' : 'bg-white'
                         }`}>
                           <span className={`font-bold text-sm ${isSelected ? 'text-white' : 'text-gray-700'}`}>
@@ -721,9 +721,11 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                   <button className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center hover:shadow-md transition-shadow">
                     <Search size={20} className="text-gray-700" />
                   </button>
+                  {/*
                   <button className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center hover:shadow-md transition-shadow">
                     <Menu size={20} className="text-gray-700" />
                   </button>
+                  */}
                   <button
                     onClick={handleAppNameClick}
                     className="w-10 h-10 rounded-full bg-red-600 shadow-sm flex items-center justify-center hover:shadow-md transition-shadow"
