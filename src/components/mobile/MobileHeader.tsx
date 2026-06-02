@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { User, ChevronLeft, ChevronRight, X, Search, Menu, Sun, Moon, Settings } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
-import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
+import { API_BASE_URL, BACKEND_URL, getUploadUrl } from '../../config/api.config';
 import { authAPI } from '../../services/api';
 import { UserProfileModal } from './UserProfileModal';
 import { AppSettingsModal } from './AppSettingsModal';
@@ -18,6 +18,50 @@ export interface TopIcon {
   background_color?: string;
   apps_name?: string;
 }
+
+export interface MobileSearchResult {
+  id: string | number;
+  title: string;
+  subtitle?: string;
+  imageUrl?: string;
+  meta?: string;
+  href?: string;
+}
+
+const normalizeAppKey = (name?: string) => (name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+const resolveAssetUrl = (path?: string) => {
+  if (!path) return '';
+  return getUploadUrl(path);
+};
+
+/** Resolve carousel ad image: signed Wasabi URL, public URL, local upload, or object key. */
+const resolveAdImageUrl = (ad: {
+  signed_url?: string;
+  image?: string;
+  file_path?: string;
+  file_url?: string;
+}) => {
+  if (ad.signed_url?.startsWith('http')) return ad.signed_url;
+  if (ad.image?.startsWith('http')) return ad.image;
+  if (ad.file_url?.startsWith('http')) return ad.file_url;
+
+  const localPath = ad.file_path?.startsWith('/uploads/')
+    ? ad.file_path
+    : ad.image?.startsWith('/uploads/')
+      ? ad.image
+      : null;
+  if (localPath) return resolveAssetUrl(localPath);
+
+  const remote = ad.signed_url || ad.image || ad.file_url || ad.file_path || '';
+  return resolveAssetUrl(remote);
+};
+
+const MOBILE_ACTION_BTN =
+  'w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm hover:shadow-md transition-shadow';
+
+const APP_ICON_SIZE = 'w-8 h-8';
+const APP_ICON_IMG = 'w-5 h-5 object-contain';
 
 interface Ad {
   id: number;
@@ -56,6 +100,45 @@ interface UserProfile {
   profile?: UserProfileData;
 }
 
+/** Location from user_registration_form (set_* preferred, then registered country/state/district). */
+const getLocationFromProfile = (profile?: UserProfileData): UserProfileData | undefined => {
+  if (!profile) return undefined;
+  const country = profile.set_country ?? profile.country;
+  const state = profile.set_state ?? profile.state;
+  const district = profile.set_district ?? profile.district;
+  if (!country && !state && !district) return undefined;
+  return {
+    set_country: country,
+    set_state: state,
+    set_district: district,
+    country,
+    state,
+    district,
+  };
+};
+
+const getStoredUserLocation = (): UserProfileData | undefined => {
+  try {
+    const storedUser = localStorage.getItem('user');
+    if (!storedUser) return undefined;
+    const userData = JSON.parse(storedUser);
+    return getLocationFromProfile(userData?.profile);
+  } catch {
+    return undefined;
+  }
+};
+
+const resolveUserLocationProfile = (
+  externalUser?: UserProfile | null,
+  internalUser?: UserProfile | null,
+): UserProfileData | undefined => {
+  return (
+    getLocationFromProfile(externalUser?.profile) ??
+    getLocationFromProfile(internalUser?.profile) ??
+    getStoredUserLocation()
+  );
+};
+
 interface GroupedApps {
   [key: string]: TopIcon[];
 }
@@ -76,6 +159,12 @@ interface MobileHeaderProps {
   onProfileClick?: () => void;
   onTopIconClick?: (icon: TopIcon) => void;
   onLogout?: () => void;
+  /** Notified when search panel opens/closes or results update. */
+  onSearchStateChange?: (state: {
+    active: boolean;
+    query: string;
+    results: MobileSearchResult[];
+  }) => void;
   // Customization options for different apps
   showTopIcons?: boolean;
   showAds?: boolean;
@@ -107,6 +196,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
   onProfileClick: externalOnProfileClick,
   onTopIconClick,
   onLogout,
+  onSearchStateChange,
   showTopIcons = true,
   showAds = true,
   showDarkModeToggle = true,
@@ -132,6 +222,12 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
   const [internalAppInfo, setInternalAppInfo] = useState<AppInfo | null>(null);
   const appInfo = appInfoFromParent ? (appInfoProp ?? internalAppInfo) : (appInfoProp ?? internalAppInfo);
   const [selectedApp, setSelectedApp] = useState<TopIcon | null>(null);
+  const [showSearchInput, setShowSearchInput] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<MobileSearchResult[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [currentAdIndex, setCurrentAdIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [internalUserProfile, setInternalUserProfile] = useState<UserProfile | null>(null);
@@ -142,22 +238,21 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
   const isLoggedIn = externalIsLoggedIn || internalIsLoggedIn;
 
   // Fetch user profile if not provided (when parent provides app info it usually provides profile too)
-  const fetchUserProfile = useCallback(async () => {
-    if (!showProfileButton && externalUserProfile == null) return;
-    if (externalUserProfile != null) return; // Don't fetch if provided as prop
-    if (appInfoFromParent) return; // Parent (e.g. MobileAppPage) will provide profile
+  const fetchUserProfile = useCallback(async (): Promise<UserProfile | null> => {
+    if (!showProfileButton && externalUserProfile == null) return null;
+    if (externalUserProfile != null) return externalUserProfile;
 
     try {
       const token = localStorage.getItem('accessToken');
       if (!token) {
         setInternalIsLoggedIn(false);
-        return;
+        return null;
       }
 
       const response = await authAPI.getProfile();
       if (response.data.success) {
         const userData = response.data.data;
-        setInternalUserProfile({
+        const profile: UserProfile = {
           id: userData.id || 0,
           username: userData.username || '',
           email: userData.email,
@@ -166,21 +261,31 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
           phone: userData.phone,
           profile_img: userData.profile_img,
           identification_code: userData.identification_code,
-          profile: userData.profile ? {
-            set_country: userData.profile.set_country,
-            set_state: userData.profile.set_state,
-            set_district: userData.profile.set_district,
-            country: userData.profile.country,
-            state: userData.profile.state,
-            district: userData.profile.district
-          } : undefined
-        });
+          profile: userData.profile
+            ? {
+                set_country: userData.profile.set_country,
+                set_state: userData.profile.set_state,
+                set_district: userData.profile.set_district,
+                country: userData.profile.country,
+                state: userData.profile.state,
+                district: userData.profile.district,
+              }
+            : undefined,
+        };
+        setInternalUserProfile(profile);
         setInternalIsLoggedIn(true);
+        try {
+          localStorage.setItem('user', JSON.stringify(userData));
+        } catch {
+          // ignore storage errors
+        }
+        return profile;
       }
     } catch (error) {
       console.error('Error fetching user profile:', error);
       setInternalIsLoggedIn(false);
     }
+    return null;
   }, [externalUserProfile, appInfoFromParent, showProfileButton]);
 
   // Fetch app info (only when parent does not provide it)
@@ -301,28 +406,29 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
     }
   }, [appName, selectedApp]);
 
-  // Fetch carousel ads with location-based and category-based filtering
-  // API requires app_id and category_id. Location params from user profile for hierarchical filtering.
+  // Fetch carousel ads — app/category context + user location from registration profile
   const fetchAds = useCallback(async (id?: number, profile?: UserProfileData, categoryId?: number | null) => {
+    if (!id) return;
     try {
       const params = new URLSearchParams();
-      if (id) params.append('app_id', id.toString());
+      params.append('app_id', id.toString());
       if (categoryId != null) params.append('category_id', categoryId.toString());
 
-      const countryId = profile?.set_country || profile?.country;
-      const stateId = profile?.set_state || profile?.state;
-      const districtId = profile?.set_district || profile?.district;
-      if (countryId) params.append('country_id', countryId.toString());
-      if (stateId) params.append('state_id', stateId.toString());
-      if (districtId) params.append('district_id', districtId.toString());
+      const location = getLocationFromProfile(profile);
+      if (location?.set_country) params.append('country_id', String(location.set_country));
+      if (location?.set_state) params.append('state_id', String(location.set_state));
+      if (location?.set_district) params.append('district_id', String(location.set_district));
 
       const url = `${API_BASE_URL}/advertisement/carousel?${params.toString()}`;
-      const response = await axios.get(url);
+      const token = localStorage.getItem('accessToken');
+      const response = await axios.get(url, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
 
       if (response.data.success) {
         const formattedAds = response.data.data.map((ad: any) => ({
           id: ad.id,
-          image: ad.signed_url || ad.image || ad.file_path || ad.file_url || '',
+          image: resolveAdImageUrl(ad),
           title: ad.title || 'Advertisement',
           url: ad.url || '#'
         }));
@@ -351,7 +457,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
     setCurrentAdIndex(0);
 
     const initializeHeader = async () => {
-      await fetchUserProfile();
+      const fetchedProfile = await fetchUserProfile();
       const effectiveAppId = appId ?? appInfoProp?.id;
       const info = effectiveAppId != null && appInfoFromParent && appInfoProp
         ? appInfoProp
@@ -359,68 +465,36 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
       const targetAppId = effectiveAppId ?? info?.id;
       fetchTopIcons(targetAppId);
 
-      let profileData: UserProfileData | undefined;
-      if (externalUserProfile?.profile) {
-        profileData = externalUserProfile.profile;
-      } else {
-        try {
-          const storedUser = localStorage.getItem('user');
-          if (storedUser) {
-            const userData = JSON.parse(storedUser);
-            if (userData.profile) {
-              profileData = {
-                set_country: userData.profile.set_country,
-                set_state: userData.profile.set_state,
-                set_district: userData.profile.set_district,
-                country: userData.profile.country,
-                state: userData.profile.state,
-                district: userData.profile.district
-              };
-            }
-          }
-        } catch (e) {
-          console.error('Error parsing stored user:', e);
-        }
-      }
+      const profileData = resolveUserLocationProfile(
+        externalUserProfile,
+        fetchedProfile ?? internalUserProfile,
+      );
 
-      if (showAds && (targetAppId != null || !appInfoFromParent)) {
-        fetchAds(targetAppId ?? undefined, profileData, selectedCategoryId ?? undefined);
+      if (showAds && targetAppId != null) {
+        fetchAds(targetAppId, profileData, selectedCategoryId ?? undefined);
       }
       initializingRef.current = false;
     };
     initializeHeader();
   }, [appName, appInfoFromParent]);
 
-  // When app id or selected category becomes available/changes, fetch ads (category_id is required by API)
+  // Refetch ads when app, category, or user location profile becomes available
   useEffect(() => {
     if (!showAds) return;
-    const effectiveAppId = appId ?? appInfoProp?.id;
-    if (effectiveAppId == null || selectedCategoryId == null) return;
-    let profileData: UserProfileData | undefined;
-    if (externalUserProfile?.profile) {
-      profileData = externalUserProfile.profile;
-    } else {
-      try {
-        const storedUser = localStorage.getItem('user');
-        if (storedUser) {
-          const userData = JSON.parse(storedUser);
-          if (userData?.profile) {
-            profileData = {
-              set_country: userData.profile.set_country,
-              set_state: userData.profile.set_state,
-              set_district: userData.profile.set_district,
-              country: userData.profile.country,
-              state: userData.profile.state,
-              district: userData.profile.district
-            };
-          }
-        }
-      } catch (e) {
-        // ignore
-      }
-    }
+    const effectiveAppId = appId ?? appInfoProp?.id ?? appInfo?.id;
+    if (effectiveAppId == null) return;
+    const profileData = resolveUserLocationProfile(externalUserProfile, internalUserProfile);
     fetchAds(effectiveAppId, profileData, selectedCategoryId);
-  }, [appId, appInfoProp?.id, showAds, selectedCategoryId]);
+  }, [
+    appId,
+    appInfoProp?.id,
+    appInfo?.id,
+    showAds,
+    selectedCategoryId,
+    externalUserProfile,
+    internalUserProfile,
+    fetchAds,
+  ]);
 
   // Auto-rotate carousel
   useEffect(() => {
@@ -451,6 +525,316 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
   // Handle app name/icon click
   const handleAppNameClick = () => {
     setShowAppSettingsModal(true);
+  };
+
+  const activeSearchApp = selectedApp ?? (appInfo
+    ? {
+        id: appInfo.id,
+        name: appInfo.name,
+        icon: appInfo.icon,
+        logo: appInfo.logo,
+        url: `/mobile/${normalizeAppKey(appInfo.name)}`,
+      }
+    : null);
+
+  const effectiveSearchAppId = activeSearchApp?.id ?? appId ?? appInfo?.id;
+
+  // Keep selectedApp in sync when route appName or app info changes
+  useEffect(() => {
+    if (!appName && !appInfo?.name) return;
+    const key = normalizeAppKey(appName || appInfo?.name);
+    if (!key) return;
+    const match = topIcons.find((icon) => normalizeAppKey(icon.name) === key);
+    if (match) {
+      setSelectedApp(match);
+      return;
+    }
+    if (appInfo) {
+      setSelectedApp({
+        id: appInfo.id,
+        name: appInfo.name,
+        icon: appInfo.icon,
+        logo: appInfo.logo,
+        url: `/mobile/${key}`,
+      });
+    }
+  }, [appName, appInfo?.id, appInfo?.name, appInfo?.icon, appInfo?.logo, topIcons]);
+
+  const performSearch = useCallback(async (query: string) => {
+    const trimmed = query.trim();
+    if (trimmed.length < 2) {
+      setSearchResults([]);
+      setHasSearched(false);
+      return;
+    }
+
+    const q = trimmed.toLowerCase();
+    const appKey = normalizeAppKey(activeSearchApp?.name || appName || appInfo?.name);
+    const results: MobileSearchResult[] = [];
+    const seen = new Set<string>();
+
+    const pushResult = (item: MobileSearchResult) => {
+      const dedupeKey = `${item.id}-${item.title}`;
+      if (seen.has(dedupeKey)) return;
+      seen.add(dedupeKey);
+      results.push(item);
+    };
+
+    setSearchLoading(true);
+    setHasSearched(true);
+
+    try {
+      // Apps within the selected app's group (More modal data)
+      Object.entries(allGroupedApps).forEach(([groupName, apps]) => {
+        if (activeSearchApp?.apps_name && groupName !== activeSearchApp.apps_name) return;
+        apps.forEach((app) => {
+          if (
+            app.name.toLowerCase().includes(q) ||
+            groupName.toLowerCase().includes(q)
+          ) {
+            pushResult({
+              id: `app-${app.id}`,
+              title: app.name,
+              subtitle: groupName,
+              imageUrl: resolveAssetUrl(app.icon || app.logo),
+              meta: 'App',
+              href: app.url,
+            });
+          }
+        });
+      });
+
+      // Top bar: only the active app when one is selected
+      topIcons.forEach((app) => {
+        if (activeSearchApp?.id && app.id !== activeSearchApp.id) return;
+        if (app.name.toLowerCase().includes(q)) {
+          pushResult({
+            id: `top-${app.id}`,
+            title: app.name,
+            subtitle: app.apps_name || 'My Apps',
+            imageUrl: resolveAssetUrl(app.icon || app.logo),
+            meta: 'App',
+            href: app.url,
+          });
+        }
+      });
+
+      // Categories for the active app
+      if (effectiveSearchAppId) {
+        try {
+          const catParams = new URLSearchParams({ appId: String(effectiveSearchAppId) });
+          if (activeSearchApp?.name) {
+            catParams.set('appName', activeSearchApp.name);
+          }
+          const catRes = await axios.get(`${API_BASE_URL}/mymedia/categories?${catParams}`);
+          if (catRes.data.success) {
+            const categories: { id: number; category_name: string; category_image?: string; children?: { id: number; category_name: string; category_image?: string }[] }[] =
+              catRes.data.data || [];
+            categories.forEach((parent) => {
+              const parentMatch =
+                parent.category_name.toLowerCase().includes(q);
+              if (parentMatch) {
+                pushResult({
+                  id: `cat-${parent.id}`,
+                  title: parent.category_name,
+                  subtitle: 'Category',
+                  imageUrl: resolveAssetUrl(parent.category_image),
+                  meta: 'Category',
+                });
+              }
+              (parent.children || []).forEach((child) => {
+                if (child.category_name.toLowerCase().includes(q)) {
+                  pushResult({
+                    id: `subcat-${child.id}`,
+                    title: child.category_name,
+                    subtitle: parent.category_name,
+                    imageUrl: resolveAssetUrl(child.category_image),
+                    meta: 'Subcategory',
+                  });
+                }
+              });
+            });
+          }
+        } catch {
+          // categories optional per app
+        }
+      }
+
+      // MyMedia channels when the active app is media-related
+      if (appKey.includes('mymedia')) {
+        try {
+          const channelRes = await axios.get(`${API_BASE_URL}/mymedia/channels?type=National`);
+          if (channelRes.data.success) {
+            const channels: {
+              id: number;
+              media_name_english: string;
+              media_name_regional?: string;
+              media_logo?: string;
+              media_logo_url?: string;
+              select_type?: string;
+              category?: { category_name?: string };
+            }[] = channelRes.data.data || [];
+            channels.forEach((ch) => {
+              const title = ch.media_name_english || '';
+              const regional = ch.media_name_regional || '';
+              if (
+                title.toLowerCase().includes(q) ||
+                regional.toLowerCase().includes(q)
+              ) {
+                pushResult({
+                  id: `ch-${ch.id}`,
+                  title,
+                  subtitle: regional || ch.category?.category_name,
+                  imageUrl: resolveAssetUrl(ch.media_logo_url || ch.media_logo),
+                  meta: ch.select_type || 'Channel',
+                  href: `/mobile/mymedia`,
+                });
+              }
+            });
+          }
+        } catch {
+          // channel search is best-effort
+        }
+      }
+
+      // Home page editorial content when on home / no specific app body
+      if (!appKey || appKey === 'home' || appKey === 'mygroup') {
+        try {
+          const homeRes = await axios.get(`${API_BASE_URL}/home/mobile-data`);
+          if (homeRes.data.success) {
+            const data = homeRes.data.data;
+            (data.aboutUs || []).forEach((item: { id?: number; title?: string; content?: string; image?: string }) => {
+              if (
+                item.title?.toLowerCase().includes(q) ||
+                item.content?.toLowerCase().includes(q)
+              ) {
+                pushResult({
+                  id: `about-${item.id ?? item.title}`,
+                  title: item.title || 'About',
+                  subtitle: item.content?.slice(0, 80),
+                  imageUrl: resolveAssetUrl(item.image),
+                  meta: 'About Us',
+                });
+              }
+            });
+            (data.testimonials || []).forEach((t: { id?: number; name?: string; testimonial?: string; image?: string; designation?: string }) => {
+              if (
+                t.name?.toLowerCase().includes(q) ||
+                t.testimonial?.toLowerCase().includes(q)
+              ) {
+                pushResult({
+                  id: `testimonial-${t.id ?? t.name}`,
+                  title: t.name || 'Testimonial',
+                  subtitle: t.designation,
+                  imageUrl: resolveAssetUrl(t.image),
+                  meta: 'Testimonial',
+                });
+              }
+            });
+          }
+        } catch {
+          // home sections optional
+        }
+      }
+
+      setSearchResults(results);
+    } finally {
+      setSearchLoading(false);
+    }
+  }, [
+    activeSearchApp?.name,
+    allGroupedApps,
+    appInfo?.name,
+    appName,
+    effectiveSearchAppId,
+    topIcons,
+  ]);
+
+  useEffect(() => {
+    onSearchStateChange?.({
+      active: showSearchInput && hasSearched,
+      query: searchQuery,
+      results: searchResults,
+    });
+  }, [showSearchInput, hasSearched, searchQuery, searchResults, onSearchStateChange]);
+
+  useEffect(() => {
+    if (!showSearchInput) return;
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    if (searchQuery.trim().length < 2) {
+      setSearchResults([]);
+      setHasSearched(false);
+      return;
+    }
+    searchDebounceRef.current = setTimeout(() => {
+      performSearch(searchQuery);
+    }, 350);
+    return () => {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    };
+  }, [searchQuery, showSearchInput, performSearch, activeSearchApp?.id]);
+
+  const handleSearchToggle = () => {
+    setShowSearchInput((prev) => {
+      const next = !prev;
+      if (!next) {
+        setSearchQuery('');
+        setSearchResults([]);
+        setHasSearched(false);
+      }
+      return next;
+    });
+  };
+
+  const handleSearchResultClick = (result: MobileSearchResult) => {
+    if (result.href) {
+      window.location.href = result.href;
+    }
+  };
+
+  const headerOffsetPx = getMobileHeaderHeight(
+    showTopIcons,
+    showAds,
+    ads.length > 0,
+    variant,
+    desktopLayout,
+    showSearchInput,
+  );
+
+  const renderCircularAppIcon = (
+    icon: TopIcon,
+    isSelected: boolean,
+    options?: { showLabel?: boolean; compact?: boolean },
+  ) => {
+    const showLabel = options?.showLabel !== false;
+    return (
+      <>
+        <div
+          className={`${APP_ICON_SIZE} rounded-full shadow-sm flex items-center justify-center overflow-hidden transition-all flex-shrink-0 ${
+            isSelected ? 'bg-red-500 ring-2 ring-red-400/60' : 'bg-white'
+          }`}
+        >
+          {icon.icon ? (
+            <img src={resolveAssetUrl(icon.icon)} alt={icon.name} className={APP_ICON_IMG} />
+          ) : icon.logo ? (
+            <img src={resolveAssetUrl(icon.logo)} alt={icon.name} className={APP_ICON_IMG} />
+          ) : (
+            <span className={`font-bold text-xs ${isSelected ? 'text-white' : 'text-gray-700'}`}>
+              {icon.name?.charAt(0) || 'A'}
+            </span>
+          )}
+        </div>
+        {showLabel && (
+          <span
+            className={`text-[9px] mt-0.5 truncate max-w-[52px] font-medium leading-tight ${
+              isSelected ? 'text-gray-900' : 'text-gray-700'
+            }`}
+          >
+            {icon.name}
+          </span>
+        )}
+      </>
+    );
   };
 
   // Handle logout
@@ -484,81 +868,56 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
         {/* Section A: Top Navigation Bar with Icons - Updated with pink/rose background */}
         {showTopIcons && (
           <div className="bg-gradient-to-r from-pink-200 via-pink-100 to-pink-200 px-3 py-2 shadow-sm">
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2 min-h-[44px]">
               {/* Fixed Menu Icon on the Left */}
               <button
+                type="button"
                 onClick={() => setShowMoreAppsModal(true)}
-                className="flex flex-col items-center min-w-[60px] cursor-pointer flex-shrink-0"
+                aria-label="All apps"
+                className="flex-shrink-0 cursor-pointer"
               >
-                <div className="w-10 h-10 rounded-2xl bg-white shadow-sm flex items-center justify-center hover:shadow-md transition-shadow">
-                  <Menu size={20} className="text-gray-700" />
+                <div className={`${APP_ICON_SIZE} rounded-full bg-white shadow-sm flex items-center justify-center hover:shadow-md transition-shadow`}>
+                  <Menu size={18} className="text-gray-700" />
                 </div>
               </button>
 
-              {/* Horizontally Scrollable Top Icons (My Apps) - Updated styling */}
-              <div className="flex overflow-x-auto scrollbar-hide flex-1">
+              {/* Horizontally Scrollable Top Icons (My Apps) */}
+              <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide flex-1 min-w-0 py-0.5">
                 {topIcons.length > 0 ? (
                   topIcons.map((icon, index) => (
                     <a
                       key={`top-${icon.id}-${icon.name}-${index}`}
-                      href={icon.url || `/mobile/${icon.name.toLowerCase().replace(/\s+/g, '')}`}
+                      href={icon.url || `/mobile/${normalizeAppKey(icon.name)}`}
                       onClick={(e) => {
                         e.preventDefault();
                         setSelectedApp(icon);
+                        setSearchQuery('');
+                        setSearchResults([]);
+                        setHasSearched(false);
                         if (onTopIconClick) {
                           onTopIconClick(icon);
                         } else {
-                          window.location.href = icon.url || `/mobile/${icon.name.toLowerCase().replace(/\s+/g, '')}`;
+                          window.location.href = icon.url || `/mobile/${normalizeAppKey(icon.name)}`;
                         }
                       }}
-                      className={`flex flex-col items-center min-w-[50px] cursor-pointer transition-all ${
+                      className={`flex flex-col items-center min-w-[44px] flex-shrink-0 cursor-pointer transition-all ${
                         selectedApp?.id === icon.id ? 'scale-105' : 'opacity-90 hover:opacity-100'
                       }`}
                     >
-                      <div className={`w-10 h-10 rounded-2xl shadow-sm flex items-center justify-center transition-all ${
-                        selectedApp?.id === icon.id
-                          ? 'bg-red-500 shadow-md'
-                          : icon.background_color
-                            ? `bg-white`
-                            : 'bg-white'
-                      }`}>
-                        {icon.icon ? (
-                          <img
-                            src={icon.icon.startsWith('http') ? icon.icon : `${BACKEND_URL}${icon.icon}`}
-                            alt={icon.name}
-                            className="w-6 h-6 object-contain"
-                          />
-                        ) : icon.logo ? (
-                          <img
-                            src={icon.logo.startsWith('http') ? icon.logo : `${BACKEND_URL}${icon.logo}`}
-                            alt={icon.name}
-                            className="w-6 h-6 object-contain"
-                          />
-                        ) : (
-                          <span className={`font-bold text-sm ${selectedApp?.id === icon.id ? 'text-white' : 'text-gray-700'}`}>
-                            {icon.name?.charAt(0) || 'A'}
-                          </span>
-                        )}
-                      </div>
-                      <span className={`text-[10px] mt-1 truncate max-w-[60px] font-medium ${
-                        selectedApp?.id === icon.id ? 'text-gray-900' : 'text-gray-700'
-                      }`}>
-                        {icon.name}
-                      </span>
+                      {renderCircularAppIcon(icon, selectedApp?.id === icon.id)}
                     </a>
                   ))
                 ) : (
-                  // Fallback placeholder icons with updated styling
                   ['Home', 'My Chat', 'My Media', 'My Video', 'My Go'].map((name) => {
-                    const fallbackUrl = `/mobile/${name.toLowerCase().replace(/\s+/g, '')}`;
-                    const isSelected = name.toLowerCase().replace(/\s+/g, '') === appName?.toLowerCase();
+                    const fallbackUrl = `/mobile/${normalizeAppKey(name)}`;
+                    const isSelected = normalizeAppKey(name) === normalizeAppKey(appName);
+                    const fallbackIcon: TopIcon = { id: 0, name, icon: '', url: fallbackUrl };
                     return (
                       <a
                         key={name}
                         href={fallbackUrl}
                         onClick={(e) => {
                           e.preventDefault();
-                          const fallbackIcon: TopIcon = { id: 0, name, icon: '', url: fallbackUrl };
                           setSelectedApp(fallbackIcon);
                           if (onTopIconClick) {
                             onTopIconClick(fallbackIcon);
@@ -566,22 +925,11 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                             window.location.href = fallbackUrl;
                           }
                         }}
-                        className={`flex flex-col items-center min-w-[60px] cursor-pointer transition-all ${
+                        className={`flex flex-col items-center min-w-[44px] flex-shrink-0 cursor-pointer transition-all ${
                           isSelected ? 'scale-105' : 'opacity-90 hover:opacity-100'
                         }`}
                       >
-                        <div className={`w-10 h-10 rounded-2xl shadow-sm flex items-center justify-center ${
-                          isSelected ? 'bg-red-500' : 'bg-white'
-                        }`}>
-                          <span className={`font-bold text-sm ${isSelected ? 'text-white' : 'text-gray-700'}`}>
-                            {name.charAt(0)}
-                          </span>
-                        </div>
-                        <span className={`text-[10px] mt-1 truncate max-w-[60px] font-medium ${
-                          isSelected ? 'text-gray-900' : 'text-gray-700'
-                        }`}>
-                          {name}
-                        </span>
+                        {renderCircularAppIcon(fallbackIcon, isSelected)}
                       </a>
                     );
                   })
@@ -645,33 +993,34 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
             </div>
           ) : (
           <div
-            className={`flex items-center justify-between gap-4 ${
-              isDesktopVariant ? 'relative max-w-7xl mx-auto px-6 lg:px-8 h-[72px]' : 'px-4 py-3'
+            className={`flex items-center justify-between gap-3 ${
+              isDesktopVariant ? 'relative max-w-7xl mx-auto px-6 lg:px-8 h-[72px]' : 'px-4 h-14'
             }`}
           >
             {showProfileButton && (
               <button
+                type="button"
                 onClick={handleProfileClick}
                 className="flex-shrink-0 rounded-full ring-2 ring-transparent hover:ring-purple-500/30 transition-all duration-300"
                 aria-label="Open profile"
               >
                 {userProfile?.profile_img ? (
                   <img
-                    src={userProfile.profile_img.startsWith('http') ? userProfile.profile_img : `${BACKEND_URL}${userProfile.profile_img}`}
+                    src={resolveAssetUrl(userProfile.profile_img)}
                     alt="Profile"
-                    className={`w-10 h-10 rounded-full object-cover ${
+                    className={`w-9 h-9 rounded-full object-cover ${
                       isDesktopVariant ? 'border-2 border-gray-200 dark:border-gray-700' : 'border-2 border-white shadow-sm'
                     }`}
                   />
                 ) : (
                   <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                    className={`w-9 h-9 rounded-full flex items-center justify-center ${
                       isDesktopVariant
                         ? 'bg-gradient-to-br from-purple-600 to-indigo-600 text-white'
                         : 'bg-gradient-to-br from-blue-400 to-blue-500 text-white border-2 border-white shadow-sm'
                     }`}
                   >
-                    <User size={20} />
+                    <User size={18} />
                   </div>
                 )}
               </button>
@@ -715,29 +1064,34 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
               })()
             ) : null}
 
-            <div className={`flex items-center gap-2 ${isDesktopVariant ? 'ml-auto' : 'flex-1 justify-end'}`}>
+            <div className={`flex items-center gap-2 ${isDesktopVariant ? 'ml-auto' : 'flex-shrink-0'}`}>
               {!isDesktopVariant && (
                 <>
-                  <button className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center hover:shadow-md transition-shadow">
-                    <Search size={20} className="text-gray-700" />
-                  </button>
-                  {/*
-                  <button className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center hover:shadow-md transition-shadow">
-                    <Menu size={20} className="text-gray-700" />
-                  </button>
-                  */}
                   <button
+                    type="button"
+                    onClick={handleSearchToggle}
+                    aria-label={showSearchInput ? 'Close search' : 'Open search'}
+                    aria-expanded={showSearchInput}
+                    className={`${MOBILE_ACTION_BTN} ${
+                      showSearchInput ? 'bg-red-500 text-white' : 'bg-white text-gray-700'
+                    }`}
+                  >
+                    {showSearchInput ? <X size={18} /> : <Search size={18} />}
+                  </button>
+                  <button
+                    type="button"
                     onClick={handleAppNameClick}
-                    className="w-10 h-10 rounded-full bg-red-600 shadow-sm flex items-center justify-center hover:shadow-md transition-shadow"
+                    aria-label="App settings"
+                    className={`${MOBILE_ACTION_BTN} bg-red-600 overflow-hidden`}
                   >
                     {displayLogo || displayIcon ? (
                       <img
-                        src={(displayLogo || displayIcon)!.startsWith('http') ? (displayLogo || displayIcon) : `${BACKEND_URL}${displayLogo || displayIcon}`}
+                        src={resolveAssetUrl(displayLogo || displayIcon)}
                         alt={appInfo?.name || 'App'}
-                        className="w-6 h-6 object-contain"
+                        className="w-5 h-5 object-contain"
                       />
                     ) : (
-                      <span className="text-white font-bold text-sm">
+                      <span className="text-white font-bold text-xs">
                         {(selectedApp?.name || appInfo?.name || appName || 'P').charAt(0).toUpperCase()}
                       </span>
                     )}
@@ -777,6 +1131,42 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
             </div>
           </div>
           )}
+
+          {/* Mobile search field — toggled from Search icon */}
+          {!isDesktopVariant && showSearchInput && (
+            <div className="px-4 pb-2">
+              <div className="relative">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                <input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder={`Search in ${activeSearchApp?.name || appInfo?.name || appName || 'app'}…`}
+                  className="w-full rounded-full border border-white/80 bg-white py-2 pl-9 pr-9 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-red-400/50"
+                  autoFocus
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery('');
+                      setSearchResults([]);
+                      setHasSearched(false);
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-gray-100"
+                    aria-label="Clear search"
+                  >
+                    <X size={14} className="text-gray-500" />
+                  </button>
+                )}
+              </div>
+              {activeSearchApp?.name && (
+                <p className="text-[10px] text-gray-600 mt-1 px-1 truncate">
+                  Searching within {activeSearchApp.name}
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Carousel Ads Section - below navbar (mobile / default desktop) */}
@@ -793,7 +1183,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                     }`}
                   >
                     <img
-                      src={`${ad.image}`}
+                      src={ad.image}
                       alt={ad.title}
                       className="w-full h-full object-cover"
                     />
@@ -928,7 +1318,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                               window.location.href = app.url;
                             }
                           }}
-                          className={`flex flex-col items-center p-3 rounded-xl transition-colors ${
+                          className={`flex flex-col items-center p-2 rounded-xl transition-colors ${
                             selectedApp?.id === app.id
                               ? darkMode ? 'bg-teal-900/50' : 'bg-teal-50'
                               : darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-50'
@@ -936,19 +1326,19 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                         >
                           {app.icon ? (
                             <img
-                              src={app.icon.startsWith('http') ? app.icon : `${BACKEND_URL}${app.icon}`}
+                              src={resolveAssetUrl(app.icon)}
                               alt={app.name}
-                              className="w-12 h-12 object-contain rounded-xl"
+                              className="w-10 h-10 rounded-full object-cover bg-white shadow-sm"
                             />
                           ) : app.logo ? (
                             <img
-                              src={app.logo.startsWith('http') ? app.logo : `${BACKEND_URL}${app.logo}`}
+                              src={resolveAssetUrl(app.logo)}
                               alt={app.name}
-                              className="w-12 h-12 object-contain rounded-xl"
+                              className="w-10 h-10 rounded-full object-cover bg-white shadow-sm"
                             />
                           ) : (
                             <div
-                              className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg"
+                              className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-sm"
                               style={{ backgroundColor: app.background_color || '#14b8a6' }}
                             >
                               {app.name?.charAt(0) || 'A'}
@@ -976,6 +1366,72 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
           </>
         )}
       </AnimatePresence>
+
+      {/* Search results — thumbnail grid in main content area below header */}
+      {!isDesktopVariant && showSearchInput && hasSearched && (
+        <div
+          className="fixed left-0 right-0 bottom-0 z-40 overflow-y-auto bg-gray-50"
+          style={{ top: headerOffsetPx }}
+        >
+          <div className="p-4">
+            {searchLoading ? (
+              <div className="flex justify-center py-16">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-red-500" />
+              </div>
+            ) : searchResults.length > 0 ? (
+              <>
+                <p className="text-sm text-gray-600 mb-3">
+                  {searchResults.length} result{searchResults.length !== 1 ? 's' : ''} for &ldquo;{searchQuery}&rdquo;
+                  {activeSearchApp?.name ? ` in ${activeSearchApp.name}` : ''}
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {searchResults.map((result) => (
+                    <button
+                      key={String(result.id)}
+                      type="button"
+                      onClick={() => handleSearchResultClick(result)}
+                      className="flex flex-col rounded-xl bg-white shadow-sm border border-gray-100 overflow-hidden text-left hover:shadow-md transition-shadow"
+                    >
+                      <div className="aspect-square w-full bg-gray-100 flex items-center justify-center overflow-hidden">
+                        {result.imageUrl ? (
+                          <img
+                            src={result.imageUrl}
+                            alt={result.title}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <span className="text-2xl font-bold text-gray-400">
+                            {result.title.charAt(0).toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+                      <div className="p-2.5 min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 truncate">{result.title}</p>
+                        {result.subtitle && (
+                          <p className="text-xs text-gray-500 truncate mt-0.5">{result.subtitle}</p>
+                        )}
+                        {result.meta && (
+                          <span className="inline-block mt-1 text-[10px] font-medium uppercase tracking-wide text-red-600 bg-red-50 px-1.5 py-0.5 rounded">
+                            {result.meta}
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-16 text-gray-500">
+                <Search size={32} className="mx-auto mb-3 opacity-40" />
+                <p className="text-sm">No results for &ldquo;{searchQuery}&rdquo;</p>
+                <p className="text-xs mt-1 text-gray-400">
+                  Try another term in {activeSearchApp?.name || 'this app'}
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </>
   );
 };
@@ -987,6 +1443,7 @@ export const getMobileHeaderHeight = (
   hasAds: boolean = false,
   variant: 'mobile' | 'desktop' = 'mobile',
   desktopLayout: 'default' | 'home' = 'default',
+  searchExpanded: boolean = false,
 ) => {
   if (variant === 'desktop' && desktopLayout === 'home') {
     return 80;
@@ -995,8 +1452,9 @@ export const getMobileHeaderHeight = (
     return 72;
   }
   let height = 0;
-  if (showTopIcons) height += 70;
-  height += variant === 'desktop' ? 72 : 66;
+  if (showTopIcons) height += 60;
+  height += variant === 'desktop' ? 72 : 56;
+  if (searchExpanded && variant !== 'desktop') height += 52;
   if (showAds && hasAds) height += 152;
   return height;
 };

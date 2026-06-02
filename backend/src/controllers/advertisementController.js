@@ -812,11 +812,16 @@ export const getCarouselAds = async (req, res) => {
     // 1) HELPER FUNCTIONS
     // ============================================
 
-    // Helper: get signed URL for Wasabi file path
+    // Helper: get signed URL for Wasabi object keys only (not local /uploads paths)
     const getSigned = async (filePath) => {
       if (!filePath) return null;
-      // If already a URL, don't sign
-      if (filePath.startsWith('http://') || filePath.startsWith('https://')) return null;
+      if (
+        filePath.startsWith('http://') ||
+        filePath.startsWith('https://') ||
+        filePath.startsWith('/')
+      ) {
+        return null;
+      }
       try {
         const result = await getSignedReadUrl(filePath);
         return result.signedUrl || null;
@@ -826,6 +831,9 @@ export const getCarouselAds = async (req, res) => {
       }
     };
 
+    const resolveImageUrl = (signedUrl, fileUrl, filePath) =>
+      signedUrl || fileUrl || filePath || '';
+
     // Helper: format header_ads row into carousel item (image: signed_url > file_url > file_path)
     const formatHeaderAd = async (ad, groupName) => {
       const filePath = ad.file_path || null;
@@ -833,7 +841,7 @@ export const getCarouselAds = async (req, res) => {
       const signedUrl = await getSigned(filePath);
       return {
         id: ad.id,
-        image: signedUrl || fileUrl || filePath || '',
+        image: resolveImageUrl(signedUrl, fileUrl, filePath),
         file_path: filePath,
         file_url: fileUrl,
         signed_url: signedUrl,
@@ -848,16 +856,8 @@ export const getCarouselAds = async (req, res) => {
     const formatManagementAd = async (ad, slotIndex) => {
       const filePath = ad.file_path || null;
       const fileUrl = ad.url || null;
-      let signedUrl = null;
-      if (filePath && !filePath.startsWith('http://') && !filePath.startsWith('https://')) {
-        try {
-          const result = await getSignedReadUrl(filePath);
-          signedUrl = result.signedUrl || null;
-        } catch (e) {
-          console.error('Error getting signed URL for fallback ad:', e);
-        }
-      }
-      const image = signedUrl || fileUrl || filePath || '';
+      const signedUrl = await getSigned(filePath);
+      const image = resolveImageUrl(signedUrl, fileUrl, filePath);
       return {
         id: ad.id,
         image,
@@ -871,39 +871,34 @@ export const getCarouselAds = async (req, res) => {
       };
     };
 
-    // Helper: build location conditions for hierarchical matching via FranchiseHolder
-    // Uses Sequelize $franchiseHolder.column$ for filtering on associated franchise_holder columns.
-    // All conditions combined with Op.or so we get district, state, country, or corporate matches.
+    // Helper: build location conditions for hierarchical matching via FranchiseHolder.
+    // Op.or: district match → state match → country match → corporate (all location fields null).
     const buildLocationConditions = () => {
       const conditions = [];
 
-      // 1) District-level (most specific): franchise_holder.district = districtId
       if (districtId) {
         conditions.push({ '$franchiseHolder.district$': districtId });
       }
 
-      // 2) State-level: franchise_holder.state = stateId AND district IS NULL
       if (stateId) {
         conditions.push({
           '$franchiseHolder.state$': stateId,
-          '$franchiseHolder.district$': null
+          '$franchiseHolder.district$': { [Op.is]: null }
         });
       }
 
-      // 3) Country-level: franchise_holder.country = countryId AND state IS NULL AND district IS NULL
       if (countryId) {
         conditions.push({
           '$franchiseHolder.country$': countryId,
-          '$franchiseHolder.state$': null,
-          '$franchiseHolder.district$': null
+          '$franchiseHolder.state$': { [Op.is]: null },
+          '$franchiseHolder.district$': { [Op.is]: null }
         });
       }
 
-      // 4) Corporate/National (always include): country IS NULL AND state IS NULL AND district IS NULL
       conditions.push({
-        '$franchiseHolder.country$': null,
-        '$franchiseHolder.state$': null,
-        '$franchiseHolder.district$': null
+        '$franchiseHolder.country$': { [Op.is]: null },
+        '$franchiseHolder.state$': { [Op.is]: null },
+        '$franchiseHolder.district$': { [Op.is]: null }
       });
 
       return conditions;
@@ -927,12 +922,12 @@ export const getCarouselAds = async (req, res) => {
     const prioritySlots = ['branch_ads1', 'regional_ads1', 'branch_ads2', 'head_office_ads1'];
     const carouselAds = [null, null, null, null]; // Initialize with 4 null slots
 
-    // Base where for header_ads (HeaderAdsManagement): app_id, optional category_id, is_active
+    // Base where for header_ads (HeaderAdsManagement): app_id, category_id, active bookings
     const baseWhereClause = {
-      status: 'active',
       is_active: 1,
       app_id: appId,
-      ...(categoryId != null && { category_id: categoryId })
+      status: { [Op.in]: ['active', 'pending', ''] },
+      ...(categoryId != null && !Number.isNaN(categoryId) && { category_id: categoryId })
     };
 
     // Get location conditions (uses FranchiseHolder association)
@@ -965,11 +960,11 @@ export const getCarouselAds = async (req, res) => {
             model: FranchiseHolder,
             as: 'franchiseHolder',
             attributes: ['id', 'country', 'state', 'district'],
-            required: false
+            required: true
           }
         ],
         order: [['created_at', 'DESC']],
-        subQuery: false // Required for $association.column$ syntax to work correctly
+        subQuery: false
       });
 
       if (matchingAds.length > 0) {

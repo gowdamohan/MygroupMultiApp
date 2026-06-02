@@ -3,9 +3,25 @@ import { Op } from 'sequelize';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { uploadFile, deleteFile as deleteWasabiFile, getSignedReadUrl } from '../services/wasabiService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+const isLocalUploadPath = (filePath) =>
+  filePath && (filePath.startsWith('/uploads/') || filePath.startsWith('uploads/'));
+
+const uploadHeaderAdToWasabi = async (file, groupName) => {
+  const folder = `header-ads/${(groupName || 'franchise').replace(/[^a-z0-9_]/gi, '_')}`;
+  const result = await uploadFile(file.buffer, file.originalname, file.mimetype, folder);
+  if (!result.success) {
+    throw new Error('File upload failed');
+  }
+  return {
+    file_path: result.fileName,
+    file_url: result.publicUrl
+  };
+};
 
 /**
  * ============================================
@@ -425,6 +441,15 @@ export const getHeaderAdByDate = async (req, res) => {
       slots: allSlots.map((s) => s.toJSON())
     };
 
+    if (payload.file_path && !isLocalUploadPath(payload.file_path)) {
+      try {
+        const signed = await getSignedReadUrl(payload.file_path, 3600);
+        payload.signed_url = signed.signedUrl;
+      } catch (e) {
+        console.error('Header ad signed URL error:', e);
+      }
+    }
+
     res.json({ success: true, data: payload });
   } catch (error) {
     console.error('Error fetching header ad by date:', error);
@@ -475,7 +500,7 @@ export const saveHeaderAdsManagement = async (req, res) => {
     }
 
     let file_path = null;
-    if (req.file) {
+    if (req.file?.filename) {
       file_path = `/uploads/header-ads/${req.file.filename}`;
     }
 
@@ -484,6 +509,13 @@ export const saveHeaderAdsManagement = async (req, res) => {
     });
 
     if (existing) {
+      if (file_path && existing.file_path && isLocalUploadPath(existing.file_path)) {
+        const oldFilePath = path.join(__dirname, '../../public', existing.file_path.replace(/^\//, ''));
+        if (fs.existsSync(oldFilePath)) {
+          fs.unlinkSync(oldFilePath);
+        }
+      }
+
       await existing.update({
         file_path: file_path || existing.file_path,
         url: url ?? existing.url
@@ -686,10 +718,19 @@ export const createHeaderAd = async (req, res) => {
   try {
     const { app_id, category_id, link_url, dates, ad_slot } = req.body;
     const userId = req.user.id;
-    let file_path = null;
 
-    if (req.file) {
-      file_path = `/uploads/header-ads/${req.file.filename}`;
+    if (!app_id || !category_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'app_id and category_id are required'
+      });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'Ad image file is required'
+      });
     }
 
     const selectedDates = typeof dates === 'string' ? JSON.parse(dates) : dates;
@@ -735,6 +776,12 @@ export const createHeaderAd = async (req, res) => {
 
     // Format group_name as {group_name}_{ad_slot}
     const group_name = `${groupName}_${adSlot}`;
+
+    let file_path = null;
+    let file_url = null;
+    const wasabiUpload = await uploadHeaderAdToWasabi(req.file, group_name);
+    file_path = wasabiUpload.file_path;
+    file_url = wasabiUpload.file_url;
 
     // Calculate multiplier based on office level (same logic as getPricing)
     let multiplier = 1;
@@ -830,14 +877,16 @@ export const createHeaderAd = async (req, res) => {
       return sum + (basePrice * multiplier);
     }, 0);
 
-    // Create header ad
+    // Create header ad (active so booked ads appear in mobile carousel for selected dates)
     const ad = await HeaderAdsManagement.create({
       app_id,
       category_id,
       file_path,
-      link_url,
+      file_url,
+      link_url: link_url || null,
       total_price,
-      status: 'pending',
+      status: 'active',
+      is_active: 1,
       franchise_holder_id: franchiseHolder.id,
       created_by: userId,
       group_name: group_name
@@ -898,23 +947,33 @@ export const updateHeaderAd = async (req, res) => {
     }
 
     let file_path = ad.file_path;
+    let file_url = ad.file_url;
 
-    // Handle file upload
+    // Handle file upload (Wasabi S3)
     if (req.file) {
-      // Delete old file if exists
-      if (ad.file_path) {
-        const oldFilePath = path.join(__dirname, '../../public', ad.file_path);
+      if (ad.file_path && !isLocalUploadPath(ad.file_path)) {
+        try {
+          await deleteWasabiFile(ad.file_path);
+        } catch (e) {
+          console.error('Wasabi delete old header ad file:', e);
+        }
+      } else if (ad.file_path && isLocalUploadPath(ad.file_path)) {
+        const oldFilePath = path.join(__dirname, '../../public', ad.file_path.replace(/^\//, ''));
         if (fs.existsSync(oldFilePath)) {
           fs.unlinkSync(oldFilePath);
         }
       }
-      file_path = `/uploads/header-ads/${req.file.filename}`;
+      const groupName = ad.group_name || 'franchise';
+      const wasabiUpload = await uploadHeaderAdToWasabi(req.file, groupName);
+      file_path = wasabiUpload.file_path;
+      file_url = wasabiUpload.file_url;
     }
 
     await ad.update({
       app_id,
       category_id,
       file_path,
+      file_url,
       link_url: url
     });
 

@@ -44,6 +44,8 @@ interface ViewAdData {
   app_id: number;
   category_id: number;
   file_path: string | null;
+  file_url?: string | null;
+  signed_url?: string | null;
   link_url: string | null;
   status: string;
   total_price: number;
@@ -1076,7 +1078,11 @@ export const FranchiseHeaderAds: React.FC<FranchiseHeaderAdsProps> = ({
                 {viewAdData.file_path && (
                   <div className="rounded-lg border border-gray-200 overflow-hidden bg-gray-50">
                     <img
-                      src={getUploadUrl(viewAdData.file_path)}
+                      src={
+                        viewAdData.signed_url ||
+                        (viewAdData.file_url?.startsWith('http') ? viewAdData.file_url : '') ||
+                        getUploadUrl(viewAdData.file_path)
+                      }
                       alt="Header ad"
                       className="w-full max-h-80 object-contain"
                     />
