@@ -5,6 +5,7 @@ import {
   User,
   GroupCreate
 } from '../models/index.js';
+import { getAppIdForChannel } from '../utils/supportChannelConfig.js';
 
 /**
  * ============================================
@@ -78,10 +79,12 @@ export const createConversation = async (req, res) => {
       });
     }
 
+    const resolvedAppId = app_id || getAppIdForChannel(channel_type);
+
     // Create conversation
     const conversation = await SupportConversation.create({
       channel_type,
-      app_id: app_id || null,
+      app_id: resolvedAppId,
       partner_id: userId,
       subject,
       status: 'open',

@@ -932,7 +932,7 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
                 >
                   <option value="">Select periodical type</option>
                   <option value="Weekly">Weekly</option>
-                  <option value="Bi-weekly">Bi-weekly / Fortnightly</option>
+                  <option value="Fortnightly">Bi-weekly / Fortnightly</option>
                   <option value="Monthly">Monthly</option>
                   <option value="Bimonthly">Bimonthly</option>
                   <option value="Quarterly">Quarterly</option>

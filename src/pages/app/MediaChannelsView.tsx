@@ -24,6 +24,14 @@ interface District {
   district: string;
 }
 
+interface ChannelPartner {
+  id?: number;
+  identification_code?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  email?: string;
+}
+
 interface MediaChannel {
   id: number;
   media_name_english: string;
@@ -41,7 +49,14 @@ interface MediaChannel {
   country?: Country;
   state?: State;
   district?: District;
+  user?: ChannelPartner;
 }
+
+const formatPartnerName = (user?: ChannelPartner | null): string => {
+  if (!user) return '-';
+  const parts = [user.first_name, user.last_name].filter(Boolean);
+  return parts.length > 0 ? parts.join(' ') : '-';
+};
 
 interface EditFormData {
   media_name_english: string;
@@ -335,6 +350,9 @@ export const MediaChannelsView: React.FC<MediaChannelsViewProps> = ({ appId, cat
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Partner ID</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Partner Name</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email ID</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Media Logo</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Media Name (Regional)</th>
@@ -350,7 +368,7 @@ export const MediaChannelsView: React.FC<MediaChannelsViewProps> = ({ appId, cat
               <tbody className="divide-y divide-gray-200 bg-white">
                 {mediaChannels.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="px-6 py-12 text-center text-gray-500">
+                    <td colSpan={14} className="px-6 py-12 text-center text-gray-500">
                       No media channels found for this category
                     </td>
                   </tr>
@@ -359,6 +377,15 @@ export const MediaChannelsView: React.FC<MediaChannelsViewProps> = ({ appId, cat
                     <tr key={channel.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {index + 1}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {channel.user?.identification_code || '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {formatPartnerName(channel.user)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {channel.user?.email || '-'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {formatDate(channel.created_at)}

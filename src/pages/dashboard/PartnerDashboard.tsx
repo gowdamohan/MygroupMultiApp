@@ -22,7 +22,7 @@ import { FooterPageListManager } from '../corporate/FooterPageListManager';
 import { SocialMediaLinks } from '../corporate/SocialMediaLinks';
 import { Gallery } from '../corporate/Gallery';
 import { FooterFaqManager } from '../corporate/FooterFaqManager';
-import { OwnerDetailsForm } from '../partner/OwnerDetailsForm';
+import { PartnerProfileCompletionForm } from '../../components/PartnerProfileCompletionForm';
 import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
 
 interface MenuItem {
@@ -456,7 +456,7 @@ export const PartnerDashboard: React.FC = () => {
 
   // Render owner details / profile completion form for inactive accounts
   const renderInactiveMessage = () => (
-    <OwnerDetailsForm
+    <PartnerProfileCompletionForm
       registrationStatus={registrationStatus}
       onStatusChange={(newStatus) => {
         setRegistrationStatus(newStatus);
@@ -494,7 +494,7 @@ export const PartnerDashboard: React.FC = () => {
       case '/partner/wallet':
         return <div className="p-6"><h2 className="text-2xl font-bold">My Wallet</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
       case '/partner/support-chat':
-        return <SupportChat />;
+        return <SupportChat registrationStatus={registrationStatus} />;
       case '/partner/footer/about-app':
         return <FooterPageListManager pageType="about_app" pageTitle="About the App" />;
       case '/partner/footer/newsletter':

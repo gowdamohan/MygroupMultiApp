@@ -74,6 +74,10 @@ import {
 } from '../controllers/accountsUserController.js';
 import { authenticate } from '../middleware/auth.js';
 import { uploadAppImages, uploadCountryAssets, uploadCategoryImage as uploadCategoryImageMiddleware, uploadProfileImages, uploadMediaLogo } from '../middleware/upload.js';
+import {
+  getPartnerChatMessages,
+  sendPartnerChatMessage
+} from '../controllers/partnerChatController.js';
 
 const router = express.Router();
 
@@ -258,5 +262,13 @@ router.post('/accounts-users', createAccountsUser);
 router.put('/accounts-users/:id', updateAccountsUser);
 router.post('/accounts-users/:id/reset-password', resetAccountsUserPassword);
 router.patch('/accounts-users/:id/status', toggleAccountsUserStatus);
+
+/**
+ * Partner support chat (two-way messaging)
+ * GET  /api/v1/admin/chat-messages
+ * POST /api/v1/admin/chat-messages
+ */
+router.get('/chat-messages', getPartnerChatMessages);
+router.post('/chat-messages', sendPartnerChatMessage);
 
 export default router;

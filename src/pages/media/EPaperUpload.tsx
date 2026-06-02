@@ -84,8 +84,9 @@ export const EPaperUpload: React.FC<EPaperUploadProps> = ({ channelId, categoryI
   };
 
   const handleFileUpload = async (date: Date, file: File) => {
-    if (file.type !== 'application/pdf') {
-      setMessage({ type: 'error', text: 'Only PDF files are allowed' });
+    const allowed = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+    if (!allowed.includes(file.type)) {
+      setMessage({ type: 'error', text: 'Only PDF or image files (JPG, PNG, WebP) are allowed' });
       return;
     }
     const key = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
@@ -213,7 +214,7 @@ export const EPaperUpload: React.FC<EPaperUploadProps> = ({ channelId, categoryI
                           <Upload size={14} /> Replace PDF
                           <input
                             type="file"
-                            accept="application/pdf"
+                            accept="application/pdf,image/jpeg,image/png,image/webp"
                             className="hidden"
                             onChange={(e) => {
                               const file = e.target.files?.[0];
@@ -226,11 +227,11 @@ export const EPaperUpload: React.FC<EPaperUploadProps> = ({ channelId, categoryI
                     ) : (
                       <label className="cursor-pointer flex flex-col items-center justify-center py-8 border-2 border-dashed border-gray-300 rounded-xl hover:border-teal-400 hover:bg-teal-50 transition-colors">
                         <Upload size={32} className="text-gray-400 mb-2" />
-                        <span className="text-sm font-medium text-gray-600">Upload E-Paper PDF</span>
+                        <span className="text-sm font-medium text-gray-600">Upload E-Paper (PDF or Image)</span>
                         <span className="text-xs text-gray-400 mt-1">Click to select file</span>
                         <input
                           type="file"
-                          accept="application/pdf"
+                          accept="application/pdf,image/jpeg,image/png,image/webp"
                           className="hidden"
                           onChange={(e) => {
                             const file = e.target.files?.[0];

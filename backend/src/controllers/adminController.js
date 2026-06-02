@@ -2752,7 +2752,7 @@ export const getMediaChannels = async (req, res) => {
       });
     }
 
-    const { MediaChannel, Language, Country, State, District } = await import('../models/index.js');
+    const { MediaChannel, Language, Country, State, District, User } = await import('../models/index.js');
 
     const channels = await MediaChannel.findAll({
       where: {
@@ -2760,6 +2760,12 @@ export const getMediaChannels = async (req, res) => {
         category_id: category_id
       },
       include: [
+        {
+          model: User,
+          as: 'user',
+          attributes: ['id', 'identification_code', 'first_name', 'last_name', 'email'],
+          required: false
+        },
         {
           model: Language,
           as: 'language',
@@ -2964,6 +2970,7 @@ export const updateMediaChannel = async (req, res) => {
 
     const updated = await MediaChannel.findByPk(channelId, {
       include: [
+        { model: User, as: 'user', attributes: ['id', 'identification_code', 'first_name', 'last_name', 'email'], required: false },
         { model: Language, as: 'language', attributes: ['id', 'lang_1', 'lang_2'], required: false },
         { model: Country, as: 'country', attributes: ['id', 'country'], required: false },
         { model: State, as: 'state', attributes: ['id', 'state'], required: false },

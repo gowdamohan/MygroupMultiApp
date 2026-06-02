@@ -23,6 +23,15 @@ import {
   TeamSection
 } from './MediaDashboardPages';
 import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
+import {
+  isPrintMediaCategory,
+  isMagazineCategory,
+  isEPaperCategory,
+  isTVOrRadioCategory,
+  parsePeriodicalSchedule
+} from '../../utils/mediaCategoryUtils';
+import { normalizePeriodicalType } from '../../utils/periodicalSlots';
+import { PrintMediaOutputPanel } from '../../components/media/PrintMediaOutputPanel';
 
 interface MenuItem {
   id: string;
@@ -256,7 +265,13 @@ export const MediaDashboard: React.FC = () => {
         const list = response.data.data || [];
         setAllChannels(list);
         const channel = list.find((c: any) => c.id === parseInt(channelId || '0'));
-        if (channel) setChannelInfo(channel);
+        if (channel) {
+          setChannelInfo({
+            ...channel,
+            periodical_type: normalizePeriodicalType(channel.periodical_type) || channel.periodical_type,
+            periodical_schedule: parsePeriodicalSchedule(channel.periodical_schedule)
+          });
+        }
       }
     } catch (error) {
       console.error('Error fetching channel info:', error);
@@ -524,6 +539,16 @@ export const MediaDashboard: React.FC = () => {
     categoryId: cat.id
   }));
 
+  const categoryCtx = channelInfo
+    ? { category: channelInfo.category, parentCategory: channelInfo.parentCategory }
+    : null;
+  const printMedia = isPrintMediaCategory(categoryCtx);
+  const showMagazineMenu =
+    isMagazineCategory(categoryCtx) && !isTVOrRadioCategory(categoryCtx);
+  const showEPaperMenu =
+    isEPaperCategory(categoryCtx) && !isMagazineCategory(categoryCtx);
+  const showTimeTableMenu = !printMedia;
+
   const menuItems: MenuItem[] = [
     { id: 'back', label: 'Back to Channel List', icon: ArrowLeft, path: '/partner/my-channel-list' },
     { id: 'profile', label: 'Profile', icon: User, children: [
@@ -538,37 +563,33 @@ export const MediaDashboard: React.FC = () => {
     { id: 'newsletter', label: 'Newsletter', icon: Newspaper, path: `/media/dashboard/${channelId}/newsletter` },
     { id: 'gallery', label: 'Gallery', icon: Image, path: `/media/dashboard/${channelId}/gallery` },
     { id: 'team', label: 'Team', icon: Users, path: `/media/dashboard/${channelId}/team` },
-    { id: 'timetable', label: 'Time Table', icon: Calendar, path: `/media/dashboard/${channelId}/timetable` },
-    // Conditional Magazine menu item
-    ...((channelInfo?.category?.category_name?.toLowerCase().includes('magazine') ||
-         channelInfo?.category?.category_type === 'Magazines') ? [{
-      id: 'magazine',
-      label: 'Magazine',
-      icon: BookOpen,
-      path: `/media/dashboard/${channelId}/magazine`
-    }] : []),
-    // Conditional E-Papers menu item
-    ...((channelInfo?.parentCategory?.category_name?.toLowerCase().includes('e-paper') ||
-         channelInfo?.parentCategory?.category_name?.toLowerCase().includes('epaper') ||
-         channelInfo?.parentCategory?.category_name?.toLowerCase().includes('e paper') ||
-         channelInfo?.parentCategory?.category_name?.toLowerCase().includes('newspaper') ||
-         channelInfo?.category?.category_name?.toLowerCase().includes('e-paper') ||
-         channelInfo?.category?.category_name?.toLowerCase().includes('epaper') ||
-         channelInfo?.category?.category_name?.toLowerCase().includes('e paper') ||
-         channelInfo?.category?.category_name?.toLowerCase().includes('newspaper')) ? [{
-      id: 'e-papers',
-      label: 'E-Papers',
-      icon: Newspaper,
-      path: `/media/dashboard/${channelId}/e-papers`
-    }] : []),
-    // Dynamic upload categories
-    ...(uploadMenuItems.length > 0 ? [{
-      id: 'upload-section',
-      label: 'Upload Documents',
-      icon: Upload,
-      children: uploadMenuItems
-    }] : [])
+    ...(showTimeTableMenu
+      ? [{ id: 'timetable', label: 'Time Table', icon: Calendar, path: `/media/dashboard/${channelId}/timetable` }]
+      : []),
+    ...(showMagazineMenu
+      ? [{ id: 'magazine', label: 'Magazine', icon: BookOpen, path: `/media/dashboard/${channelId}/magazine` }]
+      : []),
+    ...(showEPaperMenu
+      ? [{ id: 'e-papers', label: 'E-Papers', icon: Newspaper, path: `/media/dashboard/${channelId}/e-papers` }]
+      : []),
+    ...(uploadMenuItems.length > 0
+      ? [{ id: 'upload-section', label: 'Upload Documents', icon: Upload, children: uploadMenuItems }]
+      : [])
   ];
+
+  useEffect(() => {
+    if (printMedia && (activeTab === 'switcher' || activeTab === 'offline')) {
+      setActiveTab('output');
+    }
+  }, [printMedia, activeTab]);
+
+  const navigateToPrintUpload = () => {
+    if (showMagazineMenu) {
+      navigate(`/media/dashboard/${channelId}/magazine`);
+    } else if (showEPaperMenu) {
+      navigate(`/media/dashboard/${channelId}/e-papers`);
+    }
+  };
 
   const toggleMenu = (menuId: string) => {
     setExpandedMenus(prev => prev.includes(menuId) ? prev.filter(id => id !== menuId) : [...prev, menuId]);
@@ -726,23 +747,46 @@ export const MediaDashboard: React.FC = () => {
               className={`px-6 py-2 font-bold text-sm transition-colors border-r border-gray-600 ${activeTab === 'output' ? 'bg-blue-600 text-white' : 'bg-gray-500 text-white hover:bg-gray-400'}`}>
               Output
             </button>
-            <button onClick={() => setActiveTab('switcher')}
-              className={`px-6 py-2 font-bold text-sm transition-colors border-r border-gray-600 ${activeTab === 'switcher' ? 'bg-green-600 text-white' : 'bg-gray-500 text-white hover:bg-gray-400'}`}>
-              Switcher
-            </button>
+            {!printMedia && (
+              <button onClick={() => setActiveTab('switcher')}
+                className={`px-6 py-2 font-bold text-sm transition-colors border-r border-gray-600 ${activeTab === 'switcher' ? 'bg-green-600 text-white' : 'bg-gray-500 text-white hover:bg-gray-400'}`}>
+                Switcher
+              </button>
+            )}
             <button onClick={() => setActiveTab('preview')}
               className={`px-6 py-2 font-bold text-sm transition-colors border-r border-gray-600 ${activeTab === 'preview' ? 'bg-blue-600 text-white' : 'bg-gray-500 text-white hover:bg-gray-400'}`}>
               Preview
             </button>
-            <button onClick={() => setActiveTab('offline')}
-              className={`px-6 py-2 font-bold text-sm transition-colors ${activeTab === 'offline' ? 'bg-amber-600 text-white' : 'bg-gray-500 text-white hover:bg-gray-400'}`}>
-              Offline Media
-            </button>
+            {!printMedia && (
+              <button onClick={() => setActiveTab('offline')}
+                className={`px-6 py-2 font-bold text-sm transition-colors ${activeTab === 'offline' ? 'bg-amber-600 text-white' : 'bg-gray-500 text-white hover:bg-gray-400'}`}>
+                Offline Media
+              </button>
+            )}
           </div>
         </div>
 
         {/* Main Content Area - Show based on active tab */}
-        {activeTab === 'output' ? (
+        {printMedia && channelInfo?.category_id && channelId ? (
+          <PrintMediaOutputPanel
+            channelId={channelId}
+            categoryId={channelInfo.category_id}
+            categoryCtx={categoryCtx!}
+            activeTab={activeTab === 'preview' ? 'preview' : 'output'}
+            comments={comments}
+            interactions={interactions}
+            commentText={commentText}
+            setCommentText={setCommentText}
+            replyingTo={replyingTo}
+            setReplyingTo={setReplyingTo}
+            replyText={replyText}
+            setReplyText={setReplyText}
+            onAddComment={handleAddComment}
+            formatTimeAgo={formatTimeAgo}
+            formatCount={formatCount}
+            onNavigateUpload={navigateToPrintUpload}
+          />
+        ) : activeTab === 'output' ? (
           // OUTPUT TAB - Video + Interactions + Comments
           <div className="flex-1 flex bg-black min-h-0">
             {/* Left - Video Player with Stats */}
