@@ -8,6 +8,7 @@ import { UserProfileModal } from './UserProfileModal';
 import { AppSettingsModal } from './AppSettingsModal';
 import { AppDownloadBadges } from './AppDownloadBadges';
 import { InlineHeaderAds } from './InlineHeaderAds';
+import { getLocationFromRegistration } from '../../utils/viewerLocation';
 
 export interface TopIcon {
   id: number;
@@ -100,20 +101,17 @@ interface UserProfile {
   profile?: UserProfileData;
 }
 
-/** Location from user_registration_form (set_* preferred, then registered country/state/district). */
-const getLocationFromProfile = (profile?: UserProfileData): UserProfileData | undefined => {
-  if (!profile) return undefined;
-  const country = profile.set_country ?? profile.country;
-  const state = profile.set_state ?? profile.state;
-  const district = profile.set_district ?? profile.district;
-  if (!country && !state && !district) return undefined;
+/** Location FK ids from user_registration_form → country_tbl / state_tbl / district_tbl */
+const getLocationFromProfile = (source?: UserProfileData | Record<string, unknown>): UserProfileData | undefined => {
+  const ids = getLocationFromRegistration(source);
+  if (!ids?.countryId) return undefined;
   return {
-    set_country: country,
-    set_state: state,
-    set_district: district,
-    country,
-    state,
-    district,
+    set_country: ids.countryId,
+    set_state: ids.stateId ?? undefined,
+    set_district: ids.districtId ?? undefined,
+    country: ids.countryId,
+    state: ids.stateId ?? undefined,
+    district: ids.districtId ?? undefined,
   };
 };
 
@@ -121,8 +119,8 @@ const getStoredUserLocation = (): UserProfileData | undefined => {
   try {
     const storedUser = localStorage.getItem('user');
     if (!storedUser) return undefined;
-    const userData = JSON.parse(storedUser);
-    return getLocationFromProfile(userData?.profile);
+    const userData = JSON.parse(storedUser) as Record<string, unknown>;
+    return getLocationFromProfile(userData);
   } catch {
     return undefined;
   }

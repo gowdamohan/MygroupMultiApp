@@ -16,7 +16,15 @@ import {
   categoryNameIncludesTV,
   categoryNameIncludesRadio
 } from '../../utils/mediaCategoryUtils';
-import { resolveViewerLocation, type CountryOption } from '../../utils/viewerLocation';
+import {
+  resolveViewerLocation,
+  locationFromApiResponse,
+  validateViewerLocationAgainstGeoLists,
+  hasRegistrationLocationData,
+  type CountryOption,
+  type StateOption,
+  type DistrictOption
+} from '../../utils/viewerLocation';
 
 const SLOT_WIDTH_PX = 80;
 const CHANNEL_COL_WIDTH_PX = 96;
@@ -54,15 +62,9 @@ interface Language {
 
 interface Country extends CountryOption {}
 
-interface State {
-  id: number;
-  state: string;
-}
+interface State extends StateOption {}
 
-interface District {
-  id: number;
-  district: string;
-}
+interface District extends DistrictOption {}
 
 interface Channel {
   id: number;
@@ -268,47 +270,115 @@ export const MobileMyMediaPage: React.FC = () => {
     return [];
   };
 
-  /** set_* preferred; else registration country/state/district; nationality → country id */
-  const applyViewerLocation = async (countriesList: Country[]): Promise<boolean> => {
+  const fetchStatesList = async (countryId: number): Promise<State[]> => {
     try {
-      let profileData: Record<string, unknown> | null = null;
-      const stored = localStorage.getItem('user');
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          profileData = (parsed.profile || parsed) as Record<string, unknown>;
-        } catch {
-          profileData = null;
-        }
+      const response = await axios.get(`${API_BASE_URL}/geo/states/${countryId}`);
+      if (response.data.success) {
+        return response.data.data;
       }
+    } catch (error) {
+      console.error('Error fetching states:', error);
+    }
+    return [];
+  };
 
-      const token = localStorage.getItem('accessToken');
-      if (!profileData && token) {
+  const fetchDistrictsList = async (stateId: number): Promise<District[]> => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/geo/districts/${stateId}`);
+      if (response.data.success) {
+        return response.data.data;
+      }
+    } catch (error) {
+      console.error('Error fetching districts:', error);
+    }
+    return [];
+  };
+
+  /** Always refresh from API when logged in — login payload has no user_registration_form row */
+  const loadRegistrationProfile = async (): Promise<Record<string, unknown> | null> => {
+    const token = localStorage.getItem('accessToken');
+    if (token) {
+      try {
         const { authAPI } = await import('../../services/api');
         const res = await authAPI.getProfile();
         if (res.data?.success) {
-          profileData = (res.data.data?.profile || res.data.data) as Record<string, unknown>;
+          const userData = res.data.data as Record<string, unknown>;
+          try {
+            localStorage.setItem('user', JSON.stringify(userData));
+          } catch {
+            // ignore storage errors
+          }
+          return userData;
+        }
+      } catch (error) {
+        console.error('Error loading registration profile:', error);
+      }
+    }
+    const stored = localStorage.getItem('user');
+    if (stored) {
+      try {
+        return JSON.parse(stored) as Record<string, unknown>;
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  };
+
+  /**
+   * Default filters from user_registration_form FKs (country_tbl / state_tbl / district_tbl).
+   * Uses API validation when logged in; falls back to client profile parse.
+   */
+  const applyViewerLocation = async (countriesList: Country[]): Promise<boolean> => {
+    try {
+      let locationIds = null;
+      const token = localStorage.getItem('accessToken');
+      const userData = token ? await loadRegistrationProfile() : null;
+
+      if (token) {
+        try {
+          const res = await axios.get(`${API_BASE_URL}/mymedia/viewer-location`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.data?.success) {
+            locationIds = locationFromApiResponse(res.data.data);
+          }
+        } catch (apiErr) {
+          console.warn('viewer-location API failed:', apiErr);
         }
       }
 
-      const resolved = resolveViewerLocation(profileData, countriesList);
-      if (resolved?.countryId) {
-        setSelectedCountry(String(resolved.countryId));
-        await fetchStates(resolved.countryId);
-        if (resolved.stateId) {
-          setSelectedState(String(resolved.stateId));
-          await fetchDistricts(resolved.stateId);
-          if (resolved.districtId) {
-            setSelectedDistrict(String(resolved.districtId));
-          } else {
-            setSelectedDistrict('');
-          }
-        } else {
-          setSelectedState('');
-          setSelectedDistrict('');
-        }
-        return true;
+      if (!locationIds && userData && hasRegistrationLocationData(userData)) {
+        locationIds = resolveViewerLocation(userData, countriesList);
       }
+
+      if (!locationIds?.countryId) {
+        return false;
+      }
+
+      const statesList = await fetchStatesList(locationIds.countryId);
+      let districtsList: District[] = [];
+      if (locationIds.stateId) {
+        districtsList = await fetchDistrictsList(locationIds.stateId);
+      }
+
+      const validated = validateViewerLocationAgainstGeoLists(
+        locationIds,
+        countriesList,
+        statesList,
+        districtsList
+      );
+
+      if (!validated.countryId) {
+        return false;
+      }
+
+      setStates(statesList);
+      setDistricts(districtsList);
+      setSelectedCountry(String(validated.countryId));
+      setSelectedState(validated.stateId ? String(validated.stateId) : '');
+      setSelectedDistrict(validated.districtId ? String(validated.districtId) : '');
+      return true;
     } catch (error) {
       console.error('Error applying viewer location:', error);
     }
@@ -321,9 +391,12 @@ export const MobileMyMediaPage: React.FC = () => {
       const appId = await fetchAppInfo(appName || 'mymedia');
       const countriesList = await fetchCountriesList();
       const fromProfile = await applyViewerLocation(countriesList);
-      if (!fromProfile && countriesList.length > 0) {
-        setSelectedCountry(countriesList[0].id.toString());
-        await fetchStates(countriesList[0].id);
+      if (!fromProfile) {
+        setSelectedCountry('');
+        setSelectedState('');
+        setSelectedDistrict('');
+        setStates([]);
+        setDistricts([]);
       }
       setLocationReady(true);
       if (appId) {
@@ -336,23 +409,25 @@ export const MobileMyMediaPage: React.FC = () => {
     initializeData();
   }, [appName]);
 
+  // After init, refetch state/district lists when user changes location in modal
   useEffect(() => {
+    if (!locationReady) return;
     if (selectedCountry) {
       fetchStates(parseInt(selectedCountry, 10));
     } else {
       setStates([]);
       setSelectedState('');
     }
-  }, [selectedCountry]);
+  }, [selectedCountry, locationReady]);
 
-  // Fetch districts when state changes
   useEffect(() => {
+    if (!locationReady) return;
     if (selectedState) {
-      fetchDistricts(parseInt(selectedState));
+      fetchDistricts(parseInt(selectedState, 10));
     } else {
       setDistricts([]);
     }
-  }, [selectedState]);
+  }, [selectedState, locationReady]);
 
   useEffect(() => {
     if (selectedParentCategory && locationReady && selectedCountry) {
@@ -576,12 +651,13 @@ export const MobileMyMediaPage: React.FC = () => {
   };
 
   const getLocationLabel = () => {
+    if (!selectedCountry) return 'Select location';
     const district = districts.find((d) => d.id.toString() === selectedDistrict);
     if (district) return district.district;
     const state = states.find((s) => s.id.toString() === selectedState);
     if (state) return state.state;
     const country = countries.find((c) => c.id.toString() === selectedCountry);
-    return country?.country || 'Location';
+    return country?.country || 'Select location';
   };
 
   // Render category icon from category_image or use SVG based on category name
@@ -761,7 +837,20 @@ export const MobileMyMediaPage: React.FC = () => {
         )}
 
         {/* Content Area - Different layouts based on category type */}
-        {channels.length === 0 ? (
+        {!selectedCountry ? (
+          <div className="p-8 text-center text-gray-500 bg-white">
+            <MapPin size={48} className="mx-auto mb-4 opacity-50" />
+            <p className="font-medium text-gray-700">Select location</p>
+            <p className="text-sm mt-2">Choose country, state, and district to load media for your area.</p>
+            <button
+              type="button"
+              onClick={() => setShowLocationModal(true)}
+              className="mt-4 px-5 py-2 bg-teal-600 text-white rounded-lg text-sm font-semibold hover:bg-teal-700"
+            >
+              Select location
+            </button>
+          </div>
+        ) : channels.length === 0 ? (
           <div className="p-8 text-center text-gray-500 bg-white">
             <FileText size={48} className="mx-auto mb-4 opacity-50" />
             <p>No channels found for the selected filters</p>

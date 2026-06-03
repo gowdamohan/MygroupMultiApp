@@ -22,7 +22,8 @@ import {
   MediaOfflineMedia,
   MediaChannelDocument,
   HeaderAdsManagement,
-  CompanyAdsManagement
+  CompanyAdsManagement,
+  UserRegistration
 } from '../models/index.js';
 import { getSignedReadUrl } from '../services/wasabiService.js';
 
@@ -97,6 +98,93 @@ const resolveTargetAppId = async (req) => {
     where: { name: { [Op.like]: '%mymedia%' } }
   });
   return fallback?.id ?? null;
+};
+
+/**
+ * Viewer default location from user_registration_form (FK → country_tbl, state_tbl, district_tbl)
+ * GET /api/v1/mymedia/viewer-location
+ * Requires auth
+ */
+export const getViewerLocation = async (req, res) => {
+  try {
+    const registration = await UserRegistration.findOne({
+      where: { user_id: req.user.id },
+      include: [
+        { model: Country, as: 'setCountryData', required: false },
+        { model: State, as: 'setStateData', required: false },
+        { model: District, as: 'setDistrictData', required: false },
+        { model: Country, as: 'countryData', required: false },
+        { model: State, as: 'stateData', required: false },
+        { model: District, as: 'districtData', required: false }
+      ]
+    });
+
+    if (!registration) {
+      return res.json({
+        success: true,
+        data: { country_id: null, state_id: null, district_id: null }
+      });
+    }
+
+    const reg = registration.toJSON();
+    const toInt = (v) => {
+      if (v == null || v === '') return null;
+      const n = parseInt(String(v), 10);
+      return Number.isNaN(n) ? null : n;
+    };
+
+    let countryId = toInt(reg.set_country) ?? toInt(reg.country) ?? null;
+    let stateId = toInt(reg.set_state) ?? toInt(reg.state) ?? null;
+    let districtId = toInt(reg.set_district) ?? toInt(reg.district) ?? null;
+
+    if (!countryId && reg.nationality) {
+      const nat = String(reg.nationality).trim();
+      const byNat = await Country.findOne({
+        where: {
+          [Op.or]: [{ nationality: nat }, { country: nat }]
+        }
+      });
+      if (byNat) countryId = byNat.id;
+    }
+
+    let country = null;
+    let state = null;
+    let district = null;
+
+    if (countryId) {
+      country = await Country.findByPk(countryId);
+      if (!country) countryId = null;
+    }
+
+    if (countryId && stateId) {
+      state = await State.findOne({ where: { id: stateId, country_id: countryId } });
+      if (!state) stateId = null;
+    }
+
+    if (stateId && districtId) {
+      district = await District.findOne({ where: { id: districtId, state_id: stateId } });
+      if (!district) districtId = null;
+    }
+
+    res.json({
+      success: true,
+      data: {
+        country_id: country?.id ?? null,
+        state_id: state?.id ?? null,
+        district_id: district?.id ?? null,
+        country_name: country?.country ?? reg.setCountryData?.country ?? reg.countryData?.country ?? null,
+        state_name: state?.state ?? reg.setStateData?.state ?? reg.stateData?.state ?? null,
+        district_name: district?.district ?? reg.setDistrictData?.district ?? reg.districtData?.district ?? null
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching viewer location:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch viewer location',
+      error: error.message
+    });
+  }
 };
 
 /**

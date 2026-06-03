@@ -1,6 +1,8 @@
 import express from 'express';
+import { authenticate } from '../middleware/auth.js';
 import {
   getMyMediaApp,
+  getViewerLocation,
   getMyMediaCategories,
   getAddonCategories,
   getMyMediaLanguages,
@@ -23,6 +25,9 @@ const router = express.Router();
 
 // GET /api/v1/mymedia/app - Get MyMedia app details
 router.get('/app', getMyMediaApp);
+
+// GET /api/v1/mymedia/viewer-location - Default location from user_registration_form (auth)
+router.get('/viewer-location', authenticate, getViewerLocation);
 
 // GET /api/v1/mymedia/categories - Get categories for MyMedia app
 // Query params: appId (optional)
