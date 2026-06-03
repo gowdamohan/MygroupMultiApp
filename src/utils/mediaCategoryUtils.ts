@@ -52,6 +52,38 @@ export const isMagazineCategory = (ctx: ChannelCategoryContext | null | undefine
 export const isPrintMediaCategory = (ctx: ChannelCategoryContext | null | undefined): boolean =>
   isEPaperCategory(ctx) || isMagazineCategory(ctx);
 
+/** Pick TV as default footer tab when available */
+export const pickDefaultParentCategory = <T extends { id: number; category_name?: string; category_type?: string }>(
+  parents: T[]
+): T | null => {
+  if (!parents.length) return null;
+  const tv = parents.find((p) => {
+    const name = norm(p.category_name);
+    const type = norm(p.category_type);
+    return name.includes('tv') || type.includes('tv') || name.includes('television');
+  });
+  return tv || parents[0];
+};
+
+export const categoryNameIncludesTV = (name?: string | null): boolean => {
+  const n = norm(name);
+  return n.includes('tv') || n.includes('television');
+};
+
+export const categoryNameIncludesRadio = (name?: string | null): boolean =>
+  norm(name).includes('radio');
+
+export const categoryNameIsDocument = (name?: string | null): boolean => {
+  const n = norm(name);
+  return (
+    n.includes('e-paper') ||
+    n.includes('epaper') ||
+    n.includes('e paper') ||
+    n.includes('newspaper') ||
+    n.includes('magazine')
+  );
+};
+
 /**
  * Parse periodical_schedule from API/DB (JSON column, JSON string, or double-encoded string).
  */

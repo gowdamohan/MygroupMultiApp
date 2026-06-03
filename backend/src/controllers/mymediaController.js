@@ -41,10 +41,63 @@ const getMediaLogoUrl = async (mediaLogo) => {
   return null;
 };
 
+const toEmbedUrl = (url) => {
+  const t = (url || '').trim();
+  if (!t) return '';
+  const ytMatch = t.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+  if (ytMatch) return `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1&playsinline=1`;
+  if (/youtube\.com\/embed\//i.test(t)) {
+    return t.includes('autoplay') ? t : `${t}${t.includes('?') ? '&' : '?'}autoplay=1`;
+  }
+  return t;
+};
+
+const isEmbeddableUrl = (url) => {
+  if (!url) return false;
+  const u = url.toLowerCase();
+  return u.includes('youtube.com') || u.includes('youtu.be') || u.includes('vimeo.com') || u.includes('dailymotion.com') || u.includes('/embed');
+};
+
+/** Resolve DB path or URL to a browser-playable URL */
+const resolvePlayableMediaUrl = async (raw) => {
+  if (!raw || typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  if (trimmed.startsWith('/uploads/')) return trimmed;
+  const key = trimmed.startsWith('/') ? trimmed.slice(1) : trimmed;
+  try {
+    const signed = await getSignedReadUrl(key, 3600);
+    if (signed?.success) return signed.signedUrl;
+  } catch (e) {
+    console.error('Signed URL for media failed:', e);
+  }
+  return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+};
+
 /**
  * MYMEDIA CONTROLLER
  * Handles public MyMedia page data fetching
  */
+
+/** Resolve app id from query (appId or appName) with MyMedia fallback */
+const resolveTargetAppId = async (req) => {
+  const { appId, appName } = req.query;
+  if (appId) {
+    const id = parseInt(appId, 10);
+    if (!Number.isNaN(id)) return id;
+  }
+  if (appName) {
+    const app = await GroupCreate.findOne({
+      where: { name: { [Op.like]: `%${appName}%` } }
+    });
+    if (app) return app.id;
+  }
+  const fallback = await GroupCreate.findOne({
+    where: { name: { [Op.like]: '%mymedia%' } }
+  });
+  return fallback?.id ?? null;
+};
 
 /**
  * Get app details by name or default to MyMedia
@@ -268,27 +321,23 @@ export const getMyMediaLanguages = async (req, res) => {
  * GET /api/v1/mymedia/channels
  * Query params: type, country_id, state_id, district_id, category_id, language_id
  * - status uses 'active' (media_channel.status ENUM: pending, active, inactive, rejected)
- * - category_id is the selected subcategory from the frontend (filters by channel's category_id)
+ * - category_id = footer parent (TV, Radio, etc.); parent_category_id = subcategory filter
  */
 export const getMyMediaChannels = async (req, res) => {
   try {
-    const { type, country_id, state_id, district_id, category_id, parent_category_id, language_id } = req.query;
+    const { type, country_id, state_id, district_id, category_id, parent_category_id, language_id, include_latest_document } = req.query;
 
-    // Find MyMedia app by name (e.g. "mymedia", "MyMedia")
-    const app = await GroupCreate.findOne({
-      where: { name: { [Op.like]: '%mymedia%' } }
-    });
-
-    if (!app) {
+    const targetAppId = await resolveTargetAppId(req);
+    if (!targetAppId) {
       return res.status(404).json({
         success: false,
-        message: 'MyMedia app not found'
+        message: 'App not found'
       });
     }
 
     // Build where clause: app_id, is_active, and status = 'active' (schema has pending|active|inactive|rejected, not 'approved')
     const whereClause = {
-      app_id: app.id,
+      app_id: targetAppId,
       is_active: 1,
       status: 'active'
     };
@@ -311,7 +360,13 @@ export const getMyMediaChannels = async (req, res) => {
         {
           model: AppCategory,
           as: 'category',
-          attributes: ['id', 'category_name', 'category_type']
+          attributes: ['id', 'category_name', 'category_type', 'parent_id']
+        },
+        {
+          model: AppCategory,
+          as: 'parentCategory',
+          attributes: ['id', 'category_name', 'category_type', 'parent_id'],
+          required: false
         },
         {
           model: Language,
@@ -324,14 +379,51 @@ export const getMyMediaChannels = async (req, res) => {
     });
 
     if (process.env.NODE_ENV !== 'production') {
-      console.log('[mymedia/channels]', { appId: app.id, whereClause, count: channels.length });
+      console.log('[mymedia/channels]', { appId: targetAppId, whereClause, count: channels.length });
+    }
+
+    // Optional: attach latest document per channel (E-Paper / Magazine list cards)
+    let latestDocByChannel = {};
+    if (include_latest_document === '1' && channels.length > 0) {
+      const channelIds = channels.map((c) => c.id);
+      const docWhere = { media_channel_id: { [Op.in]: channelIds }, status: 1 };
+      const { year, month } = req.query;
+      if (year) docWhere.document_year = parseInt(year, 10);
+      if (month) docWhere.document_month = parseInt(month, 10);
+
+      const allDocs = await MediaChannelDocument.findAll({
+        where: docWhere,
+        order: [
+          ['media_channel_id', 'ASC'],
+          ['document_year', 'DESC'],
+          ['document_month', 'DESC'],
+          ['document_date', 'DESC']
+        ]
+      });
+
+      for (const doc of allDocs) {
+        if (!latestDocByChannel[doc.media_channel_id]) {
+          latestDocByChannel[doc.media_channel_id] = {
+            id: doc.id,
+            title: doc.file_name || `Issue ${doc.document_date}/${doc.document_month}/${doc.document_year}`,
+            file_url: doc.document_url,
+            year: doc.document_year,
+            month: doc.document_month,
+            date: doc.document_date
+          };
+        }
+      }
     }
 
     // Add signed URLs for Wasabi-stored media logos
     const channelsWithUrls = await Promise.all(channels.map(async (channel) => {
       const json = channel.toJSON();
       const mediaLogoUrl = await getMediaLogoUrl(json.media_logo);
-      return { ...json, media_logo_url: mediaLogoUrl || json.media_logo };
+      return {
+        ...json,
+        media_logo_url: mediaLogoUrl || json.media_logo,
+        latest_document: latestDocByChannel[channel.id] || null
+      };
     }));
 
     res.json({
@@ -348,22 +440,39 @@ export const getMyMediaChannels = async (req, res) => {
   }
 };
 
+const toDateOnlyString = (date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
+const getWeekRangeForDate = (dateStr) => {
+  const d = new Date(`${dateStr}T12:00:00`);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(d);
+  monday.setDate(diff);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  return {
+    weekStartStr: toDateOnlyString(monday),
+    weekEndStr: toDateOnlyString(sunday)
+  };
+};
+
 /**
- * Get schedules for a channel
+ * Get schedules for a channel on a specific calendar day
  * GET /api/v1/mymedia/schedules/:channelId
- * Query params: weekStart (YYYY-MM-DD), day (0-6 for specific day)
+ * Query params: scheduleDate (YYYY-MM-DD, preferred), weekStart + day (legacy)
  */
 export const getMyMediaSchedules = async (req, res) => {
   try {
     const { channelId } = req.params;
-    const { weekStart, day } = req.query;
+    const { scheduleDate, weekStart, day } = req.query;
 
-    // Verify channel exists and is active
     const channel = await MediaChannel.findOne({
-      where: {
-        id: channelId,
-        is_active: 1
-      }
+      where: { id: channelId, is_active: 1 }
     });
 
     if (!channel) {
@@ -373,59 +482,85 @@ export const getMyMediaSchedules = async (req, res) => {
       });
     }
 
-    // Calculate week range
-    const startDate = weekStart ? new Date(weekStart) : new Date();
-    startDate.setHours(0, 0, 0, 0);
-    const dayOfWeek = startDate.getDay();
-    const diff = startDate.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-    startDate.setDate(diff);
-
-    const endDate = new Date(startDate);
-    endDate.setDate(endDate.getDate() + 6);
-
-    const weekStartStr = startDate.toISOString().split('T')[0];
-    const weekEndStr = endDate.toISOString().split('T')[0];
-
-    // Build where clause for schedules
-    const scheduleWhere = {
-      media_channel_id: channelId,
-      [Op.or]: [
-        { original_schedule_id: null },
-        { schedule_date: { [Op.between]: [weekStartStr, weekEndStr] } }
-      ]
-    };
-
-    // If specific day is requested, filter by day_of_week
-    if (day !== undefined && day !== null && day !== '') {
-      scheduleWhere.day_of_week = parseInt(day);
+    let targetDateStr;
+    if (scheduleDate) {
+      targetDateStr = scheduleDate;
+    } else {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (day !== undefined && day !== null && day !== '') {
+        const offset = parseInt(day, 10) - today.getDay();
+        const d = new Date(today);
+        d.setDate(d.getDate() + offset);
+        targetDateStr = toDateOnlyString(d);
+      } else {
+        targetDateStr = toDateOnlyString(today);
+      }
     }
 
+    const targetDate = new Date(`${targetDateStr}T12:00:00`);
+    const dayOfWeek = targetDate.getDay();
+    const { weekStartStr, weekEndStr } = weekStart
+      ? getWeekRangeForDate(weekStart)
+      : getWeekRangeForDate(targetDateStr);
+
     const schedules = await MediaSchedule.findAll({
-      where: scheduleWhere,
+      where: {
+        media_channel_id: channelId,
+        [Op.or]: [
+          { original_schedule_id: null },
+          { schedule_date: { [Op.between]: [weekStartStr, weekEndStr] } }
+        ]
+      },
       include: [{
         model: MediaScheduleSlot,
         as: 'slots',
-        required: false,
-        order: [['start_time', 'ASC']]
+        required: false
       }],
       order: [['schedule_date', 'ASC']]
     });
 
-    // Format schedule data
-    const formattedSchedules = schedules.map(schedule => ({
-      id: schedule.id,
-      title: schedule.title,
-      media_file: schedule.media_file,
-      schedule_date: schedule.schedule_date,
-      day_of_week: schedule.day_of_week,
-      slots: (schedule.slots || []).map(slot => ({
-        id: slot.id,
-        start_time: slot.start_time,
-        end_time: slot.end_time,
-        is_recurring: slot.is_recurring,
-        status: slot.status
-      }))
-    }));
+    const formattedSchedules = [];
+
+    for (const schedule of schedules) {
+      const slots = (schedule.slots || []).slice().sort((a, b) =>
+        String(a.start_time).localeCompare(String(b.start_time))
+      );
+      if (!slots.length) continue;
+
+      const isMaster = schedule.original_schedule_id === null;
+
+      if (isMaster) {
+        if (schedule.day_of_week !== dayOfWeek) continue;
+
+        const hasOverride = schedules.some(
+          (s) => s.original_schedule_id === schedule.id && s.schedule_date === targetDateStr
+        );
+        if (hasOverride) continue;
+      } else if (schedule.schedule_date !== targetDateStr) {
+        continue;
+      }
+
+      const mediaFileUrl = schedule.media_file
+        ? await resolvePlayableMediaUrl(schedule.media_file)
+        : null;
+
+      formattedSchedules.push({
+        id: schedule.id,
+        title: schedule.title,
+        media_file: schedule.media_file,
+        media_file_url: mediaFileUrl,
+        schedule_date: targetDateStr,
+        day_of_week: schedule.day_of_week,
+        slots: slots.map((slot) => ({
+          id: slot.id,
+          start_time: slot.start_time,
+          end_time: slot.end_time,
+          is_recurring: slot.is_recurring,
+          status: slot.status
+        }))
+      });
+    }
 
     res.json({
       success: true,
@@ -435,6 +570,7 @@ export const getMyMediaSchedules = async (req, res) => {
           name: channel.media_name_english,
           logo: channel.media_logo
         },
+        scheduleDate: targetDateStr,
         weekStart: weekStartStr,
         weekEnd: weekEndStr,
         schedules: formattedSchedules
@@ -458,21 +594,17 @@ export const getMyMediaSchedules = async (req, res) => {
 export const getChannelsByCategory = async (req, res) => {
   try {
     const { categoryName } = req.params;
-    const { type, country_id, state_id, district_id, language_id, page = 1, limit = 20 } = req.query;
+    const { type, country_id, state_id, district_id, language_id, parent_category_id, page = 1, limit = 20 } = req.query;
 
-    // Find MyMedia app
-    const app = await GroupCreate.findOne({
-      where: { name: { [Op.like]: '%mymedia%' } }
-    });
-
-    if (!app) {
-      return res.status(404).json({ success: false, message: 'MyMedia app not found' });
+    const targetAppId = await resolveTargetAppId(req);
+    if (!targetAppId) {
+      return res.status(404).json({ success: false, message: 'App not found' });
     }
 
     // Find the parent category by name
     const parentCategory = await AppCategory.findOne({
       where: {
-        app_id: app.id,
+        app_id: targetAppId,
         category_name: { [Op.like]: `%${categoryName}%` },
         parent_id: null,
         status: 1
@@ -483,10 +615,10 @@ export const getChannelsByCategory = async (req, res) => {
       return res.status(404).json({ success: false, message: `Category '${categoryName}' not found` });
     }
 
-    // Build where clause
+    // media_channel.category_id = footer parent; parent_category_id = subcategory
     const whereClause = {
-      app_id: app.id,
-      parent_category_id: parentCategory.id,
+      app_id: targetAppId,
+      category_id: parentCategory.id,
       is_active: 1,
       status: 'active'
     };
@@ -496,6 +628,7 @@ export const getChannelsByCategory = async (req, res) => {
     if (state_id) whereClause.state_id = state_id;
     if (district_id) whereClause.district_id = district_id;
     if (language_id) whereClause.language_id = language_id;
+    if (parent_category_id) whereClause.parent_category_id = parseInt(parent_category_id, 10);
 
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
@@ -619,8 +752,8 @@ export const getChannelDocuments = async (req, res) => {
 
     // Build where clause for MediaChannelDocument (E-Paper/Magazine issues)
     const whereClause = { media_channel_id: channelId, status: 1 };
-    if (year) whereClause.document_year = parseInt(year);
-    if (month) whereClause.document_month = parseInt(month);
+    if (year) whereClause.document_year = parseInt(year, 10);
+    if (month) whereClause.document_month = parseInt(month, 10);
 
     // Get total count for pagination
     const totalCount = await MediaChannelDocument.count({ where: whereClause });
@@ -698,6 +831,29 @@ export const getGalleryImages = async (req, res) => {
 export const getChannelStream = async (req, res) => {
   try {
     const { channelId } = req.params;
+    const { mediaFile } = req.query;
+
+    if (mediaFile) {
+      const resolved = await resolvePlayableMediaUrl(String(mediaFile));
+      if (!resolved) {
+        return res.status(404).json({ success: false, message: 'Media file not found' });
+      }
+      const playbackType = isEmbeddableUrl(resolved) || isEmbeddableUrl(String(mediaFile))
+        ? 'iframe'
+        : /\.(mp3|wav|ogg|m4a|aac)(\?|$)/i.test(String(mediaFile))
+          ? 'audio'
+          : 'video';
+      return res.json({
+        success: true,
+        data: {
+          activeSource: 'schedule',
+          playbackType,
+          streamUrl: resolved,
+          embedUrl: playbackType === 'iframe' ? toEmbedUrl(resolved) || toEmbedUrl(String(mediaFile)) : null,
+          offlineMedia: null
+        }
+      });
+    }
 
     const switcher = await MediaSwitcher.findOne({
       where: { media_channel_id: channelId }
@@ -708,6 +864,8 @@ export const getChannelStream = async (req, res) => {
     }
 
     let streamUrl = null;
+    let embedUrl = null;
+    let playbackType = 'none';
     let offlineMedia = null;
 
     switch (switcher.active_source) {
@@ -720,16 +878,46 @@ export const getChannelStream = async (req, res) => {
       case 'offline':
         if (switcher.offline_media_id) {
           offlineMedia = await MediaOfflineMedia.findByPk(switcher.offline_media_id);
-          streamUrl = offlineMedia?.media_file_url;
+          if (offlineMedia) {
+            const om = offlineMedia.toJSON();
+            const resolvedFile = await resolvePlayableMediaUrl(om.media_file_url || om.media_file_path);
+            om.media_file_url = resolvedFile || om.media_file_url;
+            if (om.thumbnail_path) {
+              om.thumbnail_url = await resolvePlayableMediaUrl(om.thumbnail_url || om.thumbnail_path) || om.thumbnail_url;
+            }
+            offlineMedia = om;
+            streamUrl = om.media_file_url;
+            playbackType = om.media_type === 'audio' ? 'audio' : 'video';
+          }
         }
         break;
+      default:
+        break;
+    }
+
+    if (switcher.active_source === 'live' || switcher.active_source === 'mymedia') {
+      const raw = streamUrl || '';
+      if (isEmbeddableUrl(raw)) {
+        playbackType = 'iframe';
+        embedUrl = toEmbedUrl(raw);
+        streamUrl = embedUrl;
+      } else if (raw) {
+        streamUrl = await resolvePlayableMediaUrl(raw);
+        playbackType = 'video';
+      }
+    }
+
+    if (!streamUrl && !embedUrl) {
+      return res.status(404).json({ success: false, message: 'No playable stream for this channel' });
     }
 
     res.json({
       success: true,
       data: {
         activeSource: switcher.active_source,
+        playbackType,
         streamUrl,
+        embedUrl,
         offlineMedia
       }
     });

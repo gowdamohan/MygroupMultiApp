@@ -8,6 +8,8 @@ interface EPaperMagazineViewProps {
   channelId: number;
   channelName: string;
   channelLogo?: string;
+  filterYear?: number;
+  filterMonth?: number;
   onBack: () => void;
   onViewDetails: () => void;
 }
@@ -37,6 +39,8 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
   channelId,
   channelName,
   channelLogo,
+  filterYear,
+  filterMonth,
   onBack,
   onViewDetails
 }) => {
@@ -75,7 +79,10 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
       if (pageNum === 1) setLoading(true);
       else setLoadingMore(true);
 
-      const response = await axios.get(`${API_BASE_URL}/mymedia/channel/${channelId}/documents?page=${pageNum}&limit=50`);
+      const qs = new URLSearchParams({ page: String(pageNum), limit: '50' });
+      if (filterYear) qs.append('year', String(filterYear));
+      if (filterMonth) qs.append('month', String(filterMonth));
+      const response = await axios.get(`${API_BASE_URL}/mymedia/channel/${channelId}/documents?${qs.toString()}`);
       if (response.data.success) {
         const newDocs = response.data.data.documents || [];
         setDocuments(prev => append ? [...prev, ...newDocs] : newDocs);
@@ -93,11 +100,13 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [channelId, expandedYear]);
+  }, [channelId, expandedYear, filterYear, filterMonth]);
 
   useEffect(() => {
+    setPage(1);
+    setDocuments([]);
     fetchDocuments(1);
-  }, [fetchDocuments]);
+  }, [fetchDocuments, filterYear, filterMonth]);
 
   const loadMore = () => {
     if (!loadingMore && hasMore) {

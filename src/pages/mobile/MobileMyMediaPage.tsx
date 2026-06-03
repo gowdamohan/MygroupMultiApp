@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { ChevronDown, X, Eye, Heart, UserPlus, FileText, Play, MapPin } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -10,6 +10,23 @@ import { ChannelDetailView } from '../../components/mobile/ChannelDetailView';
 import { EPaperMagazineView } from '../../components/mobile/EPaperMagazineView';
 import { TVChannelView } from '../../components/mobile/TVChannelView';
 import { getCategoryIcon, DefaultCategoryIcon } from '../../components/mobile/CategoryIcons';
+import {
+  pickDefaultParentCategory,
+  categoryNameIsDocument,
+  categoryNameIncludesTV,
+  categoryNameIncludesRadio
+} from '../../utils/mediaCategoryUtils';
+import { resolveViewerLocation, type CountryOption } from '../../utils/viewerLocation';
+
+const SLOT_WIDTH_PX = 80;
+const CHANNEL_COL_WIDTH_PX = 96;
+
+const formatDateYMD = (date: Date): string => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
 
 interface AppInfo {
   id: number;
@@ -35,10 +52,7 @@ interface Language {
   lang_2: string;
 }
 
-interface Country {
-  id: number;
-  country: string;
-}
+interface Country extends CountryOption {}
 
 interface State {
   id: number;
@@ -60,12 +74,21 @@ interface Channel {
   category_id: number;
   parent_category_id: number;
   language_id: number;
+  latest_document?: {
+    id: number;
+    title: string;
+    file_url: string;
+    year?: number;
+    month?: number;
+    date?: number;
+  } | null;
 }
 
 interface Schedule {
   id: number;
   title: string;
   media_file: string;
+  media_file_url?: string | null;
   schedule_date: string;
   day_of_week: number;
   slots: {
@@ -75,10 +98,12 @@ interface Schedule {
   }[];
 }
 
-type SelectType = 'International' | 'National' | 'Regional' | 'Local';
+interface TvPlaybackContext {
+  mediaFile?: string | null;
+  mediaFileUrl?: string | null;
+  programTitle?: string;
+}
 
-const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const DAYS_ABBREV = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 // 48 time slots: 24 hours × 30-minute intervals (00:00 … 23:30)
 const TIME_SLOTS = ['00:00', '00:30', '01:00', '01:30', '02:00', '02:30', '03:00', '03:30', '04:00', '04:30', '05:00', '05:30',
   '06:00', '06:30', '07:00', '07:30', '08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
@@ -117,22 +142,28 @@ export const MobileMyMediaPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
 
-  // Filters - same as MediaRegistrationForm
-  const [selectedType, setSelectedType] = useState<SelectType>('National');
+  const [locationReady, setLocationReady] = useState(false);
   const [selectedParentCategory, setSelectedParentCategory] = useState<number | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<number | null>(null);
   // selectedDay: 0=Yesterday, 1=Today, 2=Tomorrow, 3=Day after tomorrow
   const [selectedDay, setSelectedDay] = useState<number>(1);
-  const scheduleDayIndices = useMemo(() => {
-    const today = new Date().getDay();
-    return [
-      (today + 6) % 7,  // Yesterday
-      today,             // Today
-      (today + 1) % 7,   // Tomorrow
-      (today + 2) % 7    // Day after tomorrow
-    ];
+
+  // E-Paper / Magazine list filters (year/month)
+  const [docFilterYear, setDocFilterYear] = useState<number>(new Date().getFullYear());
+  const [docFilterMonth, setDocFilterMonth] = useState<number | ''>('');
+  /** Calendar dates for Yesterday / Today / Tomorrow / Day after tomorrow */
+  const scheduleDates = useMemo(() => {
+    const base = new Date();
+    base.setHours(0, 0, 0, 0);
+    return [-1, 0, 1, 2].map((offset) => {
+      const d = new Date(base);
+      d.setDate(d.getDate() + offset);
+      return formatDateYMD(d);
+    });
   }, []);
+
+  const scheduleScrollRef = useRef<HTMLDivElement>(null);
 
   // Location filters - same pattern as MediaRegistrationForm
   const [countries, setCountries] = useState<Country[]>([]);
@@ -143,7 +174,6 @@ export const MobileMyMediaPage: React.FC = () => {
   const [selectedDistrict, setSelectedDistrict] = useState<string>('');
 
   // Modals
-  const [showTypeDropdown, setShowTypeDropdown] = useState(false);
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
@@ -152,34 +182,23 @@ export const MobileMyMediaPage: React.FC = () => {
   type ViewMode = 'list' | 'channel-detail' | 'epaper-view' | 'tv-player';
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
+  const [tvPlayback, setTvPlayback] = useState<TvPlaybackContext | null>(null);
 
-  // Get current parent category type (TV, Radio, E-Paper, Magazine, etc.)
   const getCurrentParentCategoryName = (): string => {
     const parent = parentCategories.find(p => p.id === selectedParentCategory);
-    return parent?.category_name?.toLowerCase() || '';
+    return parent?.category_name || '';
   };
 
-  // Check if current category is E-Paper or Magazine type
-  const isDocumentCategory = (): boolean => {
-    const name = getCurrentParentCategoryName();
-    return (
-      name.includes('e-paper') ||
-      name.includes('epaper') ||
-      name.includes('e paper') ||
-      name.includes('newspaper') ||
-      name.includes('magazine')
-    );
-  };
+  const isDocumentCategory = (): boolean => categoryNameIsDocument(getCurrentParentCategoryName());
 
-  // Check if current category is TV or Radio type
   const isStreamCategory = (): boolean => {
     const name = getCurrentParentCategoryName();
-    return name.includes('tv') || name.includes('radio');
+    return categoryNameIncludesTV(name) || categoryNameIncludesRadio(name);
   };
 
-  // Handle channel click based on category type
-  const handleChannelClick = (channel: Channel) => {
+  const handleChannelClick = (channel: Channel, playback?: TvPlaybackContext) => {
     setSelectedChannel(channel);
+    setTvPlayback(playback ?? null);
     if (isDocumentCategory()) {
       setViewMode('epaper-view');
     } else if (isStreamCategory()) {
@@ -189,10 +208,27 @@ export const MobileMyMediaPage: React.FC = () => {
     }
   };
 
-  // Handle back from detail views
+  const handleScheduleSlotClick = (
+    e: React.MouseEvent,
+    channel: Channel,
+    schedule: Schedule
+  ) => {
+    e.stopPropagation();
+    if (schedule.media_file || schedule.media_file_url) {
+      handleChannelClick(channel, {
+        mediaFile: schedule.media_file || null,
+        mediaFileUrl: schedule.media_file_url || null,
+        programTitle: schedule.title
+      });
+    } else {
+      handleChannelClick(channel);
+    }
+  };
+
   const handleBackToList = () => {
     setViewMode('list');
     setSelectedChannel(null);
+    setTvPlayback(null);
   };
 
   // Handle view channel details from player/document view
@@ -218,51 +254,96 @@ export const MobileMyMediaPage: React.FC = () => {
     return null;
   };
 
-  // Fetch data on mount - same pattern as MediaRegistrationForm
+  const fetchCountriesList = async (): Promise<Country[]> => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/geo/countries`);
+      if (response.data.success) {
+        const countriesData: Country[] = response.data.data;
+        setCountries(countriesData);
+        return countriesData;
+      }
+    } catch (error) {
+      console.error('Error fetching countries:', error);
+    }
+    return [];
+  };
+
+  /** set_* preferred; else registration country/state/district; nationality → country id */
+  const applyViewerLocation = async (countriesList: Country[]): Promise<boolean> => {
+    try {
+      let profileData: Record<string, unknown> | null = null;
+      const stored = localStorage.getItem('user');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          profileData = (parsed.profile || parsed) as Record<string, unknown>;
+        } catch {
+          profileData = null;
+        }
+      }
+
+      const token = localStorage.getItem('accessToken');
+      if (!profileData && token) {
+        const { authAPI } = await import('../../services/api');
+        const res = await authAPI.getProfile();
+        if (res.data?.success) {
+          profileData = (res.data.data?.profile || res.data.data) as Record<string, unknown>;
+        }
+      }
+
+      const resolved = resolveViewerLocation(profileData, countriesList);
+      if (resolved?.countryId) {
+        setSelectedCountry(String(resolved.countryId));
+        await fetchStates(resolved.countryId);
+        if (resolved.stateId) {
+          setSelectedState(String(resolved.stateId));
+          await fetchDistricts(resolved.stateId);
+          if (resolved.districtId) {
+            setSelectedDistrict(String(resolved.districtId));
+          } else {
+            setSelectedDistrict('');
+          }
+        } else {
+          setSelectedState('');
+          setSelectedDistrict('');
+        }
+        return true;
+      }
+    } catch (error) {
+      console.error('Error applying viewer location:', error);
+    }
+    return false;
+  };
+
   useEffect(() => {
     const initializeData = async () => {
-      // Use appName from URL if available, otherwise default to 'mymedia'
+      setLocationReady(false);
       const appId = await fetchAppInfo(appName || 'mymedia');
+      const countriesList = await fetchCountriesList();
+      const fromProfile = await applyViewerLocation(countriesList);
+      if (!fromProfile && countriesList.length > 0) {
+        setSelectedCountry(countriesList[0].id.toString());
+        await fetchStates(countriesList[0].id);
+      }
+      setLocationReady(true);
       if (appId) {
         fetchCategories(appId);
       } else {
         fetchCategories();
       }
       fetchLanguages();
-      fetchCountriesAndSetDefault();
     };
     initializeData();
   }, [appName]);
 
-  // Fetch countries and set default country
-  const fetchCountriesAndSetDefault = async () => {
-    try {
-      const response = await axios.get(`${API_BASE_URL}/geo/countries`);
-      if (response.data.success) {
-        const countriesData = response.data.data;
-        setCountries(countriesData);
-        // Set first country as default if available
-        if (countriesData.length > 0) {
-          setSelectedCountry(countriesData[0].id.toString());
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching countries:', error);
-    }
-  };
-
-  // Fetch states based on select type and selected country
   useEffect(() => {
-    if (selectedType === 'International') {
+    if (selectedCountry) {
+      fetchStates(parseInt(selectedCountry, 10));
+    } else {
       setStates([]);
       setSelectedState('');
-      setDistricts([]);
-      setSelectedDistrict('');
-    } else if (selectedCountry) {
-      // For National, Regional, Local - use selectedCountry
-      fetchStates(parseInt(selectedCountry));
     }
-  }, [selectedType, selectedCountry]);
+  }, [selectedCountry]);
 
   // Fetch districts when state changes
   useEffect(() => {
@@ -273,19 +354,22 @@ export const MobileMyMediaPage: React.FC = () => {
     }
   }, [selectedState]);
 
-  // Fetch channels when filters change
   useEffect(() => {
-    if (selectedParentCategory) {
+    if (selectedParentCategory && locationReady && selectedCountry) {
       fetchChannels();
     }
-  }, [selectedType, selectedCountry, selectedState, selectedDistrict, selectedParentCategory, selectedCategory, selectedLanguage]);
-
-  // Fetch schedules when channels or day changes (day = 0-6 for API)
-  useEffect(() => {
-    if (channels.length > 0) {
-      fetchAllSchedules();
-    }
-  }, [channels, selectedDay]);
+  }, [
+    selectedCountry,
+    selectedState,
+    selectedDistrict,
+    selectedParentCategory,
+    selectedCategory,
+    selectedLanguage,
+    docFilterYear,
+    docFilterMonth,
+    appInfo?.id,
+    locationReady
+  ]);
 
   // Fetch categories - API returns parent categories with children
   const fetchCategories = async (appId?: number) => {
@@ -299,14 +383,12 @@ export const MobileMyMediaPage: React.FC = () => {
         // Limit to 6 parent categories for footer
         const parents = allParentCategories.slice(0, 6);
         setParentCategories(parents);
-        // Set first parent category as default and populate subcategories
-        if (parents.length > 0) {
-          setSelectedParentCategory(parents[0].id);
-          // Set subcategories from first parent's children
-          const firstParent = parents[0];
-          if (firstParent.children && firstParent.children.length > 0) {
-            setSubCategories(firstParent.children);
-            setSelectedCategory(null); // Default to "All" subcategories
+        const defaultParent = pickDefaultParentCategory(parents);
+        if (defaultParent) {
+          setSelectedParentCategory(defaultParent.id);
+          if (defaultParent.children && defaultParent.children.length > 0) {
+            setSubCategories(defaultParent.children);
+            setSelectedCategory(null);
           } else {
             setSubCategories([]);
             setSelectedCategory(null);
@@ -375,15 +457,20 @@ export const MobileMyMediaPage: React.FC = () => {
   const fetchChannels = async () => {
     try {
       const params = new URLSearchParams();
-      params.append('type', selectedType);
+      if (appInfo?.id) params.append('appId', String(appInfo.id));
+      else if (appName) params.append('appName', appName);
       if (selectedCountry) params.append('country_id', selectedCountry);
       if (selectedState) params.append('state_id', selectedState);
       if (selectedDistrict) params.append('district_id', selectedDistrict);
-      // category_id = parent category from footer (media_channel.category_id stores parent)
       if (selectedParentCategory) params.append('category_id', selectedParentCategory.toString());
-      // parent_category_id = subcategory from dropdown (media_channel.parent_category_id stores subcategory)
       if (selectedCategory) params.append('parent_category_id', selectedCategory.toString());
       if (selectedLanguage) params.append('language_id', selectedLanguage.toString());
+
+      if (isDocumentCategory()) {
+        params.append('include_latest_document', '1');
+        params.append('year', String(docFilterYear));
+        if (docFilterMonth !== '') params.append('month', String(docFilterMonth));
+      }
 
       const url = `${API_BASE_URL}/mymedia/channels?${params.toString()}`;
       const response = await axios.get(url);
@@ -403,43 +490,57 @@ export const MobileMyMediaPage: React.FC = () => {
     }
   };
 
-  /** Monday of the week containing the given date (local time), as YYYY-MM-DD for API weekStart */
-  const getWeekStartString = (date: Date): string => {
-    const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-    const day = d.getDay();
-    const mondayOffset = day === 0 ? -6 : 1 - day;
-    d.setDate(d.getDate() + mondayOffset);
-    const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), dayNum = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${dayNum}`;
-  };
-
-  const fetchAllSchedules = async () => {
-    const dayParam = scheduleDayIndices[selectedDay];
-    const weekStartStr = getWeekStartString(new Date());
+  const fetchAllSchedules = useCallback(async () => {
+    const scheduleDate = scheduleDates[selectedDay];
     const schedulePromises = channels.map(async (channel) => {
       try {
-        const response = await axios.get(`${API_BASE_URL}/mymedia/schedules/${channel.id}?day=${dayParam}&weekStart=${weekStartStr}`);
+        const response = await axios.get(
+          `${API_BASE_URL}/mymedia/schedules/${channel.id}?scheduleDate=${scheduleDate}`
+        );
         if (response.data.success) {
-          return { channelId: channel.id, schedules: response.data.data.schedules };
+          return { channelId: channel.id, schedules: response.data.data.schedules as Schedule[] };
         }
       } catch (error) {
         console.error(`Error fetching schedules for channel ${channel.id}:`, error);
       }
-      return { channelId: channel.id, schedules: [] };
+      return { channelId: channel.id, schedules: [] as Schedule[] };
     });
 
     const results = await Promise.all(schedulePromises);
     const schedulesMap: { [channelId: number]: Schedule[] } = {};
-    results.forEach(result => {
+    results.forEach((result) => {
       schedulesMap[result.channelId] = result.schedules;
     });
     setChannelSchedules(schedulesMap);
-  };
+  }, [channels, selectedDay, scheduleDates]);
 
-  const getScheduleForTimeSlot = (channelId: number, timeSlot: string): Schedule | null => {
-    const result = getScheduleAndSlotForTimeSlot(channelId, timeSlot);
-    return result ? result.schedule : null;
-  };
+  const scrollScheduleToCurrentTime = useCallback(() => {
+    const el = scheduleScrollRef.current;
+    if (!el) return;
+    const now = new Date();
+    const currentSlot = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes() < 30 ? '00' : '30'}`;
+    const currentSlotIndex = TIME_SLOTS.indexOf(currentSlot);
+    if (currentSlotIndex < 0) return;
+    el.scrollLeft = currentSlotIndex * SLOT_WIDTH_PX;
+  }, []);
+
+  useEffect(() => {
+    const el = scheduleScrollRef.current;
+    if (!el) return;
+    if (selectedDay === 1) {
+      scrollScheduleToCurrentTime();
+    } else {
+      el.scrollLeft = 0;
+    }
+  }, [selectedDay, channels.length, channelSchedules, scrollScheduleToCurrentTime]);
+
+  useEffect(() => {
+    if (channels.length > 0 && isStreamCategory()) {
+      fetchAllSchedules();
+    } else {
+      setChannelSchedules({});
+    }
+  }, [channels, selectedDay, selectedParentCategory, fetchAllSchedules]);
 
   /** Returns schedule and matching slot for title + time range display; maps media_schedules_slot start/end to cells. */
   const getScheduleAndSlotForTimeSlot = (
@@ -475,20 +576,12 @@ export const MobileMyMediaPage: React.FC = () => {
   };
 
   const getLocationLabel = () => {
-    if (selectedType === 'International') return 'World';
-    if (selectedType === 'National') {
-      const country = countries.find(c => c.id.toString() === selectedCountry);
-      return country?.country || 'Select Country';
-    }
-    if (selectedType === 'Regional') {
-      const state = states.find(s => s.id.toString() === selectedState);
-      return state?.state || 'Select State';
-    }
-    if (selectedType === 'Local') {
-      const district = districts.find(d => d.id.toString() === selectedDistrict);
-      return district?.district || 'Select District';
-    }
-    return 'Location';
+    const district = districts.find((d) => d.id.toString() === selectedDistrict);
+    if (district) return district.district;
+    const state = states.find((s) => s.id.toString() === selectedState);
+    if (state) return state.state;
+    const country = countries.find((c) => c.id.toString() === selectedCountry);
+    return country?.country || 'Location';
   };
 
   // Render category icon from category_image or use SVG based on category name
@@ -550,6 +643,8 @@ export const MobileMyMediaPage: React.FC = () => {
         channelId={selectedChannel.id}
         channelName={selectedChannel.media_name_english}
         channelLogo={selectedChannel.media_logo_url || selectedChannel.media_logo}
+        filterYear={docFilterYear}
+        filterMonth={docFilterMonth === '' ? undefined : docFilterMonth}
         onBack={handleBackToList}
         onViewDetails={handleViewChannelDetails}
       />
@@ -563,6 +658,10 @@ export const MobileMyMediaPage: React.FC = () => {
         channelId={selectedChannel.id}
         channelName={selectedChannel.media_name_english}
         channelLogo={selectedChannel.media_logo_url || selectedChannel.media_logo}
+        isRadio={categoryNameIncludesRadio(getCurrentParentCategoryName())}
+        scheduleMediaFile={tvPlayback?.mediaFile}
+        scheduleMediaUrl={tvPlayback?.mediaFileUrl}
+        programTitle={tvPlayback?.programTitle}
         onBack={handleBackToList}
         onViewDetails={handleViewChannelDetails}
       />
@@ -588,31 +687,55 @@ export const MobileMyMediaPage: React.FC = () => {
         {/* Filter Row - Updated design with white background and rounded buttons */}
         <div className="sticky z-30 bg-white shadow-sm px-3 py-3 border-b border-gray-200" style={{ top: headerHeight }}>
           <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+            {/* Location */}
+            <button
+              onClick={() => setShowLocationModal(true)}
+              className="flex items-center gap-1.5 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap hover:bg-gray-50 transition-colors shadow-sm max-w-[140px]"
+            >
+              <span className="truncate">{getLocationLabel()}</span>
+              <ChevronDown size={16} className="flex-shrink-0" />
+            </button>
+
             {/* Category Dropdown */}
             <button
               onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
               className="flex items-center gap-1.5 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap hover:bg-gray-50 transition-colors shadow-sm"
             >
-              Category <ChevronDown size={16} />
+              {getSelectedCategoryName()} <ChevronDown size={16} />
             </button>
-
-            {/* Location Button - show based on type */}
-            {selectedType !== 'International' && (
-              <button
-                onClick={() => setShowLocationModal(true)}
-                className="flex items-center gap-1.5 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap hover:bg-gray-50 transition-colors shadow-sm"
-              >
-                Location <ChevronDown size={16} />
-              </button>
-            )}
 
             {/* Language Dropdown */}
             <button
               onClick={() => setShowLanguageDropdown(!showLanguageDropdown)}
               className="flex items-center gap-1.5 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap hover:bg-gray-50 transition-colors shadow-sm"
             >
-              Languages <ChevronDown size={16} />
+              {getSelectedLanguageName()} <ChevronDown size={16} />
             </button>
+
+            {/* Year / month for E-Paper & Magazine */}
+            {isDocumentCategory() && (
+              <>
+                <select
+                  value={docFilterYear}
+                  onChange={(e) => setDocFilterYear(parseInt(e.target.value, 10))}
+                  className="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium shadow-sm"
+                >
+                  {Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - i).map((y) => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+                <select
+                  value={docFilterMonth}
+                  onChange={(e) => setDocFilterMonth(e.target.value === '' ? '' : parseInt(e.target.value, 10))}
+                  className="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium shadow-sm"
+                >
+                  <option value="">All months</option>
+                  {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((m, i) => (
+                    <option key={m} value={i + 1}>{m}</option>
+                  ))}
+                </select>
+              </>
+            )}
           </div>
         </div>
 
@@ -673,6 +796,11 @@ export const MobileMyMediaPage: React.FC = () => {
                 {/* Channel Info */}
                 <div className="p-3 bg-white">
                   <h3 className="font-semibold text-gray-900 text-sm truncate">{channel.media_name_english}</h3>
+                  {channel.latest_document?.title && (
+                    <p className="text-xs text-teal-700 truncate mt-0.5 font-medium">
+                      {channel.latest_document.title}
+                    </p>
+                  )}
                   {channel.media_name_regional && (
                     <p className="text-xs text-gray-600 truncate mt-0.5">{channel.media_name_regional}</p>
                   )}
@@ -687,35 +815,38 @@ export const MobileMyMediaPage: React.FC = () => {
             const currentSlot = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes() < 30 ? '00' : '30'}`;
             const currentSlotIndex = TIME_SLOTS.indexOf(currentSlot);
             const showNowMarker = selectedDay === 1 && currentSlotIndex >= 0;
-            const slotWidthPx = 80;
-            const channelColWidthPx = 96;
-            const nowLineLeft = channelColWidthPx + currentSlotIndex * slotWidthPx;
+            const nowLineLeft = CHANNEL_COL_WIDTH_PX + currentSlotIndex * SLOT_WIDTH_PX;
 
             return (
-              <div className="bg-white overflow-x-auto relative shadow-inner">
-                {/* Time Headers - all 48 slots in 12h format - Updated styling */}
-                <div className="flex border-b sticky top-0 bg-gradient-to-b from-gray-50 to-gray-100 z-10 min-w-max shadow-sm">
-                  <div className="w-24 flex-shrink-0 p-3 font-bold text-gray-800 border-r bg-white">
+              <div
+                ref={scheduleScrollRef}
+                className="bg-white overflow-x-auto relative shadow-inner"
+              >
+                <div className="min-w-max relative">
+                <div className="flex border-b sticky top-0 bg-gradient-to-b from-gray-50 to-gray-100 z-10 shadow-sm">
+                  <div
+                    className="sticky left-0 z-20 flex-shrink-0 p-3 font-bold text-gray-800 border-r bg-white shadow-[2px_0_4px_rgba(0,0,0,0.06)]"
+                    style={{ width: CHANNEL_COL_WIDTH_PX, minWidth: CHANNEL_COL_WIDTH_PX }}
+                  >
                     CHANNELS
                   </div>
                   {TIME_SLOTS.map((time) => (
-                    <div key={time} className="flex-shrink-0 p-2 text-center text-xs font-semibold text-gray-700 border-r" style={{ minWidth: slotWidthPx }}>
+                    <div key={time} className="flex-shrink-0 p-2 text-center text-xs font-semibold text-gray-700 border-r" style={{ minWidth: SLOT_WIDTH_PX }}>
                       {formatTime12h(time)}
                     </div>
                   ))}
                 </div>
 
-                {/* Current time "NOW" arrow/line – only when Today is selected; shows which slot is "channel now running" */}
                 {showNowMarker && (
                   <>
                     <div
-                      className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-20 pointer-events-none"
-                      style={{ left: nowLineLeft + slotWidthPx / 2 - 1 }}
+                      className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-[15] pointer-events-none"
+                      style={{ left: nowLineLeft + SLOT_WIDTH_PX / 2 - 1 }}
                       aria-hidden
                     />
                     <div
-                      className="absolute z-30 pointer-events-none flex flex-col items-center"
-                      style={{ left: nowLineLeft + slotWidthPx / 2 - 20, top: 4 }}
+                      className="absolute z-[25] pointer-events-none flex flex-col items-center"
+                      style={{ left: nowLineLeft + SLOT_WIDTH_PX / 2 - 20, top: 4 }}
                     >
                       <MapPin size={20} className="text-red-500 drop-shadow" fill="#ef4444" stroke="#b91c1c" />
                       <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow mt-0.5">
@@ -725,10 +856,12 @@ export const MobileMyMediaPage: React.FC = () => {
                   </>
                 )}
 
-                {/* Channel Rows - each cell shows media_schedules.title + time range - Updated styling */}
                 {channels.map((channel) => (
-                  <div key={channel.id} className="flex border-b border-gray-200 cursor-pointer hover:bg-pink-50/30 min-w-max transition-colors" onClick={() => handleChannelClick(channel)}>
-                    <div className="w-24 flex-shrink-0 p-2 border-r border-gray-200 bg-white flex items-center justify-center relative group">
+                  <div key={channel.id} className="flex border-b border-gray-200 cursor-pointer hover:bg-pink-50/30 transition-colors" onClick={() => handleChannelClick(channel)}>
+                    <div
+                      className="sticky left-0 z-10 flex-shrink-0 p-2 border-r border-gray-200 bg-white flex items-center justify-center relative group shadow-[2px_0_4px_rgba(0,0,0,0.06)]"
+                      style={{ width: CHANNEL_COL_WIDTH_PX, minWidth: CHANNEL_COL_WIDTH_PX }}
+                    >
                       {(channel.media_logo_url || channel.media_logo) ? (
                         <img
                           src={channel.media_logo_url || (channel.media_logo?.startsWith('http') ? channel.media_logo : `${BACKEND_URL}${channel.media_logo}`)}
@@ -748,9 +881,14 @@ export const MobileMyMediaPage: React.FC = () => {
                       const result = getScheduleAndSlotForTimeSlot(channel.id, time);
                       const isCurrentSlot = selectedDay === 1 && time === currentSlot;
                       return (
-                        <div key={time} className={`flex-shrink-0 p-1.5 border-r border-gray-200 text-xs ${isCurrentSlot ? 'bg-red-50' : ''}`} style={{ minWidth: slotWidthPx }}>
+                        <div
+                          key={time}
+                          className={`flex-shrink-0 p-1.5 border-r border-gray-200 text-xs ${isCurrentSlot ? 'bg-red-50' : ''}`}
+                          style={{ minWidth: SLOT_WIDTH_PX }}
+                          onClick={(e) => result && handleScheduleSlotClick(e, channel, result.schedule)}
+                        >
                           {result ? (
-                            <div className={`p-1.5 rounded min-w-0 ${isCurrentSlot ? 'bg-red-100 border border-red-300' : 'bg-pink-50 border border-pink-200'}`}>
+                            <div className={`p-1.5 rounded min-w-0 cursor-pointer hover:ring-2 hover:ring-teal-400 ${isCurrentSlot ? 'bg-red-100 border border-red-300' : 'bg-pink-50 border border-pink-200'}`}>
                               <div className="font-semibold break-words leading-tight text-gray-800" title={result.schedule.title}>
                                 {result.schedule.title}
                               </div>
@@ -773,6 +911,7 @@ export const MobileMyMediaPage: React.FC = () => {
                     })}
                   </div>
                 ))}
+                </div>
               </div>
             );
           })()
@@ -810,46 +949,6 @@ export const MobileMyMediaPage: React.FC = () => {
             ))}
           </div>
         )}
-
-      {/* Type Dropdown Modal - Updated design */}
-      <AnimatePresence>
-        {showTypeDropdown && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-            onClick={() => setShowTypeDropdown(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h3 className="font-bold text-lg mb-4 text-gray-900">Select Type</h3>
-              {(['International', 'National', 'Regional', 'Local'] as SelectType[]).map((type) => (
-                <button
-                  key={type}
-                  onClick={() => {
-                    setSelectedType(type);
-                    setShowTypeDropdown(false);
-                    if (type !== 'International') {
-                      setShowLocationModal(true);
-                    }
-                  }}
-                  className={`w-full text-left px-4 py-3 rounded-xl mb-2 font-medium transition-all ${
-                    selectedType === type ? 'bg-red-500 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  {type}
-                </button>
-              ))}
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* Category Dropdown Modal - Updated design */}
       <AnimatePresence>
@@ -982,33 +1081,36 @@ export const MobileMyMediaPage: React.FC = () => {
                 </button>
               </div>
 
-              {/* Country Selection */}
-              {(selectedType === 'National' || selectedType === 'Regional' || selectedType === 'Local') && (
-                <div className="mb-5">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Country</label>
-                  <select
-                    value={selectedCountry}
-                    onChange={(e) => setSelectedCountry(e.target.value)}
-                    className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-red-500 focus:outline-none transition-colors"
-                  >
-                    <option value="">Select Country</option>
-                    {countries.map((country) => (
-                      <option key={country.id} value={country.id}>{country.country}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
+              <div className="mb-5">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Country</label>
+                <select
+                  value={selectedCountry}
+                  onChange={(e) => {
+                    setSelectedCountry(e.target.value);
+                    setSelectedState('');
+                    setSelectedDistrict('');
+                  }}
+                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-red-500 focus:outline-none transition-colors"
+                >
+                  <option value="">Select Country</option>
+                  {countries.map((country) => (
+                    <option key={country.id} value={country.id}>{country.country}</option>
+                  ))}
+                </select>
+              </div>
 
-              {/* State Selection */}
-              {(selectedType === 'Regional' || selectedType === 'Local') && selectedCountry && (
+              {selectedCountry && (
                 <div className="mb-5">
                   <label className="block text-sm font-semibold text-gray-700 mb-2">State</label>
                   <select
                     value={selectedState}
-                    onChange={(e) => setSelectedState(e.target.value)}
+                    onChange={(e) => {
+                      setSelectedState(e.target.value);
+                      setSelectedDistrict('');
+                    }}
                     className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-red-500 focus:outline-none transition-colors"
                   >
-                    <option value="">Select State</option>
+                    <option value="">All states</option>
                     {states.map((state) => (
                       <option key={state.id} value={state.id}>{state.state}</option>
                     ))}
@@ -1016,8 +1118,7 @@ export const MobileMyMediaPage: React.FC = () => {
                 </div>
               )}
 
-              {/* District Selection */}
-              {selectedType === 'Local' && selectedState && (
+              {selectedState && (
                 <div className="mb-5">
                   <label className="block text-sm font-semibold text-gray-700 mb-2">District</label>
                   <select
@@ -1025,7 +1126,7 @@ export const MobileMyMediaPage: React.FC = () => {
                     onChange={(e) => setSelectedDistrict(e.target.value)}
                     className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-red-500 focus:outline-none transition-colors"
                   >
-                    <option value="">Select District</option>
+                    <option value="">All districts</option>
                     {districts.map((district) => (
                       <option key={district.id} value={district.id}>{district.district}</option>
                     ))}
