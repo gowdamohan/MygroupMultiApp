@@ -134,7 +134,7 @@ export const ProfilePhotoCropModal: React.FC<ProfilePhotoCropModalProps> = ({
               <button
                 type="button"
                 onClick={handleApplyCrop}
-                disabled={processing || !croppedAreaPixels}
+                disabled={processing}
                 className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 disabled:opacity-50"
               >
                 <Check size={16} />

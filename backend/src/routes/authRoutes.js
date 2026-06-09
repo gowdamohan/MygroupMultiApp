@@ -1,4 +1,6 @@
 import express from 'express';
+import multer from 'multer';
+import path from 'path';
 import { body } from 'express-validator';
 import {
   register,
@@ -10,13 +12,28 @@ import {
   clientLogin,
   partnerLogin,
   reporterLogin,
-  updateUserLocation
+  updateUserLocation,
+  updateUserSettings,
+  uploadProfilePhoto
 } from '../controllers/authController.js';
 import { forgotPassword, resetPassword, changePassword } from '../controllers/passwordController.js';
 import { getActiveSessions, revokeSession, revokeAllSessions, updateProfile, logout } from '../controllers/sessionController.js';
 import { sendPartnerOtp, verifyPartnerOtp, registerPartner, setPartnerPassword, createPartnerAccount, completePartnerProfile, sendPartnerForgotPasswordOtp, verifyPartnerForgotPasswordOtp, resetPartnerPassword } from '../controllers/partnerController.js';
 import { authenticate } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
+
+const profilePhotoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = /jpeg|jpg|png|gif|webp/;
+    if (allowed.test(file.mimetype) || allowed.test(path.extname(file.originalname).toLowerCase())) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'));
+    }
+  }
+});
 
 const router = express.Router();
 
@@ -532,6 +549,25 @@ router.put(
   ],
   validate,
   updateUserLocation
+);
+
+/**
+ * @route   PUT /api/v1/auth/settings
+ * @desc    Update user preferences (security PIN, language, currency)
+ * @access  Private
+ */
+router.put('/settings', authenticate, updateUserSettings);
+
+/**
+ * @route   PUT /api/v1/auth/profile-photo
+ * @desc    Upload / replace profile photo (multipart, field: profile_img)
+ * @access  Private
+ */
+router.put(
+  '/profile-photo',
+  authenticate,
+  profilePhotoUpload.single('profile_img'),
+  uploadProfilePhoto
 );
 
 export default router;

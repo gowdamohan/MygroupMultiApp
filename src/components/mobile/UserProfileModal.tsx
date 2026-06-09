@@ -3,11 +3,12 @@ import { Link } from 'react-router-dom';
 import {
   X, Camera, Home, MapPin, Settings, FileText, HelpCircle, Share2, Download,
   Phone, Star, LogOut, ChevronRight, ChevronDown, Lock, Globe, DollarSign,
-  Key, MessageCircle, Mail, Users, Building2, Map
+  Key, MessageCircle, Mail, Users, Building2, Map, Eye, EyeOff, ArrowLeft
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { API_BASE_URL, BACKEND_URL, getUploadUrl } from '../../config/api.config';
+import { authAPI } from '../../services/api';
 import { ProfilePhotoCropModal } from './ProfilePhotoCropModal';
 
 // Interfaces
@@ -68,6 +69,24 @@ interface DownloadApp {
   appStoreUrl?: string;
 }
 
+interface Language {
+  id: number;
+  lang_1: string;
+  lang_2?: string;
+}
+
+interface CurrencyOption {
+  code: string;
+  name: string;
+  country: string;
+}
+
+interface LocationDisplay {
+  country?: string;
+  state?: string;
+  district?: string;
+}
+
 interface UserProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -81,6 +100,7 @@ interface UserProfileModalProps {
 
 type ProfileTab = 'profile' | 'address' | 'billing';
 type ExpandedSection = 'settings' | 'legal' | 'help' | 'contact' | 'reviews' | null;
+type SettingsSubView = 'security' | 'language' | 'currency' | 'password' | null;
 
 export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   isOpen,
@@ -105,11 +125,39 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [localProfileImg, setLocalProfileImg] = useState<string | null>(null);
   const [showCropModal, setShowCropModal] = useState(false);
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const profileFileInputRef = useRef<HTMLInputElement>(null);
   
   // Location modal state
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [locationData, setLocationData] = useState({ country: '', state: '', district: '' });
+  const [locationStates, setLocationStates] = useState<State[]>([]);
+  const [locationDistricts, setLocationDistricts] = useState<District[]>([]);
+  const [locationSaving, setLocationSaving] = useState(false);
+  const [userLocationDisplay, setUserLocationDisplay] = useState<LocationDisplay | null>(null);
+  const [settingsSubView, setSettingsSubView] = useState<SettingsSubView>(null);
+
+  // Settings state
+  const [languages, setLanguages] = useState<Language[]>([]);
+  const [selectedLanguageId, setSelectedLanguageId] = useState<number | null>(null);
+  const [currencyOptions, setCurrencyOptions] = useState<CurrencyOption[]>([]);
+  const [selectedCurrency, setSelectedCurrency] = useState<string | null>(null);
+  const [securityPin, setSecurityPin] = useState('');
+  const [confirmSecurityPin, setConfirmSecurityPin] = useState('');
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [showPasswordFields, setShowPasswordFields] = useState({
+    current: false,
+    new: false,
+    confirm: false
+  });
+  const [passwordMessage, setPasswordMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const tabContentRef = useRef<HTMLDivElement>(null);
   
   // Dropdown data
   const [countries, setCountries] = useState<Country[]>([]);
@@ -146,15 +194,48 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   // Fetch initial data
   useEffect(() => {
     if (isOpen && isLoggedIn) {
-      // Reset whenever opened so nothing is auto-displayed.
       setActiveTab(null);
+      setExpandedSection(null);
+      setSettingsSubView(null);
+      setShowLocationModal(false);
+      setShowCropModal(false);
+      setCropImageSrc(null);
       fetchFormFields();
       fetchUserRegistrationData();
       fetchSocialLinks();
       fetchUserStats();
       fetchDownloadApps();
+      fetchLanguages();
+      fetchCurrencyOptions();
     }
   }, [isOpen, isLoggedIn]);
+
+  useEffect(() => {
+    if (showLocationModal) {
+      const countryId = registrationData.set_country
+        ? String(registrationData.set_country)
+        : '';
+      const stateId = registrationData.set_state
+        ? String(registrationData.set_state)
+        : '';
+      const districtId = registrationData.set_district
+        ? String(registrationData.set_district)
+        : '';
+
+      setLocationData({ country: countryId, state: stateId, district: districtId });
+
+      if (countryId) {
+        fetchLocationStates(parseInt(countryId, 10)).then(() => {
+          if (stateId) {
+            fetchLocationDistricts(parseInt(stateId, 10));
+          }
+        });
+      } else {
+        setLocationStates([]);
+        setLocationDistricts([]);
+      }
+    }
+  }, [showLocationModal, registrationData.set_country, registrationData.set_state, registrationData.set_district]);
 
   // Initialize profile form data and server-side profile image
   useEffect(() => {
@@ -163,8 +244,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         first_name: userProfile.first_name || '',
         last_name: userProfile.last_name || '',
         display_name: userProfile.display_name || '',
-        email: userProfile.email || '',
-        alter_number: userProfile.alter_number || ''
+        email: userProfile.email || ''
       });
       setLocalProfileImg(userProfile.profile_img || null);
     }
@@ -210,25 +290,107 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     }
   };
 
-  // Fetch user registration data
+  // Fetch user registration data from auth profile
   const fetchUserRegistrationData = async () => {
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await axios.get(`${API_BASE_URL}/member/registration-data`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await authAPI.getProfile();
       if (response.data.success) {
-        setRegistrationData(response.data.data || {});
-        // Fetch states if country is set
-        if (response.data.data?.country) {
-          fetchStates(response.data.data.country);
+        const userData = response.data.data;
+        const profile = userData.profile || {};
+        setRegistrationData({
+          gender: profile.gender,
+          nationality: profile.nationality,
+          marital_status: profile.marital_status,
+          dob_date: profile.dob_date,
+          dob_month: profile.dob_month,
+          dob_year: profile.dob_year,
+          country: profile.country,
+          state: profile.state,
+          district: profile.district,
+          education: profile.education,
+          profession: profile.profession,
+          set_country: profile.set_country,
+          set_state: profile.set_state,
+          set_district: profile.set_district
+        });
+
+        if (profile.setCountryData || profile.setStateData || profile.setDistrictData) {
+          setUserLocationDisplay({
+            country: profile.setCountryData?.country,
+            state: profile.setStateData?.state,
+            district: profile.setDistrictData?.district
+          });
         }
-        if (response.data.data?.state) {
-          fetchDistricts(response.data.data.state);
-        }
+
+        const prefs = profile.preferences || {};
+        if (prefs.language_id) setSelectedLanguageId(prefs.language_id);
+        if (prefs.currency) setSelectedCurrency(prefs.currency);
+
+        if (profile.country) fetchStates(profile.country);
+        if (profile.state) fetchDistricts(profile.state);
       }
     } catch (error) {
       console.error('Error fetching registration data:', error);
+    }
+  };
+
+  const fetchLanguages = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/mymedia/languages`);
+      if (response.data.success) {
+        setLanguages(response.data.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching languages:', error);
+    }
+  };
+
+  const fetchCurrencyOptions = async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const response = await axios.get(`${API_BASE_URL}/admin/countries`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.success) {
+        const seen = new Set<string>();
+        const options: CurrencyOption[] = [];
+        (response.data.data || []).forEach((c: { country: string; currency?: string; currency_name?: string }) => {
+          if (!c.currency || seen.has(c.currency)) return;
+          seen.add(c.currency);
+          options.push({
+            code: c.currency,
+            name: c.currency_name || c.currency,
+            country: c.country
+          });
+        });
+        setCurrencyOptions(options.sort((a, b) => a.code.localeCompare(b.code)));
+      }
+    } catch (error) {
+      console.error('Error fetching currencies:', error);
+    }
+  };
+
+  const fetchLocationStates = async (countryId: number) => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/geo/states/${countryId}`);
+      if (response.data.success) {
+        setLocationStates(response.data.data || []);
+      }
+      return response.data.data || [];
+    } catch (error) {
+      console.error('Error fetching location states:', error);
+      return [];
+    }
+  };
+
+  const fetchLocationDistricts = async (stateId: number) => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/geo/districts/${stateId}`);
+      if (response.data.success) {
+        setLocationDistricts(response.data.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching location districts:', error);
     }
   };
 
@@ -315,11 +477,30 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     }
   };
 
-  const applyProfilePhoto = (file: File, previewUrl: string) => {
+  const uploadProfilePhotoToServer = async (file: File, previewUrl: string) => {
+    // Show local preview immediately while uploading
     setProfileImage(file);
     setProfileImagePreview(previewUrl);
-    setShowCropModal(false);
-    setCropImageSrc(null);
+
+    setUploadingPhoto(true);
+    try {
+      const formData = new FormData();
+      formData.append('profile_img', file, file.name);
+      const response = await authAPI.uploadProfilePhoto(formData);
+
+      if (response.data.success) {
+        const newKey = response.data.data.profile_img as string;
+        setLocalProfileImg(newKey);
+        setProfileImage(null);
+        setProfileImagePreview(null);
+        onProfileUpdate?.({ profile_img: newKey });
+      }
+    } catch (error) {
+      console.error('Auto profile photo upload failed:', error);
+      // Keep profileImage set so user can retry by clicking "Update Profile"
+    } finally {
+      setUploadingPhoto(false);
+    }
   };
 
   // Open crop editor after file selection
@@ -349,11 +530,15 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   };
 
   const handleCropConfirm = (file: File, previewUrl: string) => {
-    applyProfilePhoto(file, previewUrl);
+    setShowCropModal(false);
+    setCropImageSrc(null);
+    uploadProfilePhotoToServer(file, previewUrl);
   };
 
   const handleUseOriginalPhoto = (file: File, previewUrl: string) => {
-    applyProfilePhoto(file, previewUrl);
+    setShowCropModal(false);
+    setCropImageSrc(null);
+    uploadProfilePhotoToServer(file, previewUrl);
   };
 
   const closeCropModal = () => {
@@ -375,6 +560,17 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       formData.append('user_id', String(userProfile.id));
       Object.entries(profileFormData).forEach(([key, value]) => {
         if (value != null && value !== '' && key !== 'id') formData.append(key, value as string);
+      });
+
+      const registrationFields: (keyof UserRegistrationData)[] = [
+        'gender', 'nationality', 'marital_status', 'dob_date', 'dob_month', 'dob_year',
+        'country', 'state', 'district', 'education', 'profession'
+      ];
+      registrationFields.forEach((key) => {
+        const value = registrationData[key];
+        if (value != null && value !== '') {
+          formData.append(key, String(value));
+        }
       });
 
       if (profileImage) {
@@ -413,30 +609,195 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     }
   };
 
+  const handleTabSelect = (tab: ProfileTab) => {
+    setActiveTab(tab);
+    setExpandedSection(null);
+    setSettingsSubView(null);
+    closeCropModal();
+    setShowLocationModal(false);
+    setShowAddAddressForm(false);
+    setShowAddBillingForm(false);
+    requestAnimationFrame(() => {
+      tabContentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
+
+  const openLocationModal = () => {
+    setSettingsSubView(null);
+    setExpandedSection(null);
+    setShowLocationModal(true);
+  };
+
   // Handle set location
   const handleSetLocation = async () => {
-    setSaving(true);
-    try {
-      const token = localStorage.getItem('accessToken');
-      await axios.put(`${API_BASE_URL}/member/set-location`, {
-        set_country: locationData.country,
-        set_state: locationData.state,
-        set_district: locationData.district
-      }, { headers: { Authorization: `Bearer ${token}` } });
+    if (!locationData.country || !locationData.state || !locationData.district) {
+      alert('Please select country, state, and district');
+      return;
+    }
 
-      setShowLocationModal(false);
-      alert('Location set successfully!');
+    setLocationSaving(true);
+    try {
+      const response = await authAPI.updateLocation({
+        set_country: parseInt(locationData.country, 10),
+        set_state: parseInt(locationData.state, 10),
+        set_district: parseInt(locationData.district, 10)
+      });
+
+      if (response.data.success) {
+        const data = response.data.data;
+        setRegistrationData((prev) => ({
+          ...prev,
+          set_country: data.set_country,
+          set_state: data.set_state,
+          set_district: data.set_district
+        }));
+        setUserLocationDisplay({
+          country: data.setCountryData?.country,
+          state: data.setStateData?.state,
+          district: data.setDistrictData?.district
+        });
+
+        try {
+          const stored = localStorage.getItem('user');
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            localStorage.setItem('user', JSON.stringify({
+              ...parsed,
+              profile: {
+                ...(parsed.profile || {}),
+                set_country: data.set_country,
+                set_state: data.set_state,
+                set_district: data.set_district,
+                setCountryData: data.setCountryData,
+                setStateData: data.setStateData,
+                setDistrictData: data.setDistrictData
+              }
+            }));
+          }
+        } catch {
+          // ignore storage errors
+        }
+
+        setShowLocationModal(false);
+        alert('Location set successfully!');
+      }
     } catch (error) {
       console.error('Error setting location:', error);
       alert('Failed to set location');
     } finally {
-      setSaving(false);
+      setLocationSaving(false);
     }
+  };
+
+  const handleSaveSecurityPin = async () => {
+    if (!/^\d{6}$/.test(securityPin)) {
+      alert('Security PIN must be exactly 6 digits');
+      return;
+    }
+    if (securityPin !== confirmSecurityPin) {
+      alert('PIN and confirmation do not match');
+      return;
+    }
+
+    setSettingsSaving(true);
+    try {
+      const response = await authAPI.updateSettings({ security_pin: securityPin });
+      if (response.data.success) {
+        alert('Security PIN set successfully!');
+        setSecurityPin('');
+        setConfirmSecurityPin('');
+        setSettingsSubView(null);
+      }
+    } catch (error: unknown) {
+      console.error('Error setting security PIN:', error);
+      const err = error as { response?: { data?: { message?: string } } };
+      alert(err.response?.data?.message || 'Failed to set security PIN');
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
+
+  const handleSaveLanguage = async (languageId: number | null) => {
+    setSelectedLanguageId(languageId);
+    setSettingsSaving(true);
+    try {
+      const response = await authAPI.updateSettings({ language_id: languageId });
+      if (response.data.success) {
+        setSettingsSubView(null);
+      }
+    } catch (error) {
+      console.error('Error saving language:', error);
+      alert('Failed to save language preference');
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
+
+  const handleSaveCurrency = async (currency: string) => {
+    setSelectedCurrency(currency);
+    setSettingsSaving(true);
+    try {
+      const response = await authAPI.updateSettings({ currency });
+      if (response.data.success) {
+        setSettingsSubView(null);
+      }
+    } catch (error) {
+      console.error('Error saving currency:', error);
+      alert('Failed to save currency preference');
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    setPasswordMessage(null);
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordMessage({ type: 'error', text: 'New passwords do not match' });
+      return;
+    }
+    if (passwordForm.newPassword.length < 6) {
+      setPasswordMessage({ type: 'error', text: 'Password must be at least 6 characters' });
+      return;
+    }
+
+    setSettingsSaving(true);
+    try {
+      const response = await authAPI.changePassword({
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword
+      });
+      if (response.data.success) {
+        setPasswordMessage({ type: 'success', text: 'Password changed successfully!' });
+        setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+        setTimeout(() => {
+          setSettingsSubView(null);
+          setPasswordMessage(null);
+        }, 1500);
+      }
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      setPasswordMessage({
+        type: 'error',
+        text: err.response?.data?.message || 'Failed to change password'
+      });
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
+
+  const openSettingsSubView = (view: SettingsSubView) => {
+    setSettingsSubView(view);
+    setShowLocationModal(false);
+    closeCropModal();
   };
 
   // Toggle section expansion
   const toggleSection = (section: ExpandedSection) => {
     setExpandedSection(expandedSection === section ? null : section);
+    if (section === 'settings') {
+      setSettingsSubView(null);
+    }
   };
 
   // Get social icon component
@@ -509,11 +870,17 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     <Users size={36} className="text-teal-500" />
                   </div>
                 )}
+                {uploadingPhoto && (
+                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-full">
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  </div>
+                )}
               </div>
               <button
                 type="button"
                 onClick={() => profileFileInputRef.current?.click()}
-                className="absolute bottom-0 right-0 p-1.5 bg-white rounded-full shadow-lg cursor-pointer hover:bg-gray-50 transition-colors"
+                disabled={uploadingPhoto}
+                className="absolute bottom-0 right-0 p-1.5 bg-white rounded-full shadow-lg cursor-pointer hover:bg-gray-50 transition-colors disabled:opacity-50"
                 aria-label="Change profile photo"
               >
                 <Camera size={14} className="text-teal-600" />
@@ -567,7 +934,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           {(['profile', 'address', 'billing'] as ProfileTab[]).map((tab) => (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab)}
+              type="button"
+              onClick={() => handleTabSelect(tab)}
               className={`flex-1 py-3 text-sm font-medium capitalize transition-colors ${
                 activeTab === tab
                   ? 'text-teal-600 border-b-2 border-teal-600'
@@ -581,26 +949,22 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
         {/* Tab Content (render only after a tab is selected) */}
         {activeTab && (
-        <div className="p-4">
+        <div ref={tabContentRef} className="p-4">
           {/* Profile Tab - Combined Profile and Personal fields */}
           {activeTab === 'profile' && (
             <div className="space-y-4">
-              {profileImage && (
-                <div className="px-3 py-2 bg-teal-50 border border-teal-200 rounded-lg text-sm text-teal-800">
-                  New profile photo selected. Click <strong>Update Profile</strong> to upload to cloud storage.
+              {uploadingPhoto && (
+                <div className="px-3 py-2 bg-teal-50 border border-teal-200 rounded-lg text-sm text-teal-800 flex items-center gap-2">
+                  <div className="w-3 h-3 border-2 border-teal-600 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                  Uploading profile photo to cloud storage…
+                </div>
+              )}
+              {!uploadingPhoto && profileImage && (
+                <div className="px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+                  Photo upload failed. Click <strong>Update Profile</strong> to retry.
                 </div>
               )}
               {/* Basic Profile Fields */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Mobile Number (Username)</label>
-                <input
-                  type="text"
-                  value={userProfile?.username || ''}
-                  disabled
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed"
-                />
-                <p className="text-xs text-gray-400 mt-1">Mobile number cannot be changed</p>
-              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Display Name</label>
                 <input
@@ -636,15 +1000,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   type="email"
                   value={profileFormData.email || ''}
                   onChange={(e) => setProfileFormData({ ...profileFormData, email: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Alternate Number</label>
-                <input
-                  type="tel"
-                  value={profileFormData.alter_number || ''}
-                  onChange={(e) => setProfileFormData({ ...profileFormData, alter_number: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                 />
               </div>
@@ -1000,12 +1355,20 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
           {/* Set Location */}
           <button
-            onClick={() => setShowLocationModal(true)}
+            type="button"
+            onClick={openLocationModal}
             className="w-full flex items-center gap-3 px-3 py-3 hover:bg-gray-50 rounded-lg transition-colors text-left"
           >
             <MapPin size={20} className="text-gray-600" />
-            <span className="text-gray-800">Set Location</span>
-            <ChevronRight size={18} className="text-gray-400 ml-auto" />
+            <div className="flex-1 min-w-0">
+              <span className="text-gray-800 block">Set Location</span>
+              {userLocationDisplay?.country && (
+                <span className="text-xs text-gray-500 truncate block">
+                  {[userLocationDisplay.country, userLocationDisplay.state, userLocationDisplay.district].filter(Boolean).join(', ')}
+                </span>
+              )}
+            </div>
+            <ChevronRight size={18} className="text-gray-400 ml-auto flex-shrink-0" />
           </button>
 
           {/* Settings - Expandable */}
@@ -1030,19 +1393,47 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   exit={{ height: 0, opacity: 0 }}
                   className="overflow-hidden pl-10 space-y-1"
                 >
-                  <button className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 rounded-lg text-left">
+                  <button
+                    type="button"
+                    onClick={() => openSettingsSubView('security')}
+                    className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 rounded-lg text-left"
+                  >
                     <Lock size={16} className="text-gray-500" />
                     <span className="text-sm text-gray-700">Set Security</span>
                   </button>
-                  <button className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 rounded-lg text-left">
+                  <button
+                    type="button"
+                    onClick={() => openSettingsSubView('language')}
+                    className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 rounded-lg text-left"
+                  >
                     <Globe size={16} className="text-gray-500" />
-                    <span className="text-sm text-gray-700">Change Language</span>
+                    <span className="text-sm text-gray-700">
+                      Change Language
+                      {selectedLanguageId && languages.find((l) => l.id === selectedLanguageId) && (
+                        <span className="text-gray-400 ml-1">
+                          ({languages.find((l) => l.id === selectedLanguageId)?.lang_1})
+                        </span>
+                      )}
+                    </span>
                   </button>
-                  <button className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 rounded-lg text-left">
+                  <button
+                    type="button"
+                    onClick={() => openSettingsSubView('currency')}
+                    className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 rounded-lg text-left"
+                  >
                     <DollarSign size={16} className="text-gray-500" />
-                    <span className="text-sm text-gray-700">Change Currency</span>
+                    <span className="text-sm text-gray-700">
+                      Change Currency
+                      {selectedCurrency && (
+                        <span className="text-gray-400 ml-1">({selectedCurrency})</span>
+                      )}
+                    </span>
                   </button>
-                  <button className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 rounded-lg text-left">
+                  <button
+                    type="button"
+                    onClick={() => openSettingsSubView('password')}
+                    className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 rounded-lg text-left"
+                  >
                     <Key size={16} className="text-gray-500" />
                     <span className="text-sm text-gray-700">Change Password</span>
                   </button>
@@ -1261,89 +1652,329 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       {/* Set Location Modal */}
       <AnimatePresence>
         {showLocationModal && (
-          <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 z-[110] flex items-center justify-center p-4"
+            onClick={() => setShowLocationModal(false)}
+          >
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[102] bg-black/50"
-              onClick={() => setShowLocationModal(false)}
-            />
-            <motion.div
-              initial={{ opacity: 0, y: 50 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 50 }}
-              className="fixed inset-x-4 top-1/2 -translate-y-1/2 z-[103] mx-auto max-w-sm bg-white rounded-xl shadow-2xl p-5"
-              style={{ maxHeight: 'calc(100vh - 40px)' }}
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-2xl p-6 w-full max-w-md max-h-[80vh] overflow-y-auto shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                <MapPin size={20} className="text-teal-600" />
-                Set Your Location
-              </h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
-                  <select
-                    value={locationData.country}
-                    onChange={(e) => {
-                      setLocationData({ ...locationData, country: e.target.value, state: '', district: '' });
-                      fetchStates(parseInt(e.target.value));
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
-                  >
-                    <option value="">Select Country</option>
-                    {countries.map((c) => (
-                      <option key={c.id} value={c.id}>{c.country}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="font-bold text-lg text-gray-900">Select Location</h3>
+                <button
+                  type="button"
+                  onClick={() => setShowLocationModal(false)}
+                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <X size={20} className="text-gray-600" />
+                </button>
+              </div>
+
+              <div className="mb-5">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Country</label>
+                <select
+                  value={locationData.country}
+                  onChange={(e) => {
+                    const countryId = e.target.value;
+                    setLocationData({ country: countryId, state: '', district: '' });
+                    setLocationDistricts([]);
+                    if (countryId) fetchLocationStates(parseInt(countryId, 10));
+                    else setLocationStates([]);
+                  }}
+                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-teal-500 focus:outline-none transition-colors"
+                >
+                  <option value="">Select Country</option>
+                  {countries.map((c) => (
+                    <option key={c.id} value={c.id}>{c.country}</option>
+                  ))}
+                </select>
+              </div>
+
+              {locationData.country && (
+                <div className="mb-5">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">State</label>
                   <select
                     value={locationData.state}
                     onChange={(e) => {
-                      setLocationData({ ...locationData, state: e.target.value, district: '' });
-                      fetchDistricts(parseInt(e.target.value));
+                      const stateId = e.target.value;
+                      setLocationData((prev) => ({ ...prev, state: stateId, district: '' }));
+                      if (stateId) fetchLocationDistricts(parseInt(stateId, 10));
+                      else setLocationDistricts([]);
                     }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
+                    className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-teal-500 focus:outline-none transition-colors"
                   >
                     <option value="">Select State</option>
-                    {states.map((s) => (
+                    {locationStates.map((s) => (
                       <option key={s.id} value={s.id}>{s.state}</option>
                     ))}
                   </select>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">District</label>
+              )}
+
+              {locationData.state && (
+                <div className="mb-5">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">District</label>
                   <select
                     value={locationData.district}
-                    onChange={(e) => setLocationData({ ...locationData, district: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
+                    onChange={(e) => setLocationData((prev) => ({ ...prev, district: e.target.value }))}
+                    className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-teal-500 focus:outline-none transition-colors"
                   >
                     <option value="">Select District</option>
-                    {districts.map((d) => (
+                    {locationDistricts.map((d) => (
                       <option key={d.id} value={d.id}>{d.district}</option>
                     ))}
                   </select>
                 </div>
-                <div className="flex gap-3 pt-2">
-                  <button
-                    onClick={() => setShowLocationModal(false)}
-                    className="flex-1 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-100"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleSetLocation}
-                    disabled={saving}
-                    className="flex-1 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50"
-                  >
-                    {saving ? 'Saving...' : 'Submit'}
-                  </button>
-                </div>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowLocationModal(false)}
+                  className="flex-1 py-3 border-2 border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSetLocation}
+                  disabled={locationSaving || !locationData.country || !locationData.state || !locationData.district}
+                  className="flex-1 py-3 bg-teal-600 text-white rounded-xl hover:bg-teal-700 disabled:opacity-50 font-semibold shadow-md transition-all"
+                >
+                  {locationSaving ? 'Saving...' : 'Apply'}
+                </button>
               </div>
             </motion.div>
-          </>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Settings Sub-views */}
+      <AnimatePresence>
+        {settingsSubView === 'security' && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 z-[110] flex items-center justify-center p-4"
+            onClick={() => setSettingsSubView(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 mb-5">
+                <button type="button" onClick={() => setSettingsSubView(null)} className="p-2 hover:bg-gray-100 rounded-full">
+                  <ArrowLeft size={18} className="text-gray-600" />
+                </button>
+                <h3 className="font-bold text-lg text-gray-900">Set Security PIN</h3>
+              </div>
+              <p className="text-sm text-gray-500 mb-4">Create a 6-digit PIN for additional account security.</p>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">6-Digit PIN</label>
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={securityPin}
+                    onChange={(e) => setSecurityPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-teal-500 focus:outline-none tracking-widest text-center text-lg"
+                    placeholder="••••••"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Confirm PIN</label>
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={confirmSecurityPin}
+                    onChange={(e) => setConfirmSecurityPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-teal-500 focus:outline-none tracking-widest text-center text-lg"
+                    placeholder="••••••"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSaveSecurityPin}
+                  disabled={settingsSaving || securityPin.length !== 6 || confirmSecurityPin.length !== 6}
+                  className="w-full py-3 bg-teal-600 text-white rounded-xl hover:bg-teal-700 disabled:opacity-50 font-semibold"
+                >
+                  {settingsSaving ? 'Saving...' : 'Save PIN'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {settingsSubView === 'language' && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 z-[110] flex items-center justify-center p-4"
+            onClick={() => setSettingsSubView(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-2xl p-6 w-full max-w-sm max-h-[70vh] overflow-y-auto shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <button type="button" onClick={() => setSettingsSubView(null)} className="p-2 hover:bg-gray-100 rounded-full">
+                  <ArrowLeft size={18} className="text-gray-600" />
+                </button>
+                <h3 className="font-bold text-lg text-gray-900">Select Language</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleSaveLanguage(null)}
+                disabled={settingsSaving}
+                className={`w-full text-left px-4 py-3 rounded-xl mb-2 font-medium transition-all ${
+                  selectedLanguageId === null ? 'bg-teal-600 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Default (System)
+              </button>
+              {languages.map((lang) => (
+                <button
+                  key={lang.id}
+                  type="button"
+                  onClick={() => handleSaveLanguage(lang.id)}
+                  disabled={settingsSaving}
+                  className={`w-full text-left px-4 py-3 rounded-xl mb-2 font-medium transition-all ${
+                    selectedLanguageId === lang.id ? 'bg-teal-600 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {lang.lang_1}{lang.lang_2 ? ` (${lang.lang_2})` : ''}
+                </button>
+              ))}
+            </motion.div>
+          </motion.div>
+        )}
+
+        {settingsSubView === 'currency' && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 z-[110] flex items-center justify-center p-4"
+            onClick={() => setSettingsSubView(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-2xl p-6 w-full max-w-sm max-h-[70vh] overflow-y-auto shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <button type="button" onClick={() => setSettingsSubView(null)} className="p-2 hover:bg-gray-100 rounded-full">
+                  <ArrowLeft size={18} className="text-gray-600" />
+                </button>
+                <h3 className="font-bold text-lg text-gray-900">Select Currency</h3>
+              </div>
+              {currencyOptions.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-4">No currencies available</p>
+              ) : (
+                currencyOptions.map((item) => (
+                  <button
+                    key={item.code}
+                    type="button"
+                    onClick={() => handleSaveCurrency(item.code)}
+                    disabled={settingsSaving}
+                    className={`w-full text-left px-4 py-3 rounded-xl mb-2 font-medium transition-all ${
+                      selectedCurrency === item.code ? 'bg-teal-600 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    <span className="font-semibold">{item.code}</span>
+                    <span className="block text-sm opacity-80">{item.name} — {item.country}</span>
+                  </button>
+                ))
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+
+        {settingsSubView === 'password' && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 z-[110] flex items-center justify-center p-4"
+            onClick={() => setSettingsSubView(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 mb-5">
+                <button type="button" onClick={() => setSettingsSubView(null)} className="p-2 hover:bg-gray-100 rounded-full">
+                  <ArrowLeft size={18} className="text-gray-600" />
+                </button>
+                <h3 className="font-bold text-lg text-gray-900">Change Password</h3>
+              </div>
+
+              {passwordMessage && (
+                <div className={`mb-4 p-3 rounded-lg text-sm ${
+                  passwordMessage.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+                }`}>
+                  {passwordMessage.text}
+                </div>
+              )}
+
+              <div className="space-y-4">
+                {(['currentPassword', 'newPassword', 'confirmPassword'] as const).map((field, idx) => {
+                  const labels = ['Old Password', 'New Password', 'Confirm Password'];
+                  const visibilityKey = (['current', 'new', 'confirm'] as const)[idx];
+                  return (
+                    <div key={field}>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">{labels[idx]}</label>
+                      <div className="relative">
+                        <input
+                          type={showPasswordFields[visibilityKey] ? 'text' : 'password'}
+                          value={passwordForm[field]}
+                          onChange={(e) => setPasswordForm({ ...passwordForm, [field]: e.target.value })}
+                          className="w-full px-4 py-3 pr-12 border-2 border-gray-200 rounded-xl focus:border-teal-500 focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPasswordFields({ ...showPasswordFields, [visibilityKey]: !showPasswordFields[visibilityKey] })}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        >
+                          {showPasswordFields[visibilityKey] ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={handleChangePassword}
+                  disabled={settingsSaving || !passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword}
+                  className="w-full py-3 bg-teal-600 text-white rounded-xl hover:bg-teal-700 disabled:opacity-50 font-semibold"
+                >
+                  {settingsSaving ? 'Updating...' : 'Update Password'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 

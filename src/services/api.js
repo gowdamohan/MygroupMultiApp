@@ -219,6 +219,14 @@ export const authAPI = {
 
   // Location Management
   updateLocation: (data) => api.put('/auth/location', data),
+
+  // Profile photo upload to Wasabi (multipart/form-data with field "profile_img")
+  uploadProfilePhoto: (formData) => api.put('/auth/profile-photo', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
+
+  // User preferences (security PIN, language, currency)
+  updateSettings: (data) => api.put('/auth/settings', data),
 };
 
 // Export token refresh functions for use in other components

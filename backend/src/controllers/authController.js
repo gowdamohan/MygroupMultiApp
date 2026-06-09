@@ -16,6 +16,10 @@ import {
 import { generateTokens, verifyRefreshToken } from '../utils/jwt.js';
 import sequelize from '../config/database.js';
 import { Op } from 'sequelize';
+import bcrypt from 'bcrypt';
+import { uploadFile as wasabiUploadFile } from '../services/wasabiService.js';
+import { compressProfileImageToBuffer } from '../utils/imageCompress.js';
+import { deleteStoredProfileImage } from '../utils/profileImageStorage.js';
 
 /**
  * Register new user
@@ -830,6 +834,65 @@ function getDashboardRoute(role, groupType = null) {
 /**
  * Update user location
  */
+/**
+ * Update user preferences (security PIN, language, currency)
+ */
+export const updateUserSettings = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { security_pin, language_id, currency } = req.body;
+
+    let userRegistration = await UserRegistration.findOne({
+      where: { user_id: userId }
+    });
+
+    if (!userRegistration) {
+      userRegistration = await UserRegistration.create({ user_id: userId });
+    }
+
+    const preferences = {
+      ...(userRegistration.preferences || {})
+    };
+
+    if (security_pin !== undefined) {
+      if (!/^\d{6}$/.test(String(security_pin))) {
+        return res.status(400).json({
+          success: false,
+          message: 'Security PIN must be exactly 6 digits'
+        });
+      }
+      preferences.security_pin_hash = await bcrypt.hash(String(security_pin), 10);
+    }
+
+    if (language_id !== undefined) {
+      preferences.language_id = language_id ? parseInt(language_id, 10) : null;
+    }
+
+    if (currency !== undefined) {
+      preferences.currency = currency || null;
+    }
+
+    await userRegistration.update({ preferences });
+
+    res.json({
+      success: true,
+      message: 'Settings updated successfully',
+      data: {
+        language_id: preferences.language_id ?? null,
+        currency: preferences.currency ?? null,
+        has_security_pin: !!preferences.security_pin_hash
+      }
+    });
+  } catch (error) {
+    console.error('Update user settings error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating settings',
+      error: error.message
+    });
+  }
+};
+
 export const updateUserLocation = async (req, res) => {
   try {
     const { set_country, set_state, set_district } = req.body;
@@ -859,9 +922,9 @@ export const updateUserLocation = async (req, res) => {
     const updatedRegistration = await UserRegistration.findOne({
       where: { user_id: userId },
       include: [
-        { model: Country, as: 'setCountryData', foreignKey: 'set_country' },
-        { model: State, as: 'setStateData', foreignKey: 'set_state' },
-        { model: District, as: 'setDistrictData', foreignKey: 'set_district' }
+        { model: Country, as: 'setCountryData' },
+        { model: State, as: 'setStateData' },
+        { model: District, as: 'setDistrictData' }
       ]
     });
 
@@ -875,6 +938,66 @@ export const updateUserLocation = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error updating location',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Upload / replace profile photo
+ * Accepts multipart/form-data with field "profile_img".
+ * Compresses to ≤100 KB JPEG, uploads to Wasabi, stores key in users.profile_img.
+ */
+export const uploadProfilePhoto = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({
+        success: false,
+        message: 'No image file provided'
+      });
+    }
+
+    const user = await User.findByPk(userId, { attributes: ['id', 'profile_img'] });
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const compressedBuffer = await compressProfileImageToBuffer(req.file.buffer);
+    const folder = `profile_photos/user_${userId}`;
+    const uploadResult = await wasabiUploadFile(
+      compressedBuffer,
+      `profile-${userId}-${Date.now()}.jpg`,
+      'image/jpeg',
+      folder
+    );
+
+    if (!uploadResult.success || !uploadResult.fileName) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to upload profile image to storage'
+      });
+    }
+
+    // Delete previous image (old Wasabi key or local file)
+    await deleteStoredProfileImage(user.profile_img);
+
+    await User.update({ profile_img: uploadResult.fileName }, { where: { id: userId } });
+
+    res.json({
+      success: true,
+      message: 'Profile photo updated successfully',
+      data: {
+        profile_img: uploadResult.fileName,
+        profile_img_url: uploadResult.publicUrl
+      }
+    });
+  } catch (error) {
+    console.error('Upload profile photo error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error uploading profile photo',
       error: error.message
     });
   }
