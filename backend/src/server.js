@@ -63,6 +63,8 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 app.use(helmet({
+  // YouTube embeds require a Referer header — helmet's default is no-referrer (causes Error 153)
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
@@ -72,19 +74,11 @@ app.use(helmet({
       fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
       imgSrc: ["'self'", "data:", "blob:", "*"],
       mediaSrc: ["'self'", "data:", "blob:", "*"],
-      frameSrc: [
-        "'self'",
-        "https://www.youtube.com",
-        "https://www.youtube-nocookie.com",
-        "https://player.vimeo.com",
-        "https://www.facebook.com",
-        "https://www.dailymotion.com"
-      ],
-      // CRITICAL FIX: Disable upgrade-insecure-requests CSP directive
-      // This prevents browser from forcing HTTPS when server only has HTTP
+      // Allow any HTTPS/HTTP iframe — media dashboard embeds YouTube + arbitrary live streams
+      frameSrc: ["'self'", "https:", "http:"],
+      childSrc: ["'self'", "https:", "http:"],
       objectSrc: ["'none'"],
     },
-    // Do NOT include upgradeInsecureRequests directive
   },
   crossOriginEmbedderPolicy: false,
   crossOriginResourcePolicy: { policy: "cross-origin" },
@@ -128,6 +122,9 @@ app.use((req, res, next) => {
 
   // Also disable HSTS to allow HTTP
   res.set('Strict-Transport-Security', 'max-age=0');
+
+  // Ensure YouTube embeds receive a valid Referer (fixes Error 153)
+  res.set('Referrer-Policy', 'strict-origin-when-cross-origin');
 
   // Prevent browser from caching HTTPS redirects
   res.set({

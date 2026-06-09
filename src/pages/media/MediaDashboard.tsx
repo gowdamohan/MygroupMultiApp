@@ -23,6 +23,7 @@ import {
   TeamSection
 } from './MediaDashboardPages';
 import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
+import { toEmbedUrl, EMBED_IFRAME_PROPS } from '../../utils/mediaPlayback';
 import {
   isPrintMediaCategory,
   isMagazineCategory,
@@ -381,15 +382,6 @@ export const MediaDashboard: React.FC = () => {
     }
   };
 
-  // Convert YouTube/watch URLs to embed URL for iframe
-  const toEmbedUrl = (url: string): string => {
-    const t = url.trim();
-    if (!t) return '';
-    const ytMatch = t.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
-    if (ytMatch) return `https://www.youtube.com/embed/${ytMatch[1]}`;
-    return t; // Already embed or other stream URL
-  };
-
   // Format time ago
   const formatTimeAgo = (dateString: string) => {
     const date = new Date(dateString);
@@ -644,10 +636,10 @@ export const MediaDashboard: React.FC = () => {
     const { active_source, live_url, mymedia_url, offlineMedia } = switcher;
 
     if (active_source === 'live' && live_url) {
-      return <iframe src={toEmbedUrl(live_url)} className="w-full h-full" allowFullScreen />;
+      return <iframe src={toEmbedUrl(live_url)} className="w-full h-full" {...EMBED_IFRAME_PROPS} />;
     }
     if (active_source === 'mymedia' && mymedia_url) {
-      return <iframe src={toEmbedUrl(mymedia_url)} className="w-full h-full" allowFullScreen />;
+      return <iframe src={toEmbedUrl(mymedia_url)} className="w-full h-full" {...EMBED_IFRAME_PROPS} />;
     }
     if (active_source === 'offline' && offlineMedia) {
       if (offlineMedia.media_type === 'video') {
@@ -916,7 +908,7 @@ export const MediaDashboard: React.FC = () => {
                 <input type="text" value={previewLiveUrl} onChange={(e) => { const v = e.target.value; setPreviewLiveUrl(v); setLivePreviewLoaded(prev => (v === previewLiveUrl ? prev : false)); }} placeholder="YouTube, live stream, or embed URL" className="w-full px-2 py-1.5 text-xs rounded border border-gray-500 bg-gray-600 text-white placeholder-gray-400" />
                 <div className="bg-black relative h-[80px] border border-gray-600 rounded overflow-hidden">
                   {previewLiveUrl.trim() ? (
-                    <iframe src={toEmbedUrl(previewLiveUrl)} className="w-full h-full" allowFullScreen onLoad={() => setLivePreviewLoaded(true)} />
+                    <iframe src={toEmbedUrl(previewLiveUrl)} className="w-full h-full" {...EMBED_IFRAME_PROPS} onLoad={() => setLivePreviewLoaded(true)} />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-gray-500 text-xs">Paste URL to preview</div>
                   )}
@@ -928,7 +920,7 @@ export const MediaDashboard: React.FC = () => {
               <div className="bg-red-600 text-white text-center py-0.5 font-bold text-xs">Output</div>
               <div className="mx-2 mb-2 bg-black relative h-[60px] border border-gray-600 rounded overflow-hidden">
                 {switcher?.live_url ? (
-                  <iframe src={toEmbedUrl(switcher.live_url)} className="w-full h-full" allowFullScreen />
+                  <iframe src={toEmbedUrl(switcher.live_url)} className="w-full h-full" {...EMBED_IFRAME_PROPS} />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-gray-500 text-xs">Not saved yet</div>
                 )}
@@ -945,7 +937,7 @@ export const MediaDashboard: React.FC = () => {
                 <input type="text" value={previewMymediaUrl} onChange={(e) => { const v = e.target.value; setPreviewMymediaUrl(v); setMymediaPreviewLoaded(prev => (v === previewMymediaUrl ? prev : false)); }} placeholder="YouTube, live stream, or embed URL" className="w-full px-2 py-1.5 text-xs rounded border border-gray-500 bg-gray-600 text-white placeholder-gray-400" />
                 <div className="bg-black relative h-[80px] border border-gray-600 rounded overflow-hidden">
                   {previewMymediaUrl.trim() ? (
-                    <iframe src={toEmbedUrl(previewMymediaUrl)} className="w-full h-full" allowFullScreen onLoad={() => setMymediaPreviewLoaded(true)} />
+                    <iframe src={toEmbedUrl(previewMymediaUrl)} className="w-full h-full" {...EMBED_IFRAME_PROPS} onLoad={() => setMymediaPreviewLoaded(true)} />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-gray-500 text-xs">Paste URL to preview</div>
                   )}
@@ -957,7 +949,7 @@ export const MediaDashboard: React.FC = () => {
               <div className="bg-red-600 text-white text-center py-0.5 font-bold text-xs">Output</div>
               <div className="mx-2 mb-2 bg-black relative h-[60px] border border-gray-600 rounded overflow-hidden">
                 {switcher?.mymedia_url ? (
-                  <iframe src={toEmbedUrl(switcher.mymedia_url)} className="w-full h-full" allowFullScreen />
+                  <iframe src={toEmbedUrl(switcher.mymedia_url)} className="w-full h-full" {...EMBED_IFRAME_PROPS} />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-gray-500 text-xs">Not saved yet</div>
                 )}
@@ -1096,14 +1088,14 @@ export const MediaDashboard: React.FC = () => {
                   {switcher?.active_source === 'live' && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
                   Other stream url
                 </div>
-                <div className="h-20 flex items-center justify-center bg-black">{switcher?.live_url ? <iframe src={toEmbedUrl(switcher.live_url)} className="w-full h-full" allowFullScreen /> : <span className="text-gray-500 text-xs">No stream</span>}</div>
+                <div className="h-20 flex items-center justify-center bg-black">{switcher?.live_url ? <iframe src={toEmbedUrl(switcher.live_url)} className="w-full h-full" {...EMBED_IFRAME_PROPS} /> : <span className="text-gray-500 text-xs">No stream</span>}</div>
               </div>
               <div className={`flex-1 rounded overflow-hidden border-2 transition-all ${switcher?.active_source === 'mymedia' ? 'border-red-500 shadow-lg shadow-red-500/40 ring-2 ring-red-400/50' : 'border-gray-500 bg-gray-800'}`}>
                 <div className={`px-2 py-1 text-xs font-bold flex items-center gap-1 ${switcher?.active_source === 'mymedia' ? 'bg-red-600 text-white' : 'bg-gray-700 text-white'}`}>
                   {switcher?.active_source === 'mymedia' && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
                   Mystream Url
                 </div>
-                <div className="h-20 flex items-center justify-center bg-black">{switcher?.mymedia_url ? <iframe src={toEmbedUrl(switcher.mymedia_url)} className="w-full h-full" allowFullScreen /> : <span className="text-gray-500 text-xs">No stream</span>}</div>
+                <div className="h-20 flex items-center justify-center bg-black">{switcher?.mymedia_url ? <iframe src={toEmbedUrl(switcher.mymedia_url)} className="w-full h-full" {...EMBED_IFRAME_PROPS} /> : <span className="text-gray-500 text-xs">No stream</span>}</div>
               </div>
               <div className={`flex-1 rounded overflow-hidden border-2 transition-all ${switcher?.active_source === 'offline' ? 'border-red-500 shadow-lg shadow-red-500/40 ring-2 ring-red-400/50' : 'border-gray-500 bg-gray-800'}`}>
                 <div className={`px-2 py-1 text-xs font-bold flex items-center gap-1 ${switcher?.active_source === 'offline' ? 'bg-red-600 text-white' : 'bg-gray-700 text-white'}`}>

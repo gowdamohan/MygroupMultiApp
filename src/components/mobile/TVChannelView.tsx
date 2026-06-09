@@ -6,6 +6,7 @@ import {
   buildPlaybackFromStreamApi,
   buildPlaybackFromScheduleFile,
   resolveMediaSrc,
+  EMBED_IFRAME_PROPS,
   type PlaybackConfig
 } from '../../utils/mediaPlayback';
 
@@ -271,8 +272,7 @@ export const TVChannelView: React.FC<TVChannelViewProps> = ({
             src={playback.embedSrc}
             title={displayLabel}
             className="w-full h-full min-h-[50vh] border-0"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
+            {...EMBED_IFRAME_PROPS}
           />
         ) : effectiveMode === 'audio' && playback.mediaSrc ? (
           <>

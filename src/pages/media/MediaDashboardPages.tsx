@@ -8,6 +8,7 @@ import {
   Video, Music, Check, FolderPlus, Eye
 } from 'lucide-react';
 import { API_BASE_URL } from '../../config/api.config';
+import { toEmbedUrl, EMBED_IFRAME_PROPS } from '../../utils/mediaPlayback';
 
 // ============================================
 // SOCIAL MEDIA SECTION
@@ -139,10 +140,10 @@ export const ViewSection: React.FC = () => {
     const { active_source, live_url, mymedia_url, offlineMedia } = switcher;
     
     if (active_source === 'live' && live_url) {
-      return <iframe src={live_url} className="w-full h-96 rounded-lg" allowFullScreen />;
+      return <iframe src={toEmbedUrl(live_url)} className="w-full h-96 rounded-lg" {...EMBED_IFRAME_PROPS} />;
     }
     if (active_source === 'mymedia' && mymedia_url) {
-      return <iframe src={mymedia_url} className="w-full h-96 rounded-lg" allowFullScreen />;
+      return <iframe src={toEmbedUrl(mymedia_url)} className="w-full h-96 rounded-lg" {...EMBED_IFRAME_PROPS} />;
     }
     if (active_source === 'offline' && offlineMedia) {
       if (offlineMedia.media_type === 'video') {
@@ -263,7 +264,7 @@ export const SwitcherSection: React.FC = () => {
             placeholder="Enter Live URL" onClick={(e) => e.stopPropagation()}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
           {liveUrl && <div className="mt-2 h-32 bg-gray-100 rounded-lg overflow-hidden">
-            <iframe src={liveUrl} className="w-full h-full" />
+            <iframe src={toEmbedUrl(liveUrl)} className="w-full h-full" {...EMBED_IFRAME_PROPS} />
           </div>}
         </div>
 
@@ -278,7 +279,7 @@ export const SwitcherSection: React.FC = () => {
             placeholder="Enter MyMedia URL" onClick={(e) => e.stopPropagation()}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
           {mymediaUrl && <div className="mt-2 h-32 bg-gray-100 rounded-lg overflow-hidden">
-            <iframe src={mymediaUrl} className="w-full h-full" />
+            <iframe src={toEmbedUrl(mymediaUrl)} className="w-full h-full" {...EMBED_IFRAME_PROPS} />
           </div>}
         </div>
 

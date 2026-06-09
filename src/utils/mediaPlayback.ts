@@ -1,20 +1,34 @@
 import { BACKEND_URL, getUploadUrl } from '../config/api.config';
 
-/** Convert watch/share URLs to embeddable iframe src (with autoplay when supported). */
+const YOUTUBE_ID_RE = /(?:youtube\.com\/(?:watch\?v=|embed\/|live\/)|youtu\.be\/|youtube-nocookie\.com\/embed\/)([a-zA-Z0-9_-]{11})/;
+
+/** Convert watch/share URLs to a privacy-enhanced YouTube nocookie embed (fixes Error 153). */
 export const toEmbedUrl = (url: string): string => {
   const t = url.trim();
   if (!t) return '';
 
-  const ytMatch = t.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+  const ytMatch = t.match(YOUTUBE_ID_RE);
   if (ytMatch) {
-    return `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1&playsinline=1`;
+    const params = new URLSearchParams({ rel: '0', modestbranding: '1', playsinline: '1' });
+    if (typeof window !== 'undefined' && window.location?.origin) {
+      params.set('origin', window.location.origin);
+    }
+    return `https://www.youtube-nocookie.com/embed/${ytMatch[1]}?${params}`;
   }
 
+  // Normalize existing youtube.com embed URLs to nocookie domain
   if (/youtube\.com\/embed\//i.test(t)) {
-    return t.includes('autoplay') ? t : `${t}${t.includes('?') ? '&' : '?'}autoplay=1`;
+    return t.replace(/https?:\/\/(?:www\.)?youtube\.com\/embed\//i, 'https://www.youtube-nocookie.com/embed/');
   }
 
   return t;
+};
+
+/** Standard iframe attributes required for YouTube and other stream embeds. */
+export const EMBED_IFRAME_PROPS = {
+  referrerPolicy: 'strict-origin-when-cross-origin' as const,
+  allow: 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share',
+  allowFullScreen: true,
 };
 
 export const isEmbeddableStreamUrl = (url: string): boolean => {
