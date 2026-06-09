@@ -72,7 +72,14 @@ app.use(helmet({
       fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
       imgSrc: ["'self'", "data:", "blob:", "*"],
       mediaSrc: ["'self'", "data:", "blob:", "*"],
-      frameSrc: ["'self'"],
+      frameSrc: [
+        "'self'",
+        "https://www.youtube.com",
+        "https://www.youtube-nocookie.com",
+        "https://player.vimeo.com",
+        "https://www.facebook.com",
+        "https://www.dailymotion.com"
+      ],
       // CRITICAL FIX: Disable upgrade-insecure-requests CSP directive
       // This prevents browser from forcing HTTPS when server only has HTTP
       objectSrc: ["'none'"],

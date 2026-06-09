@@ -13,8 +13,7 @@ import {
   MediaTeam,
   MediaHeaderAds,
   MediaComments,
-  User,
-  UserRegistration
+  User
 } from '../models/index.js';
 import { uploadFile, deleteFile, getSignedReadUrl } from '../services/wasabiService.js';
 
@@ -799,6 +798,28 @@ export const deleteTeamMember = async (req, res) => {
 // ============================================
 
 /**
+ * Resolve ad image URL from Wasabi key, local upload path, or absolute URL
+ */
+const resolveHeaderAdUrl = async (filePath, req) => {
+  if (!filePath) return null;
+  if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+    return filePath;
+  }
+  if (filePath.startsWith('/')) {
+    const host = req.get('host');
+    const protocol = req.protocol || 'https';
+    return `${protocol}://${host}${filePath}`;
+  }
+  try {
+    const result = await getSignedReadUrl(filePath);
+    return result.signedUrl || null;
+  } catch (e) {
+    console.error('Error getting signed URL:', e);
+    return null;
+  }
+};
+
+/**
  * Get header ads for a channel
  */
 export const getHeaderAds = async (req, res) => {
@@ -811,21 +832,11 @@ export const getHeaderAds = async (req, res) => {
       order: [['id', 'ASC']]
     });
 
-    // Get signed URLs for each ad
     const header1Ads = [];
     const header2Ads = [];
 
     for (const ad of ads) {
-      let signedUrl = null;
-      if (ad.file_path) {
-        try {
-          const result = await getSignedReadUrl(ad.file_path);
-          signedUrl = result.signedUrl;
-        } catch (e) {
-          console.error('Error getting signed URL:', e);
-          signedUrl = null;
-        }
-      }
+      const signedUrl = await resolveHeaderAdUrl(ad.file_path, req);
 
       const adData = {
         id: ad.id,
@@ -859,6 +870,35 @@ export const getHeaderAds = async (req, res) => {
 // MEDIA COMMENTS
 // ============================================
 
+const USER_COMMENT_ATTRIBUTES = ['id', 'first_name', 'last_name', 'display_name', 'email', 'profile_img'];
+
+const formatCommentUser = (user) => {
+  if (!user) return null;
+  const u = user.get ? user.get({ plain: true }) : user;
+  const full_name = u.display_name
+    || [u.first_name, u.last_name].filter(Boolean).join(' ')
+    || u.email
+    || 'User';
+  return {
+    id: u.id,
+    email: u.email,
+    full_name,
+    profile: { profile_photo: u.profile_img || null }
+  };
+};
+
+const formatComment = (comment) => {
+  const c = comment.get ? comment.get({ plain: true }) : comment;
+  return {
+    ...c,
+    user: formatCommentUser(c.user),
+    replies: (c.replies || []).map((reply) => ({
+      ...reply,
+      user: formatCommentUser(reply.user)
+    }))
+  };
+};
+
 /**
  * Get all comments for a channel with replies
  */
@@ -877,12 +917,7 @@ export const getComments = async (req, res) => {
         {
           model: User,
           as: 'user',
-          attributes: ['id', 'full_name', 'email'],
-          include: [{
-            model: UserRegistration,
-            as: 'profile',
-            attributes: ['profile_photo']
-          }]
+          attributes: USER_COMMENT_ATTRIBUTES
         },
         {
           model: MediaComments,
@@ -892,19 +927,14 @@ export const getComments = async (req, res) => {
           include: [{
             model: User,
             as: 'user',
-            attributes: ['id', 'full_name', 'email'],
-            include: [{
-              model: UserRegistration,
-              as: 'profile',
-              attributes: ['profile_photo']
-            }]
+            attributes: USER_COMMENT_ATTRIBUTES
           }]
         }
       ],
       order: [['created_at', 'DESC'], [{ model: MediaComments, as: 'replies' }, 'created_at', 'ASC']]
     });
 
-    res.json({ success: true, data: comments });
+    res.json({ success: true, data: comments.map(formatComment) });
   } catch (error) {
     console.error('Error getting comments:', error);
     res.status(500).json({ success: false, message: 'Failed to get comments' });
@@ -937,16 +967,11 @@ export const addComment = async (req, res) => {
       include: [{
         model: User,
         as: 'user',
-        attributes: ['id', 'full_name', 'email'],
-        include: [{
-          model: UserRegistration,
-          as: 'profile',
-          attributes: ['profile_photo']
-        }]
+        attributes: USER_COMMENT_ATTRIBUTES
       }]
     });
 
-    res.json({ success: true, data: createdComment });
+    res.json({ success: true, data: formatComment(createdComment) });
   } catch (error) {
     console.error('Error adding comment:', error);
     res.status(500).json({ success: false, message: 'Failed to add comment' });
