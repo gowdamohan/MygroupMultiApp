@@ -3,6 +3,8 @@ import path from 'path';
 import fs from 'fs';
 import sharp from 'sharp';
 import { uploadFile as wasabiUploadFile, getSignedReadUrl } from '../services/wasabiService.js';
+import { compressProfileImageToBuffer } from '../utils/imageCompress.js';
+import { deleteStoredProfileImage } from '../utils/profileImageStorage.js';
 import {
   MediaChannel,
   AppCategory,
@@ -632,7 +634,7 @@ export const uploadProfilePhoto = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    if (!req.file) {
+    if (!req.file || !req.file.buffer) {
       return res.status(400).json({
         success: false,
         message: 'No file uploaded'
@@ -647,39 +649,32 @@ export const uploadProfilePhoto = async (req, res) => {
       });
     }
 
-    // Delete old profile image if exists
-    if (user.profile_img) {
-      const oldPath = path.join(process.cwd(), 'public', user.profile_img);
-      if (fs.existsSync(oldPath)) {
-        fs.unlinkSync(oldPath);
-      }
+    const compressedBuffer = await compressProfileImageToBuffer(req.file.buffer);
+    const folder = `profile_photos/user_${userId}`;
+    const result = await wasabiUploadFile(
+      compressedBuffer,
+      `profile-${userId}-${Date.now()}.jpg`,
+      'image/jpeg',
+      folder
+    );
+
+    if (!result.success || !result.fileName) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to upload profile photo to storage'
+      });
     }
 
-    // Compress and save new image
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'profile-photos');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-
-    const timestamp = Date.now();
-    const filename = `profile-${userId}-${timestamp}.jpg`;
-    const outputPath = path.join(uploadDir, filename);
-
-    // Read file into buffer to avoid EBUSY file lock on Windows
-    const fileBuffer = req.file.buffer || fs.readFileSync(req.file.path);
-    // Delete temp file immediately after reading into memory
-    if (req.file.path && fs.existsSync(req.file.path)) {
-      try { fs.unlinkSync(req.file.path); } catch (e) { /* ignore cleanup error */ }
-    }
-    await compressImage(fileBuffer, outputPath);
-
-    const profileImgPath = `/uploads/profile-photos/${filename}`;
-    await user.update({ profile_img: profileImgPath });
+    await deleteStoredProfileImage(user.profile_img);
+    await user.update({ profile_img: result.fileName });
 
     res.json({
       success: true,
       message: 'Profile photo uploaded successfully',
-      data: { profile_img: profileImgPath }
+      data: {
+        profile_img: result.fileName,
+        profile_img_url: result.publicUrl
+      }
     });
   } catch (error) {
     console.error('Upload profile photo error:', error);

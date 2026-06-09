@@ -74,18 +74,29 @@ export const BACKEND_URL = (() => {
   return '';
 })();
 
+/** Public Wasabi bucket base URL (keys stored without leading slash). */
+export const WASABI_PUBLIC_URL =
+  import.meta.env.VITE_WASABI_PUBLIC_URL || 'https://s3.us-west-1.wasabisys.com/news-server';
+
+const isWasabiObjectKey = (path: string) =>
+  !path.startsWith('/') &&
+  !path.startsWith('http://') &&
+  !path.startsWith('https://') &&
+  !path.startsWith('data:');
+
 /**
  * Helper function to get the full URL for an uploaded file
- * @param path - The file path (e.g., /uploads/images/photo.jpg)
+ * @param path - Local path (/uploads/...) or Wasabi object key (profile_photos/...)
  * @returns Full URL to the file
  */
 export const getUploadUrl = (path: string): string => {
   if (!path) return '';
-  // If the path is already a full URL, return it as is
   if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:')) {
     return path;
   }
-  // Ensure the path starts with /
+  if (isWasabiObjectKey(path)) {
+    return `${WASABI_PUBLIC_URL}/${path}`;
+  }
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   return `${BACKEND_URL}${normalizedPath}`;
 };

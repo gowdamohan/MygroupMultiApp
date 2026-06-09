@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { User, Mail, Phone, MapPin, Building, Save, Camera, Loader2 } from 'lucide-react';
 import axios from 'axios';
-import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
+import { API_BASE_URL, getUploadUrl } from '../../config/api.config';
 
 export const EditProfile: React.FC = () => {
   const [loading, setLoading] = useState(false);
@@ -166,7 +166,7 @@ export const EditProfile: React.FC = () => {
             <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-primary-100 shadow-lg">
               {profileImg ? (
                 <img
-                  src={`${BACKEND_URL}${profileImg}`}
+                  src={getUploadUrl(profileImg)}
                   alt="Profile"
                   className="w-full h-full object-cover"
                 />

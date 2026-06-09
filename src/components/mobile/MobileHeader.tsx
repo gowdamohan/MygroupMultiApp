@@ -157,6 +157,7 @@ interface MobileHeaderProps {
   onProfileClick?: () => void;
   onTopIconClick?: (icon: TopIcon) => void;
   onLogout?: () => void;
+  onProfileUpdate?: (updates: Partial<UserProfile>) => void;
   /** Notified when search panel opens/closes or results update. */
   onSearchStateChange?: (state: {
     active: boolean;
@@ -194,6 +195,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
   onProfileClick: externalOnProfileClick,
   onTopIconClick,
   onLogout,
+  onProfileUpdate: externalOnProfileUpdate,
   onSearchStateChange,
   showTopIcons = true,
   showAds = true,
@@ -1235,6 +1237,21 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
             userProfile={userProfile}
             isLoggedIn={isLoggedIn}
             onLogout={handleLogout}
+            onProfileUpdate={(updates) => {
+              if (!externalUserProfile) {
+                setInternalUserProfile((prev) => (prev ? { ...prev, ...updates } : prev));
+              }
+              externalOnProfileUpdate?.(updates);
+              try {
+                const stored = localStorage.getItem('user');
+                if (stored) {
+                  const parsed = JSON.parse(stored);
+                  localStorage.setItem('user', JSON.stringify({ ...parsed, ...updates }));
+                }
+              } catch {
+                // ignore storage errors
+              }
+            }}
             appLogo={displayLogo}
             appName={appInfo?.apps_name || appInfo?.name || appName || 'My Group'}
           />

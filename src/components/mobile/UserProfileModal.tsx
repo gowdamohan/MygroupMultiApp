@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   X, Camera, Home, MapPin, Settings, FileText, HelpCircle, Share2, Download,
@@ -7,7 +7,8 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
-import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
+import { API_BASE_URL, BACKEND_URL, getUploadUrl } from '../../config/api.config';
+import { ProfilePhotoCropModal } from './ProfilePhotoCropModal';
 
 // Interfaces
 interface UserProfile {
@@ -73,6 +74,7 @@ interface UserProfileModalProps {
   userProfile: UserProfile | null;
   isLoggedIn: boolean;
   onLogout: () => void;
+  onProfileUpdate?: (updates: Partial<UserProfile>) => void;
   appLogo?: string;
   appName?: string;
 }
@@ -86,6 +88,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   userProfile,
   isLoggedIn,
   onLogout,
+  onProfileUpdate,
   appLogo,
   appName = 'My Group'
 }) => {
@@ -99,6 +102,10 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [profileFormData, setProfileFormData] = useState<Partial<UserProfile>>({});
   const [profileImage, setProfileImage] = useState<File | null>(null);
   const [profileImagePreview, setProfileImagePreview] = useState<string | null>(null);
+  const [localProfileImg, setLocalProfileImg] = useState<string | null>(null);
+  const [showCropModal, setShowCropModal] = useState(false);
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+  const profileFileInputRef = useRef<HTMLInputElement>(null);
   
   // Location modal state
   const [showLocationModal, setShowLocationModal] = useState(false);
@@ -149,7 +156,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     }
   }, [isOpen, isLoggedIn]);
 
-  // Initialize profile form data
+  // Initialize profile form data and server-side profile image
   useEffect(() => {
     if (userProfile) {
       setProfileFormData({
@@ -159,8 +166,27 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         email: userProfile.email || '',
         alter_number: userProfile.alter_number || ''
       });
+      setLocalProfileImg(userProfile.profile_img || null);
     }
   }, [userProfile]);
+
+  // Clear stale pending uploads when the modal is opened
+  useEffect(() => {
+    if (!isOpen) return;
+    setProfileImage(null);
+    setProfileImagePreview(null);
+  }, [isOpen]);
+
+  const getProfileImageSrc = (): string | null => {
+    if (profileImagePreview) return profileImagePreview;
+    const imgPath = localProfileImg || userProfile?.profile_img;
+    if (!imgPath) return null;
+    return getUploadUrl(imgPath);
+  };
+
+  const displayName =
+    userProfile?.display_name || userProfile?.first_name || userProfile?.username || 'User';
+  const profileImageSrc = getProfileImageSrc();
 
   // Fetch form field options
   const fetchFormFields = async () => {
@@ -289,15 +315,50 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     }
   };
 
-  // Handle profile image change
+  const applyProfilePhoto = (file: File, previewUrl: string) => {
+    setProfileImage(file);
+    setProfileImagePreview(previewUrl);
+    setShowCropModal(false);
+    setCropImageSrc(null);
+  };
+
+  // Open crop editor after file selection
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setProfileImage(file);
-      const reader = new FileReader();
-      reader.onloadend = () => setProfileImagePreview(reader.result as string);
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file');
+      e.target.value = '';
+      return;
     }
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Image must be smaller than 5MB');
+      e.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setCropImageSrc(reader.result as string);
+      setShowCropModal(true);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handleCropConfirm = (file: File, previewUrl: string) => {
+    applyProfilePhoto(file, previewUrl);
+  };
+
+  const handleUseOriginalPhoto = (file: File, previewUrl: string) => {
+    applyProfilePhoto(file, previewUrl);
+  };
+
+  const closeCropModal = () => {
+    setShowCropModal(false);
+    setCropImageSrc(null);
   };
 
   // Handle profile update
@@ -316,13 +377,34 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         if (value != null && value !== '' && key !== 'id') formData.append(key, value as string);
       });
 
-      if (profileImage) formData.append('profile_img', profileImage);
+      if (profileImage) {
+        formData.append('profile_img', profileImage, profileImage.name);
+      }
 
-      await axios.put(`${API_BASE_URL}/member/update-profile`, formData, {
+      const response = await axios.put(`${API_BASE_URL}/member/update-profile`, formData, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      alert('Profile updated successfully!');
+      if (response.data.success) {
+        const updatedFields: Partial<UserProfile> = { ...profileFormData };
+        const serverProfileImg = response.data.data?.profile_img as string | undefined;
+
+        if (serverProfileImg) {
+          setLocalProfileImg(serverProfileImg);
+          setProfileImagePreview(null);
+          setProfileImage(null);
+          updatedFields.profile_img = serverProfileImg;
+        } else if (profileImagePreview) {
+          updatedFields.profile_img = localProfileImg || userProfile.profile_img;
+        }
+
+        if (response.data.data?.identification_code) {
+          updatedFields.identification_code = response.data.data.identification_code;
+        }
+
+        onProfileUpdate?.(updatedFields);
+        alert('Profile updated successfully!');
+      }
     } catch (error) {
       console.error('Error updating profile:', error);
       alert('Failed to update profile');
@@ -411,38 +493,72 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         </div>
 
         {/* User Profile Section */}
-        <div className="bg-gradient-to-b from-teal-500 to-teal-400 px-4 pb-6 pt-2">
-          <div className="flex flex-col items-center">
-            {/* Profile Image with Upload */}
-            <div className="relative">
-              <div className="w-24 h-24 rounded-full border-4 border-white overflow-hidden bg-white">
-                {profileImagePreview || userProfile?.profile_img ? (
+        <div className="bg-gradient-to-b from-teal-500 to-teal-400 px-4 pb-5 pt-3">
+          {/* Top Row: profile picture (left) + display name (right) */}
+          <div className="flex items-center gap-4">
+            <div className="relative flex-shrink-0">
+              <div className="w-20 h-20 rounded-full border-4 border-white overflow-hidden bg-white">
+                {profileImageSrc ? (
                   <img
-                    src={profileImagePreview || (userProfile?.profile_img?.startsWith('http') ? userProfile.profile_img : `${BACKEND_URL}${userProfile?.profile_img}`)}
+                    src={profileImageSrc}
                     alt="Profile"
                     className="w-full h-full object-cover"
                   />
                 ) : (
                   <div className="w-full h-full bg-teal-100 flex items-center justify-center">
-                    <Users size={40} className="text-teal-500" />
+                    <Users size={36} className="text-teal-500" />
                   </div>
                 )}
               </div>
-              <label className="absolute bottom-0 right-0 p-2 bg-white rounded-full shadow-lg cursor-pointer hover:bg-gray-50 transition-colors">
-                <Camera size={16} className="text-teal-600" />
-                <input type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
-              </label>
+              <button
+                type="button"
+                onClick={() => profileFileInputRef.current?.click()}
+                className="absolute bottom-0 right-0 p-1.5 bg-white rounded-full shadow-lg cursor-pointer hover:bg-gray-50 transition-colors"
+                aria-label="Change profile photo"
+              >
+                <Camera size={14} className="text-teal-600" />
+              </button>
+              <input
+                ref={profileFileInputRef}
+                type="file"
+                accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
+                onChange={handleImageChange}
+                className="hidden"
+              />
             </div>
 
-            {/* User Name */}
-            <h3 className="text-white font-semibold text-xl mt-3">
-              {userProfile?.display_name || userProfile?.first_name || userProfile?.username || 'User'}
-            </h3>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-white font-semibold text-lg leading-tight truncate">
+                {displayName}
+              </h3>
+              {(userProfile?.first_name || userProfile?.last_name) && userProfile?.display_name && (
+                <p className="text-white/80 text-sm mt-0.5 truncate">
+                  {[userProfile.first_name, userProfile.last_name].filter(Boolean).join(' ')}
+                </p>
+              )}
+            </div>
+          </div>
 
-            {/* ID */}
-            {userProfile?.identification_code && (
-              <p className="text-white/80 text-sm mt-1">ID: {userProfile.identification_code}</p>
-            )}
+          {/* Information Block */}
+          <div className="mt-4 space-y-1.5 rounded-lg bg-white/10 px-3 py-2.5">
+            <div className="flex items-baseline gap-2 text-sm">
+              <span className="text-white/70 shrink-0">ID Number:</span>
+              <span className="text-white font-medium truncate">
+                {userProfile?.identification_code || '—'}
+              </span>
+            </div>
+            <div className="flex items-baseline gap-2 text-sm">
+              <span className="text-white/70 shrink-0">Mobile Number:</span>
+              <span className="text-white font-medium truncate">
+                {userProfile?.username || '—'}
+              </span>
+            </div>
+            <div className="flex items-baseline gap-2 text-sm">
+              <span className="text-white/70 shrink-0">Alternative Number:</span>
+              <span className="text-white font-medium truncate">
+                {profileFormData.alter_number || userProfile?.alter_number || '—'}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -469,6 +585,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           {/* Profile Tab - Combined Profile and Personal fields */}
           {activeTab === 'profile' && (
             <div className="space-y-4">
+              {profileImage && (
+                <div className="px-3 py-2 bg-teal-50 border border-teal-200 rounded-lg text-sm text-teal-800">
+                  New profile photo selected. Click <strong>Update Profile</strong> to upload to cloud storage.
+                </div>
+              )}
               {/* Basic Profile Fields */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Mobile Number (Username)</label>
@@ -1225,6 +1346,17 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           </>
         )}
       </AnimatePresence>
+
+      {/* Profile photo crop editor */}
+      {cropImageSrc && (
+        <ProfilePhotoCropModal
+          isOpen={showCropModal}
+          imageSrc={cropImageSrc}
+          onClose={closeCropModal}
+          onConfirm={handleCropConfirm}
+          onUseOriginal={handleUseOriginalPhoto}
+        />
+      )}
         </>
       )}
     </AnimatePresence>

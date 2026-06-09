@@ -345,6 +345,9 @@ export const MobileHomePage: React.FC = () => {
           isLoggedIn={isLoggedIn}
           onTopIconClick={handleTopIconClick}
           onLogout={handleLogout}
+          onProfileUpdate={(updates) => {
+            setUserProfile((prev) => (prev ? { ...prev, ...updates } : prev));
+          }}
           showTopIcons={true}
           showAds={true}
           showDarkModeToggle={true}

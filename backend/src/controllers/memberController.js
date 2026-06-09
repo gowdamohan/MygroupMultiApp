@@ -12,6 +12,9 @@ import {
 import { Op } from 'sequelize';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
+import { uploadFile as wasabiUploadFile } from '../services/wasabiService.js';
+import { compressProfileImageToBuffer } from '../utils/imageCompress.js';
+import { deleteStoredProfileImage } from '../utils/profileImageStorage.js';
 
 /**
  * MEMBER CONTROLLER
@@ -368,11 +371,35 @@ export const updateMemberProfile = async (req, res) => {
       display_name: display_name || null,
       last_name: last_name || null,
       alter_number: alter_number || null,
-      identification_code: identification_code
     };
-    if (req.file && req.file.filename) {
-      userUpdatePayload.profile_img = `/uploads/profile/${req.file.filename}`;
+    if (identification_code) {
+      userUpdatePayload.identification_code = identification_code;
     }
+
+    let profileImgPublicUrl;
+    if (req.file && req.file.buffer) {
+      const existingUser = await User.findByPk(user_id, { attributes: ['id', 'profile_img'] });
+      const compressedBuffer = await compressProfileImageToBuffer(req.file.buffer);
+      const folder = `profile_photos/user_${user_id}`;
+      const uploadResult = await wasabiUploadFile(
+        compressedBuffer,
+        `profile-${user_id}-${Date.now()}.jpg`,
+        'image/jpeg',
+        folder
+      );
+
+      if (!uploadResult.success || !uploadResult.fileName) {
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to upload profile image to storage'
+        });
+      }
+
+      await deleteStoredProfileImage(existingUser?.profile_img);
+      userUpdatePayload.profile_img = uploadResult.fileName;
+      profileImgPublicUrl = uploadResult.publicUrl;
+    }
+
     console.log('Updating user table...');
     const userUpdateResult = await User.update(userUpdatePayload, {
       where: { id: user_id }
@@ -431,7 +458,11 @@ export const updateMemberProfile = async (req, res) => {
       success: true,
       message: 'Registration completed successfully! Please login to continue.',
       data: {
-        identification_code: identification_code
+        identification_code: identification_code || undefined,
+        profile_img: userUpdatePayload.profile_img || undefined,
+        profile_img_url: profileImgPublicUrl || undefined,
+        display_name: display_name || undefined,
+        alter_number: alter_number || undefined,
       }
     });
 

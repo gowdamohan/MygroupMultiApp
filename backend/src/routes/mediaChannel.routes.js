@@ -135,12 +135,25 @@ router.get('/header-ads', authenticate, getPartnerHeaderAds);
  */
 router.get('/user-profile', authenticate, getUserProfile);
 
+const profilePhotoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = /jpeg|jpg|png|gif|webp/;
+    if (allowed.test(file.mimetype) || allowed.test(path.extname(file.originalname).toLowerCase())) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'));
+    }
+  }
+});
+
 /**
  * @route   POST /api/v1/partner/profile-photo
  * @desc    Upload profile photo
  * @access  Private (Partner)
  */
-router.post('/profile-photo', authenticate, upload.single('profile_photo'), uploadProfilePhoto);
+router.post('/profile-photo', authenticate, profilePhotoUpload.single('profile_photo'), uploadProfilePhoto);
 
 // ===========================
 // OWNER DETAILS ROUTES
