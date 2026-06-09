@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { ArrowLeft, Upload, FileText, Trash2, Calendar, BookOpen } from 'lucide-react';
-import { API_BASE_URL } from '../../config/api.config';
+import { API_BASE_URL, MEDIA_DOCUMENT_MAX_SIZE } from '../../config/api.config';
 import { parsePeriodicalSchedule, periodicalScheduleSignature } from '../../utils/mediaCategoryUtils';
 import { getMagazineUploadSlots, normalizePeriodicalType } from '../../utils/periodicalSlots';
 import { PeriodicalScheduleSummary } from '../../components/media/PeriodicalScheduleSummary';
@@ -97,6 +97,13 @@ export const MagazineUpload: React.FC<MagazineUploadProps> = ({
       setMessage({ type: 'error', text: 'Only PDF or image files (JPG, PNG, WebP) are allowed' });
       return;
     }
+    if (file.size > MEDIA_DOCUMENT_MAX_SIZE) {
+      setMessage({
+        type: 'error',
+        text: `File size exceeds 200MB limit. Your file is ${(file.size / (1024 * 1024)).toFixed(1)}MB.`
+      });
+      return;
+    }
     try {
       setUploading(slotId);
       setMessage(null);
@@ -118,8 +125,11 @@ export const MagazineUpload: React.FC<MagazineUploadProps> = ({
         fetchAllDocuments();
       }
     } catch (error: unknown) {
-      const err = error as { response?: { data?: { message?: string } } };
-      setMessage({ type: 'error', text: err.response?.data?.message || 'Upload failed' });
+      const err = error as { response?: { status?: number; data?: { message?: string } } };
+      const msg = err.response?.status === 413
+        ? 'File size exceeds 200MB limit. If this persists, ask your server admin to set nginx client_max_body_size to 200m.'
+        : (err.response?.data?.message || 'Upload failed');
+      setMessage({ type: 'error', text: msg });
     } finally {
       setUploading(null);
     }

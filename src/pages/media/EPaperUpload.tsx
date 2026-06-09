@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { ArrowLeft, Upload, FileText, Trash2, Calendar, Newspaper, ChevronLeft, ChevronRight } from 'lucide-react';
-import { API_BASE_URL } from '../../config/api.config';
+import { API_BASE_URL, MEDIA_DOCUMENT_MAX_SIZE } from '../../config/api.config';
 
 interface EPaperUploadProps {
   channelId: number;
@@ -89,6 +89,13 @@ export const EPaperUpload: React.FC<EPaperUploadProps> = ({ channelId, categoryI
       setMessage({ type: 'error', text: 'Only PDF or image files (JPG, PNG, WebP) are allowed' });
       return;
     }
+    if (file.size > MEDIA_DOCUMENT_MAX_SIZE) {
+      setMessage({
+        type: 'error',
+        text: `File size exceeds 200MB limit. Your file is ${(file.size / (1024 * 1024)).toFixed(1)}MB.`
+      });
+      return;
+    }
     const key = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
     try {
       setUploading(key);
@@ -111,7 +118,10 @@ export const EPaperUpload: React.FC<EPaperUploadProps> = ({ channelId, categoryI
         fetchDocuments();
       }
     } catch (error: any) {
-      setMessage({ type: 'error', text: error.response?.data?.message || 'Upload failed' });
+      const msg = error?.response?.status === 413
+        ? 'File size exceeds 200MB limit. If this persists, ask your server admin to set nginx client_max_body_size to 200m.'
+        : (error.response?.data?.message || 'Upload failed');
+      setMessage({ type: 'error', text: msg });
     } finally {
       setUploading(null);
     }

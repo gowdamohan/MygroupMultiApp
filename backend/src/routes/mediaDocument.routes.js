@@ -11,21 +11,43 @@ import {
 
 const router = express.Router();
 
+const MEDIA_DOCUMENT_MAX_SIZE = 200 * 1024 * 1024; // 200MB
+
+const ALLOWED_DOCUMENT_MIMES = new Set([
+  'application/pdf',
+  'image/jpeg',
+  'image/png',
+  'image/webp'
+]);
+
 // Configure multer for memory storage (for Wasabi upload)
 const storage = multer.memoryStorage();
 const upload = multer({
   storage: storage,
   limits: {
-    fileSize: 50 * 1024 * 1024 // 50MB max file size for PDFs
+    fileSize: MEDIA_DOCUMENT_MAX_SIZE
   },
   fileFilter: (req, file, cb) => {
-    if (file.mimetype === 'application/pdf') {
+    if (ALLOWED_DOCUMENT_MIMES.has(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Only PDF files are allowed'));
+      cb(new Error('Only PDF or image files (JPG, PNG, WebP) are allowed'));
     }
   }
 });
+
+const handleMediaDocumentMulterError = (err, req, res, next) => {
+  if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(413).json({
+      success: false,
+      message: 'File size exceeds 200MB limit'
+    });
+  }
+  if (err) {
+    return res.status(400).json({ success: false, message: err.message });
+  }
+  next();
+};
 
 // Get upload categories (category_type = 'upload_data')
 router.get('/upload-categories/:channelId', authenticateToken, getUploadCategories);
@@ -34,7 +56,17 @@ router.get('/upload-categories/:channelId', authenticateToken, getUploadCategori
 router.get('/documents/:channelId/:categoryId/:year/:month', authenticateToken, getDocuments);
 
 // Upload a document
-router.post('/upload/:channelId', authenticateToken, upload.single('document'), uploadDocument);
+router.post(
+  '/upload/:channelId',
+  authenticateToken,
+  (req, res, next) => {
+    upload.single('document')(req, res, (err) => {
+      if (err) return handleMediaDocumentMulterError(err, req, res, next);
+      next();
+    });
+  },
+  uploadDocument
+);
 
 // Delete a document
 router.delete('/document/:documentId', authenticateToken, deleteDocument);

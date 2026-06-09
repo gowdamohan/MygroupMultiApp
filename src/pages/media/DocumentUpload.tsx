@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { ArrowLeft, Upload, FileText, Trash2, Check, X, Calendar } from 'lucide-react';
-import { API_BASE_URL } from '../../config/api.config';
+import { API_BASE_URL, MEDIA_DOCUMENT_MAX_SIZE } from '../../config/api.config';
 
 interface DocumentUploadProps {
   channelId: number;
@@ -70,6 +70,13 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({ channelId, categ
       setMessage({ type: 'error', text: 'Only PDF files are allowed' });
       return;
     }
+    if (file.size > MEDIA_DOCUMENT_MAX_SIZE) {
+      setMessage({
+        type: 'error',
+        text: `File size exceeds 200MB limit. Your file is ${(file.size / (1024 * 1024)).toFixed(1)}MB.`
+      });
+      return;
+    }
 
     try {
       setUploading(date);
@@ -98,7 +105,10 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({ channelId, categ
         fetchDocuments();
       }
     } catch (error: any) {
-      setMessage({ type: 'error', text: error.response?.data?.message || 'Upload failed' });
+      const msg = error?.response?.status === 413
+        ? 'File size exceeds 200MB limit. If this persists, ask your server admin to set nginx client_max_body_size to 200m.'
+        : (error.response?.data?.message || 'Upload failed');
+      setMessage({ type: 'error', text: msg });
     } finally {
       setUploading(null);
     }

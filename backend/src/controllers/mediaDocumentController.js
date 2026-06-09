@@ -70,9 +70,12 @@ export const uploadDocument = async (req, res) => {
       return res.status(400).json({ success: false, message: 'No file uploaded' });
     }
 
-    // Validate file type (PDF only)
-    if (req.file.mimetype !== 'application/pdf') {
-      return res.status(400).json({ success: false, message: 'Only PDF files are allowed' });
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(req.file.mimetype)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Only PDF or image files (JPG, PNG, WebP) are allowed'
+      });
     }
 
     // Check if document already exists for this date

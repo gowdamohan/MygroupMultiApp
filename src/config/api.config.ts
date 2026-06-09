@@ -51,6 +51,9 @@ export const API_BASE_URL = baseApiUrl ||
  * Backend URL - for static assets (uploads, images)
  * Automatically extracted from API_BASE_URL or set explicitly
  */
+/** Max size for media-document PDF/image uploads (must match backend) */
+export const MEDIA_DOCUMENT_MAX_SIZE = 200 * 1024 * 1024; // 200MB
+
 export const BACKEND_URL = (() => {
   const explicitBackendUrl = import.meta.env.VITE_BACKEND_URL;
   if (explicitBackendUrl !== undefined) {
