@@ -3,6 +3,8 @@ import { ArrowLeft, FileText, Download, Calendar, ChevronDown, ChevronUp, Eye, L
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { API_BASE_URL, getUploadUrl } from '../../config/api.config';
+import { PdfDocumentViewer } from '../shared/PdfDocumentViewer';
+import { isPdfFile } from '../../utils/pdfViewer';
 
 interface EPaperMagazineViewProps {
   channelId: number;
@@ -55,17 +57,7 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
 
   const normalizeUrl = (url?: string) => getUploadUrl(url || '');
 
-  const isPdfDocument = (doc: Document) => {
-    const docType = (doc.document_type || '').toLowerCase();
-    const url = (doc.file_url || '').toLowerCase();
-    return (
-      docType === 'pdf' ||
-      docType.includes('pdf') ||
-      url.endsWith('.pdf') ||
-      url.includes('.pdf?') ||
-      url.includes('.pdf#')
-    );
-  };
+  const isPdfDocument = (doc: Document) => isPdfFile(doc.file_url, doc.document_type);
 
   const fetchDocuments = useCallback(async (pageNum: number, append = false) => {
     try {
@@ -123,7 +115,9 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
   const years = Object.keys(groupedDocs).sort((a, b) => parseInt(b) - parseInt(a));
 
   const handleDownload = (doc: Document) => {
-    const url = normalizeUrl(doc.file_url);
+    const url = doc.id
+      ? `${API_BASE_URL}/mymedia/document/${doc.id}/stream`
+      : normalizeUrl(doc.file_url);
     if (!url) return;
     window.open(url, '_blank');
   };
@@ -146,7 +140,7 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
           </button>
           <div className="flex-1 flex items-center gap-3" onClick={onViewDetails}>
             {channelLogo ? (
-              <img src={channelLogo.startsWith('http') ? channelLogo : `${BACKEND_URL}${channelLogo}`} alt={channelName} className="w-10 h-10 rounded-lg object-contain bg-white" />
+              <img src={getUploadUrl(channelLogo)} alt={channelName} className="w-10 h-10 rounded-lg object-contain bg-white" />
             ) : (
               <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center text-lg font-bold">{channelName?.charAt(0)}</div>
             )}
@@ -282,12 +276,13 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
                 <span>Download</span>
               </button>
             </div>
-            <div className="flex-1 flex items-center justify-center p-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex-1 flex flex-col min-h-0 p-4" onClick={(e) => e.stopPropagation()}>
               {isPdfDocument(selectedDoc) ? (
-                <iframe
-                  src={normalizeUrl(selectedDoc.file_url)}
-                  className="w-full h-full rounded-lg bg-white"
+                <PdfDocumentViewer
+                  documentId={selectedDoc.id}
+                  src={selectedDoc.file_url}
                   title={selectedDoc.title}
+                  className="w-full h-full min-h-[50vh] rounded-lg bg-white"
                 />
               ) : (
                 <img

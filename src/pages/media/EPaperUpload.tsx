@@ -5,6 +5,8 @@ import {
   ChevronLeft, ChevronRight, Eye, UploadCloud, X
 } from 'lucide-react';
 import { API_BASE_URL, MEDIA_DOCUMENT_MAX_SIZE } from '../../config/api.config';
+import { PdfDocumentViewer } from '../../components/shared/PdfDocumentViewer';
+import { isPdfFile } from '../../utils/pdfViewer';
 
 interface EPaperUploadProps {
   channelId: number;
@@ -214,14 +216,13 @@ export const EPaperUpload: React.FC<EPaperUploadProps> = ({ channelId, categoryI
   // ── PDF / image preview renderer ──────────────────────────────────────────
 
   const renderPreview = (doc: Document) => {
-    const isPdf = doc.document_url?.toLowerCase().includes('.pdf');
-    if (isPdf) {
+    if (isPdfFile(doc.document_url)) {
       return (
-        <iframe
-          key={doc.id}
-          title={doc.file_name}
+        <PdfDocumentViewer
+          documentId={doc.id}
           src={doc.document_url}
-          className="w-full h-full border-0 rounded-lg"
+          title={doc.file_name}
+          className="rounded-lg h-full"
         />
       );
     }

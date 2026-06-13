@@ -11,6 +11,7 @@ import {
   getChannelsByCategory,
   getChannelDetails,
   getChannelDocuments,
+  streamChannelDocument,
   getGalleryImages,
   getChannelStream,
   incrementViewCount
@@ -54,6 +55,9 @@ router.get('/channel/:channelId', getChannelDetails);
 // GET /api/v1/mymedia/channel/:channelId/documents - Get documents for E-Paper/Magazine
 // Query params: year, month
 router.get('/channel/:channelId/documents', getChannelDocuments);
+
+// GET /api/v1/mymedia/document/:documentId/stream - Inline PDF stream (same-origin)
+router.get('/document/:documentId/stream', streamChannelDocument);
 
 // GET /api/v1/mymedia/channel/:channelId/stream - Get TV stream URL
 router.get('/channel/:channelId/stream', getChannelStream);

@@ -118,12 +118,23 @@ export const getPresignedUrl = async (fileName, fileType, folder = '') => {
  * @param {number} expiresIn - Expiration time in seconds (default 3600 = 1 hour)
  * @returns {Object} - Signed URL for reading
  */
-export const getSignedReadUrl = async (filePath, expiresIn = 3600) => {
+export const getSignedReadUrl = async (filePath, expiresIn = 3600, options = {}) => {
   try {
-    const command = new GetObjectCommand({
+    const commandParams = {
       Bucket: WASABI_BUCKET,
       Key: filePath,
-    });
+    };
+
+    if (options.inline) {
+      const filename = (options.filename || filePath.split('/').pop() || 'document.pdf')
+        .replace(/"/g, '');
+      commandParams.ResponseContentDisposition = `inline; filename="${filename}"`;
+      if (options.contentType) {
+        commandParams.ResponseContentType = options.contentType;
+      }
+    }
+
+    const command = new GetObjectCommand(commandParams);
 
     const signedUrl = await getSignedUrl(s3Client, command, { expiresIn });
 
@@ -135,6 +146,17 @@ export const getSignedReadUrl = async (filePath, expiresIn = 3600) => {
     console.error('Wasabi signed read URL error:', error);
     throw error;
   }
+};
+
+/**
+ * Stream an object from Wasabi (for same-origin PDF proxy).
+ */
+export const getObjectStream = async (filePath) => {
+  const command = new GetObjectCommand({
+    Bucket: WASABI_BUCKET,
+    Key: filePath,
+  });
+  return s3Client.send(command);
 };
 
 /** Extract Wasabi object key from a key string or full bucket URL. */
@@ -167,7 +189,11 @@ export const resolveStorageReadUrl = async (pathOrUrl, expiresIn = 3600) => {
   const wasabiKey = extractWasabiKey(trimmed);
   if (wasabiKey) {
     try {
-      const { signedUrl } = await getSignedReadUrl(wasabiKey, expiresIn);
+      const isPdf = /\.pdf($|\?)/i.test(wasabiKey) || wasabiKey.toLowerCase().includes('.pdf');
+      const signOptions = isPdf
+        ? { inline: true, contentType: 'application/pdf', filename: wasabiKey.split('/').pop() }
+        : {};
+      const { signedUrl } = await getSignedReadUrl(wasabiKey, expiresIn, signOptions);
       if (signedUrl) return signedUrl;
     } catch (error) {
       console.error('Wasabi signed read URL failed:', error.message);
@@ -184,6 +210,7 @@ export default {
   deleteFile,
   getPresignedUrl,
   getSignedReadUrl,
+  getObjectStream,
   extractWasabiKey,
   resolveStorageReadUrl,
   WASABI_PUBLIC_BASE_URL,

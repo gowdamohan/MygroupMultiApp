@@ -25,7 +25,13 @@ import {
   CompanyAdsManagement,
   UserRegistration
 } from '../models/index.js';
-import { getSignedReadUrl, resolveStorageReadUrl } from '../services/wasabiService.js';
+import { getSignedReadUrl, resolveStorageReadUrl, getObjectStream, extractWasabiKey } from '../services/wasabiService.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Helper: Generate signed URL for a media_logo stored in Wasabi
@@ -888,6 +894,54 @@ export const getChannelDocuments = async (req, res) => {
   } catch (error) {
     console.error('Error fetching channel documents:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch documents', error: error.message });
+  }
+};
+
+/**
+ * Stream E-Paper/Magazine PDF inline (same-origin — works in mobile browsers + PDF.js).
+ * GET /api/v1/mymedia/document/:documentId/stream
+ */
+export const streamChannelDocument = async (req, res) => {
+  try {
+    const { documentId } = req.params;
+
+    const doc = await MediaChannelDocument.findOne({
+      where: { id: documentId, status: 1 },
+      attributes: ['document_path', 'file_name']
+    });
+
+    if (!doc?.document_path) {
+      return res.status(404).json({ success: false, message: 'Document not found' });
+    }
+
+    const storagePath = doc.document_path;
+    const filename = doc.file_name || 'document.pdf';
+    const safeName = filename.replace(/[^\w.\-() ]+/g, '_');
+
+    if (storagePath.startsWith('/uploads/')) {
+      const localPath = path.join(__dirname, '../../public', storagePath.replace(/^\/+/, ''));
+      if (!fs.existsSync(localPath)) {
+        return res.status(404).json({ success: false, message: 'File not found on server' });
+      }
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="${safeName}"`);
+      return fs.createReadStream(localPath).pipe(res);
+    }
+
+    const wasabiKey = extractWasabiKey(storagePath) || storagePath.replace(/^\/+/, '');
+    const result = await getObjectStream(wasabiKey);
+
+    res.setHeader('Content-Type', result.ContentType || 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${safeName}"`);
+    if (result.ContentLength) {
+      res.setHeader('Content-Length', String(result.ContentLength));
+    }
+    result.Body.pipe(res);
+  } catch (error) {
+    console.error('Error streaming document:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, message: 'Failed to stream document' });
+    }
   }
 };
 

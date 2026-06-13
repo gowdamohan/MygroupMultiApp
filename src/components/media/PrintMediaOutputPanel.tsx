@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import { API_BASE_URL } from '../../config/api.config';
+import { PdfDocumentViewer } from '../shared/PdfDocumentViewer';
+import { isPdfFile } from '../../utils/pdfViewer';
 import { FileText, MessageCircle, Send, User, Upload, Calendar } from 'lucide-react';
 import { MONTHS } from '../../utils/periodicalSlots';
 import { isMagazineCategory, ChannelCategoryContext } from '../../utils/mediaCategoryUtils';
@@ -148,13 +150,14 @@ export const PrintMediaOutputPanel: React.FC<PrintMediaOutputPanelProps> = ({
         </div>
       );
     }
-    const isPdf = doc.document_url?.toLowerCase().includes('.pdf');
+    const isPdf = isPdfFile(doc.document_url);
     if (isPdf) {
       return (
-        <iframe
-          title={doc.file_name}
+        <PdfDocumentViewer
+          documentId={doc.id}
           src={doc.document_url}
-          className={`w-full h-full border-0 ${className}`}
+          title={doc.file_name}
+          className={`w-full h-full ${className}`}
         />
       );
     }
