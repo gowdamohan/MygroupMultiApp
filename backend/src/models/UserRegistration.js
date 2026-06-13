@@ -128,20 +128,15 @@ const UserRegistration = sequelize.define('user_registration_form', {
     }
   },
   preferences: {
-    type: DataTypes.TEXT('long'),
-    allowNull: true,
-    get() {
-      const raw = this.getDataValue('preferences');
-      if (raw == null) return null;
-      try { return JSON.parse(raw); } catch { return raw; }
-    },
-    set(val) {
-      this.setDataValue('preferences', val == null ? null : JSON.stringify(val));
-    }
+    type: DataTypes.JSON,
+    allowNull: true
   }
 }, {
   timestamps: false,
-  tableName: 'user_registration_form'
+  tableName: 'user_registration_form',
+  defaultScope: {
+    attributes: { exclude: ['preferences'] }
+  }
 });
 
 export default UserRegistration;

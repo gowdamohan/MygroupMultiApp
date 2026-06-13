@@ -296,7 +296,7 @@ export const getProfile = async (req, res) => {
           attributes: ['id', 'name', 'description']
         },
         {
-          model: UserRegistration,
+          model: UserRegistration.unscoped(),
           as: 'profile',
           include: [
             { model: Country, as: 'countryData' },
@@ -842,7 +842,7 @@ export const updateUserSettings = async (req, res) => {
     const userId = req.user.id;
     const { security_pin, language_id, currency } = req.body;
 
-    let userRegistration = await UserRegistration.findOne({
+    let userRegistration = await UserRegistration.unscoped().findOne({
       where: { user_id: userId }
     });
 
