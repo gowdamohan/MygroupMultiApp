@@ -70,7 +70,7 @@ console.log("🔥 backendUrl =", backendUrl);
       },
     },
     optimizeDeps: {
-      include: ['jquery', 'react-summernote-lite']
+      include: ['jquery', 'react-summernote-lite', 'pdfjs-dist']
     },
     build: {
       target: 'esnext',
