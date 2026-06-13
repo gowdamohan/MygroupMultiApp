@@ -15,7 +15,7 @@ interface Conversation {
 interface Message {
   id: number;
   message: string;
-  sender_type: 'partner' | 'support';
+  sender_type: 'partner' | 'admin' | 'accounts' | 'technical' | 'system';
   created_at: string;
 }
 
@@ -68,7 +68,7 @@ export const AppSupportChat: React.FC<AppSupportChatProps> = ({ appId }) => {
     try {
       const token = localStorage.getItem('accessToken');
       await axios.post(`${API_BASE_URL}/support/conversations/${selectedConversation.id}/messages`,
-        { message: newMessage, sender_type: 'support' },
+        { message: newMessage, sender_type: 'admin' },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setNewMessage('');
@@ -250,16 +250,16 @@ export const AppSupportChat: React.FC<AppSupportChatProps> = ({ appId }) => {
                   </div>
                   {/* Messages for this date */}
                   {msgs.map((msg) => (
-                    <div key={msg.id} className={`flex mb-1 ${msg.sender_type === 'support' ? 'justify-end' : 'justify-start'}`}>
+                    <div key={msg.id} className={`flex mb-1 ${msg.sender_type !== 'partner' ? 'justify-end' : 'justify-start'}`}>
                       <div className={`relative max-w-[65%] px-3 py-2 shadow-sm ${
-                        msg.sender_type === 'support'
+                        msg.sender_type !== 'partner'
                           ? 'bg-[#d9fdd3] rounded-tl-lg rounded-bl-lg rounded-br-lg'
                           : 'bg-white rounded-tr-lg rounded-bl-lg rounded-br-lg'
                       }`}>
                         <p className="text-[14.2px] text-gray-900 leading-[19px] whitespace-pre-wrap">{msg.message}</p>
                         <div className={`flex items-center gap-1 justify-end mt-1 -mb-0.5`}>
                           <span className="text-[11px] text-gray-500">{formatTime(msg.created_at)}</span>
-                          {msg.sender_type === 'support' && (
+                          {msg.sender_type !== 'partner' && (
                             <CheckCheck className="w-4 h-4 text-blue-500" />
                           )}
                         </div>

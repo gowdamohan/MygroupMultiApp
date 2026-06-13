@@ -183,11 +183,20 @@ export const sendMessage = async (req, res) => {
       });
     }
 
+    // Normalise sender_type to a valid ENUM value.
+    // The DB ENUM is: 'partner' | 'admin' | 'accounts' | 'technical' | 'system'
+    // Old frontends sent 'support' which MySQL stores as '' — map everything
+    // non-partner to 'admin' to ensure a clean stored value.
+    const VALID_SENDER_TYPES = ['partner', 'admin', 'accounts', 'technical', 'system'];
+    const resolvedSenderType = VALID_SENDER_TYPES.includes(sender_type)
+      ? sender_type
+      : sender_type === 'partner' ? 'partner' : 'admin';
+
     // Create message
     const newMessage = await SupportMessage.create({
       conversation_id: id,
       sender_id: userId,
-      sender_type: sender_type || 'partner',
+      sender_type: resolvedSenderType,
       message
     });
 
