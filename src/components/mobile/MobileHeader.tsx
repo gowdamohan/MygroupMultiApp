@@ -1174,7 +1174,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
       </div>
 
       {/* Carousel scrolls with page content — only the two header rows above stay fixed */}
-      <div style={{ paddingTop: fixedHeaderHeightPx + 16 }}>
+      <div style={{ paddingTop: fixedHeaderHeightPx + 12 }}>
         {showAds && ads.length > 0 && !isDesktopHomeLayout && (
           <div className="bg-transparent px-4 pt-2 pb-3">
             <div className="relative rounded-2xl overflow-hidden shadow-lg">
@@ -1199,13 +1199,17 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                   <>
                     <button
                       onClick={handlePrevAd}
-                      className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 bg-white/90 hover:bg-white rounded-full transition-all shadow-md"
+                      className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 bg-white/90 hover:bg-white rounded-full transition-all shadow-md hidden"
+                      aria-hidden="true"
+                      tabIndex={-1}
                     >
                       <ChevronLeft size={18} className="text-gray-700" />
                     </button>
                     <button
                       onClick={handleNextAd}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-white/90 hover:bg-white rounded-full transition-all shadow-md"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-white/90 hover:bg-white rounded-full transition-all shadow-md hidden"
+                      aria-hidden="true"
+                      tabIndex={-1}
                     >
                       <ChevronRight size={18} className="text-gray-700" />
                     </button>
