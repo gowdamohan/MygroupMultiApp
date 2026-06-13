@@ -620,10 +620,9 @@ export const PartnerDashboard: React.FC = () => {
             {isPending && (
               <div className="mt-4 mx-2 p-3 bg-yellow-600/20 rounded-lg">
                 <p className="text-yellow-400 text-xs font-medium text-center">
-                  {registrationStatus === 'pending' ? 'Complete Your Profile' :
-                   registrationStatus === 'submitted' ? 'Profile Submitted' :
+                  {registrationStatus === 'pending' ? 'Waiting for Submission' :
+                   registrationStatus === 'submitted' ? 'Submitted' :
                    registrationStatus === 'verified' ? 'Profile Verified' :
-                   registrationStatus === 'processed_for_approve' ? 'Processing Approval' :
                    'Account Pending Approval'}
                 </p>
               </div>
@@ -686,10 +685,9 @@ export const PartnerDashboard: React.FC = () => {
                 {isPending && (
                   <div className="mt-4 mx-2 p-3 bg-yellow-600/20 rounded-lg">
                     <p className="text-yellow-400 text-xs font-medium text-center">
-                      {registrationStatus === 'pending' ? 'Complete Your Profile' :
-                       registrationStatus === 'submitted' ? 'Profile Submitted' :
+                      {registrationStatus === 'pending' ? 'Waiting for Submission' :
+                       registrationStatus === 'submitted' ? 'Submitted' :
                        registrationStatus === 'verified' ? 'Profile Verified' :
-                       registrationStatus === 'processed_for_approve' ? 'Processing Approval' :
                        'Account Pending Approval'}
                     </p>
                   </div>

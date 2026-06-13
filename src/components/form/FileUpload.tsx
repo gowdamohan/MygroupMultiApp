@@ -87,10 +87,19 @@ export const FileUpload: React.FC<FileUploadProps> = ({
       return;
     }
 
-    // Check file type if accept is specified
-    if (accept && !file.type.match(accept.replace('*', '.*'))) {
-      alert(`Invalid file type. Accepted: ${accept}`);
-      return;
+    // Check file type against comma-separated accept list (e.g. "image/jpeg,image/png,application/pdf")
+    if (accept) {
+      const acceptedTypes = accept.split(',').map(t => t.trim());
+      const isAccepted = acceptedTypes.some(type => {
+        if (type.endsWith('/*')) {
+          return file.type.startsWith(type.slice(0, -1));
+        }
+        return file.type === type;
+      });
+      if (!isAccepted) {
+        alert(`Invalid file type. Accepted formats: ${accept}`);
+        return;
+      }
     }
 
     onChange(file);
