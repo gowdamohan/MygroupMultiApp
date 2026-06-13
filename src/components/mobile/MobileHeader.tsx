@@ -792,10 +792,10 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
     }
   };
 
-  const headerOffsetPx = getMobileHeaderHeight(
+  const fixedHeaderHeightPx = getMobileHeaderHeight(
     showTopIcons,
-    showAds,
-    ads.length > 0,
+    false,
+    false,
     variant,
     desktopLayout,
     showSearchInput,
@@ -1168,10 +1168,12 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
             </div>
           )}
         </div>
+      </div>
 
-        {/* Carousel Ads Section - below navbar (mobile / default desktop) */}
+      {/* Carousel scrolls with page content — only the two header rows above stay fixed */}
+      <div style={{ paddingTop: fixedHeaderHeightPx + 16 }}>
         {showAds && ads.length > 0 && !isDesktopHomeLayout && (
-          <div className="bg-gradient-to-r from-pink-200 via-pink-100 to-pink-200 px-4 pb-3">
+          <div className="bg-transparent px-4 pt-2 pb-3">
             <div className="relative rounded-2xl overflow-hidden shadow-lg">
               <div className="relative h-32 overflow-hidden">
                 {ads.map((ad, index) => (
@@ -1190,7 +1192,6 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                   </a>
                 ))}
 
-                {/* Navigation Arrows - Updated styling */}
                 {ads.length > 1 && (
                   <>
                     <button
@@ -1209,7 +1210,6 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                 )}
               </div>
 
-              {/* Dots Navigation - Updated styling */}
               {ads.length > 1 && (
                 <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
                   {ads.map((_, index) => (
@@ -1386,7 +1386,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
       {!isDesktopVariant && showSearchInput && hasSearched && (
         <div
           className="fixed left-0 right-0 bottom-0 z-40 overflow-y-auto bg-gray-50"
-          style={{ top: headerOffsetPx }}
+          style={{ top: fixedHeaderHeightPx }}
         >
           <div className="p-4">
             {searchLoading ? (
@@ -1451,11 +1451,11 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
   );
 };
 
-/** Header offset for fixed `MobileHeader` — keep in sync with rendered sections. */
+/** Fixed header height (top app bar + profile bar). Carousel is not included — it scrolls with content. */
 export const getMobileHeaderHeight = (
   showTopIcons: boolean = true,
-  showAds: boolean = true,
-  hasAds: boolean = false,
+  _showAds: boolean = true,
+  _hasAds: boolean = false,
   variant: 'mobile' | 'desktop' = 'mobile',
   desktopLayout: 'default' | 'home' = 'default',
   searchExpanded: boolean = false,
@@ -1463,14 +1463,13 @@ export const getMobileHeaderHeight = (
   if (variant === 'desktop' && desktopLayout === 'home') {
     return 80;
   }
-  if (variant === 'desktop' && !showTopIcons && !showAds) {
+  if (variant === 'desktop' && !showTopIcons && !_showAds) {
     return 72;
   }
   let height = 0;
   if (showTopIcons) height += 60;
   height += variant === 'desktop' ? 72 : 56;
   if (searchExpanded && variant !== 'desktop') height += 52;
-  if (showAds && hasAds) height += 152;
   return height;
 };
 
