@@ -95,10 +95,25 @@ export const getUploadUrl = (path: string): string => {
     return path;
   }
   if (isWasabiObjectKey(path)) {
-    return `${WASABI_PUBLIC_URL}/${path}`;
+    return `${WASABI_PUBLIC_URL}/${path.replace(/^\/+/, '')}`;
   }
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   return `${BACKEND_URL}${normalizedPath}`;
+};
+
+/** Prefer API-provided signed/public URL, then resolve storage keys and local paths. */
+export const resolveProfileImageUrl = (
+  profileImg?: string | null,
+  profileImgUrl?: string | null
+): string => {
+  if (profileImgUrl?.startsWith('http')) return profileImgUrl;
+  if (profileImg) return getUploadUrl(profileImg);
+  return '';
+};
+
+/** Use on <img> loading Wasabi/S3 assets — avoids hotlink blocks from Referer headers. */
+export const WASABI_IMG_PROPS = {
+  referrerPolicy: 'no-referrer' as const,
 };
 
 /**

@@ -10,7 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { authAPI } from '../services/api';
 import { AuthModal } from '../components/AuthModal';
-import { API_BASE_URL, BACKEND_URL } from '../config/api.config';
+import { API_BASE_URL, BACKEND_URL, resolveProfileImageUrl, WASABI_IMG_PROPS } from '../config/api.config';
 
 interface AppItem {
   id: number;
@@ -28,6 +28,7 @@ interface UserProfile {
   display_name?: string;
   phone: string;
   profile_img?: string;
+  profile_img_url?: string;
   identification_code?: string;
 }
 
@@ -330,10 +331,11 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
             onClick={() => isLoggedIn && setShowProfileModal(true)}
             className="p-2 hover:bg-gray-100 rounded-full transition-colors"
           >
-            {userProfile?.profile_img ? (
+            {userProfile?.profile_img || userProfile?.profile_img_url ? (
               <img
-                src={`${BACKEND_URL}${userProfile.profile_img}`}
+                src={resolveProfileImageUrl(userProfile.profile_img, userProfile.profile_img_url)}
                 alt="Profile"
+                {...WASABI_IMG_PROPS}
                 className="w-8 h-8 rounded-full object-cover"
               />
             ) : (
@@ -467,10 +469,11 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                   {/* Profile Picture */}
                   <div className="relative">
                     <div className="w-24 h-24 rounded-full bg-white p-1">
-                      {userProfile?.profile_img ? (
+                      {userProfile?.profile_img || userProfile?.profile_img_url ? (
                         <img
-                          src={`${BACKEND_URL}${userProfile.profile_img}`}
+                          src={resolveProfileImageUrl(userProfile.profile_img, userProfile.profile_img_url)}
                           alt="Profile"
+                          {...WASABI_IMG_PROPS}
                           className="w-full h-full rounded-full object-cover"
                         />
                       ) : (

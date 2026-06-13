@@ -4,7 +4,7 @@ import fs from 'fs';
 import sharp from 'sharp';
 import { uploadFile as wasabiUploadFile, getSignedReadUrl } from '../services/wasabiService.js';
 import { compressProfileImageToBuffer } from '../utils/imageCompress.js';
-import { deleteStoredProfileImage } from '../utils/profileImageStorage.js';
+import { deleteStoredProfileImage, attachProfileImageUrl } from '../utils/profileImageStorage.js';
 import {
   MediaChannel,
   AppCategory,
@@ -608,6 +608,7 @@ export const getUserProfile = async (req, res) => {
 
     const userData = user.toJSON();
     delete userData.group_id; // Don't expose group_id to frontend
+    await attachProfileImageUrl(userData);
 
     res.json({
       success: true,
@@ -668,12 +669,20 @@ export const uploadProfilePhoto = async (req, res) => {
     await deleteStoredProfileImage(user.profile_img);
     await user.update({ profile_img: result.fileName });
 
+    let profileImgUrl = result.publicUrl;
+    try {
+      const { signedUrl } = await getSignedReadUrl(result.fileName, 86400);
+      if (signedUrl) profileImgUrl = signedUrl;
+    } catch (error) {
+      console.warn('Partner profile upload signed URL failed:', error.message);
+    }
+
     res.json({
       success: true,
       message: 'Profile photo uploaded successfully',
       data: {
         profile_img: result.fileName,
-        profile_img_url: result.publicUrl
+        profile_img_url: profileImgUrl
       }
     });
   } catch (error) {

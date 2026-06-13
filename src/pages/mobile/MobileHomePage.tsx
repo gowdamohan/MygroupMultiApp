@@ -11,7 +11,7 @@ import axios from 'axios';
 import { HomeData } from '../../types/home.types';
 import { AuthModal } from '../../components/AuthModal';
 import { authAPI } from '../../services/api';
-import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
+import { API_BASE_URL, BACKEND_URL, resolveProfileImageUrl, WASABI_IMG_PROPS } from '../../config/api.config';
 import { MobileHeader, TopIcon } from '../../components/mobile/MobileHeader';
 
 interface App {
@@ -34,6 +34,7 @@ interface UserProfile {
   display_name?: string;
   phone: string;
   profile_img?: string;
+  profile_img_url?: string;
   identification_code?: string;
 }
 
@@ -792,10 +793,11 @@ export const MobileHomePage: React.FC = () => {
                       {/* Profile Picture */}
                       <div className="relative">
                         <div className="w-24 h-24 rounded-full bg-white p-1">
-                          {userProfile.profile_img ? (
+                          {userProfile.profile_img || userProfile.profile_img_url ? (
                             <img
-                              src={`${BACKEND_URL}${userProfile.profile_img}`}
+                              src={resolveProfileImageUrl(userProfile.profile_img, userProfile.profile_img_url)}
                               alt="Profile"
+                              {...WASABI_IMG_PROPS}
                               className="w-full h-full rounded-full object-cover"
                             />
                           ) : (

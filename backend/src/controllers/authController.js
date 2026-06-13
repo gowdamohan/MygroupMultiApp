@@ -17,9 +17,49 @@ import { generateTokens, verifyRefreshToken } from '../utils/jwt.js';
 import sequelize from '../config/database.js';
 import { Op } from 'sequelize';
 import bcrypt from 'bcrypt';
-import { uploadFile as wasabiUploadFile } from '../services/wasabiService.js';
+import { uploadFile as wasabiUploadFile, getSignedReadUrl } from '../services/wasabiService.js';
 import { compressProfileImageToBuffer } from '../utils/imageCompress.js';
-import { deleteStoredProfileImage } from '../utils/profileImageStorage.js';
+import { attachProfileImageUrl, deleteStoredProfileImage } from '../utils/profileImageStorage.js';
+
+const isMissingPreferencesColumn = (error) =>
+  String(error?.message || error).includes("Unknown column 'preferences'");
+
+/** Load preferences JSON when the column exists (optional on older DB schemas). */
+const loadRegistrationPreferences = async (userId) => {
+  try {
+    const [rows] = await sequelize.query(
+      'SELECT preferences FROM user_registration_form WHERE user_id = ? LIMIT 1',
+      { replacements: [userId] }
+    );
+    const raw = rows[0]?.preferences;
+    if (raw == null) return null;
+    return typeof raw === 'string' ? JSON.parse(raw) : raw;
+  } catch (error) {
+    if (isMissingPreferencesColumn(error)) return null;
+    throw error;
+  }
+};
+
+/** Persist preferences JSON when the column exists. */
+const saveRegistrationPreferences = async (userId, preferences) => {
+  try {
+    const [result] = await sequelize.query(
+      'UPDATE user_registration_form SET preferences = ? WHERE user_id = ?',
+      { replacements: [JSON.stringify(preferences), userId] }
+    );
+    const affected = result?.affectedRows ?? 0;
+    if (affected === 0) {
+      await sequelize.query(
+        'INSERT INTO user_registration_form (user_id, preferences) VALUES (?, ?)',
+        { replacements: [userId, JSON.stringify(preferences)] }
+      );
+    }
+    return true;
+  } catch (error) {
+    if (isMissingPreferencesColumn(error)) return false;
+    throw error;
+  }
+};
 
 /**
  * Register new user
@@ -324,9 +364,18 @@ export const getProfile = async (req, res) => {
       });
     }
 
+    const userData = user.toJSON();
+    if (userData.profile) {
+      const preferences = await loadRegistrationPreferences(userData.id);
+      if (preferences != null) {
+        userData.profile.preferences = preferences;
+      }
+    }
+    await attachProfileImageUrl(userData);
+
     res.json({
       success: true,
-      data: user.toJSON()
+      data: userData
     });
   } catch (error) {
     console.error('Get profile error:', error);
@@ -851,7 +900,7 @@ export const updateUserSettings = async (req, res) => {
     }
 
     const preferences = {
-      ...(userRegistration.preferences || {})
+      ...((await loadRegistrationPreferences(userId)) || {})
     };
 
     if (security_pin !== undefined) {
@@ -872,7 +921,13 @@ export const updateUserSettings = async (req, res) => {
       preferences.currency = currency || null;
     }
 
-    await userRegistration.update({ preferences });
+    const saved = await saveRegistrationPreferences(userId, preferences);
+    if (!saved) {
+      return res.status(501).json({
+        success: false,
+        message: 'Preferences storage is not available on this database (missing preferences column)'
+      });
+    }
 
     res.json({
       success: true,
@@ -985,12 +1040,20 @@ export const uploadProfilePhoto = async (req, res) => {
 
     await User.update({ profile_img: uploadResult.fileName }, { where: { id: userId } });
 
+    let profileImgUrl = uploadResult.publicUrl;
+    try {
+      const { signedUrl } = await getSignedReadUrl(uploadResult.fileName, 86400);
+      if (signedUrl) profileImgUrl = signedUrl;
+    } catch (error) {
+      console.warn('Profile upload signed URL failed, using public URL:', error.message);
+    }
+
     res.json({
       success: true,
       message: 'Profile photo updated successfully',
       data: {
         profile_img: uploadResult.fileName,
-        profile_img_url: uploadResult.publicUrl
+        profile_img_url: profileImgUrl
       }
     });
   } catch (error) {

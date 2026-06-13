@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
-import { API_BASE_URL, BACKEND_URL, getUploadUrl } from '../../config/api.config';
+import { API_BASE_URL, BACKEND_URL, resolveProfileImageUrl, WASABI_IMG_PROPS } from '../../config/api.config';
 import { authAPI } from '../../services/api';
 import { ProfilePhotoCropModal } from './ProfilePhotoCropModal';
 
@@ -21,6 +21,7 @@ interface UserProfile {
   display_name?: string;
   phone?: string;
   profile_img?: string;
+  profile_img_url?: string;
   identification_code?: string;
   alter_number?: string;
 }
@@ -123,6 +124,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [profileImage, setProfileImage] = useState<File | null>(null);
   const [profileImagePreview, setProfileImagePreview] = useState<string | null>(null);
   const [localProfileImg, setLocalProfileImg] = useState<string | null>(null);
+  const [localProfileImgUrl, setLocalProfileImgUrl] = useState<string | null>(null);
   const [showCropModal, setShowCropModal] = useState(false);
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -247,6 +249,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         email: userProfile.email || ''
       });
       setLocalProfileImg(userProfile.profile_img || null);
+      setLocalProfileImgUrl(userProfile.profile_img_url || null);
     }
   }, [userProfile]);
 
@@ -260,8 +263,9 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const getProfileImageSrc = (): string | null => {
     if (profileImagePreview) return profileImagePreview;
     const imgPath = localProfileImg || userProfile?.profile_img;
-    if (!imgPath) return null;
-    return getUploadUrl(imgPath);
+    const imgUrl = localProfileImgUrl || userProfile?.profile_img_url;
+    if (!imgPath && !imgUrl) return null;
+    return resolveProfileImageUrl(imgPath, imgUrl);
   };
 
   const displayName =
@@ -490,10 +494,12 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
       if (response.data.success) {
         const newKey = response.data.data.profile_img as string;
+        const newUrl = response.data.data.profile_img_url as string | undefined;
         setLocalProfileImg(newKey);
+        setLocalProfileImgUrl(newUrl || null);
         setProfileImage(null);
         setProfileImagePreview(null);
-        onProfileUpdate?.({ profile_img: newKey });
+        onProfileUpdate?.({ profile_img: newKey, profile_img_url: newUrl });
       }
     } catch (error) {
       console.error('Auto profile photo upload failed:', error);
@@ -584,12 +590,15 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       if (response.data.success) {
         const updatedFields: Partial<UserProfile> = { ...profileFormData };
         const serverProfileImg = response.data.data?.profile_img as string | undefined;
+        const serverProfileImgUrl = response.data.data?.profile_img_url as string | undefined;
 
         if (serverProfileImg) {
           setLocalProfileImg(serverProfileImg);
+          setLocalProfileImgUrl(serverProfileImgUrl || null);
           setProfileImagePreview(null);
           setProfileImage(null);
           updatedFields.profile_img = serverProfileImg;
+          if (serverProfileImgUrl) updatedFields.profile_img_url = serverProfileImgUrl;
         } else if (profileImagePreview) {
           updatedFields.profile_img = localProfileImg || userProfile.profile_img;
         }
@@ -863,6 +872,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   <img
                     src={profileImageSrc}
                     alt="Profile"
+                    {...WASABI_IMG_PROPS}
                     className="w-full h-full object-cover"
                   />
                 ) : (

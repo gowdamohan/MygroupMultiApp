@@ -126,18 +126,6 @@ const UserRegistration = sequelize.define('user_registration_form', {
       model: 'district_tbl',
       key: 'id'
     }
-  },
-  preferences: {
-    type: DataTypes.TEXT('long'),
-    allowNull: true,
-    get() {
-      const raw = this.getDataValue('preferences');
-      if (raw == null) return null;
-      try { return JSON.parse(raw); } catch { return raw; }
-    },
-    set(val) {
-      this.setDataValue('preferences', val == null ? null : JSON.stringify(val));
-    }
   }
 }, {
   timestamps: false,

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { User, ChevronLeft, ChevronRight, X, Search, Menu, Sun, Moon, Settings } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
-import { API_BASE_URL, BACKEND_URL, getUploadUrl } from '../../config/api.config';
+import { API_BASE_URL, BACKEND_URL, getUploadUrl, resolveProfileImageUrl, WASABI_IMG_PROPS } from '../../config/api.config';
 import { authAPI } from '../../services/api';
 import { UserProfileModal } from './UserProfileModal';
 import { AppSettingsModal } from './AppSettingsModal';
@@ -97,6 +97,7 @@ interface UserProfile {
   last_name?: string;
   phone?: string;
   profile_img?: string;
+  profile_img_url?: string;
   identification_code?: string;
   profile?: UserProfileData;
 }
@@ -260,6 +261,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
           last_name: userData.last_name,
           phone: userData.phone,
           profile_img: userData.profile_img,
+          profile_img_url: userData.profile_img_url,
           identification_code: userData.identification_code,
           profile: userData.profile
             ? {
@@ -1004,10 +1006,11 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                 className="flex-shrink-0 rounded-full ring-2 ring-transparent hover:ring-purple-500/30 transition-all duration-300"
                 aria-label="Open profile"
               >
-                {userProfile?.profile_img ? (
+                {userProfile?.profile_img || userProfile?.profile_img_url ? (
                   <img
-                    src={resolveAssetUrl(userProfile.profile_img)}
+                    src={resolveProfileImageUrl(userProfile.profile_img, userProfile.profile_img_url)}
                     alt="Profile"
+                    {...WASABI_IMG_PROPS}
                     className={`w-9 h-9 rounded-full object-cover ${
                       isDesktopVariant ? 'border-2 border-gray-200 dark:border-gray-700' : 'border-2 border-white shadow-sm'
                     }`}

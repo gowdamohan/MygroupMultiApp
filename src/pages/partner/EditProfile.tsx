@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { User, Mail, Phone, MapPin, Building, Save, Camera, Loader2 } from 'lucide-react';
 import axios from 'axios';
-import { API_BASE_URL, getUploadUrl } from '../../config/api.config';
+import { API_BASE_URL, resolveProfileImageUrl, WASABI_IMG_PROPS } from '../../config/api.config';
 
 export const EditProfile: React.FC = () => {
   const [loading, setLoading] = useState(false);
@@ -9,6 +9,7 @@ export const EditProfile: React.FC = () => {
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
   const [profileImg, setProfileImg] = useState<string | null>(null);
+  const [profileImgUrl, setProfileImgUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     first_name: '',
@@ -61,6 +62,7 @@ export const EditProfile: React.FC = () => {
       });
       if (response.data.success && response.data.data.profile_img) {
         setProfileImg(response.data.data.profile_img);
+        setProfileImgUrl(response.data.data.profile_img_url || null);
       }
     } catch (err) {
       console.error('Failed to fetch user profile:', err);
@@ -101,6 +103,7 @@ export const EditProfile: React.FC = () => {
 
       if (response.data.success) {
         setProfileImg(response.data.data.profile_img);
+        setProfileImgUrl(response.data.data.profile_img_url || null);
         setSuccess('Profile photo updated successfully!');
         setTimeout(() => setSuccess(''), 3000);
       }
@@ -164,10 +167,11 @@ export const EditProfile: React.FC = () => {
         <div className="flex flex-col items-center mb-8 pb-6 border-b border-gray-200">
           <div className="relative">
             <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-primary-100 shadow-lg">
-              {profileImg ? (
+              {profileImg || profileImgUrl ? (
                 <img
-                  src={getUploadUrl(profileImg)}
+                  src={resolveProfileImageUrl(profileImg, profileImgUrl)}
                   alt="Profile"
+                  {...WASABI_IMG_PROPS}
                   className="w-full h-full object-cover"
                 />
               ) : (
