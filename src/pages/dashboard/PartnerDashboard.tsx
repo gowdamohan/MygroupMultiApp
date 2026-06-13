@@ -14,7 +14,7 @@ import { MyChannelList } from '../partner/MyChannelList';
 import { HeaderAdsBooking } from '../partner/HeaderAdsBooking';
 import { SupportChat } from '../partner/SupportChat';
 import { PartnerProfileCompletionForm } from '../../components/PartnerProfileCompletionForm';
-import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
+import { API_BASE_URL, BACKEND_URL, resolveProfileImageUrl, WASABI_IMG_PROPS } from '../../config/api.config';
 import { ADMIN_SUPPORT_APP_ID } from '../../config/supportChat.config';
 
 const SUPPORT_CHAT_LAST_SEEN_KEY = 'support_chat_last_seen_id';
@@ -43,6 +43,7 @@ interface PartnerAd {
 interface UserProfile {
   id: number;
   profile_img: string | null;
+  profile_img_url?: string | null;
   identification_code: string | null;
   first_name: string | null;
   last_name: string | null;
@@ -550,10 +551,11 @@ export const PartnerDashboard: React.FC = () => {
           <div className="p-4 border-b border-gray-700">
             <div className="flex flex-col items-center">
               <div className="w-16 h-16 rounded-full overflow-hidden border-3 border-primary-500 shadow-lg mb-3">
-                {userProfile?.profile_img ? (
+                {userProfile?.profile_img || userProfile?.profile_img_url ? (
                   <img
-                    src={`${BACKEND_URL}${userProfile.profile_img}`}
+                    src={resolveProfileImageUrl(userProfile.profile_img, userProfile.profile_img_url)}
                     alt="Profile"
+                    {...WASABI_IMG_PROPS}
                     className="w-full h-full object-cover"
                   />
                 ) : (
@@ -677,10 +679,11 @@ export const PartnerDashboard: React.FC = () => {
               <div className="p-4 border-b border-gray-700">
                 <div className="flex items-center justify-between mb-3">
                   <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-primary-500">
-                    {userProfile?.profile_img ? (
+                    {userProfile?.profile_img || userProfile?.profile_img_url ? (
                       <img
-                        src={`${BACKEND_URL}${userProfile.profile_img}`}
+                        src={resolveProfileImageUrl(userProfile.profile_img, userProfile.profile_img_url)}
                         alt="Profile"
+                        {...WASABI_IMG_PROPS}
                         className="w-full h-full object-cover"
                       />
                     ) : (

@@ -19,6 +19,8 @@ const s3Client = new S3Client({
   forcePathStyle: true, // Required for Wasabi
 });
 
+export const WASABI_PUBLIC_BASE_URL = WASABI_BASE_URL;
+
 /**
  * Upload file to Wasabi S3
  * @param {Buffer} fileBuffer - File buffer
@@ -142,5 +144,6 @@ export default {
   deleteFile,
   getPresignedUrl,
   getSignedReadUrl,
+  WASABI_PUBLIC_BASE_URL,
 };
 

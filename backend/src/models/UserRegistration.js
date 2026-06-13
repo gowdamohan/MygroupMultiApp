@@ -126,17 +126,10 @@ const UserRegistration = sequelize.define('user_registration_form', {
       model: 'district_tbl',
       key: 'id'
     }
-  },
-  preferences: {
-    type: DataTypes.JSON,
-    allowNull: true
   }
 }, {
   timestamps: false,
-  tableName: 'user_registration_form',
-  defaultScope: {
-    attributes: { exclude: ['preferences'] }
-  }
+  tableName: 'user_registration_form'
 });
 
 export default UserRegistration;
