@@ -2,28 +2,23 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import {
-  LayoutDashboard, User, Lock, Video, List, MessageSquare,
-  Mail, LogOut, ChevronDown, ChevronRight, Menu, X,
-  HelpCircle, MessageCircle,
-  Users, Star, TrendingUp, DollarSign, Megaphone, Wallet,
-  Settings, BookOpen, Newspaper, Image, Award, Share2, Scale, ShieldCheck, FileCheck
+  LayoutDashboard, User, Lock, Video, List,
+  LogOut, ChevronDown, ChevronRight, Menu, X,
+  MessageCircle,
+  Users, Star, TrendingUp, DollarSign, Megaphone, Wallet
 } from 'lucide-react';
 import { EditProfile } from '../partner/EditProfile';
 import { ChangePassword } from '../partner/ChangePassword';
 import { CreateMedia } from '../partner/CreateMedia';
 import { MyChannelList } from '../partner/MyChannelList';
-import { Enquiry } from '../partner/Enquiry';
-import { Feedback } from '../partner/Feedback';
-import { LiveChat } from '../partner/LiveChat';
 import { HeaderAdsBooking } from '../partner/HeaderAdsBooking';
 import { SupportChat } from '../partner/SupportChat';
-import { FooterPageManager } from '../corporate/FooterPageManager';
-import { FooterPageListManager } from '../corporate/FooterPageListManager';
-import { SocialMediaLinks } from '../corporate/SocialMediaLinks';
-import { Gallery } from '../corporate/Gallery';
-import { FooterFaqManager } from '../corporate/FooterFaqManager';
 import { PartnerProfileCompletionForm } from '../../components/PartnerProfileCompletionForm';
 import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
+import { ADMIN_SUPPORT_APP_ID } from '../../config/supportChat.config';
+
+const SUPPORT_CHAT_LAST_SEEN_KEY = 'support_chat_last_seen_id';
+const UNREAD_POLL_MS = 10000;
 
 interface MenuItem {
   id: string;
@@ -68,6 +63,52 @@ export const PartnerDashboard: React.FC = () => {
   const [partnerAds, setPartnerAds] = useState<PartnerAd[]>([]);
   const [registrationStatus, setRegistrationStatus] = useState<string>('pending');
   const [appName, setAppName] = useState<string>('');
+  const [unreadSupportCount, setUnreadSupportCount] = useState(0);
+
+  const fetchUnreadSupportCount = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      if (!token) return;
+      const response = await axios.get(`${API_BASE_URL}/admin/chat-messages`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { channel_type: 'admin', app_id: ADMIN_SUPPORT_APP_ID }
+      });
+      if (response.data.success) {
+        const messages: { id: number; sender_type?: string; is_own?: boolean; direction?: string }[] =
+          response.data.data?.messages || [];
+        const lastSeenId = parseInt(localStorage.getItem(SUPPORT_CHAT_LAST_SEEN_KEY) || '0', 10);
+        const count = messages.filter(
+          m => m.id > lastSeenId && m.sender_type !== 'partner' && m.is_own !== true && m.direction !== 'out'
+        ).length;
+        setUnreadSupportCount(count);
+      }
+    } catch {
+      // silently ignore polling errors
+    }
+  }, []);
+
+  const markSupportChatRead = useCallback(() => {
+    // Will be called when user opens Support Chat; needs latest messages fetched first
+    const doMark = async () => {
+      try {
+        const token = localStorage.getItem('accessToken');
+        if (!token) return;
+        const response = await axios.get(`${API_BASE_URL}/admin/chat-messages`, {
+          headers: { Authorization: `Bearer ${token}` },
+          params: { channel_type: 'admin', app_id: ADMIN_SUPPORT_APP_ID }
+        });
+        if (response.data.success) {
+          const messages: { id: number }[] = response.data.data?.messages || [];
+          if (messages.length > 0) {
+            const maxId = Math.max(...messages.map(m => m.id));
+            localStorage.setItem(SUPPORT_CHAT_LAST_SEEN_KEY, String(maxId));
+          }
+        }
+      } catch { /* ignore */ }
+      setUnreadSupportCount(0);
+    };
+    doMark();
+  }, []);
 
   const fetchUserProfile = useCallback(async () => {
     try {
@@ -127,6 +168,20 @@ export const PartnerDashboard: React.FC = () => {
     }
   }, [navigate, fetchUserProfile, fetchPartnerAds]);
 
+  // Poll for unread support chat messages
+  useEffect(() => {
+    fetchUnreadSupportCount();
+    const interval = setInterval(fetchUnreadSupportCount, UNREAD_POLL_MS);
+    return () => clearInterval(interval);
+  }, [fetchUnreadSupportCount]);
+
+  // Mark support chat as read when the user is on that page
+  useEffect(() => {
+    if (location.pathname === '/partner/support-chat') {
+      markSupportChatRead();
+    }
+  }, [location.pathname, markSupportChatRead]);
+
   // Common menu items for ALL partner dashboards
   const commonMenuItems: MenuItem[] = [
     {
@@ -142,22 +197,6 @@ export const PartnerDashboard: React.FC = () => {
       children: [
         { id: 'edit-profile', label: 'Edit Profile', icon: User, path: '/partner/edit-profile' },
         { id: 'change-password', label: 'Change Password', icon: Lock, path: '/partner/change-password' }
-      ]
-    },
-    {
-      id: 'footer',
-      label: 'Footer',
-      icon: Settings,
-      children: [
-        { id: 'about-app', label: 'About the App', icon: BookOpen, path: '/partner/footer/about-app' },
-        { id: 'newsletter', label: 'Newsletter', icon: Newspaper, path: '/partner/footer/newsletter' },
-        { id: 'gallery', label: 'Gallery', icon: Image, path: '/partner/footer/gallery' },
-        { id: 'awards', label: 'Awards', icon: Award, path: '/partner/footer/awards' },
-        { id: 'social-media', label: 'Social Media Links', icon: Share2, path: '/partner/footer/social-media' },
-        { id: 'tnc-partners', label: 'T&C of Partners', icon: Scale, path: '/partner/footer/tnc-partners' },
-        { id: 'tnc', label: 'Terms & Conditions', icon: FileCheck, path: '/partner/footer/tnc' },
-        { id: 'privacy-policy', label: 'Privacy Policies', icon: ShieldCheck, path: '/partner/footer/privacy' },
-        { id: 'faq', label: 'FAQs', icon: HelpCircle, path: '/partner/footer/faq' }
       ]
     },
     {
@@ -189,16 +228,6 @@ export const PartnerDashboard: React.FC = () => {
       children: [
         { id: 'header-ads-booking', label: 'Book Header Ads', icon: Megaphone, path: '/partner/header-ads-booking' },
         { id: 'my-wallet', label: 'My Wallet', icon: Wallet, path: '/partner/wallet' }
-      ]
-    },
-    {
-      id: 'support',
-      label: 'Support',
-      icon: HelpCircle,
-      children: [
-        { id: 'enquiry', label: 'Enquiry', icon: Mail, path: '/partner/enquiry' },
-        { id: 'feedback', label: 'Feedback and Suggestions', icon: MessageSquare, path: '/partner/feedback' },
-        { id: 'live-chat', label: 'Chat', icon: MessageCircle, path: '/partner/live-chat' }
       ]
     }
   ];
@@ -251,6 +280,7 @@ export const PartnerDashboard: React.FC = () => {
     const isExpanded = expandedMenus.includes(item.id);
     const isActive = activeMenu === item.id || location.pathname === item.path;
     const hasChildren = item.children && item.children.length > 0;
+    const showBadge = item.id === 'support-chat' && unreadSupportCount > 0;
 
     return (
       <div key={item.id}>
@@ -264,14 +294,18 @@ export const PartnerDashboard: React.FC = () => {
         >
           <div className="flex items-center gap-3">
             <item.icon size={20} />
-            {sidebarOpen && <span className="font-medium">{item.label}</span>}
+            <span className="font-medium">{item.label}</span>
           </div>
-          {sidebarOpen && hasChildren && (
+          {showBadge ? (
+            <span className="ml-auto flex-shrink-0 min-w-[20px] h-5 px-1 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center leading-none">
+              {unreadSupportCount > 99 ? '99+' : unreadSupportCount}
+            </span>
+          ) : hasChildren ? (
             isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />
-          )}
+          ) : null}
         </button>
 
-        {hasChildren && isExpanded && sidebarOpen && (
+        {hasChildren && isExpanded && (
           <div className="mt-1 space-y-1">
             {item.children!.map(child => renderMenuItem(child, depth + 1))}
           </div>
@@ -483,36 +517,12 @@ export const PartnerDashboard: React.FC = () => {
         return <CreateMedia />;
       case '/partner/my-channel-list':
         return <MyChannelList />;
-      case '/partner/enquiry':
-        return <Enquiry />;
-      case '/partner/feedback':
-        return <Feedback />;
-      case '/partner/live-chat':
-        return <LiveChat />;
       case '/partner/header-ads-booking':
         return <HeaderAdsBooking />;
       case '/partner/wallet':
         return <div className="p-6"><h2 className="text-2xl font-bold">My Wallet</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
       case '/partner/support-chat':
         return <SupportChat registrationStatus={registrationStatus} />;
-      case '/partner/footer/about-app':
-        return <FooterPageListManager pageType="about_app" pageTitle="About the App" />;
-      case '/partner/footer/newsletter':
-        return <FooterPageListManager pageType="newsletter" pageTitle="Newsletter" />;
-      case '/partner/footer/gallery':
-        return <Gallery />;
-      case '/partner/footer/awards':
-        return <FooterPageListManager pageType="awards" pageTitle="Awards" />;
-      case '/partner/footer/social-media':
-        return <SocialMediaLinks />;
-      case '/partner/footer/tnc-partners':
-        return <FooterPageManager pageType="tnc_partners" pageTitle="T&C of Partners" />;
-      case '/partner/footer/tnc':
-        return <FooterPageManager pageType="terms" pageTitle="Terms & Conditions" />;
-      case '/partner/footer/privacy':
-        return <FooterPageManager pageType="privacy_policy" pageTitle="Privacy Policies" />;
-      case '/partner/footer/faq':
-        return <FooterFaqManager />;
       default:
         return renderDashboard();
     }
@@ -572,6 +582,8 @@ export const PartnerDashboard: React.FC = () => {
                 const isExpanded = expandedMenus.includes(item.id);
                 const isActive = activeMenu === item.id || location.pathname === item.path;
                 const hasChildren = item.children && item.children.length > 0;
+                const isSupportChat = item.id === 'support-chat';
+                const showBadge = isSupportChat && unreadSupportCount > 0;
 
                 return (
                   <div key={item.id}>
@@ -583,12 +595,25 @@ export const PartnerDashboard: React.FC = () => {
                           : 'text-gray-300 hover:bg-gray-700 hover:text-white'
                       }`}
                     >
-                      <div className="flex items-center gap-3">
-                        <item.icon size={18} />
-                        {sidebarOpen && <span className="text-sm font-medium">{item.label}</span>}
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="relative flex-shrink-0">
+                          <item.icon size={18} />
+                          {showBadge && !sidebarOpen && (
+                            <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-0.5 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none">
+                              {unreadSupportCount > 99 ? '99+' : unreadSupportCount}
+                            </span>
+                          )}
+                        </div>
+                        {sidebarOpen && <span className="text-sm font-medium truncate">{item.label}</span>}
                       </div>
-                      {sidebarOpen && hasChildren && (
-                        isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />
+                      {sidebarOpen && (
+                        showBadge ? (
+                          <span className="ml-auto flex-shrink-0 min-w-[20px] h-5 px-1 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center leading-none">
+                            {unreadSupportCount > 99 ? '99+' : unreadSupportCount}
+                          </span>
+                        ) : hasChildren ? (
+                          isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />
+                        ) : null
                       )}
                     </button>
 
@@ -620,10 +645,9 @@ export const PartnerDashboard: React.FC = () => {
             {isPending && (
               <div className="mt-4 mx-2 p-3 bg-yellow-600/20 rounded-lg">
                 <p className="text-yellow-400 text-xs font-medium text-center">
-                  {registrationStatus === 'pending' ? 'Complete Your Profile' :
-                   registrationStatus === 'submitted' ? 'Profile Submitted' :
+                  {registrationStatus === 'pending' ? 'Waiting for Submission' :
+                   registrationStatus === 'submitted' ? 'Submitted' :
                    registrationStatus === 'verified' ? 'Profile Verified' :
-                   registrationStatus === 'processed_for_approve' ? 'Processing Approval' :
                    'Account Pending Approval'}
                 </p>
               </div>
@@ -686,10 +710,9 @@ export const PartnerDashboard: React.FC = () => {
                 {isPending && (
                   <div className="mt-4 mx-2 p-3 bg-yellow-600/20 rounded-lg">
                     <p className="text-yellow-400 text-xs font-medium text-center">
-                      {registrationStatus === 'pending' ? 'Complete Your Profile' :
-                       registrationStatus === 'submitted' ? 'Profile Submitted' :
+                      {registrationStatus === 'pending' ? 'Waiting for Submission' :
+                       registrationStatus === 'submitted' ? 'Submitted' :
                        registrationStatus === 'verified' ? 'Profile Verified' :
-                       registrationStatus === 'processed_for_approve' ? 'Processing Approval' :
                        'Account Pending Approval'}
                     </p>
                   </div>

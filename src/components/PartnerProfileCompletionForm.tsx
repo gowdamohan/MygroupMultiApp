@@ -262,12 +262,11 @@ export const PartnerProfileCompletionForm: React.FC<PartnerProfileCompletionForm
 
   const statusSteps = [
     { key: 'submitted', label: 'Submitted' },
-    { key: 'verified', label: 'Verified' },
-    { key: 'processed_for_approve', label: 'Processed for Approve' }
+    { key: 'verified', label: 'Verified' }
   ];
 
   const getStepStatus = (stepKey: string) => {
-    const order = ['pending', 'submitted', 'verified', 'processed_for_approve', 'active'];
+    const order = ['pending', 'submitted', 'verified', 'active'];
     const currentIdx = order.indexOf(currentStatus);
     const stepIdx = order.indexOf(stepKey);
     if (stepIdx <= currentIdx) return 'completed';
@@ -275,7 +274,7 @@ export const PartnerProfileCompletionForm: React.FC<PartnerProfileCompletionForm
     return 'upcoming';
   };
 
-  const isReadOnly = ['submitted', 'verified', 'processed_for_approve'].includes(currentStatus);
+  const isReadOnly = ['submitted', 'verified', 'processed_for_approve', 'active'].includes(currentStatus);
   const showForm = currentStatus === 'pending' || currentStatus === 'submitted';
 
   if (loading) {

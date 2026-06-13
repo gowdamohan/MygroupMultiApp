@@ -223,14 +223,21 @@ app.use((req, res) => {
   });
 });
 
-// Error handler (normalize multer errors to 400)
+// Error handler — normalises Multer and generic errors
 app.use((err, req, res, next) => {
   console.error('Error:', err);
-  const isMulter = err.code === 'LIMIT_FILE_SIZE' || err.code === 'LIMIT_UNEXPECTED_FILE' || err.name === 'MulterError';
-  const status = err.status || (isMulter ? 400 : 500);
-  const message = isMulter && err.code === 'LIMIT_FILE_SIZE'
-    ? 'File too large. Maximum size is 5MB.'
+  const isFileTooLarge = err.code === 'LIMIT_FILE_SIZE';
+  const isMulter = isFileTooLarge || err.code === 'LIMIT_UNEXPECTED_FILE' || err.name === 'MulterError';
+
+  // LIMIT_FILE_SIZE must be 413 (Request Entity Too Large), not 400.
+  // Route-level handlers (e.g. mediaDocument.routes.js) fire first and
+  // return their own descriptive 413; this global handler is the fallback
+  // for any other route that uses multer without its own error middleware.
+  const status = err.status || (isFileTooLarge ? 413 : isMulter ? 400 : 500);
+  const message = isFileTooLarge
+    ? 'File too large. The uploaded file exceeds the maximum size allowed for this endpoint.'
     : (err.message || 'Internal server error');
+
   res.status(status).json({
     success: false,
     message,

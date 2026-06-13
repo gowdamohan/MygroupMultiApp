@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { User, Lock, ArrowLeft, LogIn, Mail, KeyRound, LayoutGrid } from 'lucide-react';
+import { User, Lock, ArrowLeft, LogIn, Mail, KeyRound, LayoutGrid, Megaphone } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
 import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
@@ -283,6 +283,25 @@ export const PartnerLogin: React.FC = () => {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const renderHeaderAdsSection = () => (
+    <div className="flex-1 flex items-center justify-center bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-400 h-full rounded-lg overflow-hidden">
+      <div className="flex gap-2 w-full h-full">
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center text-white">
+            <Megaphone className="mx-auto mb-1" size={22} />
+            <p className="text-xs font-medium opacity-90">Ad Space 1</p>
+          </div>
+        </div>
+        <div className="flex-1 flex items-center justify-center border-l border-white/20">
+          <div className="text-center text-white">
+            <Megaphone className="mx-auto mb-1" size={22} />
+            <p className="text-xs font-medium opacity-90">Ad Space 2</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
@@ -295,7 +314,37 @@ export const PartnerLogin: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex flex-col">
+      {/* Global Header */}
+      <header className="bg-white border-b border-gray-200 shadow-sm flex-shrink-0">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center gap-4">
+          {/* Left: My Group Logo */}
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <img
+              src={`${BACKEND_URL}/backend/public/uploads/logo.png`}
+              alt="My Group Logo"
+              className="h-9 w-auto object-contain"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).style.display = 'none';
+              }}
+            />
+            <div>
+              <div className="text-gray-900 font-bold text-lg leading-tight">My Group</div>
+              <div className="text-xs text-gray-500 leading-tight">Partner Portal</div>
+            </div>
+          </div>
+
+          {/* Right: Header Ads Section */}
+          <div className="flex-1 flex justify-end">
+            <div className="h-12 w-full max-w-sm sm:max-w-md lg:max-w-lg rounded-lg overflow-hidden">
+              {renderHeaderAdsSection()}
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="flex-1 flex items-center justify-center p-4">
       <div className="w-full max-w-6xl">
         <AnimatePresence mode="wait">
           {!selectedApp ? (
@@ -329,7 +378,7 @@ export const PartnerLogin: React.FC = () => {
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
                   {apps.map((app) => (
                     <motion.button
                       key={app.id}
@@ -669,6 +718,14 @@ export const PartnerLogin: React.FC = () => {
           )}
         </AnimatePresence>
       </div>
+      </main>
+
+      {/* Global Footer */}
+      <footer className="flex-shrink-0 bg-white border-t border-gray-200 py-4">
+        <p className="text-center text-sm text-gray-500">
+          © 2026 Mygroup. All rights reserved.
+        </p>
+      </footer>
     </div>
   );
 };
