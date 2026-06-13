@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import Cropper, { Area } from 'react-easy-crop';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ZoomIn, Check, ImageIcon } from 'lucide-react';
@@ -61,7 +62,9 @@ export const ProfilePhotoCropModal: React.FC<ProfilePhotoCropModalProps> = ({
     }
   };
 
-  return (
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <AnimatePresence>
       {isOpen && (
         <>
@@ -69,27 +72,42 @@ export const ProfilePhotoCropModal: React.FC<ProfilePhotoCropModalProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[110] bg-black/70"
+            className="fixed inset-0 z-[200] bg-black/70"
             onClick={onClose}
           />
-          <motion.div
-            initial={{ opacity: 0, y: 40 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 40 }}
-            className="fixed inset-x-3 top-1/2 -translate-y-1/2 z-[111] mx-auto max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden"
+          <div
+            className="fixed inset-0 z-[201] flex items-end justify-center px-2 pb-2 sm:items-center sm:px-2 sm:pb-2"
+            style={{
+              paddingBottom: 'max(0.5rem, calc(0.5rem + env(safe-area-inset-bottom, 0px)))',
+            }}
           >
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-              <h3 className="font-semibold text-gray-800">Adjust Profile Photo</h3>
+            <motion.div
+              initial={{ opacity: 0, y: 24 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 24 }}
+              transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+              className="flex max-h-[min(88dvh,88vh)] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="profile-photo-crop-title"
+            >
+            {/* Header */}
+            <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-4 py-3">
+              <h3 id="profile-photo-crop-title" className="font-semibold text-gray-800">
+                Adjust Profile Photo
+              </h3>
               <button
                 type="button"
                 onClick={onClose}
-                className="p-1.5 hover:bg-gray-100 rounded-full transition-colors"
+                className="rounded-full p-1.5 transition-colors hover:bg-gray-100"
+                aria-label="Close"
               >
                 <X size={20} className="text-gray-600" />
               </button>
             </div>
 
-            <div className="relative w-full h-72 bg-gray-900">
+            {/* Crop area — scales down on short viewports */}
+            <div className="relative w-full shrink-0 bg-gray-900 h-[min(42dvh,280px)] min-h-[160px] max-h-[320px] sm:h-[min(36dvh,288px)]">
               <Cropper
                 image={imageSrc}
                 crop={crop}
@@ -103,9 +121,10 @@ export const ProfilePhotoCropModal: React.FC<ProfilePhotoCropModalProps> = ({
               />
             </div>
 
-            <div className="px-4 py-3 border-t border-gray-100">
+            {/* Zoom — compact on small screens */}
+            <div className="shrink-0 border-t border-gray-100 px-4 py-2.5">
               <div className="flex items-center gap-3">
-                <ZoomIn size={16} className="text-gray-500 shrink-0" />
+                <ZoomIn size={16} className="shrink-0 text-gray-500" />
                 <input
                   type="range"
                   min={1}
@@ -114,36 +133,42 @@ export const ProfilePhotoCropModal: React.FC<ProfilePhotoCropModalProps> = ({
                   value={zoom}
                   onChange={(e) => setZoom(Number(e.target.value))}
                   className="w-full accent-teal-600"
+                  aria-label="Zoom"
                 />
               </div>
-              <p className="text-xs text-gray-400 mt-2 text-center">
+              <p className="mt-1.5 text-center text-[11px] text-gray-400 sm:text-xs">
                 Drag to reposition · Pinch or slide to zoom
               </p>
             </div>
 
-            <div className="flex gap-2 p-4 pt-0">
+            {/* Actions — always visible; safe-area for notched / home-indicator devices */}
+            <div
+              className="flex shrink-0 gap-2 border-t border-gray-100 bg-white px-4 pb-4 pt-3"
+            >
               <button
                 type="button"
                 onClick={handleUseOriginal}
                 disabled={processing}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-gray-300 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
               >
-                <ImageIcon size={16} />
-                Use Original
+                <ImageIcon size={16} className="shrink-0" />
+                <span className="truncate">Use Original</span>
               </button>
               <button
                 type="button"
                 onClick={handleApplyCrop}
                 disabled={processing}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 disabled:opacity-50"
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-teal-600 py-3 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50"
               >
-                <Check size={16} />
-                {processing ? 'Processing...' : 'Apply Crop'}
+                <Check size={16} className="shrink-0" />
+                <span className="truncate">{processing ? 'Processing...' : 'Apply Crop'}</span>
               </button>
             </div>
-          </motion.div>
+            </motion.div>
+          </div>
         </>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 };
