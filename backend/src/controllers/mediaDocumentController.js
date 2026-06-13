@@ -1,5 +1,5 @@
 import { MediaChannelDocument, MediaChannel, AppCategory, User } from '../models/index.js';
-import { uploadFile, deleteFile, getPresignedUrl } from '../services/wasabiService.js';
+import { uploadFile, deleteFile, getPresignedUrl, resolveStorageReadUrl } from '../services/wasabiService.js';
 import { Op } from 'sequelize';
 
 /**
@@ -50,7 +50,13 @@ export const getDocuments = async (req, res) => {
       order: [['document_date', 'ASC']]
     });
 
-    res.json({ success: true, data: documents });
+    const data = await Promise.all(documents.map(async (doc) => {
+      const json = doc.toJSON();
+      json.document_url = await resolveStorageReadUrl(doc.document_path || doc.document_url, 3600);
+      return json;
+    }));
+
+    res.json({ success: true, data });
   } catch (error) {
     console.error('Error fetching documents:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch documents' });
@@ -134,10 +140,13 @@ export const uploadDocument = async (req, res) => {
       document = await MediaChannelDocument.create(documentData);
     }
 
+    const responseDoc = document.toJSON();
+    responseDoc.document_url = await resolveStorageReadUrl(result.fileName, 3600);
+
     res.json({
       success: true,
       message: 'Document uploaded successfully',
-      data: document
+      data: responseDoc
     });
   } catch (error) {
     console.error('Error uploading document:', error);

@@ -40,7 +40,6 @@ export const uploadFile = async (fileBuffer, fileName, mimeType, folder = '') =>
       Key: key,
       Body: fileBuffer,
       ContentType: mimeType,
-      ACL: 'public-read',
     });
 
     await s3Client.send(command);
@@ -97,7 +96,6 @@ export const getPresignedUrl = async (fileName, fileType, folder = '') => {
       Bucket: WASABI_BUCKET,
       Key: key,
       ContentType: fileType,
-      ACL: 'public-read',
     });
 
     const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 1200 }); // 20 minutes
@@ -139,11 +137,55 @@ export const getSignedReadUrl = async (filePath, expiresIn = 3600) => {
   }
 };
 
+/** Extract Wasabi object key from a key string or full bucket URL. */
+export const extractWasabiKey = (pathOrUrl) => {
+  if (!pathOrUrl || typeof pathOrUrl !== 'string') return null;
+  const trimmed = pathOrUrl.trim();
+  if (!trimmed || trimmed.startsWith('/uploads/')) return null;
+
+  const base = `${WASABI_BASE_URL}/`;
+  if (trimmed.startsWith(base)) {
+    return trimmed.slice(base.length).split('?')[0] || null;
+  }
+
+  if (/^https?:\/\//i.test(trimmed)) return null;
+
+  return trimmed.replace(/^\/+/, '') || null;
+};
+
+/**
+ * Resolve a stored path/key/URL to a browser-loadable URL.
+ * Wasabi objects use signed URLs (this account disallows public object access).
+ */
+export const resolveStorageReadUrl = async (pathOrUrl, expiresIn = 3600) => {
+  if (!pathOrUrl || typeof pathOrUrl !== 'string') return null;
+  const trimmed = pathOrUrl.trim();
+  if (!trimmed) return null;
+
+  if (trimmed.startsWith('/uploads/')) return trimmed;
+
+  const wasabiKey = extractWasabiKey(trimmed);
+  if (wasabiKey) {
+    try {
+      const { signedUrl } = await getSignedReadUrl(wasabiKey, expiresIn);
+      if (signedUrl) return signedUrl;
+    } catch (error) {
+      console.error('Wasabi signed read URL failed:', error.message);
+    }
+    return trimmed.startsWith('http') ? trimmed : `${WASABI_BASE_URL}/${wasabiKey}`;
+  }
+
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return trimmed;
+};
+
 export default {
   uploadFile,
   deleteFile,
   getPresignedUrl,
   getSignedReadUrl,
+  extractWasabiKey,
+  resolveStorageReadUrl,
   WASABI_PUBLIC_BASE_URL,
 };
 

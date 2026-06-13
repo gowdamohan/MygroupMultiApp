@@ -25,7 +25,7 @@ import {
   CompanyAdsManagement,
   UserRegistration
 } from '../models/index.js';
-import { getSignedReadUrl } from '../services/wasabiService.js';
+import { getSignedReadUrl, resolveStorageReadUrl } from '../services/wasabiService.js';
 
 /**
  * Helper: Generate signed URL for a media_logo stored in Wasabi
@@ -59,21 +59,9 @@ const isEmbeddableUrl = (url) => {
   return u.includes('youtube.com') || u.includes('youtu.be') || u.includes('vimeo.com') || u.includes('dailymotion.com') || u.includes('/embed');
 };
 
-/** Resolve DB path or URL to a browser-playable URL */
-const resolvePlayableMediaUrl = async (raw) => {
-  if (!raw || typeof raw !== 'string') return null;
-  const trimmed = raw.trim();
-  if (!trimmed) return null;
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  if (trimmed.startsWith('/uploads/')) return trimmed;
-  const key = trimmed.startsWith('/') ? trimmed.slice(1) : trimmed;
-  try {
-    const signed = await getSignedReadUrl(key, 3600);
-    if (signed?.success) return signed.signedUrl;
-  } catch (e) {
-    console.error('Signed URL for media failed:', e);
-  }
-  return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+/** Resolve DB path or URL to a browser-playable URL (signed Wasabi when needed). */
+const resolvePlayableMediaUrl = async (raw, expiresIn = 3600) => {
+  return resolveStorageReadUrl(raw, expiresIn);
 };
 
 /**
@@ -491,10 +479,11 @@ export const getMyMediaChannels = async (req, res) => {
 
       for (const doc of allDocs) {
         if (!latestDocByChannel[doc.media_channel_id]) {
+          const fileUrl = await resolveStorageReadUrl(doc.document_path || doc.document_url, 3600);
           latestDocByChannel[doc.media_channel_id] = {
             id: doc.id,
             title: doc.file_name || `Issue ${doc.document_date}/${doc.document_month}/${doc.document_year}`,
-            file_url: doc.document_url,
+            file_url: fileUrl,
             year: doc.document_year,
             month: doc.document_month,
             date: doc.document_date
@@ -810,13 +799,20 @@ export const getChannelDetails = async (req, res) => {
     const mediaLogoUrl = await getMediaLogoUrl(channelJson.media_logo);
     channelJson.media_logo_url = mediaLogoUrl || channelJson.media_logo;
 
+    // Sign newsletter file URLs for private Wasabi bucket
+    const signedNewsletters = await Promise.all(newsletters.map(async (nl) => {
+      const json = nl.toJSON();
+      json.file_url = await resolveStorageReadUrl(nl.file_path || nl.file_url, 3600);
+      return json;
+    }));
+
     res.json({
       success: true,
       data: {
         channel: channelJson,
         socialLinks,
         awards,
-        newsletters,
+        newsletters: signedNewsletters,
         team,
         gallery: albums,
         switcher: switcher ? { ...switcher.toJSON(), offlineMedia } : null
@@ -855,18 +851,21 @@ export const getChannelDocuments = async (req, res) => {
       offset
     });
 
-    // Format documents for frontend consumption
-    const formattedDocuments = channelDocuments.map(doc => ({
-      id: doc.id,
-      title: doc.file_name || `Issue ${doc.document_date}/${doc.document_month}/${doc.document_year}`,
-      document_type: doc.document_path?.split('.').pop()?.toUpperCase() || 'PDF',
-      file_url: doc.document_url,
-      thumbnail_url: null, // Could be added for PDF preview
-      file_size: doc.file_size,
-      year: doc.document_year,
-      month: doc.document_month,
-      date: doc.document_date,
-      created_at: doc.created_at
+    // Format documents for frontend consumption (signed Wasabi URLs — bucket is private)
+    const formattedDocuments = await Promise.all(channelDocuments.map(async (doc) => {
+      const fileUrl = await resolveStorageReadUrl(doc.document_path || doc.document_url, 3600);
+      return {
+        id: doc.id,
+        title: doc.file_name || `Issue ${doc.document_date}/${doc.document_month}/${doc.document_year}`,
+        document_type: doc.document_path?.split('.').pop()?.toUpperCase() || 'PDF',
+        file_url: fileUrl,
+        thumbnail_url: null,
+        file_size: doc.file_size,
+        year: doc.document_year,
+        month: doc.document_month,
+        date: doc.document_date,
+        created_at: doc.created_at
+      };
     }));
 
     // Calculate pagination info

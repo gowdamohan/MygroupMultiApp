@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Globe, Youtube, Facebook, Instagram, Twitter, Linkedin, BookOpen, Award, Newspaper, Image, Users, Share2, Heart, Eye, UserPlus, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
-import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
+import { API_BASE_URL, BACKEND_URL, getUploadUrl } from '../../config/api.config';
 
 interface ChannelDetailViewProps {
   channelId: number;
@@ -231,7 +231,7 @@ export const ChannelDetailView: React.FC<ChannelDetailViewProps> = ({ channelId,
               <p className="text-center text-gray-500 py-8">No newsletters yet</p>
             ) : (
               newsletters.map(nl => (
-                <a key={nl.id} href={`${BACKEND_URL}${nl.file_url}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 bg-white rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow">
+                <a key={nl.id} href={getUploadUrl(nl.file_url)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 bg-white rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow">
                   <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
                     <Newspaper className="text-red-600" size={24} />
                   </div>

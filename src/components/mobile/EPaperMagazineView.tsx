@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { ArrowLeft, FileText, Download, Calendar, ChevronDown, ChevronUp, Eye, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
-import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
+import { API_BASE_URL, getUploadUrl } from '../../config/api.config';
 
 interface EPaperMagazineViewProps {
   channelId: number;
@@ -53,14 +53,7 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  const normalizeUrl = (url?: string) => {
-    if (!url) return '';
-    const u = url.trim();
-    if (!u) return '';
-    if (u.startsWith('http://') || u.startsWith('https://') || u.startsWith('blob:') || u.startsWith('data:')) return u;
-    if (u.startsWith('/')) return `${BACKEND_URL}${u}`;
-    return `${BACKEND_URL}/${u}`;
-  };
+  const normalizeUrl = (url?: string) => getUploadUrl(url || '');
 
   const isPdfDocument = (doc: Document) => {
     const docType = (doc.document_type || '').toLowerCase();

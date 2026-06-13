@@ -15,7 +15,7 @@ import {
   MediaComments,
   User
 } from '../models/index.js';
-import { uploadFile, deleteFile, getSignedReadUrl } from '../services/wasabiService.js';
+import { uploadFile, deleteFile, getSignedReadUrl, resolveStorageReadUrl } from '../services/wasabiService.js';
 
 // ============================================
 // SOCIAL LINKS
@@ -344,7 +344,12 @@ export const getDocuments = async (req, res) => {
       where: { media_channel_id: channelId, is_active: 1 },
       order: [['sort_order', 'ASC'], ['created_at', 'DESC']]
     });
-    res.json({ success: true, data: docs });
+    const data = await Promise.all(docs.map(async (doc) => {
+      const json = doc.toJSON();
+      json.file_url = await resolveStorageReadUrl(doc.file_path || doc.file_url, 3600);
+      return json;
+    }));
+    res.json({ success: true, data });
   } catch (error) {
     console.error('Error getting documents:', error);
     res.status(500).json({ success: false, message: 'Failed to get documents' });
@@ -381,7 +386,10 @@ export const uploadDocument = async (req, res) => {
       file_size: req.file.size
     });
 
-    res.json({ success: true, message: 'Document uploaded successfully', data: doc });
+    const responseDoc = doc.toJSON();
+    responseDoc.file_url = await resolveStorageReadUrl(result.fileName, 3600);
+
+    res.json({ success: true, message: 'Document uploaded successfully', data: responseDoc });
   } catch (error) {
     console.error('Error uploading document:', error);
     res.status(500).json({ success: false, message: 'Failed to upload document' });
@@ -473,7 +481,12 @@ export const getNewsletters = async (req, res) => {
       where: { media_channel_id: channelId, is_active: 1 },
       order: [['sort_order', 'ASC'], ['created_at', 'DESC']]
     });
-    res.json({ success: true, data: newsletters });
+    const data = await Promise.all(newsletters.map(async (item) => {
+      const json = item.toJSON();
+      json.file_url = await resolveStorageReadUrl(item.file_path || item.file_url, 3600);
+      return json;
+    }));
+    res.json({ success: true, data });
   } catch (error) {
     console.error('Error getting newsletters:', error);
     res.status(500).json({ success: false, message: 'Failed to get newsletters' });
@@ -802,21 +815,12 @@ export const deleteTeamMember = async (req, res) => {
  */
 const resolveHeaderAdUrl = async (filePath, req) => {
   if (!filePath) return null;
-  if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
-    return filePath;
-  }
   if (filePath.startsWith('/')) {
     const host = req.get('host');
     const protocol = req.protocol || 'https';
     return `${protocol}://${host}${filePath}`;
   }
-  try {
-    const result = await getSignedReadUrl(filePath);
-    return result.signedUrl || null;
-  } catch (e) {
-    console.error('Error getting signed URL:', e);
-    return null;
-  }
+  return resolveStorageReadUrl(filePath, 3600);
 };
 
 /**
