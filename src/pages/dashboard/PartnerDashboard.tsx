@@ -15,6 +15,10 @@ import { HeaderAdsBooking } from '../partner/HeaderAdsBooking';
 import { SupportChat } from '../partner/SupportChat';
 import { PartnerProfileCompletionForm } from '../../components/PartnerProfileCompletionForm';
 import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
+import { ADMIN_SUPPORT_APP_ID } from '../../config/supportChat.config';
+
+const SUPPORT_CHAT_LAST_SEEN_KEY = 'support_chat_last_seen_id';
+const UNREAD_POLL_MS = 10000;
 
 interface MenuItem {
   id: string;
@@ -59,6 +63,52 @@ export const PartnerDashboard: React.FC = () => {
   const [partnerAds, setPartnerAds] = useState<PartnerAd[]>([]);
   const [registrationStatus, setRegistrationStatus] = useState<string>('pending');
   const [appName, setAppName] = useState<string>('');
+  const [unreadSupportCount, setUnreadSupportCount] = useState(0);
+
+  const fetchUnreadSupportCount = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      if (!token) return;
+      const response = await axios.get(`${API_BASE_URL}/admin/chat-messages`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { channel_type: 'admin', app_id: ADMIN_SUPPORT_APP_ID }
+      });
+      if (response.data.success) {
+        const messages: { id: number; sender_type?: string; is_own?: boolean; direction?: string }[] =
+          response.data.data?.messages || [];
+        const lastSeenId = parseInt(localStorage.getItem(SUPPORT_CHAT_LAST_SEEN_KEY) || '0', 10);
+        const count = messages.filter(
+          m => m.id > lastSeenId && m.sender_type !== 'partner' && m.is_own !== true && m.direction !== 'out'
+        ).length;
+        setUnreadSupportCount(count);
+      }
+    } catch {
+      // silently ignore polling errors
+    }
+  }, []);
+
+  const markSupportChatRead = useCallback(() => {
+    // Will be called when user opens Support Chat; needs latest messages fetched first
+    const doMark = async () => {
+      try {
+        const token = localStorage.getItem('accessToken');
+        if (!token) return;
+        const response = await axios.get(`${API_BASE_URL}/admin/chat-messages`, {
+          headers: { Authorization: `Bearer ${token}` },
+          params: { channel_type: 'admin', app_id: ADMIN_SUPPORT_APP_ID }
+        });
+        if (response.data.success) {
+          const messages: { id: number }[] = response.data.data?.messages || [];
+          if (messages.length > 0) {
+            const maxId = Math.max(...messages.map(m => m.id));
+            localStorage.setItem(SUPPORT_CHAT_LAST_SEEN_KEY, String(maxId));
+          }
+        }
+      } catch { /* ignore */ }
+      setUnreadSupportCount(0);
+    };
+    doMark();
+  }, []);
 
   const fetchUserProfile = useCallback(async () => {
     try {
@@ -117,6 +167,20 @@ export const PartnerDashboard: React.FC = () => {
       }
     }
   }, [navigate, fetchUserProfile, fetchPartnerAds]);
+
+  // Poll for unread support chat messages
+  useEffect(() => {
+    fetchUnreadSupportCount();
+    const interval = setInterval(fetchUnreadSupportCount, UNREAD_POLL_MS);
+    return () => clearInterval(interval);
+  }, [fetchUnreadSupportCount]);
+
+  // Mark support chat as read when the user is on that page
+  useEffect(() => {
+    if (location.pathname === '/partner/support-chat') {
+      markSupportChatRead();
+    }
+  }, [location.pathname, markSupportChatRead]);
 
   // Common menu items for ALL partner dashboards
   const commonMenuItems: MenuItem[] = [
@@ -216,6 +280,7 @@ export const PartnerDashboard: React.FC = () => {
     const isExpanded = expandedMenus.includes(item.id);
     const isActive = activeMenu === item.id || location.pathname === item.path;
     const hasChildren = item.children && item.children.length > 0;
+    const showBadge = item.id === 'support-chat' && unreadSupportCount > 0;
 
     return (
       <div key={item.id}>
@@ -229,14 +294,18 @@ export const PartnerDashboard: React.FC = () => {
         >
           <div className="flex items-center gap-3">
             <item.icon size={20} />
-            {sidebarOpen && <span className="font-medium">{item.label}</span>}
+            <span className="font-medium">{item.label}</span>
           </div>
-          {sidebarOpen && hasChildren && (
+          {showBadge ? (
+            <span className="ml-auto flex-shrink-0 min-w-[20px] h-5 px-1 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center leading-none">
+              {unreadSupportCount > 99 ? '99+' : unreadSupportCount}
+            </span>
+          ) : hasChildren ? (
             isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />
-          )}
+          ) : null}
         </button>
 
-        {hasChildren && isExpanded && sidebarOpen && (
+        {hasChildren && isExpanded && (
           <div className="mt-1 space-y-1">
             {item.children!.map(child => renderMenuItem(child, depth + 1))}
           </div>
@@ -513,6 +582,8 @@ export const PartnerDashboard: React.FC = () => {
                 const isExpanded = expandedMenus.includes(item.id);
                 const isActive = activeMenu === item.id || location.pathname === item.path;
                 const hasChildren = item.children && item.children.length > 0;
+                const isSupportChat = item.id === 'support-chat';
+                const showBadge = isSupportChat && unreadSupportCount > 0;
 
                 return (
                   <div key={item.id}>
@@ -524,12 +595,25 @@ export const PartnerDashboard: React.FC = () => {
                           : 'text-gray-300 hover:bg-gray-700 hover:text-white'
                       }`}
                     >
-                      <div className="flex items-center gap-3">
-                        <item.icon size={18} />
-                        {sidebarOpen && <span className="text-sm font-medium">{item.label}</span>}
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="relative flex-shrink-0">
+                          <item.icon size={18} />
+                          {showBadge && !sidebarOpen && (
+                            <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-0.5 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none">
+                              {unreadSupportCount > 99 ? '99+' : unreadSupportCount}
+                            </span>
+                          )}
+                        </div>
+                        {sidebarOpen && <span className="text-sm font-medium truncate">{item.label}</span>}
                       </div>
-                      {sidebarOpen && hasChildren && (
-                        isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />
+                      {sidebarOpen && (
+                        showBadge ? (
+                          <span className="ml-auto flex-shrink-0 min-w-[20px] h-5 px-1 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center leading-none">
+                            {unreadSupportCount > 99 ? '99+' : unreadSupportCount}
+                          </span>
+                        ) : hasChildren ? (
+                          isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />
+                        ) : null
                       )}
                     </button>
 
