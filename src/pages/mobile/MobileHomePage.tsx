@@ -12,7 +12,7 @@ import { HomeData } from '../../types/home.types';
 import { AuthModal } from '../../components/AuthModal';
 import { authAPI } from '../../services/api';
 import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
-import { MobileHeader, TopIcon, getMobileHeaderHeight } from '../../components/mobile/MobileHeader';
+import { MobileHeader, TopIcon } from '../../components/mobile/MobileHeader';
 
 interface App {
   id: number;
@@ -354,8 +354,8 @@ export const MobileHomePage: React.FC = () => {
           showProfileButton={true}
         />
 
-      {/* Main Content - Add padding-top to account for fixed header */}
-      <div style={{ paddingTop: `${getMobileHeaderHeight(true, true, true)}px` }}>
+      {/* Main content flows below the scrollable carousel from MobileHeader */}
+      <div>
 
         {/* Section 1: My Apps (Vertical, one per row) */}
         <section className="py-8 px-4"

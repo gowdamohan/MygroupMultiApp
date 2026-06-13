@@ -677,7 +677,7 @@ export const MobileMyMediaPage: React.FC = () => {
     return <IconComponent size={24} />;
   };
 
-  const headerHeight = getMobileHeaderHeight(true, true, true);
+  const headerHeight = getMobileHeaderHeight(true);
 
   if (loading) {
     return (
@@ -695,7 +695,7 @@ export const MobileMyMediaPage: React.FC = () => {
           showDarkModeToggle={true}
           showProfileButton={true}
         />
-        <div style={{ paddingTop: headerHeight, minHeight: `calc(100vh - ${MOBILE_FOOTER_HEIGHT}px)` }} className="flex items-center justify-center">
+        <div style={{ minHeight: `calc(100vh - ${MOBILE_FOOTER_HEIGHT}px)` }} className="flex items-center justify-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600"></div>
         </div>
       </div>
@@ -759,7 +759,7 @@ export const MobileMyMediaPage: React.FC = () => {
         showDarkModeToggle={true}
         showProfileButton={true}
       />
-      <div className="pb-20" style={{ paddingTop: headerHeight, paddingBottom: MOBILE_FOOTER_HEIGHT + 16 }}>
+      <div className="pb-20" style={{ paddingBottom: MOBILE_FOOTER_HEIGHT + 16 }}>
         {/* Filter Row - Updated design with white background and rounded buttons */}
         <div className="sticky z-30 bg-white shadow-sm px-3 py-3 border-b border-gray-200" style={{ top: headerHeight }}>
           <div className="flex gap-2 overflow-x-auto scrollbar-hide">
