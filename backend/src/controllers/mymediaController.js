@@ -23,7 +23,8 @@ import {
   MediaChannelDocument,
   HeaderAdsManagement,
   CompanyAdsManagement,
-  UserRegistration
+  UserRegistration,
+  MediaComments
 } from '../models/index.js';
 import { getSignedReadUrl, resolveStorageReadUrl, getObjectStream, extractWasabiKey } from '../services/wasabiService.js';
 import fs from 'fs';
@@ -946,7 +947,7 @@ export const streamChannelDocument = async (req, res) => {
 };
 
 /**
- * Get gallery images for an album
+ * Get gallery images for an album (with signed Wasabi URLs)
  * GET /api/v1/mymedia/gallery/:albumId/images
  */
 export const getGalleryImages = async (req, res) => {
@@ -958,10 +959,112 @@ export const getGalleryImages = async (req, res) => {
       order: [['sort_order', 'ASC']]
     });
 
-    res.json({ success: true, data: images });
+    // Resolve signed URLs for Wasabi-stored images
+    const signedImages = await Promise.all(images.map(async (img) => {
+      const json = img.toJSON();
+      json.image_url = await resolveStorageReadUrl(img.image_path || img.image_url, 3600);
+      json.thumbnail_url = img.thumbnail_path || img.thumbnail_url
+        ? await resolveStorageReadUrl(img.thumbnail_path || img.thumbnail_url, 3600)
+        : json.image_url;
+      return json;
+    }));
+
+    res.json({ success: true, data: signedImages });
   } catch (error) {
     console.error('Error fetching gallery images:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch gallery images', error: error.message });
+  }
+};
+
+/**
+ * Get reviews for a channel
+ * GET /api/v1/mymedia/channel/:channelId/reviews
+ * Query params: page, limit
+ */
+export const getChannelReviews = async (req, res) => {
+  try {
+    const { channelId } = req.params;
+    const { page = 1, limit = 10 } = req.query;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+
+    const { count, rows } = await MediaComments.findAndCountAll({
+      where: {
+        media_channel_id: channelId,
+        parent_id: null,
+        is_active: 1
+      },
+      order: [['created_at', 'DESC']],
+      limit: parseInt(limit),
+      offset
+    });
+
+    // Compute aggregate rating stats
+    const ratingRows = await MediaComments.findAll({
+      where: { media_channel_id: channelId, parent_id: null, is_active: 1, rating: { [Op.ne]: null } },
+      attributes: ['rating']
+    });
+
+    const ratingCounts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    let ratingSum = 0;
+    for (const r of ratingRows) {
+      const v = parseInt(r.rating);
+      if (v >= 1 && v <= 5) {
+        ratingCounts[v] = (ratingCounts[v] || 0) + 1;
+        ratingSum += v;
+      }
+    }
+    const ratingTotal = ratingRows.length;
+    const averageRating = ratingTotal > 0 ? (ratingSum / ratingTotal).toFixed(1) : null;
+
+    res.json({
+      success: true,
+      data: {
+        reviews: rows,
+        pagination: { total: count, page: parseInt(page), limit: parseInt(limit), totalPages: Math.ceil(count / parseInt(limit)) },
+        stats: { average: averageRating ? parseFloat(averageRating) : null, total: ratingTotal, counts: ratingCounts }
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching reviews:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch reviews', error: error.message });
+  }
+};
+
+/**
+ * Post a review for a channel
+ * POST /api/v1/mymedia/channel/:channelId/reviews
+ * Body: { rating (1-5), reviewer_name, comment_text, reviewer_email? }
+ */
+export const postChannelReview = async (req, res) => {
+  try {
+    const { channelId } = req.params;
+    const { rating, reviewer_name, comment_text, reviewer_email } = req.body;
+
+    if (!comment_text || comment_text.trim().length < 3) {
+      return res.status(400).json({ success: false, message: 'Comment must be at least 3 characters' });
+    }
+    if (rating !== undefined && (parseInt(rating) < 1 || parseInt(rating) > 5)) {
+      return res.status(400).json({ success: false, message: 'Rating must be between 1 and 5' });
+    }
+
+    const review = await MediaComments.create({
+      media_channel_id: channelId,
+      user_id: null,
+      comment_text: comment_text.trim(),
+      rating: rating ? parseInt(rating) : null,
+      reviewer_name: reviewer_name?.trim() || 'Anonymous',
+      reviewer_email: reviewer_email?.trim() || null,
+      is_active: 1
+    });
+
+    // Update comments_count in interactions
+    await MediaInteractions.findOrCreate({ where: { media_channel_id: channelId }, defaults: {} });
+    await MediaInteractions.increment('comments_count', { where: { media_channel_id: channelId } });
+
+    res.json({ success: true, data: review });
+  } catch (error) {
+    console.error('Error posting review:', error);
+    res.status(500).json({ success: false, message: 'Failed to post review', error: error.message });
   }
 };
 

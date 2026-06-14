@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   ArrowLeft, Globe, Youtube, Facebook, Instagram, Twitter, Linkedin, BookOpen,
   Award, Newspaper, Image, Users, Share2, Heart, Eye, UserPlus, X,
-  MapPin, Phone, Mail, ChevronDown, ChevronUp, Star
+  MapPin, Phone, Mail, ChevronDown, ChevronUp, Star, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
-import { API_BASE_URL, BACKEND_URL, getUploadUrl } from '../../config/api.config';
+import { API_BASE_URL, BACKEND_URL, getUploadUrl, WASABI_IMG_PROPS } from '../../config/api.config';
 
 interface ChannelDetailViewProps {
   channelId: number;
@@ -68,6 +68,7 @@ export const ChannelDetailView: React.FC<ChannelDetailViewProps> = ({ channelId,
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [galleryImages, setGalleryImages] = useState<Record<number, any[]>>({});
   const [expandedAlbums, setExpandedAlbums] = useState<Set<number>>(new Set());
+  const teamScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchChannelDetails();
@@ -387,10 +388,13 @@ export const ChannelDetailView: React.FC<ChannelDetailViewProps> = ({ channelId,
               awards.map(award => (
                 <div key={award.id} className="bg-white rounded-xl shadow-sm overflow-hidden">
                   <img
-                    src={award.image_url ? `${BACKEND_URL}${award.image_url}` : ''}
+                    src={award.image_url
+                      ? (award.image_url.startsWith('http') ? award.image_url : getUploadUrl(award.image_url))
+                      : ''}
                     alt={award.title}
                     className="w-full h-32 object-cover"
                     onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    {...WASABI_IMG_PROPS}
                   />
                   <div className="p-3">
                     <p className="text-sm font-semibold text-gray-900 leading-tight">{award.title}</p>
@@ -460,15 +464,27 @@ export const ChannelDetailView: React.FC<ChannelDetailViewProps> = ({ channelId,
                         {images.length === 0 ? (
                           <div className="col-span-3 py-6 text-center text-gray-400 text-sm">Loading…</div>
                         ) : (
-                          images.map(img => (
-                            <img
-                              key={img.id}
-                              src={`${BACKEND_URL}${img.thumbnail_url || img.image_url}`}
-                              alt={img.image_name || ''}
-                              className="w-full aspect-square object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                              onClick={() => setSelectedImage(`${BACKEND_URL}${img.image_url}`)}
-                            />
-                          ))
+                          images.map(img => {
+                            // Backend now returns signed URLs; fall back to getUploadUrl for local paths
+                            const thumbSrc = img.thumbnail_url?.startsWith('http')
+                              ? img.thumbnail_url
+                              : img.image_url?.startsWith('http')
+                              ? img.image_url
+                              : getUploadUrl(img.thumbnail_url || img.image_url || img.thumbnail_path || img.image_path || '');
+                            const fullSrc = img.image_url?.startsWith('http')
+                              ? img.image_url
+                              : getUploadUrl(img.image_url || img.image_path || '');
+                            return (
+                              <img
+                                key={img.id}
+                                src={thumbSrc}
+                                alt={img.image_name || ''}
+                                className="w-full aspect-square object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                                onClick={() => setSelectedImage(fullSrc)}
+                                {...WASABI_IMG_PROPS}
+                              />
+                            );
+                          })
                         )}
                       </div>
                     )}
@@ -479,50 +495,97 @@ export const ChannelDetailView: React.FC<ChannelDetailViewProps> = ({ channelId,
           </div>
         )}
 
-        {/* ── Team ── */}
+        {/* ── Team (horizontal carousel) ── */}
         {activeTab === 'team' && (
           <div className="space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500 px-1">Our Reporters</h3>
+            <div className="flex items-center justify-between px-1">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">Our Reporters</h3>
+              {team.length > 2 && (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => teamScrollRef.current?.scrollBy({ left: -200, behavior: 'smooth' })}
+                    className="p-1.5 bg-gray-200 hover:bg-gray-300 rounded-full transition-colors"
+                  >
+                    <ChevronLeft size={14} className="text-gray-600" />
+                  </button>
+                  <button
+                    onClick={() => teamScrollRef.current?.scrollBy({ left: 200, behavior: 'smooth' })}
+                    className="p-1.5 bg-gray-200 hover:bg-gray-300 rounded-full transition-colors"
+                  >
+                    <ChevronRight size={14} className="text-gray-600" />
+                  </button>
+                </div>
+              )}
+            </div>
             {team.length === 0 ? (
               <EmptyState icon={<Users size={32} />} message="No team members yet" />
             ) : (
-              <div className="grid grid-cols-2 gap-3">
-                {team.map(member => (
-                  <div key={member.id} className="bg-white rounded-xl shadow-sm p-4 flex flex-col items-center text-center">
-                    {member.photo_url ? (
-                      <img
-                        src={`${BACKEND_URL}${member.photo_url}`}
-                        alt={member.name}
-                        className="w-20 h-20 rounded-full object-cover border-2 border-teal-100 mb-3"
-                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                      />
-                    ) : (
-                      <div className="w-20 h-20 rounded-full bg-gradient-to-br from-teal-500 to-teal-700 flex items-center justify-center text-white text-2xl font-bold mb-3">
-                        {member.name?.charAt(0)}
+              <div
+                ref={teamScrollRef}
+                className="flex gap-3 overflow-x-auto scrollbar-hide pb-1 -mx-4 px-4"
+                style={{ scrollSnapType: 'x mandatory' }}
+              >
+                {team.map(member => {
+                  const photoSrc = member.photo_url
+                    ? (member.photo_url.startsWith('http') ? member.photo_url : getUploadUrl(member.photo_url))
+                    : null;
+                  return (
+                    <div
+                      key={member.id}
+                      className="flex-shrink-0 w-44 bg-white rounded-xl shadow-sm overflow-hidden"
+                      style={{ scrollSnapAlign: 'start' }}
+                    >
+                      {/* Photo */}
+                      <div className="relative h-48 bg-gradient-to-br from-teal-100 to-teal-200">
+                        {photoSrc ? (
+                          <img
+                            src={photoSrc}
+                            alt={member.name}
+                            className="w-full h-full object-cover object-top"
+                            onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                            {...WASABI_IMG_PROPS}
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <span className="text-teal-400 text-5xl font-black">{member.name?.charAt(0)}</span>
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
                       </div>
-                    )}
-                    <p className="font-semibold text-gray-900 text-sm leading-tight">{member.name}</p>
-                    {member.designation && (
-                      <p className="text-xs text-teal-600 mt-0.5">{member.designation}</p>
-                    )}
-                    {member.email && (
-                      <a
-                        href={`mailto:${member.email}`}
-                        className="mt-2 flex items-center gap-1 text-[10px] text-gray-400 hover:text-teal-600 transition-colors"
-                      >
-                        <Mail size={10} />
-                        <span className="truncate max-w-[90px]">{member.email}</span>
-                      </a>
-                    )}
-                    {/* Social icons for team member */}
-                    <div className="flex items-center gap-2 mt-2">
-                      {['facebook', 'instagram', 'twitter'].map(platform => {
-                        const link = socialLinks.find(l => l.platform === platform && l.url);
-                        return link ? null : null;
-                      })}
+                      {/* Info */}
+                      <div className="p-3">
+                        <p className="font-semibold text-gray-900 text-sm leading-tight truncate">{member.name}</p>
+                        {member.designation && (
+                          <p className="text-xs text-teal-600 mt-0.5 truncate">{member.designation}</p>
+                        )}
+                        {member.email && (
+                          <a href={`mailto:${member.email}`}
+                            className="mt-1.5 flex items-center gap-1 text-[10px] text-gray-400 hover:text-teal-600 transition-colors">
+                            <Mail size={10} />
+                            <span className="truncate">{member.email}</span>
+                          </a>
+                        )}
+                        {/* Channel social links */}
+                        <div className="flex items-center gap-1.5 mt-2">
+                          {socialLinks.filter((l: any) => l.url && ['facebook','instagram','twitter'].includes(l.platform)).map((l: any) => {
+                            const icons: Record<string, React.ReactNode> = {
+                              facebook: <Facebook size={11} />, instagram: <Instagram size={11} />, twitter: <Twitter size={11} />,
+                            };
+                            const bgMap: Record<string, string> = {
+                              facebook: 'bg-blue-600', instagram: 'bg-gradient-to-br from-purple-500 to-pink-500', twitter: 'bg-sky-500',
+                            };
+                            return (
+                              <a key={l.platform} href={l.url} target="_blank" rel="noopener noreferrer"
+                                className={`w-6 h-6 rounded-full ${bgMap[l.platform]} flex items-center justify-center text-white`}>
+                                {icons[l.platform]}
+                              </a>
+                            );
+                          })}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

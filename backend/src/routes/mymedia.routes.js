@@ -16,7 +16,9 @@ import {
   getChannelStream,
   incrementViewCount,
   toggleLike,
-  toggleFollow
+  toggleFollow,
+  getChannelReviews,
+  postChannelReview
 } from '../controllers/mymediaController.js';
 
 const router = express.Router();
@@ -73,8 +75,14 @@ router.post('/channel/:channelId/like', toggleLike);
 // POST /api/v1/mymedia/channel/:channelId/follow - Toggle follow (body: { action: 'follow'|'unfollow' })
 router.post('/channel/:channelId/follow', toggleFollow);
 
-// GET /api/v1/mymedia/gallery/:albumId/images - Get gallery images
+// GET /api/v1/mymedia/gallery/:albumId/images - Get gallery images (with signed Wasabi URLs)
 router.get('/gallery/:albumId/images', getGalleryImages);
+
+// GET /api/v1/mymedia/channel/:channelId/reviews - Get channel reviews/ratings
+router.get('/channel/:channelId/reviews', getChannelReviews);
+
+// POST /api/v1/mymedia/channel/:channelId/reviews - Submit a review
+router.post('/channel/:channelId/reviews', postChannelReview);
 
 // GET /api/v1/mymedia/schedules/:channelId - Get schedules for a channel
 // Query params: weekStart (YYYY-MM-DD), day (0-6)

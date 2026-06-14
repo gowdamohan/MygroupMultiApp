@@ -17,7 +17,7 @@ const MediaComments = sequelize.define('media_comments', {
   },
   user_id: {
     type: DataTypes.INTEGER,
-    allowNull: false,
+    allowNull: true,
     references: {
       model: 'users',
       key: 'id'
@@ -36,6 +36,21 @@ const MediaComments = sequelize.define('media_comments', {
     type: DataTypes.TEXT,
     allowNull: false
   },
+  rating: {
+    type: DataTypes.TINYINT,
+    allowNull: true,
+    comment: '1-5 star rating'
+  },
+  reviewer_name: {
+    type: DataTypes.STRING(100),
+    allowNull: true,
+    comment: 'Display name for anonymous reviewers'
+  },
+  reviewer_email: {
+    type: DataTypes.STRING(255),
+    allowNull: true,
+    comment: 'Optional email for anonymous reviewers'
+  },
   is_active: {
     type: DataTypes.TINYINT,
     defaultValue: 1
@@ -48,4 +63,3 @@ const MediaComments = sequelize.define('media_comments', {
 });
 
 export default MediaComments;
-
