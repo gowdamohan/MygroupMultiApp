@@ -357,38 +357,44 @@ export const PdfDocumentViewer: React.FC<PdfDocumentViewerProps> = ({
           </div>
         )}
 
-        {/* ── Scroll area ── */}
+        {/* ── Scroll area — always mounted so pagesRef/scrollRef are
+             never null when renderAllPages is called right after
+             setLoading(false). Loading / error states are overlays. ── */}
         <div
           ref={scrollRef}
-          className="flex-1 overflow-auto overscroll-contain min-h-0 bg-gray-700"
+          className="flex-1 overflow-auto overscroll-contain min-h-0 bg-gray-700 relative"
           style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y' } as React.CSSProperties}
           aria-label={title}
         >
-          {loading ? (
-            <div className="flex flex-col items-center justify-center min-h-[50vh] gap-3">
+          {/* Loading overlay */}
+          {loading && (
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-gray-700">
               <Loader2 className="w-10 h-10 animate-spin text-teal-400" />
               <p className="text-sm text-gray-300">Loading document…</p>
             </div>
-          ) : error ? (
-            <div className="flex flex-col items-center justify-center min-h-[50vh] gap-2 p-8 text-center">
+          )}
+
+          {/* Error overlay */}
+          {error && !loading && (
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 p-8 text-center bg-gray-700">
               <p className="text-sm text-red-400">{error}</p>
               <p className="text-xs text-gray-500 mt-1">{title}</p>
             </div>
-          ) : (
-            <div className="relative">
-              {rendering && (
-                <div className="sticky top-0 z-10 flex items-center justify-center gap-2 py-1.5 bg-gray-900/80 backdrop-blur-sm">
-                  <Loader2 size={14} className="animate-spin text-teal-400" />
-                  <span className="text-xs text-gray-300">Rendering…</span>
-                </div>
-              )}
-              {/* Pages are imperatively appended here by renderAllPages */}
-              <div
-                ref={pagesRef}
-                className="py-4 px-2 flex flex-col items-center"
-              />
+          )}
+
+          {/* Re-render progress banner */}
+          {rendering && (
+            <div className="sticky top-0 z-10 flex items-center justify-center gap-2 py-1.5 bg-gray-900/80 backdrop-blur-sm">
+              <Loader2 size={14} className="animate-spin text-teal-400" />
+              <span className="text-xs text-gray-300">Rendering…</span>
             </div>
           )}
+
+          {/* Pages container — always in DOM; content filled imperatively */}
+          <div
+            ref={pagesRef}
+            className="py-4 px-2 flex flex-col items-center"
+          />
         </div>
 
         {/* ── Reader Mode overlay ── */}
