@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   X, Camera, Home, MapPin, Settings, FileText, HelpCircle, Share2, Download,
@@ -159,8 +159,32 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   });
   const [passwordMessage, setPasswordMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const tabContentRef = useRef<HTMLDivElement>(null);
-  
+  const panelScrollRef = useRef<HTMLDivElement>(null);
+  const tabsSectionRef = useRef<HTMLDivElement>(null);
+
+  /** Scroll sidebar so Profile / Address / Billing tabs sit below the app header. */
+  const scrollTabsToTop = useCallback(() => {
+    requestAnimationFrame(() => {
+      const panel = panelScrollRef.current;
+      const tabsSection = tabsSectionRef.current;
+      if (!panel || !tabsSection) return;
+
+      const APP_HEADER_HEIGHT = 72;
+      const delta =
+        tabsSection.getBoundingClientRect().top -
+        panel.getBoundingClientRect().top -
+        APP_HEADER_HEIGHT;
+
+      if (Math.abs(delta) > 2) {
+        panel.scrollBy({ top: delta, behavior: 'smooth' });
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    if (activeTab) scrollTabsToTop();
+  }, [activeTab, scrollTabsToTop]);
+
   // Dropdown data
   const [countries, setCountries] = useState<Country[]>([]);
   const [states, setStates] = useState<State[]>([]);
@@ -619,6 +643,13 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   };
 
   const handleTabSelect = (tab: ProfileTab) => {
+    if (activeTab === tab) {
+      setActiveTab(null);
+      setShowAddAddressForm(false);
+      setShowAddBillingForm(false);
+      return;
+    }
+
     setActiveTab(tab);
     setExpandedSection(null);
     setSettingsSubView(null);
@@ -626,9 +657,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     setShowLocationModal(false);
     setShowAddAddressForm(false);
     setShowAddBillingForm(false);
-    requestAnimationFrame(() => {
-      tabContentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
   };
 
   const openLocationModal = () => {
@@ -839,6 +867,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
           {/* Slide-in Panel from Left */}
           <motion.div
+            ref={panelScrollRef}
             initial={{ x: '-100%' }}
             animate={{ x: 0 }}
             exit={{ x: '-100%' }}
@@ -846,7 +875,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             className="fixed top-0 left-0 bottom-0 z-[101] w-[90%] max-w-md bg-white shadow-2xl overflow-y-auto"
           >
         {/* Header with App Logo */}
-        <div className="sticky top-0 bg-gradient-to-r from-teal-600 to-teal-500 px-4 py-4 flex items-center justify-between z-10">
+        <div className="sticky top-0 bg-gradient-to-r from-teal-600 to-teal-500 px-4 py-4 flex items-center justify-between z-[100]">
           <div className="flex items-center gap-3">
             {appLogo ? (
               <img src={appLogo.startsWith('http') ? appLogo : `${BACKEND_URL}${appLogo}`} alt="App" className="w-10 h-10 rounded-full object-contain bg-white p-1" />
@@ -939,7 +968,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           </div>
         </div>
 
-        {/* Tabs */}
+        {/* Tabs — scroll target when a tab is opened */}
+        <div ref={tabsSectionRef}>
         <div className="flex border-b border-gray-200 bg-white sticky top-[72px] z-10">
           {(['profile', 'address', 'billing'] as ProfileTab[]).map((tab) => (
             <button
@@ -956,10 +986,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             </button>
           ))}
         </div>
+        </div>
 
         {/* Tab Content (render only after a tab is selected) */}
         {activeTab && (
-        <div ref={tabContentRef} className="p-4">
+        <div className="p-4">
           {/* Profile Tab - Combined Profile and Personal fields */}
           {activeTab === 'profile' && (
             <div className="space-y-4">
