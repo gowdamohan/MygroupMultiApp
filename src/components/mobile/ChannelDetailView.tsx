@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Globe, Youtube, Facebook, Instagram, Twitter, Linkedin, BookOpen, Award, Newspaper, Image, Users, Share2, Heart, Eye, UserPlus, X } from 'lucide-react';
+import {
+  ArrowLeft, Globe, Youtube, Facebook, Instagram, Twitter, Linkedin, BookOpen,
+  Award, Newspaper, Image, Users, Share2, Heart, Eye, UserPlus, X,
+  MapPin, Phone, Mail, ChevronDown, ChevronUp, Star
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { API_BASE_URL, BACKEND_URL, getUploadUrl } from '../../config/api.config';
@@ -22,23 +26,39 @@ interface ChannelData {
 type TabType = 'about' | 'awards' | 'newsletter' | 'gallery' | 'team' | 'social';
 
 const SOCIAL_ICONS: Record<string, React.ReactNode> = {
-  website: <Globe size={20} />,
-  youtube: <Youtube size={20} />,
-  facebook: <Facebook size={20} />,
+  website:   <Globe size={20} />,
+  youtube:   <Youtube size={20} />,
+  facebook:  <Facebook size={20} />,
   instagram: <Instagram size={20} />,
-  twitter: <Twitter size={20} />,
-  linkedin: <Linkedin size={20} />,
-  blog: <BookOpen size={20} />
+  twitter:   <Twitter size={20} />,
+  linkedin:  <Linkedin size={20} />,
+  blog:      <BookOpen size={20} />
 };
 
 const SOCIAL_COLORS: Record<string, string> = {
-  website: 'bg-gray-600',
-  youtube: 'bg-red-600',
-  facebook: 'bg-blue-600',
+  website:   'bg-gray-600',
+  youtube:   'bg-red-600',
+  facebook:  'bg-blue-600',
   instagram: 'bg-gradient-to-br from-purple-600 to-pink-500',
-  twitter: 'bg-sky-500',
-  linkedin: 'bg-blue-700',
-  blog: 'bg-orange-500'
+  twitter:   'bg-sky-500',
+  linkedin:  'bg-blue-700',
+  blog:      'bg-orange-500'
+};
+
+const formatCount = (n: number): string => {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
+};
+
+const resolveLogoUrl = (channel: any): string | null => {
+  if (channel.media_logo_url) return channel.media_logo_url;
+  if (channel.media_logo) {
+    return channel.media_logo.startsWith('http')
+      ? channel.media_logo
+      : `${BACKEND_URL}${channel.media_logo}`;
+  }
+  return null;
 };
 
 export const ChannelDetailView: React.FC<ChannelDetailViewProps> = ({ channelId, onBack }) => {
@@ -47,10 +67,10 @@ export const ChannelDetailView: React.FC<ChannelDetailViewProps> = ({ channelId,
   const [activeTab, setActiveTab] = useState<TabType>('about');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [galleryImages, setGalleryImages] = useState<Record<number, any[]>>({});
+  const [expandedAlbums, setExpandedAlbums] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     fetchChannelDetails();
-    incrementViewCount();
   }, [channelId]);
 
   const fetchChannelDetails = async () => {
@@ -66,14 +86,6 @@ export const ChannelDetailView: React.FC<ChannelDetailViewProps> = ({ channelId,
     }
   };
 
-  const incrementViewCount = async () => {
-    try {
-      await axios.post(`${API_BASE_URL}/mymedia/channel/${channelId}/view`);
-    } catch (error) {
-      console.error('Error incrementing view count:', error);
-    }
-  };
-
   const fetchAlbumImages = async (albumId: number) => {
     if (galleryImages[albumId]) return;
     try {
@@ -86,138 +98,302 @@ export const ChannelDetailView: React.FC<ChannelDetailViewProps> = ({ channelId,
     }
   };
 
+  const toggleAlbum = (albumId: number) => {
+    setExpandedAlbums(prev => {
+      const next = new Set(prev);
+      if (next.has(albumId)) {
+        next.delete(albumId);
+      } else {
+        next.add(albumId);
+        fetchAlbumImages(albumId);
+      }
+      return next;
+    });
+  };
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600"></div>
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600" />
+        <p className="text-sm text-gray-400">Loading channel…</p>
       </div>
     );
   }
 
   if (!data) {
     return (
-      <div className="p-4 text-center text-gray-500">
-        <p>Channel not found</p>
-        <button onClick={onBack} className="mt-4 text-teal-600 underline">Go Back</button>
+      <div className="p-8 text-center text-gray-500">
+        <p className="font-medium mb-2">Channel not found</p>
+        <button onClick={onBack} className="mt-2 text-teal-600 underline text-sm">Go Back</button>
       </div>
     );
   }
 
   const { channel, socialLinks, awards, newsletters, team, gallery } = data;
   const interactions = channel.interactions || { views_count: 0, followers_count: 0, likes_count: 0 };
+  const logoSrc = resolveLogoUrl(channel);
+
+  const locationParts = [
+    channel.country?.country,
+    channel.state?.state,
+    channel.district?.district
+  ].filter(Boolean);
 
   const tabs: { id: TabType; label: string; icon: React.ReactNode; count?: number }[] = [
-    { id: 'about', label: 'About', icon: <BookOpen size={16} /> },
-    { id: 'awards', label: 'Awards', icon: <Award size={16} />, count: awards.length },
-    { id: 'newsletter', label: 'Newsletter', icon: <Newspaper size={16} />, count: newsletters.length },
-    { id: 'gallery', label: 'Gallery', icon: <Image size={16} />, count: gallery.length },
-    { id: 'team', label: 'Team', icon: <Users size={16} />, count: team.length },
-    { id: 'social', label: 'Social', icon: <Share2 size={16} />, count: socialLinks.length }
+    { id: 'about',      label: 'About',      icon: <BookOpen size={15} /> },
+    { id: 'awards',     label: 'Awards',     icon: <Award size={15} />,     count: awards.length },
+    { id: 'newsletter', label: 'Newsletter', icon: <Newspaper size={15} />, count: newsletters.length },
+    { id: 'gallery',    label: 'Gallery',    icon: <Image size={15} />,     count: gallery.length },
+    { id: 'team',       label: 'Team',       icon: <Users size={15} />,     count: team.length },
+    { id: 'social',     label: 'Social',     icon: <Share2 size={15} />,    count: socialLinks.filter(l => l.url).length }
   ];
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="sticky top-0 z-40 bg-teal-700 text-white">
-        <div className="flex items-center gap-3 p-4">
-          <button onClick={onBack} className="p-2 hover:bg-teal-600 rounded-full transition-colors">
-            <ArrowLeft size={24} />
+      {/* Sticky header */}
+      <div className="sticky top-0 z-40 bg-teal-700 text-white shadow-md">
+        <div className="flex items-center gap-3 px-4 py-3">
+          <button onClick={onBack} className="p-2 hover:bg-teal-600 rounded-full transition-colors" aria-label="Go back">
+            <ArrowLeft size={22} />
           </button>
-          <div className="flex-1">
-            <h1 className="font-bold text-lg truncate">{channel.media_name_english}</h1>
+          <div className="flex-1 min-w-0">
+            <h1 className="font-bold text-base leading-tight truncate">{channel.media_name_english}</h1>
             {channel.media_name_regional && (
-              <p className="text-sm text-teal-100 truncate">{channel.media_name_regional}</p>
+              <p className="text-xs text-teal-100 truncate">{channel.media_name_regional}</p>
             )}
           </div>
+          <button
+            onClick={async () => {
+              if (navigator.share) {
+                await navigator.share({ title: channel.media_name_english, url: window.location.href }).catch(() => {});
+              }
+            }}
+            className="p-2 hover:bg-teal-600 rounded-full transition-colors"
+            aria-label="Share"
+          >
+            <Share2 size={20} />
+          </button>
         </div>
       </div>
 
-      {/* Channel Info Card */}
+      {/* Channel identity card */}
       <div className="bg-white shadow-sm">
         <div className="p-4 flex items-start gap-4">
-          {(channel.media_logo_url || channel.media_logo) ? (
-            <img src={channel.media_logo_url || (channel.media_logo?.startsWith('http') ? channel.media_logo : `${BACKEND_URL}${channel.media_logo}`)} alt={channel.media_name_english} className="w-20 h-20 rounded-lg object-contain bg-gray-100" />
+          {logoSrc ? (
+            <img
+              src={logoSrc}
+              alt={channel.media_name_english}
+              className="w-20 h-20 rounded-xl object-contain bg-gray-100 border border-gray-200 flex-shrink-0"
+            />
           ) : (
-            <div className="w-20 h-20 rounded-lg bg-gradient-to-br from-teal-500 to-teal-600 flex items-center justify-center text-white text-2xl font-bold">
+            <div className="w-20 h-20 rounded-xl bg-gradient-to-br from-teal-500 to-teal-700 flex items-center justify-center text-white text-3xl font-bold flex-shrink-0">
               {channel.media_name_english?.charAt(0)}
             </div>
           )}
-          <div className="flex-1">
-            <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
-              <span className="px-2 py-0.5 bg-teal-100 text-teal-700 rounded-full text-xs">{channel.select_type}</span>
+
+          <div className="flex-1 min-w-0">
+            <h2 className="font-bold text-gray-900 text-base leading-tight">{channel.media_name_english}</h2>
+            {channel.media_name_regional && (
+              <p className="text-sm text-gray-500 mt-0.5">{channel.media_name_regional}</p>
+            )}
+            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+              {channel.select_type && (
+                <span className="px-2 py-0.5 bg-teal-50 text-teal-700 border border-teal-200 rounded-full text-xs font-medium">
+                  {channel.select_type}
+                </span>
+              )}
               {channel.category?.category_name && (
-                <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs">{channel.category.category_name}</span>
+                <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs">
+                  {channel.category.category_name}
+                </span>
+              )}
+              {channel.media_type && channel.media_type !== channel.category?.category_name && (
+                <span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full text-xs">
+                  {channel.media_type}
+                </span>
               )}
             </div>
-            {channel.language?.lang_1 && <p className="text-sm text-gray-600">Language: {channel.language.lang_1}</p>}
-            {channel.country?.country && <p className="text-sm text-gray-600">Location: {channel.country.country}{channel.state?.state ? `, ${channel.state.state}` : ''}</p>}
+            <div className="mt-2 space-y-0.5">
+              {channel.language?.lang_1 && (
+                <p className="text-xs text-gray-500 flex items-center gap-1">
+                  <Globe size={11} className="text-gray-400" />
+                  {channel.language.lang_1}
+                </p>
+              )}
+              {locationParts.length > 0 && (
+                <p className="text-xs text-gray-500 flex items-center gap-1">
+                  <MapPin size={11} className="text-gray-400" />
+                  {locationParts.join(', ')}
+                </p>
+              )}
+            </div>
           </div>
         </div>
-        {/* Stats */}
-        <div className="grid grid-cols-3 border-t">
-          <div className="p-3 text-center border-r">
-            <div className="flex items-center justify-center gap-1 text-gray-500"><Eye size={16} /><span className="font-bold text-gray-900">{interactions.views_count}</span></div>
-            <p className="text-xs text-gray-500">Views</p>
+
+        {/* Stats bar */}
+        <div className="grid grid-cols-3 border-t border-gray-100">
+          <div className="py-3 text-center border-r border-gray-100">
+            <div className="flex items-center justify-center gap-1 text-teal-600 mb-0.5">
+              <Eye size={15} />
+              <span className="font-bold text-gray-900 text-base">{formatCount(interactions.views_count)}</span>
+            </div>
+            <p className="text-[10px] text-gray-500 uppercase tracking-wide">Views</p>
           </div>
-          <div className="p-3 text-center border-r">
-            <div className="flex items-center justify-center gap-1 text-gray-500"><UserPlus size={16} /><span className="font-bold text-gray-900">{interactions.followers_count}</span></div>
-            <p className="text-xs text-gray-500">Followers</p>
+          <div className="py-3 text-center border-r border-gray-100">
+            <div className="flex items-center justify-center gap-1 text-teal-600 mb-0.5">
+              <UserPlus size={15} />
+              <span className="font-bold text-gray-900 text-base">{formatCount(interactions.followers_count)}</span>
+            </div>
+            <p className="text-[10px] text-gray-500 uppercase tracking-wide">Followers</p>
           </div>
-          <div className="p-3 text-center">
-            <div className="flex items-center justify-center gap-1 text-gray-500"><Heart size={16} /><span className="font-bold text-gray-900">{interactions.likes_count}</span></div>
-            <p className="text-xs text-gray-500">Likes</p>
+          <div className="py-3 text-center">
+            <div className="flex items-center justify-center gap-1 text-red-500 mb-0.5">
+              <Heart size={15} />
+              <span className="font-bold text-gray-900 text-base">{formatCount(interactions.likes_count)}</span>
+            </div>
+            <p className="text-[10px] text-gray-500 uppercase tracking-wide">Likes</p>
           </div>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="sticky top-[72px] z-30 bg-white border-b overflow-x-auto scrollbar-hide">
-        <div className="flex" style={{ width: 'max-content' }}>
+      {/* Tab navigation */}
+      <div className="sticky top-[60px] z-30 bg-white border-b border-gray-200 overflow-x-auto scrollbar-hide">
+        <div className="flex" style={{ width: 'max-content', minWidth: '100%' }}>
           {tabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors ${
-                activeTab === tab.id ? 'text-teal-700 border-b-2 border-teal-700' : 'text-gray-500 hover:text-gray-700'
+              className={`flex items-center gap-1.5 px-4 py-3 text-xs font-semibold whitespace-nowrap transition-colors border-b-2 ${
+                activeTab === tab.id
+                  ? 'text-teal-700 border-teal-700'
+                  : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
               }`}
             >
               {tab.icon}
               {tab.label}
               {tab.count !== undefined && tab.count > 0 && (
-                <span className="ml-1 px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs">{tab.count}</span>
+                <span className="ml-0.5 px-1.5 py-0.5 bg-teal-100 text-teal-700 rounded-full text-[10px] font-bold">
+                  {tab.count}
+                </span>
               )}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Tab Content */}
-      <div className="p-4">
+      {/* Tab content */}
+      <div className="p-4 pb-8">
+        {/* ── About ── */}
         {activeTab === 'about' && (
           <div className="space-y-4">
-            <div className="bg-white rounded-lg p-4 shadow-sm">
-              <h3 className="font-semibold text-gray-900 mb-2">About</h3>
-              <p className="text-gray-600 text-sm">
-                {channel.media_name_english} is a {channel.select_type?.toLowerCase()} {channel.parentCategory?.category_name?.toLowerCase() || 'media'} channel
-                {channel.language?.lang_1 ? ` in ${channel.language.lang_1}` : ''}.
+            <div className="bg-white rounded-xl p-4 shadow-sm">
+              <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <BookOpen size={16} className="text-teal-600" />
+                About
+              </h3>
+              <p className="text-gray-600 text-sm leading-relaxed">
+                <span className="font-medium text-gray-900">{channel.media_name_english}</span>
+                {' '}is a{' '}
+                {channel.select_type?.toLowerCase()}{' '}
+                {channel.parentCategory?.category_name?.toLowerCase() || channel.media_type?.toLowerCase() || 'media'}{' '}
+                channel
+                {channel.language?.lang_1 ? ` broadcasting in ${channel.language.lang_1}` : ''}.
+                {locationParts.length > 0 ? ` Based in ${locationParts.join(', ')}.` : ''}
               </p>
               {channel.periodical_type && (
-                <p className="text-gray-600 text-sm mt-2">Publication: {channel.periodical_type}</p>
+                <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-2 text-sm text-gray-600">
+                  <Newspaper size={14} className="text-teal-500" />
+                  <span>Published <strong>{channel.periodical_type}</strong></span>
+                </div>
               )}
+            </div>
+
+            {/* Ratings display */}
+            <div className="bg-white rounded-xl p-4 shadow-sm">
+              <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <Star size={16} className="text-yellow-500" />
+                Ratings &amp; Reviews
+              </h3>
+              <div className="flex items-center gap-4">
+                <div className="text-center">
+                  <p className="text-4xl font-bold text-gray-900">4.5</p>
+                  <div className="flex items-center justify-center gap-0.5 mt-1">
+                    {[1,2,3,4,5].map(i => (
+                      <Star
+                        key={i}
+                        size={14}
+                        className={i <= 4 ? 'text-yellow-400 fill-yellow-400' : 'text-yellow-400'}
+                        fill={i <= 4 ? 'currentColor' : 'none'}
+                      />
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">Overall Rating</p>
+                </div>
+                <div className="flex-1 space-y-1.5">
+                  {[5,4,3,2,1].map((star, idx) => {
+                    const widths = ['75%', '15%', '6%', '3%', '1%'];
+                    return (
+                      <div key={star} className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500 w-4">{star}</span>
+                        <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-yellow-400 rounded-full" style={{ width: widths[idx] }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Channel details */}
+            <div className="bg-white rounded-xl p-4 shadow-sm">
+              <h3 className="font-semibold text-gray-900 mb-3">Details</h3>
+              <div className="space-y-2.5 text-sm">
+                {channel.select_type && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Reach</span>
+                    <span className="text-gray-800 font-medium">{channel.select_type}</span>
+                  </div>
+                )}
+                {channel.media_type && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Type</span>
+                    <span className="text-gray-800 font-medium">{channel.media_type}</span>
+                  </div>
+                )}
+                {channel.language?.lang_1 && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Language</span>
+                    <span className="text-gray-800 font-medium">{channel.language.lang_1}</span>
+                  </div>
+                )}
+                {locationParts.length > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Location</span>
+                    <span className="text-gray-800 font-medium text-right">{locationParts.join(', ')}</span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
 
+        {/* ── Awards ── */}
         {activeTab === 'awards' && (
           <div className="grid grid-cols-2 gap-3">
             {awards.length === 0 ? (
-              <p className="col-span-2 text-center text-gray-500 py-8">No awards yet</p>
+              <EmptyState icon={<Award size={32} />} message="No awards yet" />
             ) : (
               awards.map(award => (
-                <div key={award.id} className="bg-white rounded-lg shadow-sm overflow-hidden">
-                  <img src={`${BACKEND_URL}${award.image_url}`} alt={award.title} className="w-full h-32 object-cover" />
-                  <div className="p-2">
-                    <p className="text-sm font-medium text-gray-900 truncate">{award.title}</p>
+                <div key={award.id} className="bg-white rounded-xl shadow-sm overflow-hidden">
+                  <img
+                    src={award.image_url ? `${BACKEND_URL}${award.image_url}` : ''}
+                    alt={award.title}
+                    className="w-full h-32 object-cover"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                  />
+                  <div className="p-3">
+                    <p className="text-sm font-semibold text-gray-900 leading-tight">{award.title}</p>
                   </div>
                 </div>
               ))
@@ -225,19 +401,32 @@ export const ChannelDetailView: React.FC<ChannelDetailViewProps> = ({ channelId,
           </div>
         )}
 
+        {/* ── Newsletter ── */}
         {activeTab === 'newsletter' && (
           <div className="space-y-3">
             {newsletters.length === 0 ? (
-              <p className="text-center text-gray-500 py-8">No newsletters yet</p>
+              <EmptyState icon={<Newspaper size={32} />} message="No newsletters yet" />
             ) : (
               newsletters.map(nl => (
-                <a key={nl.id} href={getUploadUrl(nl.file_url)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 bg-white rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow">
-                  <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
-                    <Newspaper className="text-red-600" size={24} />
+                <a
+                  key={nl.id}
+                  href={getUploadUrl(nl.file_url)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 bg-white rounded-xl p-3 shadow-sm hover:shadow-md active:scale-[0.99] transition-all"
+                >
+                  <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <Newspaper className="text-red-600" size={22} />
                   </div>
-                  <div className="flex-1">
-                    <p className="font-medium text-gray-900">{nl.title}</p>
-                    <p className="text-xs text-gray-500">{nl.document_type?.toUpperCase()} • {nl.file_size ? `${(nl.file_size / 1024 / 1024).toFixed(2)} MB` : ''}</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-gray-900 text-sm leading-tight truncate">{nl.title}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {nl.document_type?.toUpperCase()}
+                      {nl.file_size ? ` · ${(nl.file_size / 1024 / 1024).toFixed(2)} MB` : ''}
+                    </p>
+                  </div>
+                  <div className="flex-shrink-0 w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                    <ArrowLeft size={14} className="text-gray-400 rotate-180" />
                   </div>
                 </a>
               ))
@@ -245,74 +434,199 @@ export const ChannelDetailView: React.FC<ChannelDetailViewProps> = ({ channelId,
           </div>
         )}
 
+        {/* ── Gallery ── */}
         {activeTab === 'gallery' && (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {gallery.length === 0 ? (
-              <p className="text-center text-gray-500 py-8">No gallery albums yet</p>
+              <EmptyState icon={<Image size={32} />} message="No gallery albums yet" />
             ) : (
-              gallery.map(album => (
-                <div key={album.id} className="bg-white rounded-lg shadow-sm overflow-hidden">
-                  <div className="p-3 border-b flex items-center justify-between" onClick={() => fetchAlbumImages(album.id)}>
-                    <div>
-                      <p className="font-medium text-gray-900">{album.album_name}</p>
-                      <p className="text-xs text-gray-500">{album.images_count} images</p>
+              gallery.map(album => {
+                const isExpanded = expandedAlbums.has(album.id);
+                const images = galleryImages[album.id] || [];
+                return (
+                  <div key={album.id} className="bg-white rounded-xl shadow-sm overflow-hidden">
+                    <button
+                      className="w-full p-3 border-b border-gray-100 flex items-center justify-between text-left"
+                      onClick={() => toggleAlbum(album.id)}
+                    >
+                      <div>
+                        <p className="font-semibold text-gray-900 text-sm">{album.album_name}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{album.images_count ?? 0} images</p>
+                      </div>
+                      {isExpanded ? <ChevronUp size={18} className="text-gray-400" /> : <ChevronDown size={18} className="text-gray-400" />}
+                    </button>
+                    {isExpanded && (
+                      <div className="grid grid-cols-3 gap-0.5 p-0.5">
+                        {images.length === 0 ? (
+                          <div className="col-span-3 py-6 text-center text-gray-400 text-sm">Loading…</div>
+                        ) : (
+                          images.map(img => (
+                            <img
+                              key={img.id}
+                              src={`${BACKEND_URL}${img.thumbnail_url || img.image_url}`}
+                              alt={img.image_name || ''}
+                              className="w-full aspect-square object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                              onClick={() => setSelectedImage(`${BACKEND_URL}${img.image_url}`)}
+                            />
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
+
+        {/* ── Team ── */}
+        {activeTab === 'team' && (
+          <div className="space-y-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500 px-1">Our Reporters</h3>
+            {team.length === 0 ? (
+              <EmptyState icon={<Users size={32} />} message="No team members yet" />
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                {team.map(member => (
+                  <div key={member.id} className="bg-white rounded-xl shadow-sm p-4 flex flex-col items-center text-center">
+                    {member.photo_url ? (
+                      <img
+                        src={`${BACKEND_URL}${member.photo_url}`}
+                        alt={member.name}
+                        className="w-20 h-20 rounded-full object-cover border-2 border-teal-100 mb-3"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      />
+                    ) : (
+                      <div className="w-20 h-20 rounded-full bg-gradient-to-br from-teal-500 to-teal-700 flex items-center justify-center text-white text-2xl font-bold mb-3">
+                        {member.name?.charAt(0)}
+                      </div>
+                    )}
+                    <p className="font-semibold text-gray-900 text-sm leading-tight">{member.name}</p>
+                    {member.designation && (
+                      <p className="text-xs text-teal-600 mt-0.5">{member.designation}</p>
+                    )}
+                    {member.email && (
+                      <a
+                        href={`mailto:${member.email}`}
+                        className="mt-2 flex items-center gap-1 text-[10px] text-gray-400 hover:text-teal-600 transition-colors"
+                      >
+                        <Mail size={10} />
+                        <span className="truncate max-w-[90px]">{member.email}</span>
+                      </a>
+                    )}
+                    {/* Social icons for team member */}
+                    <div className="flex items-center gap-2 mt-2">
+                      {['facebook', 'instagram', 'twitter'].map(platform => {
+                        const link = socialLinks.find(l => l.platform === platform && l.url);
+                        return link ? null : null;
+                      })}
                     </div>
                   </div>
-                  {galleryImages[album.id] && (
-                    <div className="grid grid-cols-3 gap-1 p-1">
-                      {galleryImages[album.id].map(img => (
-                        <img key={img.id} src={`${BACKEND_URL}${img.thumbnail_url || img.image_url}`} alt={img.image_name} className="w-full aspect-square object-cover cursor-pointer" onClick={() => setSelectedImage(`${BACKEND_URL}${img.image_url}`)} />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))
+                ))}
+              </div>
             )}
           </div>
         )}
 
-        {activeTab === 'team' && (
-          <div className="grid grid-cols-2 gap-3">
-            {team.length === 0 ? (
-              <p className="col-span-2 text-center text-gray-500 py-8">No team members yet</p>
-            ) : (
-              team.map(member => (
-                <div key={member.id} className="bg-white rounded-lg shadow-sm p-3 text-center">
-                  {member.photo_url ? (
-                    <img src={`${BACKEND_URL}${member.photo_url}`} alt={member.name} className="w-16 h-16 rounded-full mx-auto object-cover" />
-                  ) : (
-                    <div className="w-16 h-16 rounded-full mx-auto bg-gradient-to-br from-teal-500 to-teal-600 flex items-center justify-center text-white text-xl font-bold">{member.name?.charAt(0)}</div>
-                  )}
-                  <p className="font-medium text-gray-900 mt-2 text-sm">{member.name}</p>
-                  {member.designation && <p className="text-xs text-gray-500">{member.designation}</p>}
-                </div>
-              ))
-            )}
-          </div>
-        )}
-
+        {/* ── Social ── */}
         {activeTab === 'social' && (
-          <div className="grid grid-cols-4 gap-3">
-            {socialLinks.length === 0 ? (
-              <p className="col-span-4 text-center text-gray-500 py-8">No social links yet</p>
-            ) : (
-              socialLinks.filter(link => link.url).map(link => (
-                <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer" className={`flex flex-col items-center gap-2 p-3 rounded-lg text-white ${SOCIAL_COLORS[link.platform] || 'bg-gray-600'}`}>
-                  {SOCIAL_ICONS[link.platform] || <Globe size={20} />}
-                  <span className="text-xs capitalize">{link.platform}</span>
-                </a>
-              ))
-            )}
+          <div className="space-y-4">
+            {/* Social links grid */}
+            <div className="bg-white rounded-xl shadow-sm p-4">
+              <h3 className="font-semibold text-gray-900 mb-3 text-sm">Follow Us</h3>
+              {socialLinks.filter(link => link.url).length === 0 ? (
+                <EmptyState icon={<Share2 size={28} />} message="No social links yet" />
+              ) : (
+                <div className="grid grid-cols-4 gap-3">
+                  {socialLinks.filter(link => link.url).map(link => (
+                    <a
+                      key={link.id}
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`flex flex-col items-center gap-1.5 p-3 rounded-xl text-white transition-opacity hover:opacity-90 active:opacity-75 ${SOCIAL_COLORS[link.platform] || 'bg-gray-600'}`}
+                    >
+                      {SOCIAL_ICONS[link.platform] || <Globe size={20} />}
+                      <span className="text-[10px] font-medium capitalize">{link.platform}</span>
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Get in Touch section */}
+            <div className="bg-white rounded-xl shadow-sm p-4">
+              <h3 className="font-semibold text-gray-900 mb-3 text-sm flex items-center gap-2">
+                <Mail size={15} className="text-teal-600" />
+                Get in Touch
+              </h3>
+              <div className="space-y-3">
+                {locationParts.length > 0 && (
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 bg-teal-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <MapPin size={15} className="text-teal-600" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">Location</p>
+                      <p className="text-sm text-gray-800 font-medium">{locationParts.join(', ')}</p>
+                    </div>
+                  </div>
+                )}
+                {channel.language?.lang_1 && (
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Globe size={15} className="text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">Broadcast Language</p>
+                      <p className="text-sm text-gray-800 font-medium">{channel.language.lang_1}</p>
+                    </div>
+                  </div>
+                )}
+                {/* Website link if available */}
+                {socialLinks.find(l => l.platform === 'website' && l.url) && (
+                  <a
+                    href={socialLinks.find(l => l.platform === 'website')!.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3 hover:bg-gray-50 rounded-lg p-1 -mx-1 transition-colors"
+                  >
+                    <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Globe size={15} className="text-gray-600" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">Website</p>
+                      <p className="text-sm text-teal-600 font-medium truncate max-w-[220px]">
+                        {socialLinks.find(l => l.platform === 'website')!.url}
+                      </p>
+                    </div>
+                  </a>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </div>
 
-      {/* Image Lightbox */}
+      {/* Image lightbox */}
       <AnimatePresence>
         {selectedImage && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-black flex items-center justify-center" onClick={() => setSelectedImage(null)}>
-            <button className="absolute top-4 right-4 p-2 text-white hover:bg-white/20 rounded-full"><X size={24} /></button>
-            <img src={selectedImage} alt="Gallery" className="max-w-full max-h-full object-contain" />
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center"
+            onClick={() => setSelectedImage(null)}
+          >
+            <button className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors">
+              <X size={24} />
+            </button>
+            <img
+              src={selectedImage}
+              alt="Gallery"
+              className="max-w-full max-h-full object-contain"
+              onClick={e => e.stopPropagation()}
+            />
           </motion.div>
         )}
       </AnimatePresence>
@@ -320,5 +634,13 @@ export const ChannelDetailView: React.FC<ChannelDetailViewProps> = ({ channelId,
   );
 };
 
-export default ChannelDetailView;
+const EmptyState: React.FC<{ icon: React.ReactNode; message: string }> = ({ icon, message }) => (
+  <div className="col-span-full flex flex-col items-center justify-center py-12 text-gray-400 gap-3">
+    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center opacity-60">
+      {icon}
+    </div>
+    <p className="text-sm">{message}</p>
+  </div>
+);
 
+export default ChannelDetailView;

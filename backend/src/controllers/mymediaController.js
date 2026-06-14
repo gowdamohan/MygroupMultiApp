@@ -1083,12 +1083,71 @@ export const incrementViewCount = async (req, res) => {
 
     if (!created) {
       await interaction.increment('views_count');
+      await interaction.reload();
     }
 
-    res.json({ success: true, data: { views_count: interaction.views_count + (created ? 0 : 1) } });
+    res.json({ success: true, data: { views_count: interaction.views_count } });
   } catch (error) {
     console.error('Error incrementing view count:', error);
     res.status(500).json({ success: false, message: 'Failed to increment view count' });
+  }
+};
+
+/**
+ * Toggle like for a channel
+ * POST /api/v1/mymedia/channel/:channelId/like
+ * Body: { action: 'like' | 'unlike' }
+ */
+export const toggleLike = async (req, res) => {
+  try {
+    const { channelId } = req.params;
+    const { action } = req.body;
+
+    const [interaction] = await MediaInteractions.findOrCreate({
+      where: { media_channel_id: channelId },
+      defaults: { likes_count: 0 }
+    });
+
+    if (action === 'unlike') {
+      await interaction.decrement('likes_count');
+    } else {
+      await interaction.increment('likes_count');
+    }
+    await interaction.reload();
+
+    res.json({ success: true, data: { likes_count: interaction.likes_count } });
+  } catch (error) {
+    console.error('Error toggling like:', error);
+    res.status(500).json({ success: false, message: 'Failed to toggle like' });
+  }
+};
+
+/**
+ * Toggle follow for a channel
+ * POST /api/v1/mymedia/channel/:channelId/follow
+ * Body: { action: 'follow' | 'unfollow' }
+ */
+export const toggleFollow = async (req, res) => {
+  try {
+    const { channelId } = req.params;
+    const { action } = req.body;
+
+    const [interaction] = await MediaInteractions.findOrCreate({
+      where: { media_channel_id: channelId },
+      defaults: { followers_count: 0 }
+    });
+
+    if (action === 'unfollow') {
+      await interaction.decrement('followers_count');
+    } else {
+      await interaction.increment('followers_count');
+    }
+    await interaction.reload();
+
+    res.json({ success: true, data: { followers_count: interaction.followers_count } });
+  } catch (error) {
+    console.error('Error toggling follow:', error);
+    res.status(500).json({ success: false, message: 'Failed to toggle follow' });
   }
 };
 

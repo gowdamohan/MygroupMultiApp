@@ -14,7 +14,9 @@ import {
   streamChannelDocument,
   getGalleryImages,
   getChannelStream,
-  incrementViewCount
+  incrementViewCount,
+  toggleLike,
+  toggleFollow
 } from '../controllers/mymediaController.js';
 
 const router = express.Router();
@@ -64,6 +66,12 @@ router.get('/channel/:channelId/stream', getChannelStream);
 
 // POST /api/v1/mymedia/channel/:channelId/view - Increment view count
 router.post('/channel/:channelId/view', incrementViewCount);
+
+// POST /api/v1/mymedia/channel/:channelId/like - Toggle like (body: { action: 'like'|'unlike' })
+router.post('/channel/:channelId/like', toggleLike);
+
+// POST /api/v1/mymedia/channel/:channelId/follow - Toggle follow (body: { action: 'follow'|'unfollow' })
+router.post('/channel/:channelId/follow', toggleFollow);
 
 // GET /api/v1/mymedia/gallery/:albumId/images - Get gallery images
 router.get('/gallery/:albumId/images', getGalleryImages);
