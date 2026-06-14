@@ -9,6 +9,7 @@ import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
 import { ChannelDetailView } from '../../components/mobile/ChannelDetailView';
 import { EPaperMagazineView } from '../../components/mobile/EPaperMagazineView';
 import { TVChannelView } from '../../components/mobile/TVChannelView';
+import { TVChannelDetailPage } from '../../components/mobile/TVChannelDetailPage';
 import { getCategoryIcon, DefaultCategoryIcon } from '../../components/mobile/CategoryIcons';
 import {
   pickDefaultParentCategory,
@@ -727,10 +728,10 @@ export const MobileMyMediaPage: React.FC = () => {
     );
   }
 
-  // Render TV/Radio player view
+  // Render TV/Radio player view — unified single-page (player + details)
   if (viewMode === 'tv-player' && selectedChannel) {
     return (
-      <TVChannelView
+      <TVChannelDetailPage
         channelId={selectedChannel.id}
         channelName={selectedChannel.media_name_english}
         channelLogo={selectedChannel.media_logo_url || selectedChannel.media_logo}
@@ -739,7 +740,6 @@ export const MobileMyMediaPage: React.FC = () => {
         scheduleMediaUrl={tvPlayback?.mediaFileUrl}
         programTitle={tvPlayback?.programTitle}
         onBack={handleBackToList}
-        onViewDetails={handleViewChannelDetails}
       />
     );
   }
