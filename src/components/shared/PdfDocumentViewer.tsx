@@ -26,6 +26,9 @@ const DPR = Math.min(window.devicePixelRatio || 1, 3); // cap at 3× for memory
 const ZOOM_LEVELS = [0.5, 0.7, 1.0, 1.4, 2.0, 2.8];
 const DEFAULT_ZOOM_IDX = 2; // 1.0
 
+/** Set true to show Reader toolbar button and tap-to-open reader overlay. */
+const SHOW_READER_UI = false;
+
 /* Text-layer CSS injected once per app lifetime */
 const TEXT_LAYER_STYLE = `
   .pdftl span, .pdftl a {
@@ -136,8 +139,10 @@ export const PdfDocumentViewer: React.FC<PdfDocumentViewerProps> = ({
       canvas.height = devVP.height;
       canvas.style.cssText =
         `width:${cssVP.width}px;height:${cssVP.height}px;display:block;`;
-      canvas.title  = 'Tap to open Reader Mode';
-      canvas.style.cursor = 'pointer';
+      if (SHOW_READER_UI) {
+        canvas.title = 'Tap to open Reader Mode';
+        canvas.style.cursor = 'pointer';
+      }
 
       const ctx = canvas.getContext('2d');
       if (!ctx) continue;
@@ -177,11 +182,13 @@ export const PdfDocumentViewer: React.FC<PdfDocumentViewerProps> = ({
 
       pageDiv.appendChild(textDiv);
 
-      /* Tap opens reader mode for this page */
-      canvas.addEventListener('click', () => {
-        setReaderPage(n);
-        setReaderMode(true);
-      }, { passive: true });
+      /* Tap opens reader mode for this page (when enabled) */
+      if (SHOW_READER_UI) {
+        canvas.addEventListener('click', () => {
+          setReaderPage(n);
+          setReaderMode(true);
+        }, { passive: true });
+      }
 
       pagesEl.appendChild(pageDiv);
     }
@@ -324,13 +331,15 @@ export const PdfDocumentViewer: React.FC<PdfDocumentViewerProps> = ({
               {numPages} page{numPages !== 1 ? 's' : ''}
             </span>
 
-            {/* Reader mode */}
+            {SHOW_READER_UI && (
             <button
+              type="button"
               onClick={() => { setReaderPage(1); setReaderMode(true); }}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 rounded-lg text-white text-xs font-semibold transition-colors"
             >
               <BookOpen size={12} /> Reader
             </button>
+            )}
 
             {/* Zoom controls */}
             <div className="flex items-center bg-gray-800 rounded-lg overflow-hidden">
@@ -398,7 +407,7 @@ export const PdfDocumentViewer: React.FC<PdfDocumentViewerProps> = ({
         </div>
 
         {/* ── Reader Mode overlay ── */}
-        {readerMode && (
+        {SHOW_READER_UI && readerMode && (
           <div className="absolute inset-0 z-50 flex flex-col bg-[#fdf6e3]">
             {/* Reader toolbar */}
             <div className="flex items-center gap-3 px-4 py-3 bg-[#f2e4c0] border-b border-[#d9c48a] flex-shrink-0">
