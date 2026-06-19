@@ -14,7 +14,8 @@ import { MyChannelList } from '../partner/MyChannelList';
 import { HeaderAdsBooking } from '../partner/HeaderAdsBooking';
 import { SupportChat } from '../partner/SupportChat';
 import { PartnerProfileCompletionForm } from '../../components/PartnerProfileCompletionForm';
-import { API_BASE_URL, BACKEND_URL, resolveProfileImageUrl, WASABI_IMG_PROPS } from '../../config/api.config';
+import { PartnerHeader } from '../../components/dashboard/PartnerHeader';
+import { API_BASE_URL, resolveProfileImageUrl, WASABI_IMG_PROPS } from '../../config/api.config';
 import { ADMIN_SUPPORT_APP_ID } from '../../config/supportChat.config';
 
 const SUPPORT_CHAT_LAST_SEEN_KEY = 'support_chat_last_seen_id';
@@ -28,18 +29,6 @@ interface MenuItem {
   children?: MenuItem[];
 }
 
-interface PartnerAd {
-  id: number;
-  app_id: number;
-  image_path: string | null;
-  image_url: string | null;
-  url: string | null;
-  type: 'ads1' | 'ads2' | null;
-  slot: number | null;
-  is_active: number;
-  signed_url?: string | null;
-}
-
 interface UserProfile {
   id: number;
   profile_img: string | null;
@@ -49,7 +38,18 @@ interface UserProfile {
   last_name: string | null;
   email: string;
   username: string;
+  company?: string | null;
+  company_name?: string | null;
   registration_status?: string;
+}
+
+interface SelectedAppInfo {
+  id: number;
+  name: string;
+  details?: {
+    logo?: string;
+    icon?: string;
+  };
 }
 
 export const PartnerDashboard: React.FC = () => {
@@ -61,10 +61,9 @@ export const PartnerDashboard: React.FC = () => {
   const [activeMenu, setActiveMenu] = useState('dashboard');
   const [user, setUser] = useState<any>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [partnerAds, setPartnerAds] = useState<PartnerAd[]>([]);
-  const [headerScrollingText, setHeaderScrollingText] = useState('');
   const [registrationStatus, setRegistrationStatus] = useState<string>('pending');
   const [appName, setAppName] = useState<string>('');
+  const [selectedAppInfo, setSelectedAppInfo] = useState<SelectedAppInfo | null>(null);
   const [unreadSupportCount, setUnreadSupportCount] = useState(0);
 
   const fetchUnreadSupportCount = useCallback(async () => {
@@ -130,46 +129,28 @@ export const PartnerDashboard: React.FC = () => {
     }
   }, []);
 
-  const fetchPartnerAds = useCallback(async () => {
-    try {
-      const token = localStorage.getItem('accessToken');
-      const selectedApp = localStorage.getItem('selectedApp');
-      const appId = selectedApp ? JSON.parse(selectedApp).id : 1;
-      const response = await axios.get(`${API_BASE_URL}/partner-ads`, {
-        headers: { Authorization: `Bearer ${token}` },
-        params: { app_id: appId, type: 'ads1', limit: 100 }
-      });
-      if (response.data.success) {
-        setPartnerAds((response.data.data || []).filter((ad: PartnerAd) => ad.is_active === 1));
-        setHeaderScrollingText(response.data.header_scrolling_text || '');
-      }
-    } catch (error) {
-      console.error('Error fetching partner ads:', error);
-    }
-  }, []);
-
   useEffect(() => {
     const userData = localStorage.getItem('user');
     if (userData) {
       const parsedUser = JSON.parse(userData);
       setUser(parsedUser);
       fetchUserProfile();
-      fetchPartnerAds();
     } else {
       navigate('/partner');
     }
 
-    // Get app name from selectedApp
     const selectedApp = localStorage.getItem('selectedApp');
     if (selectedApp) {
       try {
-        const app = JSON.parse(selectedApp);
+        const app = JSON.parse(selectedApp) as SelectedAppInfo;
+        setSelectedAppInfo(app);
         setAppName((app.name || '').toLowerCase());
-      } catch (e) {
+      } catch {
         setAppName('');
+        setSelectedAppInfo(null);
       }
     }
-  }, [navigate, fetchUserProfile, fetchPartnerAds]);
+  }, [navigate, fetchUserProfile]);
 
   // Poll for unread support chat messages
   useEffect(() => {
@@ -317,72 +298,79 @@ export const PartnerDashboard: React.FC = () => {
     );
   };
 
-  // Get ads with images for the carousel
-  const adsWithImages = partnerAds.filter(ad => ad.signed_url || ad.image_url);
-
-  const renderAdSlot = (ad: PartnerAd | null, fallbackLabel: string) => {
-    if (!ad) {
-      return (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center text-white">
-            <Megaphone className="mx-auto mb-1" size={24} />
-            <p className="text-xs font-medium opacity-90">{fallbackLabel}</p>
-          </div>
-        </div>
-      );
+  const getDisplayName = () => {
+    if (userProfile) {
+      const fullName = [userProfile.first_name, userProfile.last_name].filter(Boolean).join(' ').trim();
+      if (fullName) return fullName;
+      if (userProfile.company_name?.trim()) return userProfile.company_name.trim();
+      if (userProfile.company?.trim()) return userProfile.company.trim();
+      return userProfile.username || 'Partner';
     }
-
-    const src = ad.signed_url || ad.image_url || '';
-    const image = (
-      <img
-        src={src}
-        alt={fallbackLabel}
-        className="w-full h-full object-cover"
-      />
-    );
-
-    if (ad.url?.trim()) {
-      return (
-        <a
-          href={ad.url.trim()}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex-1 overflow-hidden block"
-        >
-          {image}
-        </a>
-      );
-    }
-
-    return <div className="flex-1 overflow-hidden">{image}</div>;
+    if (user?.company?.trim()) return user.company.trim();
+    return user?.username || 'Partner';
   };
 
-  const renderHeaderAdsSection = () => {
-    const ad1 = adsWithImages[0] || null;
-    const ad2 = adsWithImages[1] || null;
+  const registrationEmail = userProfile?.email || user?.email || '';
+  const appLogo = selectedAppInfo?.details?.logo;
+
+  const renderSidebarIdentity = (variant: 'desktop' | 'mobile') => {
+    const isDesktop = variant === 'desktop';
+    const logoSize = isDesktop ? 'w-14 h-14' : 'w-12 h-12';
 
     return (
-      <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 h-full flex flex-col">
-        {/* Two Ad Images Side by Side */}
-        <div className="flex-1 flex gap-1 min-h-0">
-          {renderAdSlot(ad1, 'Ad Space 1')}
-          {renderAdSlot(ad2, 'Ad Space 2')}
-        </div>
-
-        {/* Scrolling Text Marquee */}
-        <div className="bg-black/20 py-1.5 overflow-hidden flex-shrink-0">
-          {headerScrollingText.trim() ? (
-            <div className="animate-marquee whitespace-nowrap">
-              <span className="text-white text-sm font-medium mx-8">
-                {headerScrollingText.trim()}
-              </span>
-              <span className="text-white text-sm font-medium mx-8">
-                {headerScrollingText.trim()}
-              </span>
+      <div className={`relative overflow-hidden ${isDesktop ? 'mx-3 mt-2 mb-1' : 'mb-0'}`}>
+        <div className="absolute inset-0 bg-gradient-to-br from-primary-500/20 via-transparent to-indigo-500/10 rounded-2xl" />
+        <div className="relative rounded-2xl border border-gray-600/80 bg-gray-900/60 backdrop-blur-sm p-4 shadow-inner">
+          {variant === 'mobile' && (
+            <div className="flex justify-end mb-2 -mt-1 -mr-1">
+              <button
+                onClick={() => setMobileSidebarOpen(false)}
+                className="p-1 text-gray-400 hover:text-white rounded-lg transition-colors"
+              >
+                <X size={18} />
+              </button>
             </div>
-          ) : (
-            <p className="text-white/60 text-sm text-center">Welcome to Partner Dashboard</p>
           )}
+
+          <div className={`flex ${isDesktop ? 'flex-col items-center text-center' : 'items-center gap-3'} gap-3`}>
+            <div className={`${logoSize} rounded-xl overflow-hidden border-2 border-primary-400/70 bg-white shadow-lg flex-shrink-0 ring-2 ring-primary-500/20`}>
+              {appLogo ? (
+                <img src={appLogo} alt={selectedAppInfo?.name || 'App'} className="w-full h-full object-contain p-1.5" />
+              ) : userProfile?.profile_img || userProfile?.profile_img_url ? (
+                <img
+                  src={resolveProfileImageUrl(userProfile.profile_img, userProfile.profile_img_url)}
+                  alt="Profile"
+                  {...WASABI_IMG_PROPS}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center">
+                  <User className="text-white" size={isDesktop ? 24 : 20} />
+                </div>
+              )}
+            </div>
+
+            {(isDesktop ? sidebarOpen : true) && (
+              <div className={`min-w-0 ${isDesktop ? 'w-full' : 'flex-1'}`}>
+                <p className="text-[10px] uppercase tracking-widest text-primary-300/80 font-semibold mb-0.5">
+                  Partner Account
+                </p>
+                <p className="text-sm font-semibold text-white leading-snug truncate">
+                  {getDisplayName()}
+                </p>
+                {userProfile?.identification_code && (
+                  <p className="text-xl font-bold text-primary-300 mt-1.5 tracking-wide leading-none">
+                    {userProfile.identification_code}
+                  </p>
+                )}
+                {registrationEmail && (
+                  <p className="text-[11px] text-gray-400 mt-2 break-all leading-relaxed">
+                    {registrationEmail}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -551,34 +539,9 @@ export const PartnerDashboard: React.FC = () => {
               <Menu size={16} />
             </button>
           </div>
-          {/* User Profile */}
-          <div className="p-4 border-b border-gray-700">
-            <div className="flex flex-col items-center">
-              <div className="w-16 h-16 rounded-full overflow-hidden border-3 border-primary-500 shadow-lg mb-3">
-                {userProfile?.profile_img || userProfile?.profile_img_url ? (
-                  <img
-                    src={resolveProfileImageUrl(userProfile.profile_img, userProfile.profile_img_url)}
-                    alt="Profile"
-                    {...WASABI_IMG_PROPS}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center">
-                    <User className="text-white" size={28} />
-                  </div>
-                )}
-              </div>
-              {sidebarOpen && (
-                <div className="text-center">
-                  <p className="text-sm font-semibold text-white">
-                    {userProfile?.first_name || user?.username || 'Partner'}
-                  </p>
-                  {userProfile?.identification_code && (
-                    <p className="text-xs text-gray-400 mt-1">ID: {userProfile.identification_code}</p>
-                  )}
-                </div>
-              )}
-            </div>
+          {/* Partner Identity */}
+          <div className="pb-3 border-b border-gray-700/80 flex-shrink-0">
+            {renderSidebarIdentity('desktop')}
           </div>
 
           {/* Menu Items */}
@@ -679,36 +642,9 @@ export const PartnerDashboard: React.FC = () => {
           <div className="absolute inset-0 bg-black bg-opacity-50" onClick={() => setMobileSidebarOpen(false)} />
           <aside className="absolute left-0 top-0 bottom-0 w-64 bg-gray-800">
             <div className="h-full flex flex-col">
-              {/* User Profile */}
-              <div className="p-4 border-b border-gray-700">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-primary-500">
-                    {userProfile?.profile_img || userProfile?.profile_img_url ? (
-                      <img
-                        src={resolveProfileImageUrl(userProfile.profile_img, userProfile.profile_img_url)}
-                        alt="Profile"
-                        {...WASABI_IMG_PROPS}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center">
-                        <User className="text-white" size={20} />
-                      </div>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => setMobileSidebarOpen(false)}
-                    className="p-1 text-gray-400 hover:text-white rounded-lg transition-colors"
-                  >
-                    <X size={18} />
-                  </button>
-                </div>
-                <p className="text-sm font-semibold text-white">
-                  {userProfile?.first_name || user?.username || 'Partner'}
-                </p>
-                {userProfile?.identification_code && (
-                  <p className="text-xs text-gray-400 mt-1">ID: {userProfile.identification_code}</p>
-                )}
+              {/* Partner Identity */}
+              <div className="p-3 border-b border-gray-700/80">
+                {renderSidebarIdentity('mobile')}
               </div>
 
               {/* Menu Items */}
@@ -753,9 +689,9 @@ export const PartnerDashboard: React.FC = () => {
           </button>
         </div>
 
-        {/* Partner Ads Header Section - height matches sidebar */}
+        {/* Partner Ads Header Section - consistent height across all views */}
         <div className="flex-shrink-0 h-48 md:h-56">
-          {renderHeaderAdsSection()}
+          <PartnerHeader />
         </div>
 
         {/* Content */}

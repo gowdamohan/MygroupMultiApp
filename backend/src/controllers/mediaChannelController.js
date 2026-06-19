@@ -17,7 +17,8 @@ import {
   PartnerHeaderAds,
   MediaSchedule,
   MediaScheduleSlot,
-  ClientRegistration
+  ClientRegistration,
+  OwnerDetails
 } from '../models/index.js';
 
 /**
@@ -584,7 +585,7 @@ export const getUserProfile = async (req, res) => {
 
     const user = await User.findOne({
       where: { id: userId },
-      attributes: ['id', 'profile_img', 'identification_code', 'first_name', 'last_name', 'email', 'username', 'group_id']
+      attributes: ['id', 'profile_img', 'identification_code', 'first_name', 'last_name', 'email', 'username', 'group_id', 'company']
     });
 
     if (!user) {
@@ -593,6 +594,11 @@ export const getUserProfile = async (req, res) => {
         message: 'User not found'
       });
     }
+
+    const ownerDetails = await OwnerDetails.findOne({
+      where: { user_id: userId },
+      attributes: ['company_name']
+    });
 
     // Get client_registration status
     let registrationStatus = 'pending';
@@ -614,6 +620,7 @@ export const getUserProfile = async (req, res) => {
       success: true,
       data: {
         ...userData,
+        company_name: ownerDetails?.company_name || userData.company || null,
         registration_status: registrationStatus
       }
     });

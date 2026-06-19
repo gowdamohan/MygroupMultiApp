@@ -25,6 +25,19 @@ const getHeaderScrollingText = async (appId) => {
   return settings?.header_scrolling_text?.trim() || '';
 };
 
+const buildDisplaySlotAds = (ads, type) => {
+  return ads
+    .filter((ad) =>
+      ad.type === type &&
+      ad.is_active === 1 &&
+      ad.slot >= 1 &&
+      ad.slot <= 3 &&
+      (ad.signed_url || ad.image_url)
+    )
+    .sort((a, b) => a.slot - b.slot)
+    .slice(0, 3);
+};
+
 /**
  * Get partner ads. Query: app_id (required), type ("ads1"|"ads2") optional, limit (default 100).
  * Returns signed URLs for display when image_path is set.
@@ -49,8 +62,16 @@ export const getPartnerAds = async (req, res) => {
 
     const ads = await attachSignedUrls(rows);
     const headerScrollingText = appId ? await getHeaderScrollingText(appId) : '';
+    const ads1 = buildDisplaySlotAds(ads, 'ads1');
+    const ads2 = buildDisplaySlotAds(ads, 'ads2');
 
-    res.json({ success: true, data: ads, header_scrolling_text: headerScrollingText });
+    res.json({
+      success: true,
+      data: ads,
+      ads1,
+      ads2,
+      header_scrolling_text: headerScrollingText
+    });
   } catch (error) {
     console.error('Error fetching partner ads:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch partner ads' });

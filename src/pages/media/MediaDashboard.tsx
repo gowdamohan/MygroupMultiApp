@@ -33,6 +33,7 @@ import {
 } from '../../utils/mediaCategoryUtils';
 import { normalizePeriodicalType } from '../../utils/periodicalSlots';
 import { PrintMediaOutputPanel } from '../../components/media/PrintMediaOutputPanel';
+import { PartnerHeader } from '../../components/dashboard/PartnerHeader';
 
 interface MenuItem {
   id: string;
@@ -1180,16 +1181,28 @@ export const MediaDashboard: React.FC = () => {
       )}
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Mobile menu toggle */}
+        <div className="lg:hidden h-10 bg-white border-b border-gray-200 flex items-center px-4 flex-shrink-0">
+          <button
+            onClick={() => setMobileSidebarOpen(true)}
+            className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <Menu size={18} />
+          </button>
+        </div>
+
+        {/* Global partner header ads + scrolling text */}
+        <div className="flex-shrink-0 h-48 md:h-56">
+          <PartnerHeader fallbackMarqueeText="Welcome to Media Dashboard" />
+        </div>
+
         {isMainDashboard() && !selectedUploadCategory ? (
-          // Show new dashboard design directly (no header for main dashboard)
-          <div className="flex-1 overflow-hidden">{renderContent()}</div>
+          <div className="flex-1 overflow-hidden min-h-0">{renderContent()}</div>
         ) : (
-          // Show header + content for sub-pages
           <>
-            <header className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4 shadow-sm">
+            <header className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4 shadow-sm flex-shrink-0">
               <div className="flex items-center gap-4">
                 <button onClick={() => setSidebarOpen(!sidebarOpen)} className="hidden lg:block p-2 hover:bg-gray-100 rounded-lg"><Menu size={20} /></button>
-                <button onClick={() => setMobileSidebarOpen(true)} className="lg:hidden p-2 hover:bg-gray-100 rounded-lg"><Menu size={20} /></button>
                 <h1 className="text-lg font-semibold text-teal-800">Media Dashboard</h1>
               </div>
               <div className="flex items-center gap-3">
@@ -1203,7 +1216,7 @@ export const MediaDashboard: React.FC = () => {
                 </div>
               </div>
             </header>
-            <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-gradient-to-br from-teal-50 to-cyan-50">
+            <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-gradient-to-br from-teal-50 to-cyan-50 min-h-0">
               <div className="max-w-7xl mx-auto">{renderContent()}</div>
             </main>
           </>
