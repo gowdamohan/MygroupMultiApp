@@ -1,6 +1,12 @@
 import express from 'express';
 import multer from 'multer';
-import { getPartnerAds, savePartnerAdRow, deletePartnerAd } from '../controllers/partnerAdsController.js';
+import {
+  getPartnerAds,
+  savePartnerAdRow,
+  deletePartnerAd,
+  getPartnerAdsSettings,
+  savePartnerAdsSettings
+} from '../controllers/partnerAdsController.js';
 import { authenticate } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -15,6 +21,9 @@ const upload = multer({
 });
 
 router.get('/', authenticate, getPartnerAds);
+router.get('/settings', authenticate, getPartnerAdsSettings);
+router.put('/settings', authenticate, savePartnerAdsSettings);
+router.post('/settings', authenticate, savePartnerAdsSettings);
 router.post('/save-row', authenticate, (req, res, next) => {
   if (req.is('multipart/form-data')) {
     upload.single('image')(req, res, next);

@@ -3,8 +3,10 @@ import {
   SupportConversation,
   SupportMessage,
   User,
-  GroupCreate
+  GroupCreate,
+  ClientRegistration
 } from '../models/index.js';
+import SupportChatGroup from '../models/SupportChatGroup.js';
 import { getAppIdForChannel } from '../utils/supportChannelConfig.js';
 
 /**
@@ -314,12 +316,14 @@ export const markMessagesAsRead = async (req, res) => {
  */
 export const getAdminConversations = async (req, res) => {
   try {
-    const { channel, status, app_id } = req.query;
+    const { channel, status, app_id, filter } = req.query;
 
     const where = {};
     if (channel) where.channel_type = channel;
     if (status) where.status = status;
     if (app_id) where.app_id = app_id;
+    if (filter === 'shortlisted') where.is_shortlisted = 1;
+    else if (filter && String(filter).startsWith('group_')) where.chat_group = filter;
 
     const conversations = await SupportConversation.findAll({
       where,
@@ -331,12 +335,38 @@ export const getAdminConversations = async (req, res) => {
       order: [['last_message_at', 'DESC'], ['created_at', 'DESC']]
     });
 
-    // Map for frontend compatibility
-    const mappedConversations = conversations.map(c => ({
+    const conversationIds = conversations.map(c => c.id);
+    const unreadRows = conversationIds.length
+      ? await SupportMessage.findAll({
+          attributes: [
+            'conversation_id',
+            [SupportMessage.sequelize.fn('COUNT', SupportMessage.sequelize.col('id')), 'unread_count']
+          ],
+          where: {
+            conversation_id: { [Op.in]: conversationIds },
+            sender_type: 'partner',
+            is_read: 0,
+            is_deleted: 0
+          },
+          group: ['conversation_id'],
+          raw: true
+        })
+      : [];
+
+    const unreadMap = Object.fromEntries(
+      unreadRows.map(r => [r.conversation_id, parseInt(r.unread_count, 10) || 0])
+    );
+
+    let mappedConversations = conversations.map(c => ({
       ...c.toJSON(),
       channel: c.channel_type,
-      user: c.partner
+      user: c.partner,
+      unread_count: unreadMap[c.id] || 0
     }));
+
+    if (filter === 'unread') {
+      mappedConversations = mappedConversations.filter(c => c.unread_count > 0);
+    }
 
     res.json({
       success: true,
@@ -391,6 +421,238 @@ export const getUnreadCount = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error getting unread count',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Get partners registered to an app (for chat group assignment).
+ * GET /api/v1/support/admin/partners?app_id=
+ */
+export const getAppChatPartners = async (req, res) => {
+  try {
+    const appId = parseInt(req.query.app_id, 10);
+    if (!appId || isNaN(appId)) {
+      return res.status(400).json({ success: false, message: 'app_id is required' });
+    }
+
+    const registrations = await ClientRegistration.findAll({
+      where: { group_id: appId },
+      include: [
+        {
+          model: User,
+          as: 'user',
+          attributes: ['id', 'first_name', 'last_name', 'email']
+        }
+      ],
+      order: [['created_at', 'DESC']]
+    });
+
+    const partners = registrations
+      .filter(reg => reg.user)
+      .map(reg => ({
+        id: reg.user.id,
+        first_name: reg.user.first_name,
+        last_name: reg.user.last_name,
+        email: reg.user.email,
+        registration_status: reg.status
+      }));
+
+    res.json({ success: true, data: partners });
+  } catch (error) {
+    console.error('Get app chat partners error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching partners',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Get chat groups for an app.
+ * GET /api/v1/support/admin/chat-groups?app_id=
+ */
+export const getChatGroups = async (req, res) => {
+  try {
+    const appId = parseInt(req.query.app_id, 10);
+    if (!appId || isNaN(appId)) {
+      return res.status(400).json({ success: false, message: 'app_id is required' });
+    }
+
+    const groups = await SupportChatGroup.findAll({
+      where: { app_id: appId },
+      order: [['created_at', 'ASC'], ['id', 'ASC']]
+    });
+
+    res.json({
+      success: true,
+      data: groups.map(g => {
+        const plain = g.get ? g.get({ plain: true }) : g;
+        return {
+          id: plain.id,
+          app_id: plain.app_id,
+          name: plain.name,
+          key: `group_${plain.id}`,
+          created_at: plain.created_at
+        };
+      })
+    });
+  } catch (error) {
+    console.error('Get chat groups error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching chat groups',
+      error: error.message
+    });
+  }
+};
+
+const findOrCreateAdminConversation = async (partnerId, appId) => {
+  let conversation = await SupportConversation.findOne({
+    where: {
+      partner_id: partnerId,
+      channel_type: 'admin',
+      app_id: appId
+    },
+    order: [['last_message_at', 'DESC'], ['created_at', 'DESC']]
+  });
+
+  if (!conversation) {
+    conversation = await SupportConversation.create({
+      channel_type: 'admin',
+      app_id: appId,
+      partner_id: partnerId,
+      subject: 'Admin Chat',
+      status: 'open',
+      last_message_at: new Date()
+    });
+  }
+
+  return conversation;
+};
+
+/**
+ * Create a chat group and assign partners' admin conversations to it.
+ * POST /api/v1/support/admin/chat-groups
+ * Body: app_id, name, partner_ids[]
+ */
+export const createChatGroup = async (req, res) => {
+  try {
+    const appId = parseInt(req.body.app_id, 10);
+    const name = (req.body.name || '').toString().trim();
+    const partnerIds = Array.isArray(req.body.partner_ids)
+      ? [...new Set(req.body.partner_ids.map(id => parseInt(id, 10)).filter(id => !isNaN(id)))]
+      : [];
+
+    if (!appId || isNaN(appId)) {
+      return res.status(400).json({ success: false, message: 'app_id is required' });
+    }
+    if (!name) {
+      return res.status(400).json({ success: false, message: 'Group name is required' });
+    }
+    if (partnerIds.length === 0) {
+      return res.status(400).json({ success: false, message: 'Select at least one partner' });
+    }
+
+    const group = await SupportChatGroup.create({ app_id: appId, name });
+    const groupKey = `group_${group.id}`;
+
+    let assignedCount = 0;
+    for (const partnerId of partnerIds) {
+      const registration = await ClientRegistration.findOne({
+        where: { user_id: partnerId, group_id: appId }
+      });
+      if (!registration) continue;
+
+      const conversation = await findOrCreateAdminConversation(partnerId, appId);
+      await conversation.update({ chat_group: groupKey });
+      assignedCount += 1;
+    }
+
+    if (assignedCount === 0) {
+      await group.destroy();
+      return res.status(400).json({
+        success: false,
+        message: 'No valid partners found for this app'
+      });
+    }
+
+    res.status(201).json({
+      success: true,
+      message: 'Chat group created',
+      data: {
+        id: group.id,
+        app_id: group.app_id,
+        name: group.name,
+        key: groupKey,
+        assigned_count: assignedCount,
+        created_at: group.created_at
+      }
+    });
+  } catch (error) {
+    console.error('Create chat group error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error creating chat group',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Assign partners to an existing chat group.
+ * PUT /api/v1/support/admin/chat-groups/:id/assign
+ * Body: app_id, partner_ids[]
+ */
+export const assignChatGroup = async (req, res) => {
+  try {
+    const groupId = parseInt(req.params.id, 10);
+    const appId = parseInt(req.body.app_id, 10);
+    const partnerIds = Array.isArray(req.body.partner_ids)
+      ? [...new Set(req.body.partner_ids.map(id => parseInt(id, 10)).filter(id => !isNaN(id)))]
+      : [];
+
+    if (!groupId || isNaN(groupId)) {
+      return res.status(400).json({ success: false, message: 'Invalid group id' });
+    }
+    if (!appId || isNaN(appId)) {
+      return res.status(400).json({ success: false, message: 'app_id is required' });
+    }
+    if (partnerIds.length === 0) {
+      return res.status(400).json({ success: false, message: 'Select at least one partner' });
+    }
+
+    const group = await SupportChatGroup.findOne({ where: { id: groupId, app_id: appId } });
+    if (!group) {
+      return res.status(404).json({ success: false, message: 'Chat group not found' });
+    }
+
+    const groupKey = `group_${group.id}`;
+    let assignedCount = 0;
+
+    for (const partnerId of partnerIds) {
+      const registration = await ClientRegistration.findOne({
+        where: { user_id: partnerId, group_id: appId }
+      });
+      if (!registration) continue;
+
+      const conversation = await findOrCreateAdminConversation(partnerId, appId);
+      await conversation.update({ chat_group: groupKey });
+      assignedCount += 1;
+    }
+
+    res.json({
+      success: true,
+      message: 'Partners assigned to group',
+      data: { key: groupKey, assigned_count: assignedCount }
+    });
+  } catch (error) {
+    console.error('Assign chat group error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error assigning chat group',
       error: error.message
     });
   }

@@ -7,7 +7,11 @@ import {
   updateConversationStatus,
   markMessagesAsRead,
   getUnreadCount,
-  getAdminConversations
+  getAdminConversations,
+  getAppChatPartners,
+  getChatGroups,
+  createChatGroup,
+  assignChatGroup
 } from '../controllers/supportController.js';
 import { authenticate } from '../middleware/auth.js';
 
@@ -55,6 +59,10 @@ router.get('/unread-count', getUnreadCount);
 
 // Get all conversations for admin/support staff
 router.get('/admin/conversations', getAdminConversations);
+router.get('/admin/partners', getAppChatPartners);
+router.get('/admin/chat-groups', getChatGroups);
+router.post('/admin/chat-groups', createChatGroup);
+router.put('/admin/chat-groups/:id/assign', assignChatGroup);
 
 export default router;
 

@@ -33,7 +33,7 @@ interface PartnerAd {
   app_id: number;
   image_path: string | null;
   image_url: string | null;
-  scrolling_text: string | null;
+  url: string | null;
   type: 'ads1' | 'ads2' | null;
   slot: number | null;
   is_active: number;
@@ -62,6 +62,7 @@ export const PartnerDashboard: React.FC = () => {
   const [user, setUser] = useState<any>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [partnerAds, setPartnerAds] = useState<PartnerAd[]>([]);
+  const [headerScrollingText, setHeaderScrollingText] = useState('');
   const [registrationStatus, setRegistrationStatus] = useState<string>('pending');
   const [appName, setAppName] = useState<string>('');
   const [unreadSupportCount, setUnreadSupportCount] = useState(0);
@@ -140,6 +141,7 @@ export const PartnerDashboard: React.FC = () => {
       });
       if (response.data.success) {
         setPartnerAds((response.data.data || []).filter((ad: PartnerAd) => ad.is_active === 1));
+        setHeaderScrollingText(response.data.header_scrolling_text || '');
       }
     } catch (error) {
       console.error('Error fetching partner ads:', error);
@@ -315,13 +317,45 @@ export const PartnerDashboard: React.FC = () => {
     );
   };
 
-  // Get all scrolling texts from active partner ads
-  const scrollingTexts = partnerAds
-    .filter(ad => ad.scrolling_text && ad.scrolling_text.trim())
-    .map(ad => ad.scrolling_text!.trim());
-
   // Get ads with images for the carousel
   const adsWithImages = partnerAds.filter(ad => ad.signed_url || ad.image_url);
+
+  const renderAdSlot = (ad: PartnerAd | null, fallbackLabel: string) => {
+    if (!ad) {
+      return (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center text-white">
+            <Megaphone className="mx-auto mb-1" size={24} />
+            <p className="text-xs font-medium opacity-90">{fallbackLabel}</p>
+          </div>
+        </div>
+      );
+    }
+
+    const src = ad.signed_url || ad.image_url || '';
+    const image = (
+      <img
+        src={src}
+        alt={fallbackLabel}
+        className="w-full h-full object-cover"
+      />
+    );
+
+    if (ad.url?.trim()) {
+      return (
+        <a
+          href={ad.url.trim()}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex-1 overflow-hidden block"
+        >
+          {image}
+        </a>
+      );
+    }
+
+    return <div className="flex-1 overflow-hidden">{image}</div>;
+  };
 
   const renderHeaderAdsSection = () => {
     const ad1 = adsWithImages[0] || null;
@@ -331,49 +365,19 @@ export const PartnerDashboard: React.FC = () => {
       <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 h-full flex flex-col">
         {/* Two Ad Images Side by Side */}
         <div className="flex-1 flex gap-1 min-h-0">
-          {ad1 ? (
-            <div className="flex-1 overflow-hidden">
-              <img
-                src={ad1.signed_url || ad1.image_url || ''}
-                alt="Partner Ad 1"
-                className="w-full h-full object-cover"
-              />
-            </div>
-          ) : (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-center text-white">
-                <Megaphone className="mx-auto mb-1" size={24} />
-                <p className="text-xs font-medium opacity-90">Ad Space 1</p>
-              </div>
-            </div>
-          )}
-          {ad2 ? (
-            <div className="flex-1 overflow-hidden">
-              <img
-                src={ad2.signed_url || ad2.image_url || ''}
-                alt="Partner Ad 2"
-                className="w-full h-full object-cover"
-              />
-            </div>
-          ) : (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-center text-white">
-                <Megaphone className="mx-auto mb-1" size={24} />
-                <p className="text-xs font-medium opacity-90">Ad Space 2</p>
-              </div>
-            </div>
-          )}
+          {renderAdSlot(ad1, 'Ad Space 1')}
+          {renderAdSlot(ad2, 'Ad Space 2')}
         </div>
 
         {/* Scrolling Text Marquee */}
         <div className="bg-black/20 py-1.5 overflow-hidden flex-shrink-0">
-          {scrollingTexts.length > 0 ? (
+          {headerScrollingText.trim() ? (
             <div className="animate-marquee whitespace-nowrap">
               <span className="text-white text-sm font-medium mx-8">
-                {scrollingTexts.join('  •  ')}
+                {headerScrollingText.trim()}
               </span>
               <span className="text-white text-sm font-medium mx-8">
-                {scrollingTexts.join('  •  ')}
+                {headerScrollingText.trim()}
               </span>
             </div>
           ) : (

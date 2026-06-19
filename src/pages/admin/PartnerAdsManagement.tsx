@@ -15,7 +15,7 @@ interface PartnerAd {
   app_id: number;
   image_path: string | null;
   image_url: string | null;
-  scrolling_text: string | null;
+  url: string | null;
   type: AdType | null;
   slot: number | null;
   signed_url?: string | null;
@@ -24,7 +24,7 @@ interface PartnerAd {
 interface RowState {
   file: File | null;
   displayUrl: string | null;
-  scrollingText: string;
+  url: string;
   saving: boolean;
 }
 
@@ -36,6 +36,8 @@ export const PartnerAdsManagement: React.FC = () => {
   const [ads, setAds] = useState<PartnerAd[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingApps, setLoadingApps] = useState(true);
+  const [headerScrollingText, setHeaderScrollingText] = useState('');
+  const [savingScrollingText, setSavingScrollingText] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const fileInputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
 
@@ -45,7 +47,7 @@ export const PartnerAdsManagement: React.FC = () => {
     const init: { [key: string]: RowState } = {};
     (['ads1', 'ads2'] as const).forEach(adType => {
       SLOTS.forEach(slot => {
-        init[getRowKey(adType, slot)] = { file: null, displayUrl: null, scrollingText: '', saving: false };
+        init[getRowKey(adType, slot)] = { file: null, displayUrl: null, url: '', saving: false };
       });
     });
     return init;
@@ -89,6 +91,7 @@ export const PartnerAdsManagement: React.FC = () => {
       if (res.data.success) {
         const list: PartnerAd[] = res.data.data || [];
         setAds(list);
+        setHeaderScrollingText(res.data.header_scrolling_text || '');
         setRowState(prev => {
           const next = { ...prev };
           (['ads1', 'ads2'] as const).forEach(adType => {
@@ -99,7 +102,7 @@ export const PartnerAdsManagement: React.FC = () => {
                 ...prev[key],
                 file: null,
                 displayUrl: ad ? (ad.signed_url || ad.image_url || null) : null,
-                scrollingText: ad?.scrolling_text || '',
+                url: ad?.url || '',
                 saving: false
               };
             });
@@ -119,9 +122,9 @@ export const PartnerAdsManagement: React.FC = () => {
     setRowState(prev => ({ ...prev, [key]: { ...prev[key], file } }));
   };
 
-  const setScrollingTextForRow = (adType: AdType, slot: number, text: string) => {
+  const setUrlForRow = (adType: AdType, slot: number, url: string) => {
     const key = getRowKey(adType, slot);
-    setRowState(prev => ({ ...prev, [key]: { ...prev[key], scrollingText: text } }));
+    setRowState(prev => ({ ...prev, [key]: { ...prev[key], url } }));
   };
 
   const handleSaveRow = async (adType: AdType, slot: number) => {
@@ -129,8 +132,8 @@ export const PartnerAdsManagement: React.FC = () => {
     const state = rowState[key];
     const token = localStorage.getItem('accessToken');
 
-    if (!state.file && !state.scrollingText) {
-      setMessage({ type: 'error', text: 'Provide an image or scrolling text to save.' });
+    if (!state.file && !state.url) {
+      setMessage({ type: 'error', text: 'Provide an image or destination URL to save.' });
       return;
     }
 
@@ -143,7 +146,7 @@ export const PartnerAdsManagement: React.FC = () => {
       formData.append('type', adType);
       formData.append('slot', String(slot));
       if (state.file) formData.append('image', state.file);
-      formData.append('scrolling_text', state.scrollingText);
+      formData.append('url', state.url);
 
       const res = await axios.post(`${API_BASE_URL}/partner-ads/save-row`, formData, {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
@@ -160,6 +163,28 @@ export const PartnerAdsManagement: React.FC = () => {
     }
   };
 
+  const handleSaveScrollingText = async () => {
+    const token = localStorage.getItem('accessToken');
+    setSavingScrollingText(true);
+    setMessage(null);
+
+    try {
+      const res = await axios.put(`${API_BASE_URL}/partner-ads/settings`, {
+        app_id: parseInt(selectedAppId, 10),
+        header_scrolling_text: headerScrollingText
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.data.success) {
+        setMessage({ type: 'success', text: 'Header scrolling text saved.' });
+      } else throw new Error(res.data.message);
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.response?.data?.message || 'Failed to save scrolling text.' });
+    } finally {
+      setSavingScrollingText(false);
+    }
+  };
+
   const renderSectionTable = (adType: AdType, title: string) => (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
       <h3 className="text-lg font-semibold text-gray-900 px-4 py-3 border-b border-gray-200 bg-gray-50">
@@ -171,7 +196,7 @@ export const PartnerAdsManagement: React.FC = () => {
             <tr className="bg-gray-100">
               <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700 w-12">#</th>
               <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700">File Upload</th>
-              <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700">Scrolling Text</th>
+              <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700">Destination URL</th>
               <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700 w-28">Save</th>
             </tr>
           </thead>
@@ -179,7 +204,7 @@ export const PartnerAdsManagement: React.FC = () => {
             {SLOTS.map(slot => {
               const key = getRowKey(adType, slot);
               const state = rowState[key];
-              const hasContent = !!state.file || !!state.scrollingText;
+              const hasContent = !!state.file || !!state.url.trim();
               return (
                 <tr key={slot} className="hover:bg-gray-50/50">
                   <td className="border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700">{slot}</td>
@@ -200,10 +225,10 @@ export const PartnerAdsManagement: React.FC = () => {
                   </td>
                   <td className="border border-gray-300 px-3 py-2">
                     <input
-                      type="text"
-                      value={state.scrollingText}
-                      onChange={e => setScrollingTextForRow(adType, slot, e.target.value)}
-                      placeholder="Enter scrolling text..."
+                      type="url"
+                      value={state.url}
+                      onChange={e => setUrlForRow(adType, slot, e.target.value)}
+                      placeholder="https://example.com"
                       className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                   </td>
@@ -223,7 +248,6 @@ export const PartnerAdsManagement: React.FC = () => {
           </tbody>
         </table>
       </div>
-      {/* Preview row */}
       <div className="px-4 py-2 bg-gray-50 border-t border-gray-200 flex flex-wrap gap-4">
         {SLOTS.map(slot => {
           const key = getRowKey(adType, slot);
@@ -263,10 +287,9 @@ export const PartnerAdsManagement: React.FC = () => {
         <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
           <Megaphone size={24} /> Partner Ads Management
         </h2>
-        <p className="text-gray-600 mt-1">Manage partner ads per app. Each section has 3 slots for image upload and scrolling text.</p>
+        <p className="text-gray-600 mt-1">Manage partner ad images, click-through links, and global header scrolling text per app.</p>
       </div>
 
-      {/* App Selector */}
       <div className="flex items-center gap-4 mb-6">
         <label className="text-sm font-medium text-gray-700">Select App:</label>
         <select
@@ -291,12 +314,35 @@ export const PartnerAdsManagement: React.FC = () => {
           <Loader2 className="animate-spin text-blue-600" size={32} />
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="lg:col-span-1">{renderSectionTable('ads1', 'Ads1 (Section 1)')}</div>
-          <div className="lg:col-span-1">{renderSectionTable('ads2', 'Ads2 (Section 2)')}</div>
-        </div>
+        <>
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
+            <label className="block text-sm font-semibold text-gray-900 mb-2">Header Scrolling Text</label>
+            <p className="text-xs text-gray-500 mb-3">Global marquee text shown in the dashboard header (not tied to individual ad slots).</p>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <input
+                type="text"
+                value={headerScrollingText}
+                onChange={e => setHeaderScrollingText(e.target.value)}
+                placeholder="Enter global scrolling text for the header..."
+                className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+              <button
+                type="button"
+                onClick={handleSaveScrollingText}
+                disabled={savingScrollingText}
+                className="px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {savingScrollingText ? <Loader2 className="animate-spin" size={16} /> : 'Save Scrolling Text'}
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="lg:col-span-1">{renderSectionTable('ads1', 'Ads1 (Section 1)')}</div>
+            <div className="lg:col-span-1">{renderSectionTable('ads2', 'Ads2 (Section 2)')}</div>
+          </div>
+        </>
       )}
     </div>
   );
 };
-

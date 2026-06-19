@@ -43,6 +43,16 @@ const SupportConversation = sequelize.define('support_conversations', {
     type: DataTypes.DATE,
     allowNull: true
   },
+  is_shortlisted: {
+    type: DataTypes.TINYINT,
+    allowNull: false,
+    defaultValue: 0
+  },
+  chat_group: {
+    type: DataTypes.STRING(50),
+    allowNull: true,
+    comment: 'group_{id} key referencing support_chat_groups'
+  },
   resolved_at: {
     type: DataTypes.DATE,
     allowNull: true

@@ -19,9 +19,10 @@ const PartnerAdsManagement = sequelize.define('partner_ads_management', {
     type: DataTypes.STRING(500),
     allowNull: true
   },
-  scrolling_text: {
-    type: DataTypes.TEXT,
-    allowNull: true
+  url: {
+    type: DataTypes.STRING(500),
+    allowNull: true,
+    comment: 'Click-through destination URL for the ad image'
   },
   type: {
     type: DataTypes.STRING(10),
