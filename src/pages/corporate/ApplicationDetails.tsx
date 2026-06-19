@@ -329,7 +329,7 @@ export const ApplicationDetails: React.FC = () => {
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="text-left py-4 px-6 font-semibold text-gray-700 border-b">ID</th>
+                <th className="text-left py-4 px-6 font-semibold text-gray-700 border-b">#</th>
                 <th className="text-left py-4 px-6 font-semibold text-gray-700 border-b">App Name</th>
                 <th className="text-left py-4 px-6 font-semibold text-gray-700 border-b">Title</th>
                 <th className="text-left py-4 px-6 font-semibold text-gray-700 border-b">File</th>
@@ -345,9 +345,9 @@ export const ApplicationDetails: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                applications.map((application) => (
+                applications.map((application, index) => (
                   <tr key={application.id} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="py-4 px-6 text-gray-900">{application.id}</td>
+                    <td className="py-4 px-6 text-gray-900">{index + 1}</td>
                     <td className="py-4 px-6">
                       <div>
                         <div className="font-medium text-gray-900">{application.app?.name}</div>

@@ -245,7 +245,7 @@ export const FooterFaqManager: React.FC = () => {
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  ID
+                  #
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Question
@@ -275,9 +275,9 @@ export const FooterFaqManager: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                faqs.map((faq) => (
+                faqs.map((faq, index) => (
                   <tr key={faq.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 text-sm text-gray-900">{faq.id}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900">{index + 1}</td>
                     <td className="px-6 py-4 text-sm text-gray-900">
                       <div className="max-w-lg">
                         <div className="font-medium text-gray-900">{faq.question}</div>

@@ -153,9 +153,9 @@ export const FooterManagement: React.FC<FooterManagementProps> = ({ appId }) => 
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {links.map((link, idx) => (
+              {links.map((link, index) => (
                 <tr key={link.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm text-gray-500">{idx + 1}</td>
+                  <td className="px-4 py-3 text-sm text-gray-500">{index + 1}</td>
                   <td className="px-4 py-3 text-sm font-medium text-gray-900">{link.title}</td>
                   <td className="px-4 py-3 text-sm text-blue-600">
                     <a href={link.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:underline">

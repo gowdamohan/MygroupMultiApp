@@ -58,6 +58,16 @@ export const FooterPageListManager: React.FC<FooterPageListManagerProps> = ({ pa
 
   const pageConfig = useMemo(() => ({
     about_us: { showTitle: true, titleLabel: 'Title', showImage: true, imageLabel: 'Image', showContent: true, contentLabel: 'Description' },
+    about_app: { showTitle: true, titleLabel: 'Title', showImage: true, imageLabel: 'Image', showContent: true, contentLabel: 'Description' },
+    newsletter: {
+      showTitle: true,
+      titleLabel: 'Title',
+      showImage: true,
+      imageLabel: 'Newsletter Image',
+      showContent: true,
+      contentLabel: 'Content',
+      requireContent: false
+    },
     awards: { showTitle: true, titleLabel: 'Title', showImage: true, imageLabel: 'Image' },
     newsroom: { showTitle: true, titleLabel: 'Title', showImage: true, imageLabel: 'Image' },
     events: { showTitle: true, titleLabel: 'Event Name', showEventDate: true, eventDateLabel: 'Event Date', showContent: true, contentLabel: 'Description', showImage: true, imageLabel: 'Main Image' },
@@ -67,8 +77,15 @@ export const FooterPageListManager: React.FC<FooterPageListManagerProps> = ({ pa
     testimonials: { showTitle: true, titleLabel: 'Title', showTagLine: true, tagLineLabel: 'Tagline', showContent: true, contentLabel: 'Description', showImage: true, imageLabel: 'Image' }
   }), []);
 
-  const currentConfig = pageConfig[pageType] || { showTitle: true, titleLabel: 'Title', showContent: true, contentLabel: 'Content' };
+  const currentConfig = pageConfig[pageType as keyof typeof pageConfig] || {
+    showTitle: true,
+    titleLabel: 'Title',
+    showContent: true,
+    contentLabel: 'Content'
+  };
   const isEvents = pageType === 'events';
+  const isNewsletter = pageType === 'newsletter';
+  const isMultiImagePage = isEvents || isNewsletter;
   const yearOptions = Array.from({ length: new Date().getFullYear() - 2014 + 1 }, (_, index) => (2014 + index).toString());
   const tableColumns =
     3 +
@@ -92,10 +109,10 @@ export const FooterPageListManager: React.FC<FooterPageListManagerProps> = ({ pa
   }, [pageType]);
 
   useEffect(() => {
-    if (isEvents && editingId) {
+    if (isMultiImagePage && editingId) {
       fetchPageImages(editingId);
     }
-  }, [editingId, pageType]);
+  }, [editingId, pageType, isMultiImagePage]);
 
   const fetchItems = async () => {
     try {
@@ -168,7 +185,7 @@ export const FooterPageListManager: React.FC<FooterPageListManagerProps> = ({ pa
       setError(`${currentConfig.titleLabel || 'Title'} is required`);
       return;
     }
-    if (currentConfig.showContent && !formData.content.trim()) {
+    if (currentConfig.showContent && (currentConfig as { requireContent?: boolean }).requireContent !== false && !formData.content.trim()) {
       setError(`${currentConfig.contentLabel || 'Content'} is required`);
       return;
     }
@@ -423,7 +440,7 @@ export const FooterPageListManager: React.FC<FooterPageListManagerProps> = ({ pa
                       : formData.image
                   }
                   onChange={(file) => setFormData((prev) => ({ ...prev, image: file }))}
-                  accept="image/*"
+                  accept={isNewsletter ? 'image/*,.pdf' : 'image/*'}
                   preview={true}
                 />
               </div>
@@ -432,7 +449,10 @@ export const FooterPageListManager: React.FC<FooterPageListManagerProps> = ({ pa
             {currentConfig.showContent && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {currentConfig.contentLabel || 'Content'} <span className="text-red-500">*</span>
+                  {currentConfig.contentLabel || 'Content'}
+                  {(currentConfig as { requireContent?: boolean }).requireContent !== false && (
+                    <span className="text-red-500"> *</span>
+                  )}
                 </label>
                 <div className="border border-gray-300 rounded-lg overflow-hidden">
                   <SummernoteEditor
@@ -470,11 +490,13 @@ export const FooterPageListManager: React.FC<FooterPageListManagerProps> = ({ pa
         </div>
       )}
 
-      {isEvents && editingId && (
+      {isMultiImagePage && editingId && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">Event Images</h3>
+              <h3 className="text-lg font-semibold text-gray-900">
+                {isNewsletter ? 'Newsletter Images' : 'Event Images'}
+              </h3>
               <p className="text-sm text-gray-600 mt-1">Upload and manage multiple images</p>
             </div>
             <button
@@ -506,7 +528,7 @@ export const FooterPageListManager: React.FC<FooterPageListManagerProps> = ({ pa
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    ID
+                    #
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Image
@@ -530,9 +552,9 @@ export const FooterPageListManager: React.FC<FooterPageListManagerProps> = ({ pa
                     </td>
                   </tr>
                 ) : (
-                  pageImages.map((image) => (
+                  pageImages.map((image, index) => (
                     <tr key={image.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm text-gray-900">{image.id}</td>
+                      <td className="px-6 py-4 text-sm text-gray-900">{index + 1}</td>
                       <td className="px-6 py-4">
                         <img
                           src={resolveImageSrc(image.image_url || image.image_path)}
@@ -564,7 +586,7 @@ export const FooterPageListManager: React.FC<FooterPageListManagerProps> = ({ pa
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  ID
+                  #
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   {currentConfig.titleLabel || 'Title'}
@@ -603,9 +625,9 @@ export const FooterPageListManager: React.FC<FooterPageListManagerProps> = ({ pa
                   </td>
                 </tr>
               ) : (
-                items.map((item) => (
+                items.map((item, index) => (
                   <tr key={item.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 text-sm text-gray-900">{item.id}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900">{index + 1}</td>
                     <td className="px-6 py-4 text-sm text-gray-900">{item.title}</td>
                     {currentConfig.showEventDate && (
                       <td className="px-6 py-4 text-sm text-gray-900">

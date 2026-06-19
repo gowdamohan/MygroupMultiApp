@@ -8,6 +8,7 @@ interface Application {
   id: number;
   app_id: number;
   title: string;
+  app_description?: string | null;
   file_path?: string;
   content?: string;
   app?: { id: number; name: string; apps_name: string };
@@ -24,7 +25,7 @@ export const AppApplicationDetails: React.FC<AppApplicationDetailsProps> = ({ ap
   const [editingId, setEditingId] = useState<number | null>(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [formData, setFormData] = useState({ title: '', content: '' });
+  const [formData, setFormData] = useState({ title: '', app_description: '', content: '' });
   const [file, setFile] = useState<File | null>(null);
   const [filePreview, setFilePreview] = useState<string>('');
   const editorRef = useRef<HTMLDivElement>(null);
@@ -153,6 +154,7 @@ export const AppApplicationDetails: React.FC<AppApplicationDetailsProps> = ({ ap
       const fd = new FormData();
       fd.append('app_id', appId || '');
       fd.append('title', formData.title);
+      if (formData.app_description) fd.append('app_description', formData.app_description);
       if (content) fd.append('content', content);
       if (file) fd.append('file', file);
 
@@ -176,7 +178,11 @@ export const AppApplicationDetails: React.FC<AppApplicationDetailsProps> = ({ ap
 
   const handleEdit = (application: Application) => {
     setEditingId(application.id);
-    setFormData({ title: application.title, content: application.content || '' });
+    setFormData({
+      title: application.title,
+      app_description: application.app_description || '',
+      content: application.content || ''
+    });
     setFile(null);
     setFilePreview('');
     setError('');
@@ -198,7 +204,7 @@ export const AppApplicationDetails: React.FC<AppApplicationDetailsProps> = ({ ap
   };
 
   const resetForm = () => {
-    setFormData({ title: '', content: '' });
+    setFormData({ title: '', app_description: '', content: '' });
     setFile(null);
     setFilePreview('');
     setEditingId(null);
@@ -250,6 +256,16 @@ export const AppApplicationDetails: React.FC<AppApplicationDetailsProps> = ({ ap
               placeholder="Enter title" required />
           </div>
           <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+            <textarea
+              value={formData.app_description}
+              onChange={(e) => setFormData({ ...formData, app_description: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              rows={4}
+              placeholder="Enter a short description for this application detail..."
+            />
+          </div>
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">File (Image or Document)</label>
             <input type="file" accept="image/*,.pdf,.doc,.docx" onChange={handleFileChange} className="hidden" id="app-file-upload" />
             <label htmlFor="app-file-upload"
@@ -288,8 +304,9 @@ export const AppApplicationDetails: React.FC<AppApplicationDetailsProps> = ({ ap
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="text-left py-4 px-6 font-semibold text-gray-700 border-b">ID</th>
+                <th className="text-left py-4 px-6 font-semibold text-gray-700 border-b">#</th>
                 <th className="text-left py-4 px-6 font-semibold text-gray-700 border-b">Title</th>
+                <th className="text-left py-4 px-6 font-semibold text-gray-700 border-b">Description</th>
                 <th className="text-left py-4 px-6 font-semibold text-gray-700 border-b">File</th>
                 <th className="text-left py-4 px-6 font-semibold text-gray-700 border-b">Content</th>
                 <th className="text-left py-4 px-6 font-semibold text-gray-700 border-b">Actions</th>
@@ -298,13 +315,20 @@ export const AppApplicationDetails: React.FC<AppApplicationDetailsProps> = ({ ap
             <tbody>
               {applications.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="text-center py-8 text-gray-500">No applications found. Fill the form above to create one.</td>
+                  <td colSpan={6} className="text-center py-8 text-gray-500">No applications found. Fill the form above to create one.</td>
                 </tr>
               ) : (
-                applications.map((application) => (
+                applications.map((application, index) => (
                   <tr key={application.id} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="py-4 px-6 text-gray-900">{application.id}</td>
+                    <td className="py-4 px-6 text-gray-900">{index + 1}</td>
                     <td className="py-4 px-6 font-medium text-gray-900">{application.title}</td>
+                    <td className="py-4 px-6">
+                      {application.app_description ? (
+                        <p className="text-sm text-gray-700 line-clamp-2 max-w-xs">{application.app_description}</p>
+                      ) : (
+                        <span className="text-gray-400 text-sm">-</span>
+                      )}
+                    </td>
                     <td className="py-4 px-6">
                       {application.file_path ? (
                         getFileIcon(application.file_path) === 'image' ? (

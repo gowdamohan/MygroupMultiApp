@@ -19,6 +19,11 @@ const ApplicationsManagement = sequelize.define('applications_management', {
     type: DataTypes.STRING(100),
     allowNull: true
   },
+  app_description: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    comment: 'Short description; maps to my_aps_about_details.app_description'
+  },
   file_path: {
     type: DataTypes.TEXT,
     allowNull: true

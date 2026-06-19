@@ -77,6 +77,7 @@ export const FooterPageManager: React.FC<FooterPageManagerProps> = ({ pageType, 
     milestones: { showYear: true, yearLabel: 'Year', showTitle: true, titleLabel: 'Title', showImage: true, imageLabel: 'Image', showContent: true, contentLabel: 'Description' },
     testimonials: { showTitle: true, titleLabel: 'Title', showTagLine: true, tagLineLabel: 'Tagline', showContent: true, contentLabel: 'Description', showImage: true, imageLabel: 'Image' },
     gallery: { showTitle: true, titleLabel: 'Title', showImage: true, imageLabel: 'Main Image' },
+    tnc_partners: { showContent: true, contentLabel: 'Content' },
     contact_us: { showContent: true, contentLabel: 'Description' },
     terms: { showContent: true, contentLabel: 'Content' },
     privacy_policy: { showContent: true, contentLabel: 'Content' }
@@ -85,8 +86,6 @@ export const FooterPageManager: React.FC<FooterPageManagerProps> = ({ pageType, 
   const currentConfig = pageConfig[pageType] || {
     showTitle: true,
     titleLabel: 'Title',
-    showImage: true,
-    imageLabel: 'Image',
     showContent: true,
     contentLabel: 'Content'
   };
@@ -511,7 +510,7 @@ export const FooterPageManager: React.FC<FooterPageManagerProps> = ({ pageType, 
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    ID
+                    #
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Image
@@ -535,9 +534,9 @@ export const FooterPageManager: React.FC<FooterPageManagerProps> = ({ pageType, 
                     </td>
                   </tr>
                 ) : (
-                  pageImages.map((image) => (
+                  pageImages.map((image, index) => (
                     <tr key={image.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm text-gray-900">{image.id}</td>
+                      <td className="px-6 py-4 text-sm text-gray-900">{index + 1}</td>
                       <td className="px-6 py-4">
                         <img
                           src={resolveImageSrc(image.image_url || image.image_path)}

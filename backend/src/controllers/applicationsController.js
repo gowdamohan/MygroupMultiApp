@@ -65,7 +65,7 @@ export const getApplications = async (req, res) => {
 // Create application
 export const createApplication = async (req, res) => {
   try {
-    const { app_id, title, content } = req.body;
+    const { app_id, title, content, app_description } = req.body;
 
     if (!app_id || !title) {
       return res.status(400).json({
@@ -82,6 +82,7 @@ export const createApplication = async (req, res) => {
     const application = await ApplicationsManagement.create({
       app_id,
       title,
+      app_description: app_description || null,
       file_path,
       content
     });
@@ -115,7 +116,7 @@ export const createApplication = async (req, res) => {
 export const updateApplication = async (req, res) => {
   try {
     const { id } = req.params;
-    const { app_id, title, content } = req.body;
+    const { app_id, title, content, app_description } = req.body;
 
     const application = await ApplicationsManagement.findByPk(id);
     if (!application) {
@@ -141,6 +142,7 @@ export const updateApplication = async (req, res) => {
     await application.update({
       app_id,
       title,
+      app_description: app_description ?? application.app_description,
       file_path,
       content
     });
