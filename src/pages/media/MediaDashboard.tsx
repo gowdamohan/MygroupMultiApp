@@ -20,7 +20,9 @@ import {
   AwardsSection,
   NewsletterSection,
   GallerySection,
-  TeamSection
+  TeamSection,
+  ViewProfileSection,
+  AddressSection
 } from './MediaDashboardPages';
 import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
 import { toEmbedUrl, EMBED_IFRAME_PROPS } from '../../utils/mediaPlayback';
@@ -75,6 +77,9 @@ interface ChannelInfo {
     category_name: string;
     category_type?: string;
   };
+  country?: { id: number; country: string } | null;
+  state?: { id: number; state: string } | null;
+  district?: { id: number; district: string } | null;
 }
 
 interface MainCategory {
@@ -545,6 +550,7 @@ export const MediaDashboard: React.FC = () => {
   const menuItems: MenuItem[] = [
     { id: 'back', label: 'Back to Channel List', icon: ArrowLeft, path: '/partner/my-channel-list' },
     { id: 'profile', label: 'Profile', icon: User, children: [
+      { id: 'view-profile', label: 'View Profile', icon: Eye, path: `/media/dashboard/${channelId}/view-profile` },
       { id: 'address', label: 'Address', icon: MapPin, path: `/media/dashboard/${channelId}/address` }
     ]},
     { id: 'social-media', label: 'Social Media', icon: Share2, path: `/media/dashboard/${channelId}/social-media` },
@@ -569,6 +575,17 @@ export const MediaDashboard: React.FC = () => {
       ? [{ id: 'upload-section', label: 'Upload Documents', icon: Upload, children: uploadMenuItems }]
       : [])
   ];
+
+  useEffect(() => {
+    const path = location.pathname;
+    if (path.includes('/view-profile')) {
+      setActiveMenu('view-profile');
+      setExpandedMenus((prev) => (prev.includes('profile') ? prev : [...prev, 'profile']));
+    } else if (path.includes('/address')) {
+      setActiveMenu('address');
+      setExpandedMenus((prev) => (prev.includes('profile') ? prev : [...prev, 'profile']));
+    }
+  }, [location.pathname]);
 
   useEffect(() => {
     if (printMedia && (activeTab === 'switcher' || activeTab === 'offline')) {
@@ -670,6 +687,8 @@ export const MediaDashboard: React.FC = () => {
 
     // Route based on current path
     const path = location.pathname;
+    if (path.includes('/view-profile')) return <ViewProfileSection channelInfo={channelInfo} />;
+    if (path.includes('/address')) return <AddressSection channelInfo={channelInfo} />;
     if (path.includes('/social-media')) return <SocialMediaSection />;
     if (path.includes('/view')) return <ViewSection />;
     if (path.includes('/switcher')) return <SwitcherSection />;

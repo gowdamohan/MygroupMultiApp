@@ -9,6 +9,9 @@ import {
 } from 'lucide-react';
 import { API_BASE_URL } from '../../config/api.config';
 import { toEmbedUrl, EMBED_IFRAME_PROPS } from '../../utils/mediaPlayback';
+import { formatPeriodicalScheduleSummary } from '../../components/media/PeriodicalScheduleSummary';
+import { isPrintMediaCategory } from '../../utils/mediaCategoryUtils';
+import { normalizePeriodicalType } from '../../utils/periodicalSlots';
 
 const isImageFile = (documentType: string, fileUrl?: string) => {
   if (documentType === 'image') return true;
@@ -1262,6 +1265,104 @@ export const TeamSection: React.FC = () => {
             </div>
           </div>
         ))}
+      </div>
+    </div>
+  );
+};
+
+// ============================================
+// VIEW PROFILE & ADDRESS (read-only)
+// ============================================
+
+export interface ChannelProfileInfo {
+  media_name_english: string;
+  media_name_regional?: string | null;
+  media_type?: string;
+  periodical_type?: string | null;
+  periodical_schedule?: Record<string, unknown> | null;
+  category?: { id: number; category_name: string; category_type?: string };
+  parentCategory?: { id: number; category_name: string; category_type?: string };
+  country?: { id: number; country: string } | null;
+  state?: { id: number; state: string } | null;
+  district?: { id: number; district: string } | null;
+}
+
+const ReadOnlyField: React.FC<{ label: string; value?: string | null }> = ({ label, value }) => (
+  <div className="py-3 border-b border-gray-100 last:border-b-0">
+    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">{label}</p>
+    <p className="text-base text-gray-900">{value?.trim() ? value : '—'}</p>
+  </div>
+);
+
+export const ViewProfileSection: React.FC<{ channelInfo: ChannelProfileInfo | null }> = ({ channelInfo }) => {
+  if (!channelInfo) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="animate-spin text-teal-600" size={32} />
+      </div>
+    );
+  }
+
+  const categoryLabel = channelInfo.parentCategory?.category_name
+    ? `${channelInfo.parentCategory.category_name}${channelInfo.category?.category_name ? ` › ${channelInfo.category.category_name}` : ''}`
+    : channelInfo.category?.category_name || '—';
+
+  const showPeriodical = isPrintMediaCategory({
+    category: channelInfo.category,
+    parentCategory: channelInfo.parentCategory
+  }) || !!channelInfo.periodical_type;
+
+  const periodicalType = normalizePeriodicalType(channelInfo.periodical_type);
+  const schedule = (channelInfo.periodical_schedule || {}) as Record<string, unknown>;
+  const { scheduleLabel, scheduleValue } = showPeriodical && periodicalType
+    ? formatPeriodicalScheduleSummary(periodicalType, schedule)
+    : { scheduleLabel: 'Periodical Schedule', scheduleValue: '—' };
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold text-gray-800">View Profile</h2>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="px-4 py-3 bg-teal-50 border-b border-teal-100 text-sm text-teal-800">
+          Channel registration details (read-only)
+        </div>
+        <div className="p-4 sm:p-6">
+          <ReadOnlyField label="Media Name (English)" value={channelInfo.media_name_english} />
+          <ReadOnlyField label="Media Name (Regional)" value={channelInfo.media_name_regional} />
+          <ReadOnlyField label="Category" value={categoryLabel} />
+          <ReadOnlyField label="Media Type" value={channelInfo.media_type} />
+          {showPeriodical && (
+            <>
+              <ReadOnlyField label="Periodical Type" value={periodicalType || '—'} />
+              <ReadOnlyField label={scheduleLabel} value={scheduleValue} />
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export const AddressSection: React.FC<{ channelInfo: ChannelProfileInfo | null }> = ({ channelInfo }) => {
+  if (!channelInfo) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="animate-spin text-teal-600" size={32} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold text-gray-800">Address</h2>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="px-4 py-3 bg-teal-50 border-b border-teal-100 text-sm text-teal-800">
+          Channel location details (read-only)
+        </div>
+        <div className="p-4 sm:p-6">
+          <ReadOnlyField label="Country" value={channelInfo.country?.country} />
+          <ReadOnlyField label="State" value={channelInfo.state?.state} />
+          <ReadOnlyField label="District" value={channelInfo.district?.district} />
+        </div>
       </div>
     </div>
   );
