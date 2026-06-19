@@ -4,12 +4,31 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
 
+interface CategoryRef {
+  id: number;
+  category_name: string;
+  category_type?: string;
+}
+
+const StackedCell: React.FC<{ lines: (string | null | undefined)[] }> = ({ lines }) => (
+  <div className="flex flex-col gap-0.5 min-w-[120px]">
+    {lines.map((line, i) => (
+      <span key={i} className={`text-sm ${i === 0 ? 'font-medium text-gray-900' : 'text-gray-600'}`}>
+        {line?.trim() || '-'}
+      </span>
+    ))}
+  </div>
+);
+
 interface MediaChannel {
   id: number;
   media_logo: string | null;
   media_logo_url?: string | null;
   media_name_english: string;
   media_name_regional: string | null;
+  media_type?: string | null;
+  category?: CategoryRef | null;
+  parentCategory?: CategoryRef | null;
   followers: number;
   ratings: number;
   earnings: number;
@@ -453,13 +472,13 @@ export const MyChannelList: React.FC = () => {
                         )}
                       </div>
                     </td>
-                     <td className="px-4 py-4 whitespace-nowrap">
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">{channel.parentCategory.category_name}</div>
-                        {channel.media_type && (
-                          <div className="text-sm text-gray-500">{channel.media_type}</div>
-                        )}
-                      </div>
+                     <td className="px-4 py-4">
+                      <StackedCell
+                        lines={[
+                          channel.category?.category_name,
+                          channel.parentCategory?.category_name
+                        ]}
+                      />
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap">
                       <div>
