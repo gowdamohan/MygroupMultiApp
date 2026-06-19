@@ -99,19 +99,6 @@ interface SwitcherData {
   offlineMedia?: { media_file_url: string; media_type: string; thumbnail_url?: string } | null;
 }
 
-interface HeaderAd {
-  id: number;
-  file_path: string;
-  signed_url: string | null;
-  url: string | null;
-  file_type: string;
-}
-
-interface HeaderAdsData {
-  header1: HeaderAd[];
-  header2: HeaderAd[];
-}
-
 interface Comment {
   id: number;
   comment_text: string;
@@ -153,9 +140,6 @@ export const MediaDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabItem>('output');
   const [switcher, setSwitcher] = useState<SwitcherData | null>(null);
   const tabScrollRef = useRef<HTMLDivElement>(null);
-  const [headerAds, setHeaderAds] = useState<HeaderAdsData>({ header1: [], header2: [] });
-  const [header1Index, setHeader1Index] = useState(0);
-  const [header2Index, setHeader2Index] = useState(0);
 
   // Comments and interactions state
   const [comments, setComments] = useState<Comment[]>([]);
@@ -190,7 +174,6 @@ export const MediaDashboard: React.FC = () => {
       fetchChannelInfo();
       fetchUploadCategories();
       fetchDashboardData();
-      fetchHeaderAds();
       fetchComments();
       fetchInteractions();
       fetchOfflineMedia();
@@ -218,39 +201,6 @@ export const MediaDashboard: React.FC = () => {
     }, 10000);
     return () => clearInterval(timer);
   }, [channelId]);
-
-  // Auto-rotate header ads carousel
-  useEffect(() => {
-    if (headerAds.header1.length > 1) {
-      const interval = setInterval(() => {
-        setHeader1Index((prev) => (prev + 1) % headerAds.header1.length);
-      }, 5000);
-      return () => clearInterval(interval);
-    }
-  }, [headerAds.header1.length]);
-
-  useEffect(() => {
-    if (headerAds.header2.length > 1) {
-      const interval = setInterval(() => {
-        setHeader2Index((prev) => (prev + 1) % headerAds.header2.length);
-      }, 5000);
-      return () => clearInterval(interval);
-    }
-  }, [headerAds.header2.length]);
-
-  const fetchHeaderAds = async () => {
-    try {
-      const token = localStorage.getItem('accessToken');
-      const response = await axios.get(`${API_BASE_URL}/media-dashboard/header-ads/${channelId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (response.data.success) {
-        setHeaderAds(response.data.data);
-      }
-    } catch (error) {
-      console.error('Error fetching header ads:', error);
-    }
-  };
 
   const fetchDashboardData = async () => {
     try {
@@ -720,38 +670,9 @@ export const MediaDashboard: React.FC = () => {
       );
     }
 
-    // Render header ad with carousel support
-    const renderHeaderAd = (ads: HeaderAd[], currentIndex: number, defaultBg: string) => {
-      if (ads.length === 0) {
-        return (
-          <div className={`flex-1 ${defaultBg} h-20 flex items-center justify-center`}>
-            <span className="text-gray-500 text-sm">No Ad</span>
-          </div>
-        );
-      }
-      const ad = ads[currentIndex];
-      return (
-        <a href={ad.url || '#'} target="_blank" rel="noopener noreferrer" className="flex-1 h-20 overflow-hidden">
-          {ad.signed_url ? (
-            <img src={ad.signed_url} alt="Header Ad" className="w-full h-full object-cover" />
-          ) : (
-            <div className={`w-full h-full ${defaultBg} flex items-center justify-center`}>
-              <span className="text-gray-500">Ad Image</span>
-            </div>
-          )}
-        </a>
-      );
-    };
-
     // Default dashboard content - NEW DESIGN with Switcher
     return (
       <div className="flex flex-col h-full bg-gray-600">
-        {/* Header Ad Banners */}
-        <div className="flex gap-0">
-          {renderHeaderAd(headerAds.header1, header1Index, 'bg-cyan-200')}
-          {renderHeaderAd(headerAds.header2, header2Index, 'bg-yellow-200')}
-        </div>
-
         {/* Horizontal Tab Bar */}
         <div className="bg-gray-700">
           <div ref={tabScrollRef} className="flex">

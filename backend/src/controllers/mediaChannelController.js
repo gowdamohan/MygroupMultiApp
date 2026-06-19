@@ -438,6 +438,10 @@ export const getMyChannels = async (req, res) => {
         'category_id',
         'parent_category_id',
         'media_type',
+        'select_type',
+        'country_id',
+        'state_id',
+        'district_id',
         'periodical_type',
         'periodical_schedule',
         'media_logo',
@@ -459,6 +463,24 @@ export const getMyChannels = async (req, res) => {
           model: AppCategory,
           as: 'parentCategory',
           attributes: ['id', 'category_name', 'category_type'],
+          required: false
+        },
+        {
+          model: Country,
+          as: 'country',
+          attributes: ['id', 'country'],
+          required: false
+        },
+        {
+          model: State,
+          as: 'state',
+          attributes: ['id', 'state'],
+          required: false
+        },
+        {
+          model: District,
+          as: 'district',
+          attributes: ['id', 'district'],
           required: false
         }
       ],
