@@ -337,6 +337,28 @@ export const setDefaultOfflineMedia = async (req, res) => {
 // DOCUMENTS (Dashboard Documents - Title, Image/PDF)
 // ============================================
 
+const resolveStoredFileUrl = (filePath, fileUrl, expiresIn = 3600) =>
+  resolveStorageReadUrl(filePath || fileUrl, expiresIn);
+
+const resolveGalleryImageUrls = async (image) => {
+  const json = typeof image.toJSON === 'function' ? image.toJSON() : { ...image };
+  json.image_url = await resolveStoredFileUrl(json.image_path, json.image_url);
+  if (json.thumbnail_path || json.thumbnail_url) {
+    json.thumbnail_url = await resolveStoredFileUrl(json.thumbnail_path, json.thumbnail_url);
+  }
+  return json;
+};
+
+const resolveGalleryAlbum = async (album) => {
+  const json = typeof album.toJSON === 'function' ? album.toJSON() : { ...album };
+  json.cover_image_url = await resolveStoredFileUrl(json.cover_image_path, json.cover_image_url);
+  if (Array.isArray(json.images)) {
+    json.images = await Promise.all(json.images.map(resolveGalleryImageUrls));
+    json.images_count = json.images.length;
+  }
+  return json;
+};
+
 export const getDocuments = async (req, res) => {
   try {
     const { channelId } = req.params;
@@ -346,7 +368,7 @@ export const getDocuments = async (req, res) => {
     });
     const data = await Promise.all(docs.map(async (doc) => {
       const json = doc.toJSON();
-      json.file_url = await resolveStorageReadUrl(doc.file_path || doc.file_url, 3600);
+      json.file_url = await resolveStoredFileUrl(doc.file_path, doc.file_url);
       return json;
     }));
     res.json({ success: true, data });
@@ -387,7 +409,7 @@ export const uploadDocument = async (req, res) => {
     });
 
     const responseDoc = doc.toJSON();
-    responseDoc.file_url = await resolveStorageReadUrl(result.fileName, 3600);
+    responseDoc.file_url = await resolveStoredFileUrl(result.fileName, result.publicUrl);
 
     res.json({ success: true, message: 'Document uploaded successfully', data: responseDoc });
   } catch (error) {
@@ -422,7 +444,12 @@ export const getAwards = async (req, res) => {
       where: { media_channel_id: channelId, is_active: 1 },
       order: [['sort_order', 'ASC'], ['created_at', 'DESC']]
     });
-    res.json({ success: true, data: awards });
+    const data = await Promise.all(awards.map(async (award) => {
+      const json = award.toJSON();
+      json.image_url = await resolveStoredFileUrl(award.image_path, award.image_url);
+      return json;
+    }));
+    res.json({ success: true, data });
   } catch (error) {
     console.error('Error getting awards:', error);
     res.status(500).json({ success: false, message: 'Failed to get awards' });
@@ -448,7 +475,10 @@ export const uploadAward = async (req, res) => {
       image_url: result.publicUrl
     });
 
-    res.json({ success: true, message: 'Award uploaded successfully', data: award });
+    const responseAward = award.toJSON();
+    responseAward.image_url = await resolveStoredFileUrl(result.fileName, result.publicUrl);
+
+    res.json({ success: true, message: 'Award uploaded successfully', data: responseAward });
   } catch (error) {
     console.error('Error uploading award:', error);
     res.status(500).json({ success: false, message: 'Failed to upload award' });
@@ -483,7 +513,7 @@ export const getNewsletters = async (req, res) => {
     });
     const data = await Promise.all(newsletters.map(async (item) => {
       const json = item.toJSON();
-      json.file_url = await resolveStorageReadUrl(item.file_path || item.file_url, 3600);
+      json.file_url = await resolveStoredFileUrl(item.file_path, item.file_url);
       return json;
     }));
     res.json({ success: true, data });
@@ -517,7 +547,10 @@ export const uploadNewsletter = async (req, res) => {
       file_size: req.file.size
     });
 
-    res.json({ success: true, message: 'Newsletter uploaded successfully', data: newsletter });
+    const responseNewsletter = newsletter.toJSON();
+    responseNewsletter.file_url = await resolveStoredFileUrl(result.fileName, result.publicUrl);
+
+    res.json({ success: true, message: 'Newsletter uploaded successfully', data: responseNewsletter });
   } catch (error) {
     console.error('Error uploading newsletter:', error);
     res.status(500).json({ success: false, message: 'Failed to upload newsletter' });
@@ -551,7 +584,8 @@ export const getAlbums = async (req, res) => {
       include: [{ model: MediaGalleryImages, as: 'images', where: { is_active: 1 }, required: false }],
       order: [['sort_order', 'ASC'], ['created_at', 'DESC']]
     });
-    res.json({ success: true, data: albums });
+    const data = await Promise.all(albums.map(resolveGalleryAlbum));
+    res.json({ success: true, data });
   } catch (error) {
     console.error('Error getting albums:', error);
     res.status(500).json({ success: false, message: 'Failed to get albums' });
@@ -583,7 +617,8 @@ export const createAlbum = async (req, res) => {
       cover_image_url
     });
 
-    res.json({ success: true, message: 'Album created successfully', data: album });
+    const responseAlbum = await resolveGalleryAlbum(album);
+    res.json({ success: true, message: 'Album created successfully', data: responseAlbum });
   } catch (error) {
     console.error('Error creating album:', error);
     res.status(500).json({ success: false, message: 'Failed to create album' });
@@ -626,7 +661,8 @@ export const getAlbumImages = async (req, res) => {
       where: { album_id: albumId, is_active: 1 },
       order: [['sort_order', 'ASC'], ['created_at', 'DESC']]
     });
-    res.json({ success: true, data: images });
+    const data = await Promise.all(images.map(resolveGalleryImageUrls));
+    res.json({ success: true, data });
   } catch (error) {
     console.error('Error getting album images:', error);
     res.status(500).json({ success: false, message: 'Failed to get images' });
@@ -672,7 +708,8 @@ export const uploadAlbumImages = async (req, res) => {
       });
     }
 
-    res.json({ success: true, message: `${uploadedImages.length} images uploaded`, data: uploadedImages });
+    const resolvedImages = await Promise.all(uploadedImages.map(resolveGalleryImageUrls));
+    res.json({ success: true, message: `${uploadedImages.length} images uploaded`, data: resolvedImages });
   } catch (error) {
     console.error('Error uploading images:', error);
     res.status(500).json({ success: false, message: 'Failed to upload images' });
@@ -686,6 +723,8 @@ export const deleteAlbumImage = async (req, res) => {
     if (!image) return res.status(404).json({ success: false, message: 'Image not found' });
 
     const albumId = image.album_id;
+    const album = await MediaGalleryAlbums.findByPk(albumId);
+
     try {
       await deleteFile(image.image_path);
       if (image.thumbnail_path) await deleteFile(image.thumbnail_path);
@@ -693,7 +732,17 @@ export const deleteAlbumImage = async (req, res) => {
 
     await image.destroy();
 
-    // Update album count
+    if (album?.cover_image_path === image.image_path) {
+      const nextImage = await MediaGalleryImages.findOne({
+        where: { album_id: albumId, is_active: 1 },
+        order: [['sort_order', 'ASC'], ['created_at', 'ASC']]
+      });
+      await album.update({
+        cover_image_path: nextImage?.image_path ?? null,
+        cover_image_url: nextImage?.image_url ?? null
+      });
+    }
+
     const count = await MediaGalleryImages.count({ where: { album_id: albumId, is_active: 1 } });
     await MediaGalleryAlbums.update({ images_count: count }, { where: { id: albumId } });
 
@@ -715,7 +764,12 @@ export const getTeam = async (req, res) => {
       where: { media_channel_id: channelId, is_active: 1 },
       order: [['sort_order', 'ASC'], ['created_at', 'DESC']]
     });
-    res.json({ success: true, data: members });
+    const data = await Promise.all(members.map(async (member) => {
+      const json = member.toJSON();
+      json.photo_url = await resolveStoredFileUrl(member.photo_path, member.photo_url);
+      return json;
+    }));
+    res.json({ success: true, data });
   } catch (error) {
     console.error('Error getting team:', error);
     res.status(500).json({ success: false, message: 'Failed to get team' });
@@ -727,29 +781,39 @@ export const addTeamMember = async (req, res) => {
     const { channelId } = req.params;
     const { name, designation, id_number, email } = req.body;
 
-    if (!name) return res.status(400).json({ success: false, message: 'Name is required' });
-
-    let photo_path = null, photo_url = null;
-    if (req.file) {
-      const folder = `media_team/channel_${channelId}`;
-      const result = await uploadFile(req.file.buffer, req.file.originalname, req.file.mimetype, folder);
-      if (result.success) {
-        photo_path = result.fileName;
-        photo_url = result.publicUrl;
-      }
+    if (!name?.trim()) {
+      return res.status(400).json({ success: false, message: 'Name is required' });
     }
+    if (!designation?.trim()) {
+      return res.status(400).json({ success: false, message: 'Designation is required' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'Photo is required' });
+    }
+
+    const folder = `media_team/channel_${channelId}`;
+    const result = await uploadFile(req.file.buffer, req.file.originalname, req.file.mimetype, folder);
+    if (!result.success) {
+      return res.status(500).json({ success: false, message: 'Failed to upload photo' });
+    }
+
+    const photo_path = result.fileName;
+    const photo_url = result.publicUrl;
 
     const member = await MediaTeam.create({
       media_channel_id: channelId,
-      name,
-      designation,
+      name: name.trim(),
+      designation: designation.trim(),
       id_number,
       email,
       photo_path,
       photo_url
     });
 
-    res.json({ success: true, message: 'Team member added successfully', data: member });
+    const responseMember = member.toJSON();
+    responseMember.photo_url = await resolveStoredFileUrl(photo_path, photo_url);
+
+    res.json({ success: true, message: 'Team member added successfully', data: responseMember });
   } catch (error) {
     console.error('Error adding team member:', error);
     res.status(500).json({ success: false, message: 'Failed to add team member' });
