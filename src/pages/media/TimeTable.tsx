@@ -46,6 +46,111 @@ const generateTimeSlots = (): TimeSlot[] => {
 
 const TIME_SLOTS = generateTimeSlots();
 
+const formatDateLocal = (date: Date): string => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
+const normalizeTime = (time: string): string => time.substring(0, 5);
+
+const getEndTimeOptions = (startTime: string) => {
+  const startIdx = TIME_SLOTS.findIndex((s) => s.time === startTime);
+  if (startIdx === -1) return [];
+  return TIME_SLOTS.slice(startIdx).map((s) => ({
+    value: s.endTime,
+    label: s.endTime
+  }));
+};
+
+const getSlotsInRange = (startTime: string, endTime: string) => {
+  const startIdx = TIME_SLOTS.findIndex((s) => s.time === startTime);
+  const endIdx = TIME_SLOTS.findIndex((s) => s.endTime === endTime);
+  if (startIdx === -1 || endIdx === -1 || endIdx < startIdx) return [];
+  return TIME_SLOTS.slice(startIdx, endIdx + 1).map((s) => ({
+    start_time: `${s.time}:00`,
+    end_time: s.endTime === '24:00' ? '24:00:00' : `${s.endTime}:00`,
+    is_recurring: 1
+  }));
+};
+
+const timeToMinutes = (time: string): number => {
+  const t = normalizeTime(time);
+  if (t === '24:00') return 24 * 60;
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + m;
+};
+
+const isTimeWithinSchedule = (slotTime: string, schedule: ScheduleSlot): boolean => {
+  const slotMin = timeToMinutes(slotTime);
+  return slotMin >= timeToMinutes(schedule.start_time) && slotMin < timeToMinutes(schedule.end_time);
+};
+
+interface ScheduleBlock {
+  schedule_id: number;
+  title: string;
+  schedule_date: string;
+  start_time: string;
+  end_time: string;
+  startIdx: number;
+  colSpan: number;
+  representative: ScheduleSlot;
+}
+
+const buildDayBlocks = (dateStr: string, daySchedules: ScheduleSlot[]) => {
+  const groups = new Map<number, ScheduleSlot[]>();
+
+  for (const s of daySchedules) {
+    const list = groups.get(s.schedule_id) || [];
+    list.push(s);
+    groups.set(s.schedule_id, list);
+  }
+
+  const startMap = new Map<number, ScheduleBlock>();
+  const coveredSet = new Set<number>();
+
+  for (const slots of groups.values()) {
+    slots.sort((a, b) => a.start_time.localeCompare(b.start_time));
+    const first = slots[0];
+    const last = slots[slots.length - 1];
+    const startTime = normalizeTime(first.start_time);
+    const endTime = normalizeTime(last.end_time);
+    const startIdx = TIME_SLOTS.findIndex((s) => s.time === startTime);
+    if (startIdx === -1) continue;
+
+    const endMin = timeToMinutes(endTime);
+    let colSpan = 0;
+    for (let i = startIdx; i < TIME_SLOTS.length; i++) {
+      const slotMin = timeToMinutes(TIME_SLOTS[i].time);
+      if (slotMin >= timeToMinutes(startTime) && slotMin < endMin) {
+        colSpan++;
+        coveredSet.add(i);
+      } else if (slotMin >= endMin) {
+        break;
+      }
+    }
+    colSpan = Math.max(1, colSpan);
+
+    startMap.set(startIdx, {
+      schedule_id: first.schedule_id,
+      title: first.title,
+      schedule_date: dateStr,
+      start_time: startTime,
+      end_time: endTime,
+      startIdx,
+      colSpan,
+      representative: {
+        ...first,
+        start_time: `${startTime}:00`,
+        end_time: endTime === '24:00' ? '24:00:00' : `${endTime}:00`
+      }
+    });
+  }
+
+  return { startMap, coveredSet };
+};
+
 export const TimeTable: React.FC = () => {
   const { channelId } = useParams<{ channelId: string }>();
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => {
@@ -65,6 +170,7 @@ export const TimeTable: React.FC = () => {
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
   const [editingSchedule, setEditingSchedule] = useState<ScheduleSlot | null>(null);
   const [modalData, setModalData] = useState({ title: '', file: null as File | null });
+  const [modalTime, setModalTime] = useState({ startTime: '', endTime: '' });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -74,7 +180,7 @@ export const TimeTable: React.FC = () => {
     d.setHours(0, 0, 0, 0);
     return d;
   }, []);
-  const todayStr = today.toISOString().split('T')[0];
+  const todayStr = formatDateLocal(today);
 
   // Get week dates and reorder so today is at top
   const getWeekDates = useCallback(() => {
@@ -90,7 +196,7 @@ export const TimeTable: React.FC = () => {
   // Reorder days so today is at top, then remaining days
   const getReorderedDays = useCallback(() => {
     const weekDates = getWeekDates();
-    const todayIndex = weekDates.findIndex(d => d.toISOString().split('T')[0] === todayStr);
+    const todayIndex = weekDates.findIndex(d => formatDateLocal(d) === todayStr);
 
     if (todayIndex === -1) {
       // Today is not in current week, use normal order
@@ -115,8 +221,9 @@ export const TimeTable: React.FC = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('accessToken');
+      const weekStart = formatDateLocal(currentWeekStart);
       const response = await axios.get(
-        `${API_BASE_URL}/partner/channel/${channelId}/schedules?weekStart=${currentWeekStart.toISOString().split('T')[0]}`,
+        `${API_BASE_URL}/partner/channel/${channelId}/schedules?weekStart=${weekStart}&_=${Date.now()}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (response.data.success) {
@@ -129,6 +236,21 @@ export const TimeTable: React.FC = () => {
     }
   }, [channelId, currentWeekStart]);
 
+  const mergeScheduleUpdate = useCallback((updated: ScheduleSlot, previous?: ScheduleSlot | null) => {
+    setSchedules((prev) => {
+      const withoutOld = prev.filter((s) => {
+        if (previous && s.schedule_id === previous.schedule_id && s.schedule_date === previous.schedule_date) {
+          return false;
+        }
+        return !(s.schedule_date === updated.schedule_date && normalizeTime(s.start_time) === normalizeTime(updated.start_time));
+      });
+      return [...withoutOld, updated].sort((a, b) => {
+        if (a.schedule_date !== b.schedule_date) return a.schedule_date.localeCompare(b.schedule_date);
+        return a.start_time.localeCompare(b.start_time);
+      });
+    });
+  }, []);
+
   useEffect(() => { fetchSchedules(); }, [fetchSchedules]);
 
   const navigateWeek = (direction: 'prev' | 'next') => {
@@ -137,14 +259,31 @@ export const TimeTable: React.FC = () => {
     setCurrentWeekStart(newDate);
   };
 
-  const formatDate = (date: Date) => date.toISOString().split('T')[0];
+  const formatDate = formatDateLocal;
 
-  const isSlotBooked = (date: string, time: string) => {
-    return schedules.some(s => s.schedule_date === date && s.start_time.substring(0, 5) === time);
+  const openCreateModal = (slots: { date: string; time: string }[]) => {
+    const sorted = [...slots].sort((a, b) => a.time.localeCompare(b.time));
+    const startTime = sorted[0].time;
+    const endTime = getEndTime(sorted[sorted.length - 1].time);
+    setModalMode('create');
+    setEditingSchedule(null);
+    setModalData({ title: '', file: null });
+    setModalTime({ startTime, endTime });
+    setError('');
+    setShowModal(true);
   };
 
-  const getSlotSchedule = (date: string, time: string) => {
-    return schedules.find(s => s.schedule_date === date && s.start_time.substring(0, 5) === time);
+  const closeModal = () => {
+    setShowModal(false);
+    setSelectedSlots([]);
+    setEditingSchedule(null);
+    setModalData({ title: '', file: null });
+    setModalTime({ startTime: '', endTime: '' });
+    setError('');
+  };
+
+  const isSlotBooked = (date: string, time: string) => {
+    return schedules.some((s) => s.schedule_date === date && isTimeWithinSchedule(time, s));
   };
 
   const isSlotSelected = (date: string, time: string) => {
@@ -193,9 +332,7 @@ export const TimeTable: React.FC = () => {
     setIsDragging(false);
     setCurrentDragDate(null);
     if (selectedSlots.length > 0) {
-      setModalMode('create');
-      setEditingSchedule(null);
-      setShowModal(true);
+      openCreateModal(selectedSlots);
     }
   };
 
@@ -207,62 +344,76 @@ export const TimeTable: React.FC = () => {
   };
 
   const handleEdit = (schedule: ScheduleSlot) => {
-    if (isPastDate(schedule.schedule_date)) return; // Can't edit past schedules
+    if (isPastDate(schedule.schedule_date)) return;
     setModalMode('edit');
     setEditingSchedule(schedule);
     setModalData({ title: schedule.title, file: null });
+    setModalTime({
+      startTime: normalizeTime(schedule.start_time),
+      endTime: normalizeTime(schedule.end_time)
+    });
+    setError('');
     setShowModal(true);
   };
 
   const handleSubmit = async () => {
     if (!modalData.title.trim()) { setError('Please enter a title'); return; }
+    if (!modalTime.startTime || !modalTime.endTime) { setError('Please select start and end times'); return; }
+    if (modalTime.endTime <= modalTime.startTime && modalTime.endTime !== '24:00') {
+      setError('End time must be after start time');
+      return;
+    }
+
     setSubmitting(true);
     setError('');
     try {
       const token = localStorage.getItem('accessToken');
 
       if (modalMode === 'edit' && editingSchedule) {
-        // Update existing schedule
         const formData = new FormData();
         formData.append('title', modalData.title);
         formData.append('target_date', editingSchedule.schedule_date);
+        formData.append('slot_id', String(editingSchedule.slot_id));
+        formData.append('start_time', `${modalTime.startTime}:00`);
+        formData.append('end_time', modalTime.endTime === '24:00' ? '24:00:00' : `${modalTime.endTime}:00`);
         if (modalData.file) formData.append('media_file', modalData.file);
-        await axios.put(`${API_BASE_URL}/partner/channel/${channelId}/schedules/${editingSchedule.schedule_id}`, formData, {
+
+        const response = await axios.put(
+          `${API_BASE_URL}/partner/channel/${channelId}/schedules/${editingSchedule.schedule_id}`,
+          formData,
+          { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' } }
+        );
+
+        if (response.data.success && response.data.data) {
+          mergeScheduleUpdate(response.data.data, editingSchedule);
+        }
+        await fetchSchedules();
+      } else {
+        const slots = getSlotsInRange(modalTime.startTime, modalTime.endTime);
+        if (slots.length === 0) {
+          setError('Invalid time range selected');
+          return;
+        }
+
+        const scheduleDate = selectedSlots[0]?.date;
+        if (!scheduleDate) {
+          setError('No date selected');
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append('title', modalData.title);
+        formData.append('schedule_date', scheduleDate);
+        formData.append('slots', JSON.stringify(slots));
+        if (modalData.file) formData.append('media_file', modalData.file);
+
+        await axios.post(`${API_BASE_URL}/partner/channel/${channelId}/schedules`, formData, {
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
         });
-      } else {
-        // Create new schedule with multiple slots (horizontal selection = same date, multiple times)
-        // Group all selected slots by date (should be same date for horizontal selection)
-        const groupedByDate: { [date: string]: { start_time: string; end_time: string; is_recurring: number }[] } = {};
-
-        for (const slot of selectedSlots) {
-          if (!groupedByDate[slot.date]) {
-            groupedByDate[slot.date] = [];
-          }
-          groupedByDate[slot.date].push({
-            start_time: slot.time + ':00',
-            end_time: getEndTime(slot.time) + ':00',
-            is_recurring: 1
-          });
-        }
-
-        // Create one schedule per date with all its slots
-        for (const [date, slots] of Object.entries(groupedByDate)) {
-          const formData = new FormData();
-          formData.append('title', modalData.title);
-          formData.append('schedule_date', date);
-          formData.append('slots', JSON.stringify(slots));
-          if (modalData.file) formData.append('media_file', modalData.file);
-          await axios.post(`${API_BASE_URL}/partner/channel/${channelId}/schedules`, formData, {
-            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
-          });
-        }
+        await fetchSchedules();
       }
-      setShowModal(false);
-      setSelectedSlots([]);
-      setEditingSchedule(null);
-      setModalData({ title: '', file: null });
-      fetchSchedules();
+
+      closeModal();
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to save schedule');
     } finally {
@@ -278,16 +429,29 @@ export const TimeTable: React.FC = () => {
       await axios.delete(`${API_BASE_URL}/partner/channel/${channelId}/schedules/${scheduleId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      fetchSchedules();
+      await fetchSchedules();
     } catch (err) {
       console.error('Error deleting schedule:', err);
     }
   };
 
+  const handleStartTimeChange = (startTime: string) => {
+    const endOptions = getEndTimeOptions(startTime);
+    const nextEnd = endOptions.some((o) => o.value === modalTime.endTime)
+      ? modalTime.endTime
+      : endOptions[0]?.value || '';
+    setModalTime({ startTime, endTime: nextEnd });
+  };
+
+  const endTimeOptions = getEndTimeOptions(modalTime.startTime);
+  const selectedScheduleDate = modalMode === 'edit' && editingSchedule
+    ? editingSchedule.schedule_date
+    : selectedSlots[0]?.date || '';
+
   // Get reordered days (today at top)
   const reorderedDays = getReorderedDays();
-  const selectedTimeRange = selectedSlots.length > 0
-    ? `${selectedSlots[0].date} ${selectedSlots[0].time} - ${getEndTime(selectedSlots[selectedSlots.length - 1].time)}`
+  const selectedTimeRange = modalTime.startTime && modalTime.endTime
+    ? `${selectedScheduleDate} ${modalTime.startTime} - ${modalTime.endTime}`
     : '';
 
   return (
@@ -338,8 +502,12 @@ export const TimeTable: React.FC = () => {
                   const dateStr = formatDate(dayInfo.date);
                   const isToday = dayInfo.isToday;
                   const isPast = isPastDate(dateStr);
+                  const daySchedules = schedules.filter((s) => s.schedule_date === dateStr);
+                  const { startMap, coveredSet } = buildDayBlocks(dateStr, daySchedules);
+                  const canInteract = !isPast || isToday;
+
                   return (
-                    <tr key={dayIdx} className={`h-10 ${isToday ? 'bg-amber-50' : ''}`}>
+                    <tr key={dayIdx} className={`h-14 ${isToday ? 'bg-amber-50' : ''}`}>
                       <td className={`border px-3 py-2 font-medium sticky left-0 z-10 ${isToday ? 'bg-amber-100 text-amber-800' : 'bg-white text-gray-700'}`}>
                         <div className="text-sm">{dayInfo.dayName}</div>
                         <div className={`text-xs ${isToday ? 'text-amber-600' : 'text-gray-500'}`}>
@@ -348,47 +516,76 @@ export const TimeTable: React.FC = () => {
                         </div>
                       </td>
                       {TIME_SLOTS.map((slot, timeIdx) => {
-                        const booked = isSlotBooked(dateStr, slot.time);
-                        const selected = isSlotSelected(dateStr, slot.time);
-                        const schedule = getSlotSchedule(dateStr, slot.time);
-                        const canInteract = !isPast || isToday;
+                        if (coveredSet.has(timeIdx) && !startMap.has(timeIdx)) {
+                          return null;
+                        }
 
-                        let cellClass = 'border px-1 py-1 cursor-pointer transition-colors relative group text-center ';
-                        if (isPast && !isToday) {
-                          cellClass += booked ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-gray-200 cursor-not-allowed';
-                        } else if (booked) {
-                          cellClass += isToday ? 'bg-green-400 text-white' : 'bg-green-500 text-white';
+                        const block = startMap.get(timeIdx);
+                        const booked = !!block;
+                        const selected = !booked && isSlotSelected(dateStr, slot.time);
+
+                        let cellClass = 'border px-1 py-1 cursor-pointer transition-colors relative group text-center align-middle ';
+                        if (booked) {
+                          if (isPast && !isToday) {
+                            cellClass += 'bg-gray-400 text-white cursor-default';
+                          } else {
+                            cellClass += isToday ? 'bg-green-400 text-white' : 'bg-green-500 text-white';
+                          }
+                        } else if (isPast && !isToday) {
+                          cellClass += 'bg-gray-200 cursor-not-allowed';
                         } else if (selected) {
                           cellClass += 'bg-cyan-500 text-white';
                         } else {
                           cellClass += isToday ? 'bg-amber-50 hover:bg-cyan-100' : 'bg-gray-50 hover:bg-cyan-100';
                         }
 
-                        return (
-                          <td key={timeIdx}
-                            className={cellClass}
-                            onMouseDown={() => canInteract && !booked && handleMouseDown(dateStr, slot.time)}
-                            onMouseEnter={() => canInteract && handleMouseEnter(dateStr, slot.time)}
-                            onClick={() => canInteract && !isDragging && handleSlotClick(dateStr, slot.time)}
-                            title={schedule ? `${schedule.title} (${slot.time}-${slot.endTime})` : `${slot.time}-${slot.endTime}`}>
-                            {schedule && (
-                              <div className="flex items-center justify-center gap-0.5">
-                                <span className="text-[9px] truncate max-w-[30px]" title={schedule.title}>●</span>
+                        if (block) {
+                          return (
+                            <td
+                              key={timeIdx}
+                              colSpan={block.colSpan}
+                              className={cellClass}
+                              title={`${block.title} (${block.start_time} - ${block.end_time})`}
+                            >
+                              <div className="flex items-center justify-between gap-1 px-1 min-h-[2.5rem]">
+                                <div className="flex-1 min-w-0 text-left">
+                                  <div className="text-xs font-semibold truncate leading-tight">{block.title}</div>
+                                  <div className="text-[10px] opacity-90 leading-tight whitespace-nowrap">
+                                    {block.start_time} - {block.end_time}
+                                  </div>
+                                </div>
                                 {canInteract && (
-                                  <>
-                                    <button onClick={(e) => { e.stopPropagation(); handleEdit(schedule); }}
-                                      className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-green-600 rounded" title="Edit">
-                                      <Edit2 size={10} />
+                                  <div className="flex shrink-0 gap-0.5">
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); handleEdit(block.representative); }}
+                                      className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-green-600 rounded"
+                                      title="Edit"
+                                    >
+                                      <Edit2 size={11} />
                                     </button>
-                                    <button onClick={(e) => { e.stopPropagation(); handleDeleteSchedule(schedule.schedule_id, dateStr); }}
-                                      className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-red-600 rounded" title="Delete">
-                                      <Trash2 size={10} />
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); handleDeleteSchedule(block.schedule_id, dateStr); }}
+                                      className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-red-600 rounded"
+                                      title="Delete"
+                                    >
+                                      <Trash2 size={11} />
                                     </button>
-                                  </>
+                                  </div>
                                 )}
                               </div>
-                            )}
-                          </td>
+                            </td>
+                          );
+                        }
+
+                        return (
+                          <td
+                            key={timeIdx}
+                            className={cellClass}
+                            onMouseDown={() => canInteract && handleMouseDown(dateStr, slot.time)}
+                            onMouseEnter={() => canInteract && handleMouseEnter(dateStr, slot.time)}
+                            onClick={() => canInteract && !isDragging && handleSlotClick(dateStr, slot.time)}
+                            title={`${slot.time}-${slot.endTime}`}
+                          />
                         );
                       })}
                     </tr>
@@ -406,7 +603,7 @@ export const TimeTable: React.FC = () => {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
             <div className="flex items-center justify-between p-4 border-b">
               <h3 className="text-lg font-semibold">{modalMode === 'edit' ? 'Edit Schedule' : 'Add Schedule'}</h3>
-              <button onClick={() => { setShowModal(false); setSelectedSlots([]); setEditingSchedule(null); }} className="p-1 hover:bg-gray-100 rounded">
+              <button onClick={closeModal} className="p-1 hover:bg-gray-100 rounded">
                 <X size={20} />
               </button>
             </div>
@@ -416,6 +613,35 @@ export const TimeTable: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
                 <input type="text" value={modalData.title} onChange={(e) => setModalData({ ...modalData, title: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500" placeholder="Enter title" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Time *</label>
+                  <select
+                    value={modalTime.startTime}
+                    onChange={(e) => handleStartTimeChange(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg bg-white focus:ring-2 focus:ring-cyan-500 cursor-pointer"
+                  >
+                    <option value="">Select start time</option>
+                    {TIME_SLOTS.map((slot) => (
+                      <option key={slot.time} value={slot.time}>{slot.time}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">End Time *</label>
+                  <select
+                    value={modalTime.endTime}
+                    onChange={(e) => setModalTime({ ...modalTime, endTime: e.target.value })}
+                    disabled={!modalTime.startTime}
+                    className="w-full px-3 py-2 border rounded-lg bg-white focus:ring-2 focus:ring-cyan-500 cursor-pointer disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  >
+                    <option value="">Select end time</option>
+                    {endTimeOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Media File (optional)</label>
@@ -430,21 +656,28 @@ export const TimeTable: React.FC = () => {
               </div>
               {modalMode === 'create' && (
                 <div className="bg-gray-50 p-3 rounded-lg">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Selected Time</label>
-                  <p className="text-sm text-gray-600">{selectedSlots.length} slot(s) selected</p>
-                  <p className="text-xs text-gray-500 mt-1">{selectedTimeRange}</p>
-                  <p className="text-xs text-cyan-600 mt-2">📅 Schedule will repeat weekly on the same day/time</p>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Schedule Summary</label>
+                  <p className="text-sm text-gray-600">
+                    {modalTime.startTime && modalTime.endTime
+                      ? `${getSlotsInRange(modalTime.startTime, modalTime.endTime).length} slot(s)`
+                      : `${selectedSlots.length} slot(s) selected`}
+                  </p>
+                  {selectedTimeRange && <p className="text-xs text-gray-500 mt-1">{selectedTimeRange}</p>}
+                  <p className="text-xs text-cyan-600 mt-2">Schedule will repeat weekly on the same day/time</p>
                 </div>
               )}
               {modalMode === 'edit' && editingSchedule && (
                 <div className="bg-gray-50 p-3 rounded-lg">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Editing</label>
-                  <p className="text-sm text-gray-600">{editingSchedule.schedule_date} at {editingSchedule.start_time.substring(0,5)}</p>
+                  <p className="text-sm text-gray-600">{editingSchedule.schedule_date}</p>
+                  {editingSchedule.is_master && (
+                    <p className="text-xs text-cyan-600 mt-1">Changes apply to this week only unless you edit the original master date.</p>
+                  )}
                 </div>
               )}
             </div>
             <div className="flex gap-3 p-4 border-t">
-              <button onClick={() => { setShowModal(false); setSelectedSlots([]); setEditingSchedule(null); }}
+              <button onClick={closeModal}
                 className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
               <button onClick={handleSubmit} disabled={submitting}
                 className="flex-1 px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 disabled:opacity-50">
