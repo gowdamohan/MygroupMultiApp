@@ -2752,7 +2752,7 @@ export const getMediaChannels = async (req, res) => {
       });
     }
 
-    const { MediaChannel, Language, Country, State, District, User } = await import('../models/index.js');
+    const { MediaChannel, Language, Country, State, District, User, AppCategory } = await import('../models/index.js');
 
     const channels = await MediaChannel.findAll({
       where: {
@@ -2763,7 +2763,13 @@ export const getMediaChannels = async (req, res) => {
         {
           model: User,
           as: 'user',
-          attributes: ['id', 'identification_code', 'first_name', 'last_name', 'email'],
+          attributes: ['id', 'identification_code', 'first_name', 'last_name', 'email', 'phone'],
+          required: false
+        },
+        {
+          model: AppCategory,
+          as: 'parentCategory',
+          attributes: ['id', 'category_name'],
           required: false
         },
         {

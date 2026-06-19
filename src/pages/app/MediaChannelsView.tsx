@@ -24,12 +24,18 @@ interface District {
   district: string;
 }
 
+interface AppCategoryRef {
+  id: number;
+  category_name: string;
+}
+
 interface ChannelPartner {
   id?: number;
   identification_code?: string | null;
   first_name?: string | null;
   last_name?: string | null;
   email?: string;
+  phone?: string | null;
 }
 
 interface MediaChannel {
@@ -49,14 +55,45 @@ interface MediaChannel {
   country?: Country;
   state?: State;
   district?: District;
+  parentCategory?: AppCategoryRef;
   user?: ChannelPartner;
 }
 
-const formatPartnerName = (user?: ChannelPartner | null): string => {
+const formatAdminName = (user?: ChannelPartner | null): string => {
   if (!user) return '-';
   const parts = [user.first_name, user.last_name].filter(Boolean);
   return parts.length > 0 ? parts.join(' ') : '-';
 };
+
+const formatCreatedAt = (dateString: string): string => {
+  const date = new Date(dateString);
+  return date.toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  });
+};
+
+const getLogoUrl = (channel: MediaChannel): string | null => {
+  if (channel.media_logo_url) return channel.media_logo_url;
+  if (!channel.media_logo) return null;
+  if (channel.media_logo.startsWith('http')) return channel.media_logo;
+  const path = channel.media_logo.startsWith('/') ? channel.media_logo : `/${channel.media_logo}`;
+  return `${BACKEND_URL}${path}`;
+};
+
+const StackedCell: React.FC<{ lines: (string | null | undefined)[] }> = ({ lines }) => (
+  <div className="flex flex-col gap-0.5 min-w-[120px]">
+    {lines.map((line, i) => (
+      <span key={i} className={`text-sm ${i === 0 ? 'text-gray-900' : 'text-gray-600'}`}>
+        {line?.trim() || '-'}
+      </span>
+    ))}
+  </div>
+);
 
 interface EditFormData {
   media_name_english: string;
@@ -252,9 +289,7 @@ export const MediaChannelsView: React.FC<MediaChannelsViewProps> = ({ appId, cat
       );
 
       if (response.data.success) {
-        setMediaChannels(prev =>
-          prev.map(ch => (ch.id === selectedChannel.id ? response.data.data : ch))
-        );
+        await fetchMediaChannels();
         setSuccess('Media channel updated successfully');
         setTimeout(() => setSuccess(''), 3000);
         closeEditModal();
@@ -306,15 +341,9 @@ export const MediaChannelsView: React.FC<MediaChannelsViewProps> = ({ appId, cat
     }
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+  const formatStatusLabel = (status: string) => {
+    if (!status) return 'Inactive';
+    return status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
   };
 
   return (
@@ -349,110 +378,129 @@ export const MediaChannelsView: React.FC<MediaChannelsViewProps> = ({ appId, cat
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Partner ID</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Partner Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email ID</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Media Logo</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Media Name (Regional)</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Language</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Country</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">State</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">District</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Active</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Edit</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Logo</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Media Name</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Language</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Partner Info</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Admin Info</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Public View</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 bg-white">
                 {mediaChannels.length === 0 ? (
                   <tr>
-                    <td colSpan={14} className="px-6 py-12 text-center text-gray-500">
+                    <td colSpan={10} className="px-6 py-12 text-center text-gray-500">
                       No media channels found for this category
                     </td>
                   </tr>
                 ) : (
-                  mediaChannels.map((channel, index) => (
-                    <tr key={channel.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {index + 1}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {channel.user?.identification_code || '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {formatPartnerName(channel.user)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {channel.user?.email || '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {formatDate(channel.created_at)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {(channel.media_logo_url || channel.media_logo) ? (
-                          <img
-                            src={channel.media_logo_url || (channel.media_logo.startsWith('http') ? channel.media_logo : (channel.media_logo.startsWith('/') ? BACKEND_URL + channel.media_logo : BACKEND_URL + '/' + channel.media_logo))}
-                            alt={channel.media_name_regional || channel.media_name_english}
-                            className="h-10 w-10 object-contain rounded"
-                          />
-                        ) : (
-                          <div className="h-10 w-10 bg-gray-200 rounded flex items-center justify-center text-gray-400 text-xs">
-                            No Logo
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {channel.media_name_regional || channel.media_name_english || '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {channel.language?.lang_1 || '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {channel.country?.country || '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {channel.state?.state || '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {channel.district?.district || '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <button
-                          onClick={() => handleToggleStatus(channel.id, channel.status)}
-                          className={`px-3 py-1 text-xs font-medium rounded-full ${
-                            channel.status === 'active'
-                              ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                              : 'bg-red-100 text-red-700 hover:bg-red-200'
-                          }`}
-                        >
-                          {channel.status}
-                        </button>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <button
-                          onClick={() => handleToggleActive(channel.id, channel.is_active)}
-                          className="inline-flex items-center gap-1"
-                        >
-                          {channel.is_active === 1 ? (
-                            <ToggleRight size={24} className="text-blue-600" />
+                  mediaChannels.map((channel) => {
+                    const logoUrl = getLogoUrl(channel);
+                    return (
+                      <tr key={channel.id} className="hover:bg-gray-50 align-top">
+                        <td className="px-4 py-4 whitespace-nowrap">
+                          {logoUrl ? (
+                            <img
+                              src={logoUrl}
+                              alt={channel.media_name_english}
+                              className="h-10 w-10 object-contain rounded border border-gray-100"
+                            />
                           ) : (
-                            <ToggleLeft size={24} className="text-gray-400" />
+                            <div className="h-10 w-10 bg-gray-200 rounded flex items-center justify-center text-gray-400 text-xs">
+                              No Logo
+                            </div>
                           )}
-                        </button>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <button
-                          onClick={() => openEditModal(channel)}
-                          className="inline-flex items-center gap-1 px-3 py-1 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm"
-                        >
-                          <Edit2 size={16} />
-                          Edit
-                        </button>
-                      </td>
-                    </tr>
-                  ))
+                        </td>
+                        <td className="px-4 py-4">
+                          <StackedCell
+                            lines={[
+                              channel.media_name_english,
+                              channel.media_name_regional
+                            ]}
+                          />
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {channel.parentCategory?.category_name || '-'}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {channel.language?.lang_1 || '-'}
+                        </td>
+                        <td className="px-4 py-4">
+                          <StackedCell
+                            lines={[
+                              channel.country?.country,
+                              channel.state?.state,
+                              channel.district?.district
+                            ]}
+                          />
+                        </td>
+                        <td className="px-4 py-4">
+                          <StackedCell
+                            lines={[
+                              channel.user?.identification_code,
+                              channel.user?.email,
+                              formatCreatedAt(channel.created_at)
+                            ]}
+                          />
+                        </td>
+                        <td className="px-4 py-4">
+                          <StackedCell
+                            lines={[
+                              formatAdminName(channel.user),
+                              channel.user?.phone
+                            ]}
+                          />
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap">
+                          <button
+                            onClick={() => handleToggleStatus(channel.id, channel.status)}
+                            className={`px-3 py-1 text-xs font-medium rounded-full ${
+                              channel.status === 'active'
+                                ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                : 'bg-red-100 text-red-700 hover:bg-red-200'
+                            }`}
+                          >
+                            {formatStatusLabel(channel.status)}
+                          </button>
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap">
+                          <button
+                            onClick={() => handleToggleActive(channel.id, channel.is_active)}
+                            className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-full ${
+                              channel.is_active === 1
+                                ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                          >
+                            {channel.is_active === 1 ? (
+                              <>
+                                <ToggleRight size={18} className="text-blue-600" />
+                                On
+                              </>
+                            ) : (
+                              <>
+                                <ToggleLeft size={18} className="text-gray-400" />
+                                Off
+                              </>
+                            )}
+                          </button>
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap">
+                          <button
+                            onClick={() => openEditModal(channel)}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium"
+                          >
+                            <Edit2 size={16} />
+                            Edit
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
