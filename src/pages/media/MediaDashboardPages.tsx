@@ -5,10 +5,16 @@ import {
   Save, Trash2, Plus, Upload, X, Play, Pause, Image, FileText,
   ThumbsUp, ThumbsDown, Users, Star, MessageCircle, ExternalLink,
   Globe, Youtube, Facebook, Instagram, Twitter, Linkedin, BookOpen,
-  Video, Music, Check, FolderPlus, Eye
+  Video, Music, Check, FolderPlus, Eye, Loader2
 } from 'lucide-react';
 import { API_BASE_URL } from '../../config/api.config';
 import { toEmbedUrl, EMBED_IFRAME_PROPS } from '../../utils/mediaPlayback';
+
+const isImageFile = (documentType: string, fileUrl?: string) => {
+  if (documentType === 'image') return true;
+  if (!fileUrl) return false;
+  return /\.(jpe?g|png|gif|webp|bmp)(\?|$)/i.test(fileUrl.split('#')[0]);
+};
 
 // ============================================
 // SOCIAL MEDIA SECTION
@@ -552,21 +558,33 @@ export const DocumentsSection: React.FC = () => {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {documents.map((doc) => (
-            <div key={doc.id} className="border border-gray-200 rounded-lg p-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                {doc.document_type === 'pdf' ? <FileText className="text-red-500" size={24} /> : <Image className="text-blue-500" size={24} />}
+            <div key={doc.id} className="border border-gray-200 rounded-lg overflow-hidden">
+              {isImageFile(doc.document_type, doc.file_url) ? (
+                <a href={doc.file_url} target="_blank" rel="noopener noreferrer" className="block">
+                  <img
+                    src={doc.file_url}
+                    alt={doc.title}
+                    className="w-full h-40 object-cover bg-gray-100"
+                  />
+                </a>
+              ) : (
+                <div className="h-40 bg-gray-50 flex items-center justify-center">
+                  <FileText className="text-red-500" size={48} />
+                </div>
+              )}
+              <div className="p-4 flex items-center justify-between">
                 <div>
                   <p className="font-medium text-gray-800">{doc.title}</p>
                   <p className="text-sm text-gray-500 uppercase">{doc.document_type}</p>
                 </div>
-              </div>
-              <div className="flex gap-2">
-                <a href={doc.file_url} target="_blank" rel="noopener noreferrer" className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg">
-                  <ExternalLink size={18} />
-                </a>
-                <button onClick={() => handleDelete(doc.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg">
-                  <Trash2 size={18} />
-                </button>
+                <div className="flex gap-2">
+                  <a href={doc.file_url} target="_blank" rel="noopener noreferrer" className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg">
+                    <ExternalLink size={18} />
+                  </a>
+                  <button onClick={() => handleDelete(doc.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg">
+                    <Trash2 size={18} />
+                  </button>
+                </div>
               </div>
             </div>
           ))}
@@ -646,7 +664,7 @@ export const AwardsSection: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {awards.map((award) => (
             <div key={award.id} className="border border-gray-200 rounded-lg overflow-hidden">
-              <img src={award.image_url} alt={award.title} className="w-full h-40 object-cover" />
+              <img src={award.image_url} alt={award.title} className="w-full h-40 object-cover bg-gray-100" />
               <div className="p-3 flex items-center justify-between">
                 <p className="font-medium text-gray-800 truncate">{award.title}</p>
                 <button onClick={() => handleDelete(award.id)} className="p-1 text-red-600 hover:bg-red-50 rounded">
@@ -730,21 +748,33 @@ export const NewsletterSection: React.FC = () => {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {newsletters.map((item) => (
-            <div key={item.id} className="border border-gray-200 rounded-lg p-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                {item.document_type === 'pdf' ? <FileText className="text-red-500" size={24} /> : <Image className="text-blue-500" size={24} />}
+            <div key={item.id} className="border border-gray-200 rounded-lg overflow-hidden">
+              {isImageFile(item.document_type, item.file_url) ? (
+                <a href={item.file_url} target="_blank" rel="noopener noreferrer" className="block">
+                  <img
+                    src={item.file_url}
+                    alt={item.title}
+                    className="w-full h-40 object-cover bg-gray-100"
+                  />
+                </a>
+              ) : (
+                <div className="h-40 bg-gray-50 flex items-center justify-center">
+                  <FileText className="text-red-500" size={48} />
+                </div>
+              )}
+              <div className="p-4 flex items-center justify-between">
                 <div>
                   <p className="font-medium text-gray-800">{item.title}</p>
                   <p className="text-sm text-gray-500 uppercase">{item.document_type}</p>
                 </div>
-              </div>
-              <div className="flex gap-2">
-                <a href={item.file_url} target="_blank" rel="noopener noreferrer" className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg">
-                  <ExternalLink size={18} />
-                </a>
-                <button onClick={() => handleDelete(item.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg">
-                  <Trash2 size={18} />
-                </button>
+                <div className="flex gap-2">
+                  <a href={item.file_url} target="_blank" rel="noopener noreferrer" className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg">
+                    <ExternalLink size={18} />
+                  </a>
+                  <button onClick={() => handleDelete(item.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg">
+                    <Trash2 size={18} />
+                  </button>
+                </div>
               </div>
             </div>
           ))}
@@ -770,6 +800,10 @@ export const GallerySection: React.FC = () => {
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [imageFiles, setImageFiles] = useState<FileList | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [galleryError, setGalleryError] = useState('');
+  const [fileInputKey, setFileInputKey] = useState(0);
+  const [deletingAlbumId, setDeletingAlbumId] = useState<number | null>(null);
+  const [deletingImageId, setDeletingImageId] = useState<number | null>(null);
 
   useEffect(() => { fetchAlbums(); }, [channelId]);
 
@@ -779,8 +813,18 @@ export const GallerySection: React.FC = () => {
       const res = await axios.get(`${API_BASE_URL}/media-dashboard/gallery/albums/${channelId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      if (res.data.success) setAlbums(res.data.data);
-    } catch (error) { console.error('Error fetching albums:', error); }
+      if (res.data.success) {
+        const data: AlbumItem[] = res.data.data;
+        setAlbums(data);
+        setSelectedAlbum((prev) => {
+          if (!prev) return null;
+          return data.find((album) => album.id === prev.id) ?? null;
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching albums:', error);
+      setGalleryError('Failed to load gallery albums');
+    }
   };
 
   const createAlbum = async () => {
@@ -806,19 +850,27 @@ export const GallerySection: React.FC = () => {
 
   const deleteAlbum = async (id: number) => {
     if (!confirm('Delete this album and all its images?')) return;
+    setGalleryError('');
+    setDeletingAlbumId(id);
     try {
       const token = localStorage.getItem('accessToken');
       await axios.delete(`${API_BASE_URL}/media-dashboard/gallery/albums/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      fetchAlbums();
       if (selectedAlbum?.id === id) setSelectedAlbum(null);
-    } catch (error) { console.error('Error deleting album:', error); }
+      await fetchAlbums();
+    } catch (error: any) {
+      console.error('Error deleting album:', error);
+      setGalleryError(error.response?.data?.message || 'Failed to delete album');
+    } finally {
+      setDeletingAlbumId(null);
+    }
   };
 
   const uploadImages = async () => {
     if (!selectedAlbum || !imageFiles || imageFiles.length === 0) return;
     setUploading(true);
+    setGalleryError('');
     try {
       const token = localStorage.getItem('accessToken');
       const fd = new FormData();
@@ -826,21 +878,32 @@ export const GallerySection: React.FC = () => {
       await axios.post(`${API_BASE_URL}/media-dashboard/gallery/images/${selectedAlbum.id}`, fd, {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
       });
-      fetchAlbums();
       setImageFiles(null);
-    } catch (error) { console.error('Error uploading images:', error); }
+      setFileInputKey((k) => k + 1);
+      await fetchAlbums();
+    } catch (error: any) {
+      console.error('Error uploading images:', error);
+      setGalleryError(error.response?.data?.message || 'Failed to upload images');
+    }
     setUploading(false);
   };
 
   const deleteImage = async (id: number) => {
     if (!confirm('Delete this image?')) return;
+    setGalleryError('');
+    setDeletingImageId(id);
     try {
       const token = localStorage.getItem('accessToken');
       await axios.delete(`${API_BASE_URL}/media-dashboard/gallery/images/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      fetchAlbums();
-    } catch (error) { console.error('Error deleting image:', error); }
+      await fetchAlbums();
+    } catch (error: any) {
+      console.error('Error deleting image:', error);
+      setGalleryError(error.response?.data?.message || 'Failed to delete image');
+    } finally {
+      setDeletingImageId(null);
+    }
   };
 
   return (
@@ -851,6 +914,12 @@ export const GallerySection: React.FC = () => {
           <FolderPlus size={18} /> Create Album
         </button>
       </div>
+
+      {galleryError && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+          {galleryError}
+        </div>
+      )}
 
       {showCreateAlbum && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -878,16 +947,29 @@ export const GallerySection: React.FC = () => {
           <div key={album.id} className={`bg-white rounded-xl shadow-sm border-2 overflow-hidden cursor-pointer transition-all ${selectedAlbum?.id === album.id ? 'border-teal-500' : 'border-gray-200'}`}
             onClick={() => setSelectedAlbum(album)}>
             <div className="h-32 bg-gray-200">
-              {album.cover_image_url ? <img src={album.cover_image_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><Image className="text-gray-400" size={40} /></div>}
+              {album.cover_image_url ? (
+                <img src={album.cover_image_url} alt={album.album_name} className="w-full h-full object-cover bg-gray-100" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center"><Image className="text-gray-400" size={40} /></div>
+              )}
             </div>
             <div className="p-3">
               <div className="flex items-center justify-between">
                 <h3 className="font-medium text-gray-800">{album.album_name}</h3>
-                <button onClick={(e) => { e.stopPropagation(); deleteAlbum(album.id); }} className="p-1 text-red-600 hover:bg-red-50 rounded">
-                  <Trash2 size={16} />
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); deleteAlbum(album.id); }}
+                  disabled={deletingAlbumId === album.id}
+                  className="p-1 text-red-600 hover:bg-red-50 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {deletingAlbumId === album.id ? (
+                    <Loader2 className="animate-spin" size={16} />
+                  ) : (
+                    <Trash2 size={16} />
+                  )}
                 </button>
               </div>
-              <p className="text-sm text-gray-500">{album.images_count} images</p>
+              <p className="text-sm text-gray-500">{album.images?.length ?? album.images_count ?? 0} images</p>
             </div>
           </div>
         ))}
@@ -900,23 +982,47 @@ export const GallerySection: React.FC = () => {
             <button onClick={() => setSelectedAlbum(null)} className="p-2 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
           </div>
           <div className="flex gap-4 mb-4">
-            <input type="file" accept="image/*" multiple onChange={(e) => setImageFiles(e.target.files)}
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg" />
-            <button onClick={uploadImages} disabled={uploading || !imageFiles}
+            <input
+              key={fileInputKey}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={(e) => setImageFiles(e.target.files)}
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg"
+            />
+            <button onClick={uploadImages} disabled={uploading || !imageFiles?.length}
               className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 flex items-center gap-2">
               <Upload size={16} /> {uploading ? 'Uploading...' : 'Upload Images'}
             </button>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-            {selectedAlbum.images?.map((img) => (
-              <div key={img.id} className="relative group">
-                <img src={img.image_url} alt={img.image_name} className="w-full h-24 object-cover rounded-lg" />
-                <button onClick={() => deleteImage(img.id)}
-                  className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            ))}
+            {selectedAlbum.images && selectedAlbum.images.length > 0 ? (
+              selectedAlbum.images.map((img) => (
+                <div key={img.id} className="relative group">
+                  <img
+                    src={img.image_url}
+                    alt={img.image_name}
+                    className={`w-full h-24 object-cover rounded-lg bg-gray-100 ${deletingImageId === img.id ? 'opacity-50' : ''}`}
+                  />
+                  {deletingImageId === img.id ? (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg">
+                      <Loader2 className="animate-spin text-white" size={20} />
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => deleteImage(img.id)}
+                      disabled={deletingImageId !== null}
+                      className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity disabled:cursor-not-allowed"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </div>
+              ))
+            ) : (
+              <p className="col-span-full text-sm text-gray-500 py-4 text-center">No images in this album yet.</p>
+            )}
           </div>
         </div>
       )}
@@ -937,6 +1043,13 @@ export const TeamSection: React.FC = () => {
   const [formData, setFormData] = useState({ name: '', designation: '', id_number: '', email: '' });
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
+
+  const isAddMode = !editingId;
+  const canSubmit =
+    formData.name.trim().length > 0 &&
+    formData.designation.trim().length > 0 &&
+    (!isAddMode || !!photoFile);
 
   useEffect(() => { fetchTeam(); }, [channelId]);
 
@@ -951,13 +1064,27 @@ export const TeamSection: React.FC = () => {
   };
 
   const handleSubmit = async () => {
-    if (!formData.name) return;
+    setFormError('');
+
+    if (!formData.name.trim()) {
+      setFormError('Name is required');
+      return;
+    }
+    if (!formData.designation.trim()) {
+      setFormError('Designation is required');
+      return;
+    }
+    if (isAddMode && !photoFile) {
+      setFormError('Photo is required');
+      return;
+    }
+
     setSaving(true);
     try {
       const token = localStorage.getItem('accessToken');
       const fd = new FormData();
-      fd.append('name', formData.name);
-      fd.append('designation', formData.designation);
+      fd.append('name', formData.name.trim());
+      fd.append('designation', formData.designation.trim());
       fd.append('id_number', formData.id_number);
       fd.append('email', formData.email);
       if (photoFile) fd.append('photo', photoFile);
@@ -973,7 +1100,10 @@ export const TeamSection: React.FC = () => {
       }
       fetchTeam();
       resetForm();
-    } catch (error) { console.error('Error saving team member:', error); }
+    } catch (error: any) {
+      console.error('Error saving team member:', error);
+      setFormError(error.response?.data?.message || 'Failed to save team member');
+    }
     setSaving(false);
   };
 
@@ -982,11 +1112,14 @@ export const TeamSection: React.FC = () => {
     setEditingId(null);
     setFormData({ name: '', designation: '', id_number: '', email: '' });
     setPhotoFile(null);
+    setFormError('');
   };
 
   const editMember = (member: TeamMember) => {
     setEditingId(member.id);
     setFormData({ name: member.name, designation: member.designation || '', id_number: member.id_number || '', email: member.email || '' });
+    setPhotoFile(null);
+    setFormError('');
     setShowForm(true);
   };
 
@@ -1005,7 +1138,16 @@ export const TeamSection: React.FC = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-800">Team</h2>
-        <button onClick={() => setShowForm(true)} className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 flex items-center gap-2">
+        <button
+          onClick={() => {
+            setEditingId(null);
+            setFormData({ name: '', designation: '', id_number: '', email: '' });
+            setPhotoFile(null);
+            setFormError('');
+            setShowForm(true);
+          }}
+          className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 flex items-center gap-2"
+        >
           <Plus size={18} /> Add Member
         </button>
       </div>
@@ -1013,21 +1155,82 @@ export const TeamSection: React.FC = () => {
       {showForm && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h3 className="font-semibold text-gray-800 mb-4">{editingId ? 'Edit' : 'Add'} Team Member</h3>
+
+          {formError && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              {formError}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="Name *" className="px-4 py-2 border border-gray-300 rounded-lg" />
-            <input type="text" value={formData.designation} onChange={(e) => setFormData({ ...formData, designation: e.target.value })}
-              placeholder="Designation" className="px-4 py-2 border border-gray-300 rounded-lg" />
-            <input type="text" value={formData.id_number} onChange={(e) => setFormData({ ...formData, id_number: e.target.value })}
-              placeholder="ID Number" className="px-4 py-2 border border-gray-300 rounded-lg" />
-            <input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              placeholder="Email" className="px-4 py-2 border border-gray-300 rounded-lg" />
-            <input type="file" accept="image/*" onChange={(e) => setPhotoFile(e.target.files?.[0] || null)}
-              className="px-4 py-2 border border-gray-300 rounded-lg" />
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                required
+                placeholder="Enter name"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Designation <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.designation}
+                onChange={(e) => setFormData({ ...formData, designation: e.target.value })}
+                required
+                placeholder="Enter designation"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">ID Number</label>
+              <input
+                type="text"
+                value={formData.id_number}
+                onChange={(e) => setFormData({ ...formData, id_number: e.target.value })}
+                placeholder="Enter ID number"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <input
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                placeholder="Enter email"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Photo {isAddMode && <span className="text-red-500">*</span>}
+              </label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setPhotoFile(e.target.files?.[0] || null)}
+                required={isAddMode}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+              />
+              {isAddMode && !photoFile && (
+                <p className="mt-1 text-xs text-gray-500">A profile photo is required for new team members.</p>
+              )}
+            </div>
           </div>
           <div className="flex gap-3 mt-4">
-            <button onClick={handleSubmit} disabled={saving || !formData.name}
-              className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50">
+            <button
+              onClick={handleSubmit}
+              disabled={saving || !canSubmit}
+              className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               {saving ? 'Saving...' : editingId ? 'Update' : 'Add Member'}
             </button>
             <button onClick={resetForm} className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg">Cancel</button>
