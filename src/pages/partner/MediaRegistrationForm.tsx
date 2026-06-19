@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Upload, Save } from 'lucide-react';
+import { ArrowLeft, Upload, Save, Loader2 } from 'lucide-react';
 import axios from 'axios';
 import { API_BASE_URL } from '../../config/api.config';
 
@@ -116,43 +116,23 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
     fetchCountries();
   }, []);
 
-  // Fetch states when country is selected
+  // Fetch states when country is selected and states are not locked
   useEffect(() => {
-    if (isMagazineOrEPaper) {
-      // Magazine/E-Paper: fetch states if country selected and states not locked
-      if (formData.countryId && !selectedCountryLocking?.lockStates) {
-        fetchStates(parseInt(formData.countryId));
-      } else {
-        setStates([]);
-      }
+    if (formData.countryId && !selectedCountryLocking?.lockStates) {
+      fetchStates(parseInt(formData.countryId));
     } else {
-      // Other media: use selectType logic
-      if ((selectType === 'Regional' || selectType === 'Local') && formData.countryId) {
-        fetchStates(parseInt(formData.countryId));
-      } else {
-        setStates([]);
-      }
+      setStates([]);
     }
-  }, [isMagazineOrEPaper, selectType, formData.countryId, selectedCountryLocking]);
+  }, [formData.countryId, selectedCountryLocking]);
 
-  // Fetch districts when state is selected
+  // Fetch districts when state is selected and districts are not locked
   useEffect(() => {
-    if (isMagazineOrEPaper) {
-      // Magazine/E-Paper: fetch districts if state selected and districts not locked
-      if (formData.stateId && !selectedCountryLocking?.lockDistricts) {
-        fetchDistricts(parseInt(formData.stateId));
-      } else {
-        setDistricts([]);
-      }
+    if (formData.stateId && !selectedCountryLocking?.lockDistricts) {
+      fetchDistricts(parseInt(formData.stateId));
     } else {
-      // Other media: use selectType logic
-      if (selectType === 'Local' && formData.stateId) {
-        fetchDistricts(parseInt(formData.stateId));
-      } else {
-        setDistricts([]);
-      }
+      setDistricts([]);
     }
-  }, [isMagazineOrEPaper, selectType, formData.stateId, selectedCountryLocking]);
+  }, [formData.stateId, selectedCountryLocking]);
 
   const fetchCountries = async () => {
     try {
@@ -339,11 +319,14 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
         setTimeout(() => {
           onSuccess();
         }, 2000);
+        return;
       }
+
+      setError('Failed to register media channel');
+      setLoading(false);
     } catch (err: any) {
       console.error('Error submitting form:', err);
       setError(err.response?.data?.message || 'Failed to register media channel');
-    } finally {
       setLoading(false);
     }
   };
@@ -667,10 +650,7 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
               </label>
               <select
                 value={selectType}
-                onChange={(e) => {
-                  setSelectType(e.target.value as SelectType);
-                  setFormData({ ...formData, countryId: '', stateId: '', districtId: '' });
-                }}
+                onChange={(e) => setSelectType(e.target.value as SelectType)}
                 required
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               >
@@ -682,136 +662,71 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
             </div>
           )}
 
-          {/* Location Fields */}
-          {isMagazineOrEPaper ? (
-            <>
-              {/* Magazine/E-Paper: Location based on locking_json */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Country <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.countryId}
-                  onChange={(e) => {
-                    const selectedCountry = countries.find(c => c.id === parseInt(e.target.value));
-                    setSelectedCountryLocking(selectedCountry?.locking_json || null);
-                    setFormData({ ...formData, countryId: e.target.value, stateId: '', districtId: '' });
-                    setDistributionDistricts([]);
-                  }}
-                  required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                >
-                  <option value="">Select a country</option>
-                  {countries.map((country) => (
-                    <option key={country.id} value={country.id}>{country.country}</option>
-                  ))}
-                </select>
-              </div>
+          {/* Location Fields — visibility controlled by country locking_json */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Country <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={formData.countryId}
+              onChange={(e) => {
+                const countryId = e.target.value;
+                const selectedCountry = countryId
+                  ? countries.find(c => c.id === parseInt(countryId))
+                  : undefined;
+                setSelectedCountryLocking(selectedCountry?.locking_json ?? null);
+                setFormData({ ...formData, countryId, stateId: '', districtId: '' });
+                setDistributionDistricts([]);
+              }}
+              required
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            >
+              <option value="">Select a country</option>
+              {countries.map((country) => (
+                <option key={country.id} value={country.id}>{country.country}</option>
+              ))}
+            </select>
+          </div>
 
-              {/* State - Show if not locked */}
-              {!selectedCountryLocking?.lockStates && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    State <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={formData.stateId}
-                    onChange={(e) => {
-                      setFormData({ ...formData, stateId: e.target.value, districtId: '' });
-                      setDistributionDistricts([]);
-                    }}
-                    required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  >
-                    <option value="">Select a state</option>
-                    {states.map((state) => (
-                      <option key={state.id} value={state.id}>{state.state}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
+          {!selectedCountryLocking?.lockStates && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                State <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={formData.stateId}
+                onChange={(e) => {
+                  setFormData({ ...formData, stateId: e.target.value, districtId: '' });
+                  setDistributionDistricts([]);
+                }}
+                required
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              >
+                <option value="">Select a state</option>
+                {states.map((state) => (
+                  <option key={state.id} value={state.id}>{state.state}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
-              {/* District - Show if not locked */}
-              {!selectedCountryLocking?.lockDistricts && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    District
-                  </label>
-                  <select
-                    value={formData.districtId}
-                    onChange={(e) => setFormData({ ...formData, districtId: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  >
-                    <option value="">Select a district</option>
-                    {districts.map((district) => (
-                      <option key={district.id} value={district.id}>{district.district}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-            </>
-          ) : (
-            <>
-              {/* Other media types: Location based on selectType */}
-              {selectType !== 'International' && (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Country <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={formData.countryId}
-                      onChange={(e) => setFormData({ ...formData, countryId: e.target.value, stateId: '', districtId: '' })}
-                      required
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                    >
-                      <option value="">Select a country</option>
-                      {countries.map((country) => (
-                        <option key={country.id} value={country.id}>{country.country}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {(selectType === 'Regional' || selectType === 'Local') && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        State <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        value={formData.stateId}
-                        onChange={(e) => setFormData({ ...formData, stateId: e.target.value, districtId: '' })}
-                        required
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                      >
-                        <option value="">Select a state</option>
-                        {states.map((state) => (
-                          <option key={state.id} value={state.id}>{state.state}</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
-                  {selectType === 'Local' && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        District <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        value={formData.districtId}
-                        onChange={(e) => setFormData({ ...formData, districtId: e.target.value })}
-                        required
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                      >
-                        <option value="">Select a district</option>
-                        {districts.map((district) => (
-                          <option key={district.id} value={district.id}>{district.district}</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                </>
-              )}
-            </>
+          {!selectedCountryLocking?.lockDistricts && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                District <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={formData.districtId}
+                onChange={(e) => setFormData({ ...formData, districtId: e.target.value })}
+                required
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              >
+                <option value="">Select a district</option>
+                {districts.map((district) => (
+                  <option key={district.id} value={district.id}>{district.district}</option>
+                ))}
+              </select>
+            </div>
           )}
 
           {/* Language */}
@@ -1005,7 +920,8 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
             <button
               type="button"
               onClick={onBack}
-              className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              disabled={loading}
+              className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </button>
@@ -1016,7 +932,7 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
             >
               {loading ? (
                 <>
-                  <span className="inline-block w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <Loader2 className="animate-spin" size={20} />
                   Please wait...
                 </>
               ) : (

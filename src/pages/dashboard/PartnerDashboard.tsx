@@ -487,9 +487,36 @@ export const PartnerDashboard: React.FC = () => {
       registrationStatus={registrationStatus}
       onStatusChange={(newStatus) => {
         setRegistrationStatus(newStatus);
+        fetchUserProfile();
       }}
     />
   );
+
+  const getSidebarStatusMessage = () => {
+    if (registrationStatus === 'pending') {
+      return 'Complete your profile to activate your account';
+    }
+    if (registrationStatus === 'submitted') {
+      return 'Verification pending — admin review within 24 working hours';
+    }
+    if (registrationStatus === 'verified') {
+      return 'Profile verified — awaiting final approval';
+    }
+    if (registrationStatus === 'processed_for_approve') {
+      return 'Account pending approval';
+    }
+    return 'Account activation in progress';
+  };
+
+  const getSidebarStatusClass = () => {
+    if (registrationStatus === 'verified') {
+      return 'bg-green-600/20 text-green-400';
+    }
+    if (registrationStatus === 'submitted') {
+      return 'bg-blue-600/20 text-blue-400';
+    }
+    return 'bg-yellow-600/20 text-yellow-400';
+  };
 
   const renderContent = () => {
     const path = location.pathname;
@@ -503,7 +530,15 @@ export const PartnerDashboard: React.FC = () => {
       case '/dashboard/partner':
         return renderDashboard();
       case '/partner/edit-profile':
-        return <EditProfile />;
+        return (
+          <EditProfile
+            registrationStatus={registrationStatus}
+            onStatusChange={(newStatus) => {
+              setRegistrationStatus(newStatus);
+              fetchUserProfile();
+            }}
+          />
+        );
       case '/partner/change-password':
         return <ChangePassword />;
       case '/partner/create-media':
@@ -612,12 +647,9 @@ export const PartnerDashboard: React.FC = () => {
               })}
             </nav>
             {isPending && (
-              <div className="mt-4 mx-2 p-3 bg-yellow-600/20 rounded-lg">
-                <p className="text-yellow-400 text-xs font-medium text-center">
-                  {registrationStatus === 'pending' ? 'Waiting for Submission' :
-                   registrationStatus === 'submitted' ? 'Submitted' :
-                   registrationStatus === 'verified' ? 'Profile Verified' :
-                   'Account Pending Approval'}
+              <div className={`mt-4 mx-2 p-3 rounded-lg ${getSidebarStatusClass()}`}>
+                <p className="text-xs font-medium text-center leading-relaxed">
+                  {getSidebarStatusMessage()}
                 </p>
               </div>
             )}
@@ -651,12 +683,9 @@ export const PartnerDashboard: React.FC = () => {
               <div className="flex-1 overflow-y-auto py-4 px-3">
                 {menuItems.map(item => renderMenuItem(item))}
                 {isPending && (
-                  <div className="mt-4 mx-2 p-3 bg-yellow-600/20 rounded-lg">
-                    <p className="text-yellow-400 text-xs font-medium text-center">
-                      {registrationStatus === 'pending' ? 'Waiting for Submission' :
-                       registrationStatus === 'submitted' ? 'Submitted' :
-                       registrationStatus === 'verified' ? 'Profile Verified' :
-                       'Account Pending Approval'}
+                  <div className={`mt-4 mx-2 p-3 rounded-lg ${getSidebarStatusClass()}`}>
+                    <p className="text-xs font-medium text-center leading-relaxed">
+                      {getSidebarStatusMessage()}
                     </p>
                   </div>
                 )}
