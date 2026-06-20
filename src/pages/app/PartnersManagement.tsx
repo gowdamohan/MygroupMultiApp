@@ -371,6 +371,30 @@ export const PartnersManagement: React.FC<PartnersManagementProps> = ({ appId, a
     });
   };
 
+  const formatDateCompact = (timestamp: number): string => {
+    if (!timestamp) return '-';
+    const date = new Date(timestamp * 1000);
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = date.toLocaleDateString('en-GB', { month: 'short' });
+    const year = date.getFullYear().toString().slice(-2);
+    return `${day}-${month}-${year}`;
+  };
+
+  const getValueByLabel = (partner: Partner, ...keywords: string[]): string => {
+    const resolvedData = partner.client_registration?.resolved_form_data;
+    if (!resolvedData) return '-';
+    for (const keyword of keywords) {
+      const entry = Object.values(resolvedData).find(
+        f => f.label.toLowerCase().includes(keyword.toLowerCase())
+      );
+      if (entry) {
+        const val = entry.resolved;
+        if (val !== undefined && val !== null && val !== '') return String(val);
+      }
+    }
+    return '-';
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -433,6 +457,149 @@ export const PartnersManagement: React.FC<PartnersManagementProps> = ({ appId, a
           ) : (
             <div className="bg-white rounded-lg shadow overflow-hidden">
               <div className="overflow-x-auto">
+                {selectedAppId === 6 ? (
+                /* ── App 6 (MyMedia): stacked multi-line column layout ── */
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Partner ID</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Email / Created At</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Admin Name / Number</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Address</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Country / State / District</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pincode</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {partners.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="px-6 py-16 text-center">
+                          <div className="flex flex-col items-center justify-center gap-3 text-gray-500">
+                            <div className="rounded-full bg-gray-100 p-4">
+                              <Users className="w-10 h-10 text-gray-400" strokeWidth={1.5} />
+                            </div>
+                            <p className="text-base font-medium text-gray-600">No {activeStatusTab} partners</p>
+                            <p className="text-sm text-gray-400 max-w-sm">
+                              {activeStatusTab === 'All'
+                                ? 'Partners will appear here once they register. Ensure this app has a custom form configured.'
+                                : `No ${activeStatusTab.toLowerCase()} partners in this app.`}
+                            </p>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      partners.map((partner) => (
+                        <tr key={partner.id} className="hover:bg-gray-50">
+                          {/* Partner ID */}
+                          <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {partner.identification_code || `MM-${String(partner.id).padStart(4, '0')}`}
+                          </td>
+
+                          {/* Email / Created At */}
+                          <td className="px-4 py-3">
+                            <div className="flex flex-col space-y-0.5">
+                              <span className="text-sm text-gray-900">{partner.email}</span>
+                              <span className="text-xs text-gray-500">{formatDateCompact(partner.created_on)}</span>
+                            </div>
+                          </td>
+
+                          {/* Admin Name / Number */}
+                          <td className="px-4 py-3">
+                            <div className="flex flex-col space-y-0.5">
+                              <span className="text-sm text-gray-900">
+                                {getValueByLabel(partner, 'admin name', 'contact name', 'owner name', 'name')}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                {getValueByLabel(partner, 'mobile', 'phone', 'contact number', 'number')}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* Address */}
+                          <td className="px-4 py-3 text-sm text-gray-900 max-w-[160px]">
+                            {getValueByLabel(partner, 'address', 'street')}
+                          </td>
+
+                          {/* Country / State / District */}
+                          <td className="px-4 py-3">
+                            <div className="flex flex-col space-y-0.5">
+                              <span className="text-sm text-gray-900">
+                                {getValueByLabel(partner, 'country')}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                {getValueByLabel(partner, 'state', 'province')}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                {getValueByLabel(partner, 'district')}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* Category */}
+                          <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
+                            {getValueByLabel(partner, 'category', 'business type', 'type')}
+                          </td>
+
+                          {/* Pincode */}
+                          <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
+                            {getValueByLabel(partner, 'pincode', 'pin code', 'zip', 'postal')}
+                          </td>
+
+                          {/* Status */}
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            {activeStatusTab === 'pending' ? (
+                              getStatusBadge(partner.client_registration?.status || 'pending')
+                            ) : (
+                              <button
+                                onClick={() => handleToggleStatus(partner)}
+                                disabled={updatingStatus === partner.id}
+                                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg transition-colors text-sm ${
+                                  partner.active === 1
+                                    ? 'bg-green-50 text-green-600 hover:bg-green-100'
+                                    : 'bg-red-50 text-red-600 hover:bg-red-100'
+                                }`}
+                              >
+                                {updatingStatus === partner.id ? (
+                                  <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                ) : partner.active === 1 ? (
+                                  <ToggleRight size={14} />
+                                ) : (
+                                  <ToggleLeft size={14} />
+                                )}
+                                {partner.active === 1 ? 'Active' : 'Inactive'}
+                              </button>
+                            )}
+                          </td>
+
+                          {/* Action */}
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <div className="flex flex-col gap-1.5">
+                              <button
+                                onClick={() => handleViewDetails(partner)}
+                                className="inline-flex items-center gap-1 px-3 py-1 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm"
+                              >
+                                <Eye size={14} />
+                                {activeStatusTab === 'pending' ? 'View' : 'Edit'}
+                              </button>
+                              <button
+                                onClick={() => handleAccessPartnerPortal(partner)}
+                                className="inline-flex items-center gap-1 px-3 py-1 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 transition-colors text-sm"
+                              >
+                                <LogIn size={14} />
+                                Portal
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              ) : (
+                /* ── Generic layout for all other apps ── */
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
@@ -529,6 +696,7 @@ export const PartnersManagement: React.FC<PartnersManagementProps> = ({ appId, a
                     )}
                   </tbody>
                 </table>
+              )}
               </div>
             </div>
           )}

@@ -567,15 +567,6 @@ export const PartnerDashboard: React.FC = () => {
         } hidden lg:block bg-gray-800 transition-all duration-300 overflow-hidden shadow-lg`}
       >
         <div className="h-full flex flex-col">
-          {/* Sidebar Toggle */}
-          <div className="flex justify-end px-2 pt-2 flex-shrink-0">
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
-            >
-              <Menu size={16} />
-            </button>
-          </div>
           {/* Partner Identity */}
           <div className="pb-3 border-b border-gray-700/80 flex-shrink-0">
             {renderSidebarIdentity('desktop')}
