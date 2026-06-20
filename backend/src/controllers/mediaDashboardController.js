@@ -1075,3 +1075,94 @@ export const deleteComment = async (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to delete comment' });
   }
 };
+
+// ============================================
+// CHANNEL ADDRESS (Rich Text)
+// ============================================
+
+/**
+ * GET /api/v1/media-dashboard/channel-address/:channelId
+ */
+export const getChannelAddress = async (req, res) => {
+  try {
+    const { channelId } = req.params;
+    const userId = req.user.id;
+
+    const channel = await MediaChannel.findOne({
+      where: { id: channelId, user_id: userId },
+      attributes: ['id', 'address_html']
+    });
+
+    if (!channel) {
+      return res.status(404).json({ success: false, message: 'Channel not found' });
+    }
+
+    res.json({ success: true, data: { address_html: channel.address_html || '' } });
+  } catch (error) {
+    console.error('Error getting channel address:', error);
+    res.status(500).json({ success: false, message: 'Failed to get channel address' });
+  }
+};
+
+/**
+ * PUT /api/v1/media-dashboard/channel-address/:channelId
+ */
+export const updateChannelAddress = async (req, res) => {
+  try {
+    const { channelId } = req.params;
+    const userId = req.user.id;
+    const { address_html } = req.body;
+
+    const channel = await MediaChannel.findOne({
+      where: { id: channelId, user_id: userId }
+    });
+
+    if (!channel) {
+      return res.status(404).json({ success: false, message: 'Channel not found' });
+    }
+
+    await channel.update({ address_html: address_html || '' });
+
+    res.json({ success: true, message: 'Address saved successfully' });
+  } catch (error) {
+    console.error('Error updating channel address:', error);
+    res.status(500).json({ success: false, message: 'Failed to save address' });
+  }
+};
+
+/**
+ * POST /api/v1/media-dashboard/channel-address/upload-image/:channelId
+ * Uploads an image embedded in the rich-text editor to Wasabi storage.
+ */
+export const uploadAddressImage = async (req, res) => {
+  try {
+    const { channelId } = req.params;
+    const userId = req.user.id;
+
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No file uploaded' });
+    }
+
+    const channel = await MediaChannel.findOne({
+      where: { id: channelId, user_id: userId },
+      attributes: ['id']
+    });
+
+    if (!channel) {
+      return res.status(404).json({ success: false, message: 'Channel not found' });
+    }
+
+    const folder = `channel_address/channel_${channelId}`;
+    const result = await uploadFile(
+      req.file.buffer,
+      req.file.originalname,
+      req.file.mimetype,
+      folder
+    );
+
+    res.json({ success: true, url: result.publicUrl });
+  } catch (error) {
+    console.error('Error uploading address image:', error);
+    res.status(500).json({ success: false, message: 'Failed to upload image' });
+  }
+};

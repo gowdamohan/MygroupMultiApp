@@ -5,9 +5,10 @@ import {
   Save, Trash2, Plus, Upload, X, Play, Pause, Image, FileText,
   ThumbsUp, ThumbsDown, Users, Star, MessageCircle, ExternalLink,
   Globe, Youtube, Facebook, Instagram, Twitter, Linkedin, BookOpen,
-  Video, Music, Check, FolderPlus, Eye, Loader2
+  Video, Music, Check, FolderPlus, Eye, Loader2, MapPin
 } from 'lucide-react';
 import { API_BASE_URL } from '../../config/api.config';
+import { SummernoteEditor } from '../../components/form/SummernoteEditor';
 import { toEmbedUrl, EMBED_IFRAME_PROPS } from '../../utils/mediaPlayback';
 import { formatPeriodicalScheduleSummary } from '../../components/media/PeriodicalScheduleSummary';
 import { isPrintMediaCategory } from '../../utils/mediaCategoryUtils';
@@ -1318,12 +1319,16 @@ export const ViewProfileSection: React.FC<{ channelInfo: ChannelProfileInfo | nu
     ? formatPeriodicalScheduleSummary(periodicalType, schedule)
     : { scheduleLabel: 'Periodical Schedule', scheduleValue: '—' };
 
+  const hasLocation = channelInfo.country || channelInfo.state || channelInfo.district;
+
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-gray-800">View Profile</h2>
+
+      {/* Registration details */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-4 py-3 bg-teal-50 border-b border-teal-100 text-sm text-teal-800">
-          Channel registration details (read-only)
+        <div className="px-4 py-3 bg-teal-50 border-b border-teal-100 text-sm font-medium text-teal-800">
+          Channel Registration Details
         </div>
         <div className="p-4 sm:p-6">
           <ReadOnlyField label="Media Name (English)" value={channelInfo.media_name_english} />
@@ -1338,6 +1343,21 @@ export const ViewProfileSection: React.FC<{ channelInfo: ChannelProfileInfo | nu
           )}
         </div>
       </div>
+
+      {/* Location details */}
+      {hasLocation && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className="px-4 py-3 bg-teal-50 border-b border-teal-100 flex items-center gap-2 text-sm font-medium text-teal-800">
+            <MapPin size={15} />
+            Registered Location
+          </div>
+          <div className="p-4 sm:p-6">
+            <ReadOnlyField label="Country" value={channelInfo.country?.country} />
+            <ReadOnlyField label="State" value={channelInfo.state?.state} />
+            <ReadOnlyField label="District" value={channelInfo.district?.district} />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -1379,7 +1399,79 @@ export const PromoteSection: React.FC = () => (
 );
 
 export const AddressSection: React.FC<{ channelInfo: ChannelProfileInfo | null }> = ({ channelInfo }) => {
-  if (!channelInfo) {
+  const { channelId } = useParams<{ channelId: string }>();
+  const [addressHtml, setAddressHtml] = useState('');
+  const [fetchLoading, setFetchLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [saveSuccess, setSaveSuccess] = useState('');
+
+  useEffect(() => {
+    if (channelId) {
+      fetchAddress();
+    }
+  }, [channelId]);
+
+  const fetchAddress = async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const res = await axios.get(
+        `${API_BASE_URL}/media-dashboard/channel-address/${channelId}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (res.data.success) {
+        setAddressHtml(res.data.data.address_html || '');
+      }
+    } catch (error) {
+      console.error('Error fetching channel address:', error);
+    } finally {
+      setFetchLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSaveError('');
+    setSaveSuccess('');
+    try {
+      const token = localStorage.getItem('accessToken');
+      await axios.put(
+        `${API_BASE_URL}/media-dashboard/channel-address/${channelId}`,
+        { address_html: addressHtml },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setSaveSuccess('Address saved successfully.');
+    } catch (error) {
+      setSaveError('Failed to save address. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleImageUpload = async (
+    files: File[],
+    insertImage: (url: string, altText?: string) => void
+  ) => {
+    const token = localStorage.getItem('accessToken');
+    for (const file of files) {
+      try {
+        const fd = new FormData();
+        fd.append('image', file);
+        const res = await axios.post(
+          `${API_BASE_URL}/media-dashboard/channel-address/upload-image/${channelId}`,
+          fd,
+          { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' } }
+        );
+        if (res.data.success) {
+          insertImage(res.data.url, file.name.replace(/\.[^.]+$/, ''));
+        }
+      } catch (err) {
+        console.error('Address image upload failed:', err);
+      }
+    }
+  };
+
+  if (!channelInfo || fetchLoading) {
     return (
       <div className="flex justify-center py-12">
         <Loader2 className="animate-spin text-teal-600" size={32} />
@@ -1390,14 +1482,48 @@ export const AddressSection: React.FC<{ channelInfo: ChannelProfileInfo | null }
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-gray-800">Address</h2>
+
+      {/* Rich-text full address editor */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-4 py-3 bg-teal-50 border-b border-teal-100 text-sm text-teal-800">
-          Channel location details (read-only)
+        <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 text-sm font-medium text-gray-700">
+          Full Address / Description
+          <span className="ml-2 text-xs font-normal text-gray-500">
+            (supports rich formatting and embedded images)
+          </span>
         </div>
-        <div className="p-4 sm:p-6">
-          <ReadOnlyField label="Country" value={channelInfo.country?.country} />
-          <ReadOnlyField label="State" value={channelInfo.state?.state} />
-          <ReadOnlyField label="District" value={channelInfo.district?.district} />
+        <div className="p-4 sm:p-6 space-y-4">
+          {saveSuccess && (
+            <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
+              {saveSuccess}
+            </div>
+          )}
+          {saveError && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              {saveError}
+            </div>
+          )}
+
+          <SummernoteEditor
+            value={addressHtml}
+            onChange={setAddressHtml}
+            placeholder="Enter your full address, directions, or additional contact details..."
+            height={320}
+            onImageUpload={handleImageUpload}
+          />
+
+          <div className="flex items-center justify-between pt-1">
+            <p className="text-xs text-gray-400">
+              Use the toolbar to format text, add links, or upload images directly into the address field.
+            </p>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="px-5 py-2.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 flex items-center gap-2 text-sm font-medium transition-colors"
+            >
+              <Save size={15} />
+              {saving ? 'Saving…' : 'Save Address'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

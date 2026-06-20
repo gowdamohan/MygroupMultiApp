@@ -102,5 +102,17 @@ router.get('/comments/:channelId', authenticate, controller.getComments);
 router.post('/comments/:channelId', authenticate, controller.addComment);
 router.delete('/comments/:commentId', authenticate, controller.deleteComment);
 
+// ============================================
+// CHANNEL ADDRESS (Rich Text)
+// ============================================
+router.get('/channel-address/:channelId', authenticate, controller.getChannelAddress);
+router.put('/channel-address/:channelId', authenticate, controller.updateChannelAddress);
+router.post(
+  '/channel-address/upload-image/:channelId',
+  authenticate,
+  upload.single('image'),
+  controller.uploadAddressImage
+);
+
 export default router;
 
