@@ -54,7 +54,13 @@ const allowedOrigins = process.env.CORS_ORIGIN
   : ['http://localhost:3000'];
 
 // Add self (same origin) and any API backend URLs for CSP
-const cspConnectSrc = ["'self'", ...allowedOrigins];
+const cspConnectSrc = [
+  "'self'",
+  ...allowedOrigins,
+  // Allow Wasabi S3 object storage (all regions and buckets)
+  'https://*.wasabisys.com',
+  'https://s3.us-west-1.wasabisys.com',
+];
 
 // In production, allow connections to same origin (API is served from same server)
 // In development, allow localhost connections
