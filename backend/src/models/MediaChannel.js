@@ -91,6 +91,11 @@ const MediaChannel = sequelize.define('media_channel', {
     type: DataTypes.STRING(500),
     allowNull: true
   },
+  media_url: {
+    type: DataTypes.STRING(2048),
+    allowNull: true,
+    comment: 'Website or YouTube channel URL for Web/YouTube categories'
+  },
   periodical_type: {
     type: DataTypes.ENUM('Weekly', 'Bi-weekly', 'Fortnightly', 'Monthly', 'Bimonthly', 'Quarterly', 'Half-yearly', 'Annually', 'Yearly', 'Specialized', 'Seasonal', 'Others'),
     allowNull: true

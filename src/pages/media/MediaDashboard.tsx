@@ -5,7 +5,7 @@ import {
   ArrowLeft, User, MapPin, Share2, Eye, Send,
   DollarSign, Megaphone, FileText, Award, Newspaper, Image, Users,
   ChevronDown, ChevronRight, Menu, X, LogOut, Wifi, Calendar, Upload, MessageCircle,
-  ToggleLeft, ToggleRight, Edit3, Tv, BookOpen
+  ToggleLeft, ToggleRight, Edit3, Tv, BookOpen, ExternalLink, Link, AlertTriangle
 } from 'lucide-react';
 import { DocumentUpload } from './DocumentUpload';
 import { TimeTable } from './TimeTable';
@@ -22,7 +22,9 @@ import {
   GallerySection,
   TeamSection,
   ViewProfileSection,
-  AddressSection
+  AddressSection,
+  EarningsSection,
+  PromoteSection
 } from './MediaDashboardPages';
 import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
 import { toEmbedUrl, EMBED_IFRAME_PROPS } from '../../utils/mediaPlayback';
@@ -64,6 +66,7 @@ interface ChannelInfo {
   media_name_regional: string | null;
   media_logo: string | null;
   media_logo_url?: string | null;
+  media_url?: string | null;
   status?: string;
   is_active?: number;
   isActive?: boolean;
@@ -89,7 +92,30 @@ interface MainCategory {
 }
 
 // Tab items for the horizontal scroll bar
-type TabItem = 'output' | 'switcher' | 'preview' | 'offline';
+type TabItem = 'output' | 'switcher' | 'preview' | 'offline' | 'uplink';
+
+/**
+ * Detects whether a URL is hosted on a domain known to block iframe embedding
+ * via X-Frame-Options: SAMEORIGIN or Content-Security-Policy: frame-ancestors 'self'.
+ */
+const getEmbedBlockInfo = (url: string): { blocked: boolean; siteName: string; isYouTube: boolean } => {
+  const knownBlocked = [
+    { pattern: /youtube\.com|youtu\.be/i, name: 'YouTube', isYouTube: true },
+    { pattern: /google\.com/i, name: 'Google', isYouTube: false },
+    { pattern: /facebook\.com/i, name: 'Facebook', isYouTube: false },
+    { pattern: /instagram\.com/i, name: 'Instagram', isYouTube: false },
+    { pattern: /twitter\.com|x\.com/i, name: 'Twitter / X', isYouTube: false },
+    { pattern: /linkedin\.com/i, name: 'LinkedIn', isYouTube: false },
+    { pattern: /tiktok\.com/i, name: 'TikTok', isYouTube: false },
+    { pattern: /reddit\.com/i, name: 'Reddit', isYouTube: false },
+  ];
+  try {
+    const { hostname } = new URL(url);
+    const match = knownBlocked.find(b => b.pattern.test(hostname));
+    if (match) return { blocked: true, siteName: match.name, isYouTube: match.isYouTube };
+  } catch { /* invalid URL */ }
+  return { blocked: false, siteName: '', isYouTube: false };
+};
 
 interface SwitcherData {
   active_source: 'live' | 'mymedia' | 'offline';
@@ -161,9 +187,11 @@ export const MediaDashboard: React.FC = () => {
   const [uploadingOffline, setUploadingOffline] = useState(false);
   const [offlineFile, setOfflineFile] = useState<File | null>(null);
   const [offlineTitle, setOfflineTitle] = useState('');
-  const [offlineType, setOfflineType] = useState<'video' | 'audio'>('video');
+  const [offlineType, setOfflineType] = useState<'video' | 'audio' | 'image'>('video');
+  const [offlineAudioFile, setOfflineAudioFile] = useState<File | null>(null);
   const offlineFileRef = useRef<HTMLInputElement>(null);
   const offlineMediaFileRef = useRef<HTMLInputElement>(null); // For Offline Media tab
+  const offlineAudioFileRef = useRef<HTMLInputElement>(null);
   const [offlineUploadError, setOfflineUploadError] = useState<string | null>(null);
   const MAX_OFFLINE_FILE_SIZE = 500 * 1024 * 1024; // 500MB
   const [livePreviewLoaded, setLivePreviewLoaded] = useState(false);
@@ -433,6 +461,9 @@ export const MediaDashboard: React.FC = () => {
       fd.append('title', offlineTitle);
       fd.append('media_type', offlineType);
       fd.append('is_default', '0');
+      if (offlineType === 'image' && offlineAudioFile) {
+        fd.append('audio_file', offlineAudioFile);
+      }
 
       await axios.post(`${API_BASE_URL}/media-dashboard/offline-media/${channelId}`, fd, {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
@@ -442,8 +473,10 @@ export const MediaDashboard: React.FC = () => {
 
       setOfflineFile(null);
       setOfflineTitle('');
+      setOfflineAudioFile(null);
       if (offlineFileRef.current) offlineFileRef.current.value = '';
       if (offlineMediaFileRef.current) offlineMediaFileRef.current.value = '';
+      if (offlineAudioFileRef.current) offlineAudioFileRef.current.value = '';
       setOfflineUploadError(null);
       fetchOfflineMedia();
     } catch (error: any) {
@@ -495,7 +528,17 @@ export const MediaDashboard: React.FC = () => {
     isMagazineCategory(categoryCtx) && !isTVOrRadioCategory(categoryCtx);
   const showEPaperMenu =
     isEPaperCategory(categoryCtx) && !isMagazineCategory(categoryCtx);
-  const showTimeTableMenu = !printMedia;
+
+  const mediaTypeName = (
+    channelInfo?.media_type ||
+    channelInfo?.category?.category_name ||
+    ''
+  ).toLowerCase().trim();
+  const isTV = mediaTypeName === 'tv' || mediaTypeName.includes('television');
+  const isRadio = mediaTypeName === 'radio';
+  const isWebOrYouTube = mediaTypeName === 'web' || mediaTypeName === 'youtube';
+
+  const showTimeTableMenu = !printMedia && !isWebOrYouTube;
 
   const menuItems: MenuItem[] = [
     { id: 'back', label: 'Back to Channel List', icon: ArrowLeft, path: '/partner/my-channel-list' },
@@ -538,10 +581,16 @@ export const MediaDashboard: React.FC = () => {
   }, [location.pathname]);
 
   useEffect(() => {
-    if (printMedia && (activeTab === 'switcher' || activeTab === 'offline')) {
+    if (
+      (printMedia || isWebOrYouTube) &&
+      (activeTab === 'switcher' || activeTab === 'offline')
+    ) {
       setActiveTab('output');
     }
-  }, [printMedia, activeTab]);
+    if (!isWebOrYouTube && activeTab === 'uplink') {
+      setActiveTab('output');
+    }
+  }, [printMedia, isWebOrYouTube, activeTab]);
 
   const navigateToPrintUpload = () => {
     if (showMagazineMenu) {
@@ -603,6 +652,34 @@ export const MediaDashboard: React.FC = () => {
 
     const { active_source, live_url, mymedia_url, offlineMedia } = switcher;
 
+    // Radio: always display channel logo with audio player overlay
+    if (isRadio) {
+      const logoSrc = channelInfo?.media_logo_url ||
+        (channelInfo?.media_logo ? `${BACKEND_URL}${channelInfo.media_logo}` : null);
+      const audioSrc =
+        active_source === 'live' ? live_url :
+        active_source === 'mymedia' ? mymedia_url :
+        active_source === 'offline' ? offlineMedia?.media_file_url : null;
+      return (
+        <div className="relative w-full h-full bg-gray-900 flex flex-col items-center justify-center overflow-hidden">
+          {logoSrc ? (
+            <img src={logoSrc} alt={channelInfo?.media_name_english || 'Channel'} className="absolute inset-0 w-full h-full object-contain opacity-80" />
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Wifi className="text-gray-600" size={80} />
+            </div>
+          )}
+          <div className="relative z-10 w-4/5 max-w-sm bg-black/60 rounded-xl p-3 mt-auto mb-4">
+            {audioSrc ? (
+              <audio src={audioSrc} controls autoPlay className="w-full" />
+            ) : (
+              <p className="text-gray-400 text-xs text-center">No audio source selected</p>
+            )}
+          </div>
+        </div>
+      );
+    }
+
     if (active_source === 'live' && live_url) {
       return <iframe src={toEmbedUrl(live_url)} className="w-full h-full" {...EMBED_IFRAME_PROPS} />;
     }
@@ -611,12 +688,15 @@ export const MediaDashboard: React.FC = () => {
     }
     if (active_source === 'offline' && offlineMedia) {
       if (offlineMedia.media_type === 'video') {
-        return <video src={offlineMedia.media_file_url} controls className="w-full h-full object-cover" />;
+        return <video src={offlineMedia.media_file_url} controls autoPlay muted className="w-full h-full object-cover" />;
+      }
+      if (offlineMedia.media_type === 'image') {
+        return <img src={offlineMedia.media_file_url} className="w-full h-full object-contain bg-black" alt="Offline media" />;
       }
       return (
         <div className="relative w-full h-full flex items-center justify-center">
-          {offlineMedia.thumbnail_url && <img src={offlineMedia.thumbnail_url} className="absolute inset-0 w-full h-full object-cover opacity-50" />}
-          <audio src={offlineMedia.media_file_url} controls className="z-10" />
+          {offlineMedia.thumbnail_url && <img src={offlineMedia.thumbnail_url} className="absolute inset-0 w-full h-full object-cover opacity-50" alt="" />}
+          <audio src={offlineMedia.media_file_url} controls autoPlay className="z-10" />
         </div>
       );
     }
@@ -648,6 +728,8 @@ export const MediaDashboard: React.FC = () => {
     if (path.includes('/newsletter')) return <NewsletterSection />;
     if (path.includes('/gallery')) return <GallerySection />;
     if (path.includes('/team')) return <TeamSection />;
+    if (path.includes('/earnings')) return <EarningsSection />;
+    if (path.includes('/promote')) return <PromoteSection />;
     if (path.includes('/timetable')) return <TimeTable />;
     if (path.includes('/magazine') && channelId && channelInfo?.category_id) {
       return (
@@ -680,7 +762,7 @@ export const MediaDashboard: React.FC = () => {
               className={`px-6 py-2 font-bold text-sm transition-colors border-r border-gray-600 ${activeTab === 'output' ? 'bg-blue-600 text-white' : 'bg-gray-500 text-white hover:bg-gray-400'}`}>
               Output
             </button>
-            {!printMedia && (
+            {!printMedia && !isWebOrYouTube && (
               <button onClick={() => setActiveTab('switcher')}
                 className={`px-6 py-2 font-bold text-sm transition-colors border-r border-gray-600 ${activeTab === 'switcher' ? 'bg-green-600 text-white' : 'bg-gray-500 text-white hover:bg-gray-400'}`}>
                 Switcher
@@ -690,7 +772,13 @@ export const MediaDashboard: React.FC = () => {
               className={`px-6 py-2 font-bold text-sm transition-colors border-r border-gray-600 ${activeTab === 'preview' ? 'bg-blue-600 text-white' : 'bg-gray-500 text-white hover:bg-gray-400'}`}>
               Preview
             </button>
-            {!printMedia && (
+            {isWebOrYouTube && (
+              <button onClick={() => setActiveTab('uplink')}
+                className={`px-6 py-2 font-bold text-sm transition-colors border-r border-gray-600 ${activeTab === 'uplink' ? 'bg-teal-600 text-white' : 'bg-gray-500 text-white hover:bg-gray-400'}`}>
+                Uplink
+              </button>
+            )}
+            {!printMedia && !isWebOrYouTube && (
               <button onClick={() => setActiveTab('offline')}
                 className={`px-6 py-2 font-bold text-sm transition-colors ${activeTab === 'offline' ? 'bg-amber-600 text-white' : 'bg-gray-500 text-white hover:bg-gray-400'}`}>
                 Offline Media
@@ -719,6 +807,164 @@ export const MediaDashboard: React.FC = () => {
             formatCount={formatCount}
             onNavigateUpload={navigateToPrintUpload}
           />
+        ) : isWebOrYouTube && activeTab === 'output' ? (() => {
+          const embedInfo = channelInfo?.media_url ? getEmbedBlockInfo(channelInfo.media_url) : null;
+          return (
+            // WEB/YOUTUBE OUTPUT TAB - full-area iframe with embed-block detection
+            <div className="flex-1 flex bg-black min-h-0 flex-col">
+              {/* Iframe area fills available space */}
+              <div className="flex-1 relative overflow-hidden min-h-0">
+                {!channelInfo?.media_url ? (
+                  <div className="w-full h-full flex flex-col items-center justify-center text-gray-500 gap-3">
+                    <Link size={48} className="opacity-40" />
+                    <p className="text-sm">No URL configured for this channel.</p>
+                  </div>
+                ) : embedInfo?.blocked ? (
+                  <div className="w-full h-full flex flex-col items-center justify-center bg-gray-900 gap-4 px-6 text-center">
+                    <AlertTriangle className="text-yellow-400" size={48} />
+                    <div>
+                      <p className="text-white font-bold text-lg mb-1">
+                        {embedInfo.siteName} blocks iframe embedding
+                      </p>
+                      <p className="text-gray-400 text-sm max-w-lg">
+                        {embedInfo.siteName} uses <code className="bg-gray-800 px-1 rounded text-yellow-300">X-Frame-Options: SAMEORIGIN</code> or{' '}
+                        <code className="bg-gray-800 px-1 rounded text-yellow-300">Content-Security-Policy: frame-ancestors</code> headers that
+                        prevent embedding their pages inside iframes. This is a browser security restriction — it cannot be bypassed.
+                      </p>
+                    </div>
+                    {embedInfo.isYouTube && (
+                      <div className="bg-gray-800 rounded-lg p-4 text-left max-w-lg w-full border border-gray-700">
+                        <p className="text-yellow-300 font-semibold text-sm mb-2">For YouTube channels, use an embed URL instead:</p>
+                        <p className="text-gray-300 text-xs font-mono break-all bg-gray-900 rounded p-2">
+                          https://www.youtube.com/embed/live_stream?channel=YOUR_CHANNEL_ID
+                        </p>
+                        <p className="text-gray-500 text-xs mt-2">
+                          Or embed a specific video: <span className="font-mono">https://www.youtube.com/embed/VIDEO_ID</span>
+                        </p>
+                      </div>
+                    )}
+                    <a
+                      href={channelInfo.media_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-sm transition-colors"
+                    >
+                      <ExternalLink size={16} />
+                      Open {embedInfo.siteName} in New Tab
+                    </a>
+                  </div>
+                ) : (
+                  <iframe
+                    src={channelInfo.media_url}
+                    className="w-full h-full border-0"
+                    sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+                    title="Output Preview"
+                  />
+                )}
+              </div>
+              {/* URL info strip */}
+              <div className="flex-shrink-0 bg-gray-900 flex items-center gap-3 px-4 py-2 border-t border-gray-700">
+                <Link size={14} className="text-gray-400 flex-shrink-0" />
+                <span className="text-gray-300 text-xs truncate flex-1">{channelInfo?.media_url || '—'}</span>
+                {channelInfo?.media_url && (
+                  <a href={channelInfo.media_url} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-blue-400 hover:text-blue-300 text-xs flex-shrink-0">
+                    <ExternalLink size={12} /> Open
+                  </a>
+                )}
+              </div>
+            </div>
+          );
+        })()
+        : isWebOrYouTube && activeTab === 'preview' ? (() => {
+          const embedInfo = channelInfo?.media_url ? getEmbedBlockInfo(channelInfo.media_url) : null;
+          return (
+            // WEB/YOUTUBE PREVIEW TAB - full-screen scrollable iframe
+            <div className="flex-1 flex flex-col bg-black min-h-0">
+              <div className="flex-shrink-0 bg-gray-900 px-3 py-1.5 text-white font-bold text-sm border-b border-gray-700 flex items-center gap-2">
+                <span>Full Preview</span>
+                {channelInfo?.media_url && (
+                  <a href={channelInfo.media_url} target="_blank" rel="noopener noreferrer"
+                    className="ml-auto flex items-center gap-1 text-blue-400 hover:text-blue-300 text-xs font-normal">
+                    <ExternalLink size={12} />
+                    <span className="truncate max-w-[14rem]">{channelInfo.media_url}</span>
+                  </a>
+                )}
+              </div>
+              <div className="flex-1 overflow-hidden relative">
+                {embedInfo?.blocked ? (
+                  <div className="w-full h-full flex flex-col items-center justify-center bg-gray-900 gap-4 px-6 text-center">
+                    <AlertTriangle className="text-yellow-400" size={40} />
+                    <p className="text-white font-semibold">
+                      {embedInfo.siteName} cannot be previewed in-app
+                    </p>
+                    <p className="text-gray-400 text-sm max-w-md">
+                      This site blocks iframe embedding. Use the "Open" button to view it in a new browser tab.
+                    </p>
+                    {embedInfo.isYouTube && (
+                      <div className="bg-gray-800 rounded-lg p-3 text-left max-w-md w-full border border-gray-700 text-xs">
+                        <p className="text-yellow-300 font-semibold mb-1">Use a YouTube embed URL:</p>
+                        <p className="text-gray-300 font-mono break-all">https://www.youtube.com/embed/VIDEO_ID</p>
+                      </div>
+                    )}
+                    <a href={channelInfo?.media_url || '#'} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-sm">
+                      <ExternalLink size={16} /> Open in Browser
+                    </a>
+                  </div>
+                ) : channelInfo?.media_url ? (
+                  <iframe
+                    src={channelInfo.media_url}
+                    className="absolute inset-0 w-full h-full border-0"
+                    sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-top-navigation"
+                    title="Full Website Preview"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm">No URL configured.</div>
+                )}
+              </div>
+            </div>
+          );
+        })()
+        : isWebOrYouTube && activeTab === 'uplink' ? (
+          // UPLINK TAB - URL display + open button
+          <div className="flex-1 flex items-center justify-center bg-gray-800 min-h-0 p-6">
+            <div className="bg-gray-700 rounded-2xl border border-gray-600 p-8 max-w-xl w-full text-center space-y-5">
+              <div className="w-16 h-16 bg-teal-600 rounded-full flex items-center justify-center mx-auto">
+                <Link className="text-white" size={28} />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-white mb-1">Channel Uplink</h2>
+                <p className="text-gray-400 text-sm">Registered URL for this channel</p>
+              </div>
+              <div className="bg-gray-900 rounded-lg p-4 border border-gray-600 text-left">
+                {channelInfo?.media_url ? (
+                  <p className="text-blue-400 text-sm break-all font-mono leading-relaxed">{channelInfo.media_url}</p>
+                ) : (
+                  <p className="text-gray-500 text-sm text-center">No URL configured for this channel.</p>
+                )}
+              </div>
+              {channelInfo?.media_url && (
+                <a
+                  href={channelInfo.media_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-semibold text-sm transition-colors"
+                >
+                  <ExternalLink size={18} />
+                  Open in Browser
+                </a>
+              )}
+              {channelInfo?.media_url && getEmbedBlockInfo(channelInfo.media_url).blocked && (
+                <div className="flex items-start gap-2 bg-yellow-900/40 border border-yellow-700/50 rounded-lg p-3 text-left">
+                  <AlertTriangle className="text-yellow-400 mt-0.5 flex-shrink-0" size={16} />
+                  <p className="text-yellow-300 text-xs">
+                    This site blocks in-app previews. The Output and Preview tabs will show a warning. Use "Open in Browser" to view the full site.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
         ) : activeTab === 'output' ? (
           // OUTPUT TAB - Video + Interactions + Comments
           <div className="flex-1 flex bg-black min-h-0">
@@ -847,7 +1093,7 @@ export const MediaDashboard: React.FC = () => {
               <div className="bg-gray-800 px-3 py-1.5 text-white font-bold text-sm border-b border-gray-600">Other stream url</div>
               <div className="p-2 space-y-2">
                 <input type="text" value={previewLiveUrl} onChange={(e) => { const v = e.target.value; setPreviewLiveUrl(v); setLivePreviewLoaded(prev => (v === previewLiveUrl ? prev : false)); }} placeholder="YouTube, live stream, or embed URL" className="w-full px-2 py-1.5 text-xs rounded border border-gray-500 bg-gray-600 text-white placeholder-gray-400" />
-                <div className="bg-black relative h-[80px] border border-gray-600 rounded overflow-hidden">
+                <div className={`bg-black relative border border-gray-600 rounded overflow-hidden ${isTV ? 'h-[160px]' : 'h-[80px]'}`}>
                   {previewLiveUrl.trim() ? (
                     <iframe src={toEmbedUrl(previewLiveUrl)} className="w-full h-full" {...EMBED_IFRAME_PROPS} onLoad={() => setLivePreviewLoaded(true)} />
                   ) : (
@@ -859,24 +1105,26 @@ export const MediaDashboard: React.FC = () => {
                 </button>
               </div>
               <div className="bg-red-600 text-white text-center py-0.5 font-bold text-xs">Output</div>
-              <div className="mx-2 mb-2 bg-black relative h-[60px] border border-gray-600 rounded overflow-hidden">
+              <div className={`mx-2 mb-2 bg-black relative border border-gray-600 rounded overflow-hidden ${isTV ? 'h-[100px]' : 'h-[60px]'}`}>
                 {switcher?.live_url ? (
                   <iframe src={toEmbedUrl(switcher.live_url)} className="w-full h-full" {...EMBED_IFRAME_PROPS} />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-gray-500 text-xs">Not saved yet</div>
                 )}
               </div>
-              <button onClick={() => handleSetActiveSource('live')} className={`mx-2 mb-2 py-1 text-sm font-bold rounded ${switcher?.active_source === 'live' ? 'bg-green-600 text-white' : 'bg-gray-500 text-white hover:bg-gray-400'}`}>
-                {switcher?.active_source === 'live' ? 'On Air' : 'Set as Output'}
-              </button>
+              {!isTV && (
+                <button onClick={() => handleSetActiveSource('live')} className={`mx-2 mb-2 py-1 text-sm font-bold rounded ${switcher?.active_source === 'live' ? 'bg-green-600 text-white' : 'bg-gray-500 text-white hover:bg-gray-400'}`}>
+                  {switcher?.active_source === 'live' ? 'On Air' : 'Set as Output'}
+                </button>
+              )}
             </div>
 
             {/* Column 2 - Mystream Url */}
             <div className="flex-1 flex flex-col min-w-0 bg-gray-700 rounded-lg overflow-hidden border-2 border-gray-500">
               <div className="bg-gray-800 px-3 py-1.5 text-white font-bold text-sm border-b border-gray-600">Mystream_Url</div>
               <div className="p-2 space-y-2">
-                <input type="text" value={previewMymediaUrl} onChange={(e) => { const v = e.target.value; setPreviewMymediaUrl(v); setMymediaPreviewLoaded(prev => (v === previewMymediaUrl ? prev : false)); }} placeholder="YouTube, live stream, or embed URL" className="w-full px-2 py-1.5 text-xs rounded border border-gray-500 bg-gray-600 text-white placeholder-gray-400" />
-                <div className="bg-black relative h-[80px] border border-gray-600 rounded overflow-hidden">
+                <input type="text" value={previewMymediaUrl} onChange={(e) => { const v = e.target.value; setPreviewMymediaUrl(v); setMymediaPreviewLoaded(prev => (v === previewMymediaUrl ? prev : false)); }} placeholder={isTV ? 'Live Stream Id' : 'YouTube, live stream, or embed URL'} className="w-full px-2 py-1.5 text-xs rounded border border-gray-500 bg-gray-600 text-white placeholder-gray-400" />
+                <div className={`bg-black relative border border-gray-600 rounded overflow-hidden ${isTV ? 'h-[160px]' : 'h-[80px]'}`}>
                   {previewMymediaUrl.trim() ? (
                     <iframe src={toEmbedUrl(previewMymediaUrl)} className="w-full h-full" {...EMBED_IFRAME_PROPS} onLoad={() => setMymediaPreviewLoaded(true)} />
                   ) : (
@@ -888,16 +1136,18 @@ export const MediaDashboard: React.FC = () => {
                 </button>
               </div>
               <div className="bg-red-600 text-white text-center py-0.5 font-bold text-xs">Output</div>
-              <div className="mx-2 mb-2 bg-black relative h-[60px] border border-gray-600 rounded overflow-hidden">
+              <div className={`mx-2 mb-2 bg-black relative border border-gray-600 rounded overflow-hidden ${isTV ? 'h-[100px]' : 'h-[60px]'}`}>
                 {switcher?.mymedia_url ? (
                   <iframe src={toEmbedUrl(switcher.mymedia_url)} className="w-full h-full" {...EMBED_IFRAME_PROPS} />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-gray-500 text-xs">Not saved yet</div>
                 )}
               </div>
-              <button onClick={() => handleSetActiveSource('mymedia')} className={`mx-2 mb-2 py-1 text-sm font-bold rounded ${switcher?.active_source === 'mymedia' ? 'bg-green-600 text-white' : 'bg-gray-500 text-white hover:bg-gray-400'}`}>
-                {switcher?.active_source === 'mymedia' ? 'On Air' : 'Set as Output'}
-              </button>
+              {!isTV && (
+                <button onClick={() => handleSetActiveSource('mymedia')} className={`mx-2 mb-2 py-1 text-sm font-bold rounded ${switcher?.active_source === 'mymedia' ? 'bg-green-600 text-white' : 'bg-gray-500 text-white hover:bg-gray-400'}`}>
+                  {switcher?.active_source === 'mymedia' ? 'On Air' : 'Set as Output'}
+                </button>
+              )}
             </div>
 
             {/* Column 3 - Offline Media (dropdown + preview + Submit; uploads in Offline Media tab) */}
@@ -914,7 +1164,8 @@ export const MediaDashboard: React.FC = () => {
                   {(() => {
                     const sel = offlineMediaList.find(m => m.id === selectedOfflineId);
                     if (!sel) return <div className="text-amber-600 text-xs">Select media to preview</div>;
-                    if (sel.media_type === 'video') return <video src={sel.media_file_url} key={sel.id} className="w-full h-full object-contain" controls />;
+                    if (sel.media_type === 'image') return <img src={sel.media_file_url} className="w-full h-full object-contain" alt={sel.title} />;
+                    if (sel.media_type === 'video') return <video src={sel.media_file_url} key={sel.id} muted preload="auto" className="w-full h-full object-contain" controls />;
                     return (
                       <div key={sel.id} className="relative w-full h-full">
                         {sel.thumbnail_url && <img src={sel.thumbnail_url} className="absolute inset-0 w-full h-full object-cover opacity-60" alt="" />}
@@ -924,64 +1175,143 @@ export const MediaDashboard: React.FC = () => {
                   })()}
                 </div>
                 <button onClick={() => selectedOfflineId && handleSetActiveSource('offline', selectedOfflineId)} disabled={!selectedOfflineId} className="w-full bg-amber-400 text-amber-900 py-1.5 font-bold text-sm rounded hover:bg-amber-500 disabled:opacity-50">
-                  Submit / Set as Output
+                  Submit
                 </button>
               </div>
               <div className="bg-red-600 text-white text-center py-0.5 font-bold text-xs">Output</div>
               <div className="mx-2 mb-2 bg-amber-50 relative h-[60px] border border-amber-300 rounded overflow-hidden flex items-center justify-center">
                 {switcher?.active_source === 'offline' && switcher?.offlineMedia ? (
                   switcher.offlineMedia.media_type === 'video' ? (
-                    <video src={switcher.offlineMedia.media_file_url} className="w-full h-full object-contain" controls />
+                    <video src={switcher.offlineMedia.media_file_url} muted className="w-full h-full object-contain" />
                   ) : switcher.offlineMedia.thumbnail_url ? (
                     <img src={switcher.offlineMedia.thumbnail_url} className="w-full h-full object-cover" alt="Offline" />
                   ) : (
                     <span className="text-amber-600 text-xs">Playing</span>
                   )
                 ) : switcher?.offline_media_id ? (
-                  (() => { const m = offlineMediaList.find(x => x.id === switcher.offline_media_id); return m ? (m.media_type === 'video' ? <video src={m.media_file_url} className="w-full h-full object-contain" controls /> : <img src={m.thumbnail_url} className="w-full h-full object-cover" alt="" />) : <span className="text-amber-500 text-xs">Saved</span>; })()
+                  (() => { const m = offlineMediaList.find(x => x.id === switcher.offline_media_id); return m ? (m.media_type === 'video' ? <video src={m.media_file_url} muted className="w-full h-full object-contain" /> : <img src={m.thumbnail_url || m.media_file_url} className="w-full h-full object-cover" alt="" />) : <span className="text-amber-500 text-xs">Saved</span>; })()
                 ) : (
                   <div className="text-amber-500 text-xs">Not on output</div>
                 )}
               </div>
-              <button onClick={() => selectedOfflineId && handleSetActiveSource('offline', selectedOfflineId)} className={`mx-2 mb-2 py-1 text-sm font-bold rounded ${switcher?.active_source === 'offline' ? 'bg-green-600 text-white' : 'bg-amber-400 text-amber-900 hover:bg-amber-500'}`}>
-                {switcher?.active_source === 'offline' ? 'On Air' : 'Set as Output'}
-              </button>
+              {!isTV && (
+                <button onClick={() => selectedOfflineId && handleSetActiveSource('offline', selectedOfflineId)} className={`mx-2 mb-2 py-1 text-sm font-bold rounded ${switcher?.active_source === 'offline' ? 'bg-green-600 text-white' : 'bg-amber-400 text-amber-900 hover:bg-amber-500'}`}>
+                  {switcher?.active_source === 'offline' ? 'On Air' : 'Set as Output'}
+                </button>
+              )}
             </div>
           </div>
         ) : activeTab === 'offline' ? (
-          // OFFLINE MEDIA TAB - Upload form
-          <div className="flex-1 flex bg-gray-600 min-h-0 p-4 overflow-auto">
-            <div className="max-w-xl w-full bg-amber-50 rounded-lg border-2 border-amber-400 p-6 shadow-lg">
-              <h2 className="text-xl font-bold text-amber-900 mb-4">Upload Offline Media</h2>
-              <p className="text-sm text-amber-800 mb-4">Upload video or audio files (max 500MB). Files will appear in the Preview tab dropdown.</p>
+          // OFFLINE MEDIA TAB - Upload form (TV: Image/Video + queue list; Radio: Image only; others: Video/Audio)
+          <div className={`flex-1 flex bg-gray-600 min-h-0 p-4 gap-4 overflow-auto ${isTV ? '' : ''}`}>
+            {/* Upload Form */}
+            <div className={`bg-amber-50 rounded-lg border-2 border-amber-400 p-6 shadow-lg flex-shrink-0 ${isTV ? 'w-96' : 'max-w-xl w-full'}`}>
+              <h2 className="text-xl font-bold text-amber-900 mb-2">Upload Offline Media</h2>
+              <p className="text-sm text-amber-800 mb-4">
+                {isTV
+                  ? 'Upload image or video files (max 500MB).'
+                  : isRadio
+                  ? 'Upload image files (max 500MB).'
+                  : 'Upload video or audio files (max 500MB).'}
+              </p>
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-amber-900 mb-1">Title</label>
                   <input type="text" value={offlineTitle} onChange={(e) => setOfflineTitle(e.target.value)} placeholder="Enter media title" className="w-full px-3 py-2 rounded border border-amber-400 bg-white text-gray-800 focus:ring-2 focus:ring-amber-500" />
                 </div>
+                {/* Media Type selector — restricted per category */}
+                {!isRadio && (
+                  <div>
+                    <label className="block text-sm font-medium text-amber-900 mb-1">Media Type</label>
+                    <select
+                      value={offlineType}
+                      onChange={(e) => { setOfflineType(e.target.value as 'video' | 'audio' | 'image'); setOfflineFile(null); setOfflineAudioFile(null); }}
+                      className="w-full px-3 py-2 rounded border border-amber-400 bg-white text-gray-800"
+                    >
+                      {isTV ? (
+                        <>
+                          <option value="image">Image</option>
+                          <option value="video">Video</option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="video">Video</option>
+                          <option value="audio">Audio</option>
+                        </>
+                      )}
+                    </select>
+                  </div>
+                )}
+                {/* Primary file upload */}
                 <div>
-                  <label className="block text-sm font-medium text-amber-900 mb-1">Media Type</label>
-                  <select value={offlineType} onChange={(e) => setOfflineType(e.target.value as 'video' | 'audio')} className="w-full px-3 py-2 rounded border border-amber-400 bg-white text-gray-800">
-                    <option value="video">Video</option>
-                    <option value="audio">Audio</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-amber-900 mb-1">File (video or audio, max 500MB)</label>
-                  <input ref={offlineMediaFileRef} type="file" accept="video/*,audio/*" onChange={handleOfflineFileChange} className="w-full px-3 py-2 text-sm border border-amber-400 rounded bg-white file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-amber-400 file:text-amber-900 file:font-bold file:cursor-pointer" />
+                  <label className="block text-sm font-medium text-amber-900 mb-1">
+                    {isRadio ? 'Image File' : offlineType === 'image' ? 'Image File' : offlineType === 'video' ? 'Video File (max 500MB)' : 'Audio File (max 500MB)'}
+                  </label>
+                  <input
+                    ref={offlineMediaFileRef}
+                    type="file"
+                    accept={isRadio || offlineType === 'image' ? 'image/*' : offlineType === 'video' ? 'video/*' : 'audio/*'}
+                    onChange={handleOfflineFileChange}
+                    className="w-full px-3 py-2 text-sm border border-amber-400 rounded bg-white file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-amber-400 file:text-amber-900 file:font-bold file:cursor-pointer"
+                  />
                   {offlineFile && <p className="mt-1 text-xs text-amber-700">Selected: {offlineFile.name} ({(offlineFile.size / (1024 * 1024)).toFixed(2)} MB)</p>}
                 </div>
+                {/* Optional audio upload when Image is selected (TV or Radio) */}
+                {((isTV && offlineType === 'image') || isRadio) && (
+                  <div>
+                    <label className="block text-sm font-medium text-amber-900 mb-1">Audio File <span className="text-amber-500 font-normal">(optional)</span></label>
+                    <input
+                      ref={offlineAudioFileRef}
+                      type="file"
+                      accept="audio/*"
+                      onChange={(e) => setOfflineAudioFile(e.target.files?.[0] || null)}
+                      className="w-full px-3 py-2 text-sm border border-amber-400 rounded bg-white file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-amber-200 file:text-amber-900 file:font-bold file:cursor-pointer"
+                    />
+                    {offlineAudioFile && <p className="mt-1 text-xs text-amber-700">Audio: {offlineAudioFile.name}</p>}
+                  </div>
+                )}
                 {offlineUploadError && (
                   <div className="p-3 rounded bg-red-100 text-red-700 text-sm">{offlineUploadError}</div>
                 )}
-                <button onClick={handleUploadOfflineMedia} disabled={uploadingOffline || !offlineFile || !offlineTitle.trim() || (offlineFile?.size || 0) > MAX_OFFLINE_FILE_SIZE} className="w-full bg-amber-500 text-amber-900 py-3 font-bold rounded hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed">
+                <button
+                  onClick={handleUploadOfflineMedia}
+                  disabled={uploadingOffline || !offlineFile || !offlineTitle.trim() || (offlineFile?.size || 0) > MAX_OFFLINE_FILE_SIZE}
+                  className="w-full bg-amber-500 text-amber-900 py-3 font-bold rounded hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
                   {uploadingOffline ? 'Uploading...' : 'Upload'}
                 </button>
               </div>
-              {offlineMediaList.length > 0 && (
-                <p className="mt-4 text-sm text-amber-700">You have {offlineMediaList.length} offline media file(s). Select them in the Preview tab to set as output.</p>
-              )}
             </div>
+            {/* Queue List (TV only — vertical list of uploaded media) */}
+            {isTV && offlineMediaList.length > 0 && (
+              <div className="flex-1 bg-gray-700 rounded-lg border border-gray-600 overflow-hidden flex flex-col">
+                <div className="bg-gray-800 px-4 py-2 text-white font-bold text-sm border-b border-gray-600">
+                  Media Queue ({offlineMediaList.length})
+                </div>
+                <div className="flex-1 overflow-y-auto divide-y divide-gray-600">
+                  {offlineMediaList.map((m) => (
+                    <div key={m.id} className="flex items-center gap-3 px-3 py-2 hover:bg-gray-600 transition-colors">
+                      <div className="w-16 h-12 rounded overflow-hidden bg-gray-900 flex-shrink-0 flex items-center justify-center">
+                        {m.media_type === 'video' ? (
+                          <video src={m.media_file_url} muted className="w-full h-full object-cover" />
+                        ) : m.media_type === 'image' || m.thumbnail_url || m.media_file_url?.match(/\.(jpe?g|png|gif|webp)(\?|$)/i) ? (
+                          <img src={m.thumbnail_url || m.media_file_url} className="w-full h-full object-cover" alt={m.title} />
+                        ) : (
+                          <div className="text-gray-500 text-xs text-center">Audio</div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white text-sm font-medium truncate">{m.title}</p>
+                        <p className="text-gray-400 text-xs capitalize">{m.media_type}</p>
+                      </div>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${switcher?.offline_media_id === m.id ? 'bg-green-600 text-white' : 'bg-gray-600 text-gray-300'}`}>
+                        {switcher?.offline_media_id === m.id ? 'Active' : 'Idle'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           // SWITCHER TAB - Main output + visual switcher + preview panels
@@ -989,9 +1319,23 @@ export const MediaDashboard: React.FC = () => {
             <div className="flex-1 flex flex-col">
               <div className="flex-1 bg-gray-900 relative min-h-[250px] border-2 border-gray-500">{renderMedia()}</div>
               <div className="flex gap-2 mt-2">
-                <button onClick={() => handleSetActiveSource('live')} className={`flex-1 py-2 font-bold text-center ${switcher?.active_source === 'live' ? 'bg-blue-600 text-white' : 'bg-gray-400 text-gray-800'}`}>Band</button>
-                <button onClick={() => handleSetActiveSource('mymedia')} className={`flex-1 py-2 font-bold text-center ${switcher?.active_source === 'mymedia' ? 'bg-blue-600 text-white' : 'bg-gray-400 text-gray-800'}`}>Video</button>
-                <button onClick={() => (selectedOfflineId ?? switcher?.offline_media_id ?? offlineMediaList[0]?.id) && handleSetActiveSource('offline', selectedOfflineId ?? switcher?.offline_media_id ?? offlineMediaList[0]?.id!)} className={`flex-1 py-2 font-bold text-center ${switcher?.active_source === 'offline' ? 'bg-red-600 text-white' : 'bg-gray-400 text-gray-800'}`}>Audio</button>
+                <button
+                  onClick={() => !isTV && handleSetActiveSource('live')}
+                  disabled={isTV}
+                  className={`flex-1 py-2 font-bold text-center ${isTV ? 'opacity-40 cursor-not-allowed bg-gray-400 text-gray-600' : switcher?.active_source === 'live' ? 'bg-blue-600 text-white' : 'bg-gray-400 text-gray-800 hover:bg-gray-300'}`}
+                >Band</button>
+                {!isRadio && (
+                  <button
+                    onClick={() => !isTV && handleSetActiveSource('mymedia')}
+                    disabled={isTV}
+                    className={`flex-1 py-2 font-bold text-center ${isTV ? 'opacity-40 cursor-not-allowed bg-gray-400 text-gray-600' : switcher?.active_source === 'mymedia' ? 'bg-blue-600 text-white' : 'bg-gray-400 text-gray-800 hover:bg-gray-300'}`}
+                  >Video</button>
+                )}
+                <button
+                  onClick={() => { if (!isTV) { const id = selectedOfflineId ?? switcher?.offline_media_id ?? offlineMediaList[0]?.id; if (id) handleSetActiveSource('offline', id); } }}
+                  disabled={isTV || !offlineMediaList.length}
+                  className={`flex-1 py-2 font-bold text-center ${isTV ? 'opacity-40 cursor-not-allowed bg-gray-400 text-gray-600' : switcher?.active_source === 'offline' ? 'bg-red-600 text-white' : 'bg-gray-400 text-gray-800 hover:bg-gray-300'}`}
+                >Audio</button>
               </div>
               <div className="flex gap-2 mt-2">
                 <div className="flex-1 bg-gray-800 h-16 flex items-center justify-center"><Wifi className="text-gray-400" size={24} /></div>
@@ -1082,11 +1426,6 @@ export const MediaDashboard: React.FC = () => {
               )}
             </div>
           </div>
-          {sidebarOpen && mainCategories.length > 0 && (
-            <div className="px-3 py-2 border-b border-teal-700">
-              <p className="text-xs font-semibold text-teal-300 uppercase tracking-wider mb-2">My Channels</p>
-            </div>
-          )}
           <div className="flex-1 overflow-y-auto py-4 px-3"><nav className="space-y-1">{menuItems.map(item => renderMenuItem(item))}</nav></div>
           <div className="p-3 border-t border-teal-700">
             <button onClick={() => navigate('/partner/my-channel-list')} className="w-full flex items-center gap-3 px-3 py-2.5 text-teal-300 hover:bg-teal-700 rounded-lg transition-colors">
@@ -1132,7 +1471,7 @@ export const MediaDashboard: React.FC = () => {
         </div>
 
         {/* Global partner header ads + scrolling text */}
-        <div className="flex-shrink-0 h-48 md:h-56">
+        <div className="flex-shrink-0 h-52">
           <PartnerHeader fallbackMarqueeText="Welcome to Media Dashboard" />
         </div>
 

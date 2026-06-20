@@ -289,7 +289,7 @@ const PdfPageSlot = memo<PdfPageSlotProps>(({
     <div
       ref={slotRef}
       className="relative mb-3 mx-auto bg-white shadow-lg"
-      style={{ width: cssW, height: cssH }}
+      style={{ width: cssW, height: cssH, maxWidth: '100%' }}
       data-page-num={pageNum}
     >
       {/* Layout placeholder — visible immediately */}
@@ -378,24 +378,37 @@ export const PdfDocumentViewer: React.FC<PdfDocumentViewerProps> = ({
     setReaderMode(true);
   }, []);
 
-  /* Track scroll-container width for fit-to-width scaling */
+  /* Track scroll-container width for fit-to-width scaling.
+     Run immediately on mount so containerW is set before the PDF finishes loading,
+     and again whenever the element resizes (e.g. sidebar toggle, panel resize). */
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
 
-    const measure = () => setContainerW(el.clientWidth || window.innerWidth - 16);
+    // Subtract 2px safety margin — avoids sub-pixel rounding causing a
+    // 1-pixel overflow that triggers a horizontal scrollbar and causes
+    // a ResizeObserver feedback loop (the "width enlarges after load" bug).
+    const measure = () =>
+      setContainerW(Math.max(0, (el.clientWidth || window.innerWidth - 16) - 2));
     measure();
 
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [loading, pdfDoc]);
+  }, []); // run once on mount; ResizeObserver keeps it live
 
   /* ── Load PDF + page dimensions (no canvas rendering) ─────────── */
   useEffect(() => {
-    const pdfUrl = documentId
-      ? getDocumentStreamUrl(documentId)
-      : getUploadUrl(src || '');
+    // Prefer the pre-resolved src URL when it is already an absolute HTTP/S URL
+    // (e.g. Wasabi signed URL returned by the API). This avoids the extra
+    // backend→Wasabi round-trip that makes the stream endpoint slow.
+    // Fall back to the stream endpoint only when src is a relative/local path,
+    // because those paths require the backend to serve them (CORS / auth).
+    const pdfUrl = (() => {
+      if (src && (src.startsWith('http://') || src.startsWith('https://'))) return src;
+      if (documentId) return getDocumentStreamUrl(documentId);
+      return getUploadUrl(src || '');
+    })();
 
     if (!pdfUrl) {
       setError('No document URL available');
@@ -600,7 +613,7 @@ export const PdfDocumentViewer: React.FC<PdfDocumentViewerProps> = ({
         {/* ── Scroll area ── */}
         <div
           ref={scrollRef}
-          className="flex-1 overflow-auto overscroll-contain min-h-0 bg-gray-700 relative"
+          className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain min-h-0 bg-gray-700 relative"
           style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y' } as React.CSSProperties}
           aria-label={title}
         >
@@ -619,7 +632,7 @@ export const PdfDocumentViewer: React.FC<PdfDocumentViewerProps> = ({
           )}
 
           {!loading && !error && pdfDoc && containerW > 0 && pageDims.length > 0 && (
-            <div className="py-4 px-2 flex flex-col items-center" style={pagesColumnStyle}>
+            <div className="py-4 flex flex-col items-center" style={pagesColumnStyle}>
               {pageDims.map((dim, i) => (
                 <PdfPageSlot
                   key={`p-${i + 1}`}

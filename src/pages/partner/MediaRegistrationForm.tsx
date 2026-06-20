@@ -78,6 +78,11 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
     category.category_name.toLowerCase().includes('e-paper') ||
     category.category_name.toLowerCase().includes('epaper');
 
+  // Check if category requires a URL (Web or YouTube)
+  const isWebOrYouTube =
+    category.category_name.toLowerCase() === 'web' ||
+    category.category_name.toLowerCase() === 'youtube';
+
   // Form data
   const [selectType, setSelectType] = useState<SelectType>('National');
   const [countries, setCountries] = useState<Country[]>([]);
@@ -97,6 +102,7 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
     languageId: '',
     mediaNameEnglish: '',
     mediaNameRegional: '',
+    mediaUrl: '',
     mediaLogo: null as File | null,
     periodicalType: '' as PeriodicalType | '',
     periodicalSchedule: {} as any
@@ -250,11 +256,36 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
     });
   };
 
+  const isValidUrl = (url: string): boolean => {
+    try {
+      const parsed = new URL(url);
+      return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
     setSuccess('');
+
+    if (isWebOrYouTube) {
+      const urlLabel = category.category_name.toLowerCase() === 'youtube'
+        ? 'YouTube Channel URL'
+        : 'Website URL';
+      if (!formData.mediaUrl.trim()) {
+        setError(`${urlLabel} is required.`);
+        setLoading(false);
+        return;
+      }
+      if (!isValidUrl(formData.mediaUrl.trim())) {
+        setError(`Please enter a valid ${urlLabel} (must start with http:// or https://).`);
+        setLoading(false);
+        return;
+      }
+    }
 
     try {
       const token = localStorage.getItem('accessToken');
@@ -290,6 +321,10 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
 
       if (formData.mediaLogo) {
         submitData.append('media_logo', formData.mediaLogo);
+      }
+
+      if (isWebOrYouTube && formData.mediaUrl) {
+        submitData.append('media_url', formData.mediaUrl.trim());
       }
 
       // Add periodical data for Magazine category_type
@@ -774,6 +809,33 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
               placeholder="Enter media name in regional language"
             />
           </div>
+
+          {/* Website / YouTube URL — only for Web and YouTube categories */}
+          {isWebOrYouTube && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {category.category_name.toLowerCase() === 'youtube'
+                  ? 'YouTube Channel URL'
+                  : 'Website URL'}{' '}
+                <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="url"
+                value={formData.mediaUrl}
+                onChange={(e) => setFormData({ ...formData, mediaUrl: e.target.value })}
+                required
+                placeholder={
+                  category.category_name.toLowerCase() === 'youtube'
+                    ? 'https://youtube.com/@yourchannel'
+                    : 'https://example.com'
+                }
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Enter the full URL including https://
+              </p>
+            </div>
+          )}
 
           {/* Media Logo */}
           <div>

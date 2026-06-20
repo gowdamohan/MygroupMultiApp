@@ -1342,6 +1342,42 @@ export const ViewProfileSection: React.FC<{ channelInfo: ChannelProfileInfo | nu
   );
 };
 
+// ============================================
+// EARNINGS SECTION (Coming Soon)
+// ============================================
+export const EarningsSection: React.FC = () => (
+  <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4 text-center">
+    <div className="w-24 h-24 rounded-full bg-yellow-100 flex items-center justify-center mb-4">
+      <svg className="w-12 h-12 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    </div>
+    <h2 className="text-3xl font-bold text-gray-800">Earnings</h2>
+    <p className="text-lg text-yellow-600 font-semibold">Coming Soon</p>
+    <p className="text-gray-500 max-w-md">
+      Your earnings dashboard is under development. You'll be able to track revenue, payouts, and monetization analytics here.
+    </p>
+  </div>
+);
+
+// ============================================
+// PROMOTE SECTION (Coming Soon)
+// ============================================
+export const PromoteSection: React.FC = () => (
+  <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4 text-center">
+    <div className="w-24 h-24 rounded-full bg-pink-100 flex items-center justify-center mb-4">
+      <svg className="w-12 h-12 text-pink-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+      </svg>
+    </div>
+    <h2 className="text-3xl font-bold text-gray-800">Promote</h2>
+    <p className="text-lg text-pink-600 font-semibold">Coming Soon</p>
+    <p className="text-gray-500 max-w-md">
+      Promotion and advertising tools are on the way. Boost your channel's reach and grow your audience here.
+    </p>
+  </div>
+);
+
 export const AddressSection: React.FC<{ channelInfo: ChannelProfileInfo | null }> = ({ channelInfo }) => {
   if (!channelInfo) {
     return (

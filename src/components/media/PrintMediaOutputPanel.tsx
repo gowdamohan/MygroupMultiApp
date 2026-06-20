@@ -295,13 +295,14 @@ export const PrintMediaOutputPanel: React.FC<PrintMediaOutputPanelProps> = ({
 
   if (activeTab === 'output') {
     return (
-      <div className="flex-1 flex bg-black min-h-0">
-        <div className="flex-1 flex flex-col">
-          <div className="flex-1 bg-gray-900 relative min-h-[250px]">
+      <div className="flex-1 flex bg-black min-h-0 overflow-hidden">
+        <div className="flex-1 flex flex-col min-w-0 min-h-0">
+          {/* flex-1 + min-h-0 lets the PDF area shrink inside the flex column */}
+          <div className="flex-1 bg-gray-900 relative min-h-0 overflow-hidden">
             {loading ? (
-              <div className="w-full h-full flex items-center justify-center text-gray-500">Loading issue...</div>
+              <div className="absolute inset-0 flex items-center justify-center text-gray-500">Loading issue…</div>
             ) : (
-              renderPdfViewer(activeDoc, 'min-h-[250px]')
+              renderPdfViewer(activeDoc, 'absolute inset-0 w-full h-full')
             )}
           </div>
           {statsBar}
@@ -313,8 +314,8 @@ export const PrintMediaOutputPanel: React.FC<PrintMediaOutputPanelProps> = ({
 
   // Preview tab — month/year navigation and per-issue selection
   return (
-    <div className="flex-1 flex bg-gray-600 min-h-0 p-4 gap-4 overflow-auto">
-      <div className="flex-1 flex flex-col bg-white rounded-xl shadow-lg overflow-hidden min-w-0">
+    <div className="flex-1 flex bg-gray-600 min-h-0 p-4 gap-4 overflow-hidden">
+      <div className="flex-1 flex flex-col bg-white rounded-xl shadow-lg overflow-hidden min-w-0 min-h-0">
         <div className="bg-teal-700 text-white px-4 py-3 flex flex-wrap items-center gap-4">
           <span className="font-bold">Preview — Browse by Month</span>
           <div className="flex items-center gap-2 ml-auto">
@@ -339,7 +340,7 @@ export const PrintMediaOutputPanel: React.FC<PrintMediaOutputPanelProps> = ({
           </div>
         </div>
 
-        <div className="flex flex-1 min-h-0 flex-col md:flex-row">
+        <div className="flex flex-1 min-h-0 flex-col md:flex-row overflow-hidden">
           <div className="md:w-56 border-r border-gray-200 p-3 overflow-y-auto bg-gray-50">
             <p className="text-xs font-semibold text-gray-500 uppercase mb-2">{monthLabel}</p>
             {loading ? (
@@ -393,16 +394,18 @@ export const PrintMediaOutputPanel: React.FC<PrintMediaOutputPanelProps> = ({
               </div>
             )}
           </div>
-          <div className="flex-1 min-h-[300px] bg-gray-100">
-            {renderPdfViewer(activeDoc, 'min-h-[300px]')}
+          {/* Main viewer — takes remaining width/height */}
+          <div className="flex-1 min-h-0 overflow-hidden bg-gray-100">
+            {renderPdfViewer(activeDoc, 'w-full h-full')}
           </div>
         </div>
       </div>
 
       <div className="w-72 flex flex-col gap-3">
         <div className="bg-red-600 text-white text-center py-2 font-bold rounded-lg">Output</div>
+        {/* min-h-0 lets flex-1 shrink; explicit min-h keeps it usable */}
         <div className="flex-1 bg-gray-900 rounded-lg overflow-hidden min-h-[200px] border-2 border-red-500">
-          {renderPdfViewer(activeDoc)}
+          {renderPdfViewer(activeDoc, 'w-full h-full')}
         </div>
         <p className="text-xs text-white text-center">
           Selected issue will appear on the Output tab for {monthLabel}

@@ -282,6 +282,7 @@ export const createMediaChannel = async (req, res) => {
       language_id,
       media_name_english,
       media_name_regional,
+      media_url,
       periodical_type,
       periodical_schedule,
       distribution_districts
@@ -399,6 +400,7 @@ export const createMediaChannel = async (req, res) => {
       media_name_english,
       media_name_regional: media_name_regional || null,
       media_logo: mediaLogoPath,
+      media_url: media_url || null,
       periodical_type: periodical_type || null,
       periodical_schedule: periodical_schedule ? JSON.parse(periodical_schedule) : null,
       distribution_districts: parsedDistributionDistricts,
@@ -445,6 +447,7 @@ export const getMyChannels = async (req, res) => {
         'periodical_type',
         'periodical_schedule',
         'media_logo',
+        'media_url',
         'media_name_english',
         'media_name_regional',
         'status',
