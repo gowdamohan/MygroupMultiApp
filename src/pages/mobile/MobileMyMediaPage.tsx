@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { ChevronDown, X, Eye, Heart, UserPlus, FileText, Play, MapPin } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
@@ -128,9 +128,15 @@ function formatTime12h(time24: string): string {
 /** 4 days for TV/Radio: Yesterday, Today, Tomorrow, Day after tomorrow (day_of_week 0–6 for API) */
 const SCHEDULE_DAY_LABELS = ['Yesterday', 'Today', 'Tomorrow', 'Day after tomorrow'] as const;
 
+type ViewMode = 'list' | 'channel-detail' | 'epaper-view' | 'tv-player';
+type ChannelLayout = 'grid' | 'list';
+
+const VIEW_MODES: ViewMode[] = ['list', 'channel-detail', 'epaper-view', 'tv-player'];
+
 export const MobileMyMediaPage: React.FC = () => {
   // Get app name from URL params (e.g., /mobile/mymedia or /mobile/mycompany)
   const { appName } = useParams<{ appName?: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // App info state
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
@@ -181,11 +187,72 @@ export const MobileMyMediaPage: React.FC = () => {
   const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
 
-  // View state for channel details
-  type ViewMode = 'list' | 'channel-detail' | 'epaper-view' | 'tv-player';
-  const [viewMode, setViewMode] = useState<ViewMode>('list');
-  const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
-  const [tvPlayback, setTvPlayback] = useState<TvPlaybackContext | null>(null);
+  const [channelLayout, setChannelLayout] = useState<ChannelLayout>('grid');
+
+  const toggleChannelLayout = () => {
+    setChannelLayout((prev) => (prev === 'grid' ? 'list' : 'grid'));
+  };
+
+  const adLocation = useMemo(
+    () => ({
+      countryId: selectedCountry || null,
+      stateId: selectedState || null,
+      districtId: selectedDistrict || null,
+    }),
+    [selectedCountry, selectedState, selectedDistrict]
+  );
+
+  const channelIdFromUrl = searchParams.get('id');
+  const viewFromUrl = searchParams.get('view');
+
+  const selectedChannel = useMemo((): Channel | null => {
+    if (!channelIdFromUrl) return null;
+    const id = parseInt(channelIdFromUrl, 10);
+    if (Number.isNaN(id)) return null;
+    return channels.find((c) => c.id === id) ?? null;
+  }, [channelIdFromUrl, channels]);
+
+  const viewMode = useMemo((): ViewMode => {
+    if (!viewFromUrl || viewFromUrl === 'list' || !channelIdFromUrl || !selectedChannel) {
+      return 'list';
+    }
+    if (VIEW_MODES.includes(viewFromUrl as ViewMode)) {
+      return viewFromUrl as ViewMode;
+    }
+    return 'list';
+  }, [viewFromUrl, channelIdFromUrl, selectedChannel]);
+
+  const tvPlayback = useMemo((): TvPlaybackContext | null => {
+    if (viewMode !== 'tv-player') return null;
+    const programTitle = searchParams.get('program') || undefined;
+    const mediaFile = searchParams.get('mediaFile') || undefined;
+    const mediaFileUrl = searchParams.get('mediaFileUrl') || undefined;
+    if (!programTitle && !mediaFile && !mediaFileUrl) return null;
+    return { programTitle, mediaFile, mediaFileUrl };
+  }, [viewMode, searchParams]);
+
+  const updateViewSearchParams = (
+    mode: ViewMode,
+    channel: Channel | null,
+    playback?: TvPlaybackContext | null
+  ) => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('view');
+    next.delete('id');
+    next.delete('program');
+    next.delete('mediaFile');
+    next.delete('mediaFileUrl');
+
+    if (mode !== 'list' && channel) {
+      next.set('view', mode);
+      next.set('id', String(channel.id));
+      if (playback?.programTitle) next.set('program', playback.programTitle);
+      if (playback?.mediaFile) next.set('mediaFile', playback.mediaFile);
+      if (playback?.mediaFileUrl) next.set('mediaFileUrl', playback.mediaFileUrl);
+    }
+
+    setSearchParams(next);
+  };
 
   const getCurrentParentCategoryName = (): string => {
     const parent = parentCategories.find(p => p.id === selectedParentCategory);
@@ -199,16 +266,14 @@ export const MobileMyMediaPage: React.FC = () => {
     return categoryNameIncludesTV(name) || categoryNameIncludesRadio(name);
   };
 
+  const resolveChannelViewMode = (): ViewMode => {
+    if (isDocumentCategory()) return 'epaper-view';
+    if (isStreamCategory()) return 'tv-player';
+    return 'channel-detail';
+  };
+
   const handleChannelClick = (channel: Channel, playback?: TvPlaybackContext) => {
-    setSelectedChannel(channel);
-    setTvPlayback(playback ?? null);
-    if (isDocumentCategory()) {
-      setViewMode('epaper-view');
-    } else if (isStreamCategory()) {
-      setViewMode('tv-player');
-    } else {
-      setViewMode('channel-detail');
-    }
+    updateViewSearchParams(resolveChannelViewMode(), channel, playback ?? null);
   };
 
   const handleScheduleSlotClick = (
@@ -229,14 +294,36 @@ export const MobileMyMediaPage: React.FC = () => {
   };
 
   const handleBackToList = () => {
-    setViewMode('list');
-    setSelectedChannel(null);
-    setTvPlayback(null);
+    updateViewSearchParams('list', null);
   };
 
   // Handle view channel details from player/document view
   const handleViewChannelDetails = () => {
-    setViewMode('channel-detail');
+    if (selectedChannel) {
+      updateViewSearchParams('channel-detail', selectedChannel);
+    }
+  };
+
+  const renderChannelLogo = (channel: Channel, className: string) => {
+    const logoSrc =
+      channel.media_logo_url ||
+      (channel.media_logo?.startsWith('http') ? channel.media_logo : `${BACKEND_URL}${channel.media_logo}`);
+
+    if (channel.media_logo_url || channel.media_logo) {
+      return (
+        <img
+          src={logoSrc}
+          alt={channel.media_name_english}
+          className={className}
+        />
+      );
+    }
+
+    return (
+      <div className={`${className} bg-gradient-to-br from-gray-100 to-gray-200 rounded flex items-center justify-center text-xs font-bold text-gray-600`}>
+        {channel.media_name_english.substring(0, 2).toUpperCase()}
+      </div>
+    );
   };
 
   // Fetch app info first, then categories
@@ -689,6 +776,10 @@ export const MobileMyMediaPage: React.FC = () => {
           appInfoFromParent={!!appInfo}
           appInfo={appInfo ?? null}
           selectedCategoryId={selectedParentCategory}
+          adLocation={adLocation}
+          showLayoutToggle={true}
+          channelLayout={channelLayout}
+          onChannelLayoutToggle={toggleChannelLayout}
           darkMode={darkMode}
           onDarkModeToggle={toggleDarkMode}
           showTopIcons={true}
@@ -752,6 +843,10 @@ export const MobileMyMediaPage: React.FC = () => {
         appInfoFromParent={!!appInfo}
         appInfo={appInfo ?? null}
         selectedCategoryId={selectedParentCategory}
+        adLocation={adLocation}
+        showLayoutToggle={true}
+        channelLayout={channelLayout}
+        onChannelLayoutToggle={toggleChannelLayout}
         darkMode={darkMode}
         onDarkModeToggle={toggleDarkMode}
         showTopIcons={true}
@@ -856,6 +951,7 @@ export const MobileMyMediaPage: React.FC = () => {
             <p>No channels found for the selected filters</p>
           </div>
         ) : isDocumentCategory() ? (
+          channelLayout === 'grid' ? (
           /* E-Paper / Magazine Card Grid - Updated design */
           <div className="p-4 grid grid-cols-2 gap-4 bg-gray-50">
             {channels.map((channel) => (
@@ -897,7 +993,47 @@ export const MobileMyMediaPage: React.FC = () => {
               </div>
             ))}
           </div>
+          ) : (
+          <div className="bg-white divide-y divide-gray-200">
+            {channels.map((channel) => (
+              <div
+                key={channel.id}
+                onClick={() => handleChannelClick(channel)}
+                className="flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-50 transition-colors"
+              >
+                <div className="w-16 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100 relative">
+                  {(channel.media_logo_url || channel.media_logo) ? (
+                    <img
+                      src={channel.media_logo_url || (channel.media_logo?.startsWith('http') ? channel.media_logo : `${BACKEND_URL}${channel.media_logo}`)}
+                      alt={channel.media_name_english}
+                      className="w-full h-full object-contain p-2"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-pink-100 to-pink-200">
+                      <FileText size={28} className="text-pink-400" />
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-gray-900 text-sm truncate">{channel.media_name_english}</h3>
+                  {channel.latest_document?.title && (
+                    <p className="text-xs text-teal-700 truncate mt-0.5 font-medium">
+                      {channel.latest_document.title}
+                    </p>
+                  )}
+                  {channel.media_name_regional && (
+                    <p className="text-xs text-gray-600 truncate mt-0.5">{channel.media_name_regional}</p>
+                  )}
+                  <span className="inline-block mt-1 text-xs font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full">
+                    {channel.select_type}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+          )
         ) : isStreamCategory() ? (
+          channelLayout === 'grid' ? (
           /* TV / Radio Schedule Grid: 48 time slots (30-min), 12h display, NOW marker on Today */
           (() => {
             const now = new Date();
@@ -1004,7 +1140,43 @@ export const MobileMyMediaPage: React.FC = () => {
               </div>
             );
           })()
-        ) : (
+          ) : (
+          <div className="bg-white divide-y divide-gray-200">
+            {channels.map((channel) => {
+              const schedules = channelSchedules[channel.id] || [];
+              const currentProgram = schedules[0]?.title;
+              return (
+                <div
+                  key={channel.id}
+                  onClick={() => handleChannelClick(channel)}
+                  className="flex items-center gap-3 p-3 cursor-pointer hover:bg-pink-50/40 transition-colors"
+                >
+                  <div className="relative flex-shrink-0">
+                    {renderChannelLogo(channel, 'w-16 h-12 object-contain')}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center">
+                        <Play size={16} className="text-white ml-0.5" fill="white" />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-gray-900 text-sm truncate">{channel.media_name_english}</h3>
+                    {channel.media_name_regional && (
+                      <p className="text-xs text-gray-600 truncate mt-0.5">{channel.media_name_regional}</p>
+                    )}
+                    {currentProgram && (
+                      <p className="text-xs text-teal-700 truncate mt-1 font-medium">{currentProgram}</p>
+                    )}
+                  </div>
+                  <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full flex-shrink-0">
+                    {channel.select_type}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          )
+        ) : channelLayout === 'grid' ? (
           /* Default Card Grid for other categories (Web, Youtube, etc.) - Updated design */
           <div className="p-4 grid grid-cols-2 gap-4 bg-gray-50">
             {channels.map((channel) => (
@@ -1033,6 +1205,39 @@ export const MobileMyMediaPage: React.FC = () => {
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full">{channel.select_type}</span>
                   </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="bg-white divide-y divide-gray-200">
+            {channels.map((channel) => (
+              <div
+                key={channel.id}
+                onClick={() => handleChannelClick(channel)}
+                className="flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-50 transition-colors"
+              >
+                <div className="w-16 h-12 flex-shrink-0 rounded-lg overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
+                  {(channel.media_logo_url || channel.media_logo) ? (
+                    <img
+                      src={channel.media_logo_url || (channel.media_logo?.startsWith('http') ? channel.media_logo : `${BACKEND_URL}${channel.media_logo}`)}
+                      alt={channel.media_name_english}
+                      className="w-full h-full object-contain p-2"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-400 to-pink-500 flex items-center justify-center text-white text-lg font-bold shadow-lg">
+                      {channel.media_name_english?.charAt(0)}
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-gray-900 text-sm truncate">{channel.media_name_english}</h3>
+                  {channel.media_name_regional && (
+                    <p className="text-xs text-gray-600 truncate mt-0.5">{channel.media_name_regional}</p>
+                  )}
+                  <span className="inline-block mt-1 text-xs font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full">
+                    {channel.select_type}
+                  </span>
                 </div>
               </div>
             ))}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { User, ChevronLeft, ChevronRight, X, Search, Menu, Sun, Moon, Settings } from 'lucide-react';
+import { User, ChevronLeft, ChevronRight, X, Search, Menu, Sun, Moon, Settings, LayoutGrid, List } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { API_BASE_URL, BACKEND_URL, getUploadUrl, resolveProfileImageUrl, WASABI_IMG_PROPS } from '../../config/api.config';
@@ -165,6 +165,16 @@ interface MobileHeaderProps {
     query: string;
     results: MobileSearchResult[];
   }) => void;
+  /** Optional page-level location for carousel ad targeting (e.g. MyMedia filters). */
+  adLocation?: {
+    countryId?: number | string | null;
+    stateId?: number | string | null;
+    districtId?: number | string | null;
+  };
+  /** Show grid/list layout toggle in the profile bar (mobile). */
+  showLayoutToggle?: boolean;
+  channelLayout?: 'grid' | 'list';
+  onChannelLayoutToggle?: () => void;
   // Customization options for different apps
   showTopIcons?: boolean;
   showAds?: boolean;
@@ -198,6 +208,10 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
   onLogout,
   onProfileUpdate: externalOnProfileUpdate,
   onSearchStateChange,
+  adLocation,
+  showLayoutToggle = false,
+  channelLayout = 'grid',
+  onChannelLayoutToggle,
   showTopIcons = true,
   showAds = true,
   showDarkModeToggle = true,
@@ -408,15 +422,33 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
     }
   }, [appName, selectedApp]);
 
+  const resolveAdLocation = useCallback(
+    (profile?: UserProfileData): UserProfileData | undefined => {
+      if (adLocation?.countryId) {
+        return {
+          set_country: Number(adLocation.countryId),
+          set_state: adLocation.stateId ? Number(adLocation.stateId) : undefined,
+          set_district: adLocation.districtId ? Number(adLocation.districtId) : undefined,
+          country: Number(adLocation.countryId),
+          state: adLocation.stateId ? Number(adLocation.stateId) : undefined,
+          district: adLocation.districtId ? Number(adLocation.districtId) : undefined,
+        };
+      }
+      return getLocationFromProfile(profile);
+    },
+    [adLocation?.countryId, adLocation?.stateId, adLocation?.districtId],
+  );
+
   // Fetch carousel ads — app/category context + user location from registration profile
   const fetchAds = useCallback(async (id?: number, profile?: UserProfileData, categoryId?: number | null) => {
     if (!id) return;
-    try {
+
+    const requestCarouselAds = async (catId?: number | null) => {
       const params = new URLSearchParams();
       params.append('app_id', id.toString());
-      if (categoryId != null) params.append('category_id', categoryId.toString());
+      if (catId != null) params.append('category_id', catId.toString());
 
-      const location = getLocationFromProfile(profile);
+      const location = resolveAdLocation(profile);
       if (location?.set_country) params.append('country_id', String(location.set_country));
       if (location?.set_state) params.append('state_id', String(location.set_state));
       if (location?.set_district) params.append('district_id', String(location.set_district));
@@ -427,22 +459,40 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
 
-      if (response.data.success) {
-        const formattedAds = response.data.data.map((ad: any) => ({
-          id: ad.id,
-          image: resolveAdImageUrl(ad),
-          title: ad.title || 'Advertisement',
-          url: ad.url || '#'
-        }));
-        setAds(formattedAds);
+      if (!response.data.success || !Array.isArray(response.data.data)) {
+        return [];
       }
+
+      return response.data.data.map((ad: {
+        id: number;
+        title?: string;
+        url?: string;
+        signed_url?: string;
+        image?: string;
+        file_path?: string;
+        file_url?: string;
+      }) => ({
+        id: ad.id,
+        image: resolveAdImageUrl(ad),
+        title: ad.title || 'Advertisement',
+        url: ad.url || '#',
+      }));
+    };
+
+    try {
+      let formattedAds = await requestCarouselAds(categoryId);
+      // TV/Radio and other categories may have no category-specific bookings — show app-level ads
+      if (formattedAds.length === 0 && categoryId != null) {
+        formattedAds = await requestCarouselAds(null);
+      }
+      setAds(formattedAds);
     } catch (error) {
       console.error('Error fetching carousel ads:', error);
       setAds([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [resolveAdLocation]);
 
   const initializingRef = React.useRef(false);
   const lastAppNameRef = React.useRef<string | undefined>(undefined);
@@ -496,6 +546,9 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
     externalUserProfile,
     internalUserProfile,
     fetchAds,
+    adLocation?.countryId,
+    adLocation?.stateId,
+    adLocation?.districtId,
   ]);
 
   // Auto-rotate carousel
@@ -1081,6 +1134,18 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                   >
                     {showSearchInput ? <X size={18} /> : <Search size={18} />}
                   </button>
+                  {showLayoutToggle && onChannelLayoutToggle && (
+                    <button
+                      type="button"
+                      onClick={onChannelLayoutToggle}
+                      aria-label={channelLayout === 'grid' ? 'Switch to list view' : 'Switch to grid view'}
+                      className={`${MOBILE_ACTION_BTN} ${
+                        channelLayout === 'list' ? 'bg-red-500 text-white' : 'bg-white text-gray-700'
+                      }`}
+                    >
+                      {channelLayout === 'grid' ? <LayoutGrid size={18} /> : <List size={18} />}
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={handleAppNameClick}
