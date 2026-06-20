@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import { X, User, Lock, Phone, Eye, EyeOff } from 'lucide-react';
 import axios from 'axios';
 import { RegisterStep2Form } from './RegisterStep2Form';
@@ -12,6 +13,7 @@ interface AuthModalProps {
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, allowClose = false }) => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -36,7 +38,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, allowClos
   // User ID for Step 2 registration
   const [userId, setUserId] = useState<number | null>(null);
 
-  if (!isOpen) return null;
+  const redirectToMyMedia = () => {
+    onClose();
+    navigate('/mobile/mymedia');
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,9 +88,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, allowClos
           console.error('Error checking profile:', profileErr);
         }
 
-        // Profile complete or error checking - proceed to home
-        onClose();
-        window.location.reload();
+        // Profile complete or error checking - redirect to My Media
+        redirectToMyMedia();
       }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Login failed. Please try again.');
@@ -161,6 +165,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, allowClos
     setRegistrationStep(1);
     setError('');
   };
+
+  if (!isOpen) return null;
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black bg-opacity-50 p-4">
