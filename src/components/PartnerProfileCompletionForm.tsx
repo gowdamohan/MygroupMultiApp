@@ -10,20 +10,6 @@ const IMAGE_ACCEPT = 'image/jpeg,image/jpg,image/png';
 const DOC_ACCEPT = 'image/jpeg,image/jpg,image/png,application/pdf';
 const MAX_FILE_MB = 5;
 
-const BUSINESS_CATEGORIES = [
-  'Media & Broadcasting',
-  'Advertising & Marketing',
-  'Technology',
-  'Retail',
-  'Healthcare',
-  'Education',
-  'Finance',
-  'Real Estate',
-  'Hospitality',
-  'Manufacturing',
-  'Other'
-];
-
 const NATIONALITIES = ['Indian', 'American', 'British', 'Canadian', 'Australian', 'Other'];
 const GENDERS = ['Male', 'Female', 'Other'];
 const MARITAL_STATUSES = ['Single', 'Married', 'Divorced', 'Widowed'];
@@ -35,7 +21,7 @@ export interface PartnerProfileCompletionFormProps {
   variant?: 'onboarding' | 'edit';
 }
 
-type SectionKey = 'owner' | 'company' | 'taxation';
+type SectionKey = 'owner' | 'company';
 
 interface ProfileFormData {
   name: string;
@@ -137,11 +123,9 @@ export const PartnerProfileCompletionForm: React.FC<PartnerProfileCompletionForm
   const [registrationSummary, setRegistrationSummary] = useState<RegistrationSummary>({ fields: [] });
   const [editingSections, setEditingSections] = useState<Record<SectionKey, boolean>>({
     owner: false,
-    company: false,
-    taxation: false
+    company: false
   });
 
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [idProofFile, setIdProofFile] = useState<File | null>(null);
   const [addressProofFile, setAddressProofFile] = useState<File | null>(null);
@@ -157,9 +141,11 @@ export const PartnerProfileCompletionForm: React.FC<PartnerProfileCompletionForm
   const isGloballyReadOnly = isProfileLocked;
   const showOnboardingHeader = variant === 'onboarding' || !isActiveAccount;
 
-  const fetchProfile = useCallback(async () => {
+  const fetchProfile = useCallback(async (options?: { silent?: boolean }) => {
     try {
-      setLoading(true);
+      if (!options?.silent) {
+        setLoading(true);
+      }
       const token = localStorage.getItem('accessToken');
       const headers = { Authorization: `Bearer ${token}` };
 
@@ -221,7 +207,9 @@ export const PartnerProfileCompletionForm: React.FC<PartnerProfileCompletionForm
     } catch (err) {
       console.error('Error fetching partner profile:', err);
     } finally {
-      setLoading(false);
+      if (!options?.silent) {
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -235,7 +223,7 @@ export const PartnerProfileCompletionForm: React.FC<PartnerProfileCompletionForm
 
   useEffect(() => {
     if (currentStatus === 'pending') {
-      setEditingSections({ owner: true, company: true, taxation: true });
+      setEditingSections({ owner: true, company: true });
     }
   }, [currentStatus]);
 
@@ -291,26 +279,20 @@ export const PartnerProfileCompletionForm: React.FC<PartnerProfileCompletionForm
     if (section === 'company') {
       if (!formData.display_name.trim()) next.display_name = 'Company display name is required';
       if (!formData.company_name.trim()) next.company_name = 'Company name is required';
-      if (!formData.company_registration) {
-        next.company_registration = 'Business type/category is required';
-      }
-      if (!logoFile && !existing.logo_signed_url) {
-        next.logo = 'Logo upload is required';
-      }
-      if (!photoFile && !existing.photo_signed_url) {
-        next.photo = 'Company photo is required';
-      }
-    }
-
-    if (section === 'taxation') {
       if (!formData.company_taxation.trim()) {
-        next.company_taxation = 'Tax type is required (e.g. GST/VAT/TIN)';
+        next.company_taxation = 'Taxation details are required (e.g. GST/VAT/TIN)';
       }
       if (
         compTaxDocFiles.length === 0 &&
         (!existing.company_taxation_docs || existing.company_taxation_docs.length === 0)
       ) {
         next.company_taxation_docs = 'At least one taxation document is required';
+      }
+      if (!logoFile && !existing.logo_signed_url) {
+        next.logo = 'Logo upload is required';
+      }
+      if (!formData.company_registration.trim()) {
+        next.company_registration = 'Registration number is required';
       }
     }
 
@@ -326,32 +308,68 @@ export const PartnerProfileCompletionForm: React.FC<PartnerProfileCompletionForm
   const validateAllSections = (): boolean => {
     const next = {
       ...getSectionErrors('owner'),
-      ...getSectionErrors('company'),
-      ...getSectionErrors('taxation')
+      ...getSectionErrors('company')
     };
     setErrors(next);
     return Object.keys(next).length === 0;
   };
 
-  const buildFormData = (): FormData => {
+  const buildFormData = (section?: SectionKey | 'all', submitForVerification = false): FormData => {
     const fd = new FormData();
-    const textFields: (keyof ProfileFormData)[] = [
+
+    const ownerTextFields: (keyof ProfileFormData)[] = [
       'name', 'father_name', 'mother_name', 'mobile_no', 'email_id',
       'address', 'dob', 'nationality', 'gender', 'marital_status',
-      'education', 'other_details', 'display_name',
-      'company_name', 'company_registration', 'company_taxation'
+      'education', 'other_details'
     ];
-    textFields.forEach(key => fd.append(key, formData[key] || ''));
+    const companyTextFields: (keyof ProfileFormData)[] = [
+      'display_name', 'company_name', 'company_registration', 'company_taxation'
+    ];
 
-    if (photoFile) fd.append('photo', photoFile);
-    if (logoFile) fd.append('logo', logoFile);
-    if (idProofFile) fd.append('id_proof', idProofFile);
-    if (addressProofFile) fd.append('address_proof', addressProofFile);
-    otherDocFiles.forEach(f => fd.append('other_documents', f));
-    compRegDocFiles.forEach(f => fd.append('company_registration_docs', f));
-    compTaxDocFiles.forEach(f => fd.append('company_taxation_docs', f));
+    const appendTextFields = (fields: (keyof ProfileFormData)[]) => {
+      fields.forEach(key => fd.append(key, formData[key] || ''));
+    };
+
+    if (section === 'owner') {
+      fd.append('section', 'owner');
+      appendTextFields(ownerTextFields);
+      if (idProofFile) fd.append('id_proof', idProofFile);
+      if (addressProofFile) fd.append('address_proof', addressProofFile);
+      otherDocFiles.forEach(f => fd.append('other_documents', f));
+    } else if (section === 'company') {
+      fd.append('section', 'company');
+      appendTextFields(companyTextFields);
+      if (logoFile) fd.append('logo', logoFile);
+      compRegDocFiles.forEach(f => fd.append('company_registration_docs', f));
+      compTaxDocFiles.forEach(f => fd.append('company_taxation_docs', f));
+    } else {
+      appendTextFields([...ownerTextFields, ...companyTextFields]);
+      if (logoFile) fd.append('logo', logoFile);
+      if (idProofFile) fd.append('id_proof', idProofFile);
+      if (addressProofFile) fd.append('address_proof', addressProofFile);
+      otherDocFiles.forEach(f => fd.append('other_documents', f));
+      compRegDocFiles.forEach(f => fd.append('company_registration_docs', f));
+      compTaxDocFiles.forEach(f => fd.append('company_taxation_docs', f));
+    }
+
+    if (submitForVerification) {
+      fd.append('submit_for_verification', 'true');
+    }
 
     return fd;
+  };
+
+  const clearSectionFileState = (section: SectionKey | 'all') => {
+    if (section === 'owner' || section === 'all') {
+      setIdProofFile(null);
+      setAddressProofFile(null);
+      setOtherDocFiles([]);
+    }
+    if (section === 'company' || section === 'all') {
+      setLogoFile(null);
+      setCompRegDocFiles([]);
+      setCompTaxDocFiles([]);
+    }
   };
 
   const saveSection = async (section: SectionKey) => {
@@ -362,26 +380,21 @@ export const PartnerProfileCompletionForm: React.FC<PartnerProfileCompletionForm
     setSaving(section);
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await axios.post(`${API_BASE_URL}/partner/owner-details`, buildFormData(), {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data'
-        }
-      });
+      const response = await axios.post(
+        `${API_BASE_URL}/partner/owner-details`,
+        buildFormData(section),
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
 
       if (response.data.success) {
-        setSuccess(`${section === 'owner' ? 'Owner' : section === 'company' ? 'Company' : 'Taxation'} details saved successfully.`);
-        setCurrentStatus('submitted');
-        onStatusChange?.('submitted');
+        setSuccess(`${section === 'owner' ? 'Owner' : 'Company'} details saved successfully.`);
+        if (response.data.registration_status) {
+          setCurrentStatus(response.data.registration_status);
+          onStatusChange?.(response.data.registration_status);
+        }
         setEditingSections(prev => ({ ...prev, [section]: false }));
-        setPhotoFile(null);
-        setLogoFile(null);
-        setIdProofFile(null);
-        setAddressProofFile(null);
-        setOtherDocFiles([]);
-        setCompRegDocFiles([]);
-        setCompTaxDocFiles([]);
-        await fetchProfile();
+        clearSectionFileState(section);
+        await fetchProfile({ silent: true });
       }
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { message?: string } } };
@@ -400,26 +413,21 @@ export const PartnerProfileCompletionForm: React.FC<PartnerProfileCompletionForm
     setSaving('all');
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await axios.post(`${API_BASE_URL}/partner/owner-details`, buildFormData(), {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data'
-        }
-      });
+      const response = await axios.post(
+        `${API_BASE_URL}/partner/owner-details`,
+        buildFormData('all', true),
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
 
       if (response.data.success) {
         setSuccess('Profile submitted successfully! Your account will be verified within 24 working hours.');
-        setCurrentStatus('submitted');
-        onStatusChange?.('submitted');
-        setEditingSections({ owner: false, company: false, taxation: false });
-        setPhotoFile(null);
-        setLogoFile(null);
-        setIdProofFile(null);
-        setAddressProofFile(null);
-        setOtherDocFiles([]);
-        setCompRegDocFiles([]);
-        setCompTaxDocFiles([]);
-        await fetchProfile();
+        if (response.data.registration_status) {
+          setCurrentStatus(response.data.registration_status);
+          onStatusChange?.(response.data.registration_status);
+        }
+        setEditingSections({ owner: false, company: false });
+        clearSectionFileState('all');
+        await fetchProfile({ silent: true });
       }
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { message?: string } } };
@@ -590,7 +598,7 @@ export const PartnerProfileCompletionForm: React.FC<PartnerProfileCompletionForm
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Edit Profile</h2>
           <p className="text-sm text-gray-600 mt-1">
-            Update your owner, company, and taxation details below.
+            Update your owner and company details below.
           </p>
         </div>
       ) : showOnboardingHeader ? (
@@ -651,17 +659,17 @@ export const PartnerProfileCompletionForm: React.FC<PartnerProfileCompletionForm
           )}
 
           <div className="grid grid-cols-12 gap-6 items-start">
-            {/* Left sidebar — profile summary, company & taxation */}
+            {/* Left sidebar — registration summary & company details */}
             <div className="col-span-12 lg:col-span-6 space-y-6 lg:sticky lg:top-6">
               {renderProfileSummary()}
 
-              {/* Company Details */}
+              {/* Company Details (includes taxation) */}
               <div
                 className={`rounded-xl shadow-sm border p-5 space-y-4 ${sectionHeaderClass(isSectionVerified)} ${
                   isSectionVerified ? 'border-green-300' : 'border-gray-200'
                 }`}
               >
-                {renderSectionHeader('Company Details', 'Business identity and branding', 'company')}
+                {renderSectionHeader('Company Details', 'Company, taxation, and registration information', 'company')}
 
                 <div className="space-y-4">
                   <div>
@@ -700,24 +708,68 @@ export const PartnerProfileCompletionForm: React.FC<PartnerProfileCompletionForm
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Registration Type <span className="text-red-500">*</span>
+                      Taxation Details <span className="text-red-500">*</span>
                     </label>
-                    <select
-                      name="company_registration"
-                      value={formData.company_registration}
+                    <input
+                      type="text"
+                      name="company_taxation"
+                      value={formData.company_taxation}
                       onChange={handleChange}
                       disabled={sectionDisabled('company')}
-                      className={`${inputClass} ${errors.company_registration ? 'border-red-500' : ''}`}
-                    >
-                      <option value="">Select registration type</option>
-                      {BUSINESS_CATEGORIES.map(cat => (
-                        <option key={cat} value={cat}>{cat}</option>
-                      ))}
-                    </select>
-                    {errors.company_registration && (
-                      <p className="mt-1 text-xs text-red-600">{errors.company_registration}</p>
+                      placeholder="e.g. GST, VAT, TIN"
+                      className={`${inputClass} ${errors.company_taxation ? 'border-red-500' : ''}`}
+                    />
+                    {errors.company_taxation && (
+                      <p className="mt-1 text-xs text-red-600">{errors.company_taxation}</p>
                     )}
                   </div>
+
+                  {existing.company_taxation_docs && existing.company_taxation_docs.length > 0 && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Taxation Documents
+                      </label>
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {existing.company_taxation_docs.map((doc, idx) => (
+                          <div
+                            key={idx}
+                            className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded text-xs"
+                          >
+                            <FileText size={12} />
+                            <a
+                              href={doc.signed_url || '#'}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="hover:underline"
+                            >
+                              {doc.name}
+                            </a>
+                            {!sectionDisabled('company') && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteDoc('company_taxation_docs', doc.path)}
+                                className="text-red-500 hover:text-red-700"
+                              >
+                                <X size={12} />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <MultiFileUpload
+                    label="Taxation Documents (Multiple Upload)"
+                    accept={DOC_ACCEPT}
+                    maxSize={MAX_FILE_MB}
+                    value={compTaxDocFiles}
+                    onChange={setCompTaxDocFiles}
+                    disabled={sectionDisabled('company')}
+                    required
+                    error={errors.company_taxation_docs}
+                    helperText="JPG, PNG, or PDF — multiple files allowed"
+                  />
 
                   <div>
                     {existing.logo_signed_url && !logoFile && (
@@ -741,24 +793,21 @@ export const PartnerProfileCompletionForm: React.FC<PartnerProfileCompletionForm
                   </div>
 
                   <div>
-                    {existing.photo_signed_url && !photoFile && (
-                      <img
-                        src={existing.photo_signed_url}
-                        alt="Company"
-                        className="w-20 h-20 rounded-lg object-cover mb-2 border border-gray-200"
-                      />
-                    )}
-                    <FileUpload
-                      label="Company Photo Upload"
-                      accept={IMAGE_ACCEPT}
-                      maxSize={MAX_FILE_MB}
-                      value={photoFile || existing.photo_signed_url || null}
-                      onChange={setPhotoFile}
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Registration No <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="company_registration"
+                      value={formData.company_registration}
+                      onChange={handleChange}
                       disabled={sectionDisabled('company')}
-                      required
-                      error={errors.photo}
-                      helperText="JPG or PNG, max 5MB"
+                      placeholder="Enter company registration number"
+                      className={`${inputClass} ${errors.company_registration ? 'border-red-500' : ''}`}
                     />
+                    {errors.company_registration && (
+                      <p className="mt-1 text-xs text-red-600">{errors.company_registration}</p>
+                    )}
                   </div>
 
                   {existing.company_registration_docs &&
@@ -806,84 +855,6 @@ export const PartnerProfileCompletionForm: React.FC<PartnerProfileCompletionForm
                     value={compRegDocFiles}
                     onChange={setCompRegDocFiles}
                     disabled={sectionDisabled('company')}
-                    helperText="JPG, PNG, or PDF — multiple files allowed"
-                  />
-                </div>
-              </div>
-
-              {/* Taxation */}
-              <div
-                className={`rounded-xl shadow-sm border p-5 space-y-4 ${sectionHeaderClass(isSectionVerified)} ${
-                  isSectionVerified ? 'border-green-300' : 'border-gray-200'
-                }`}
-              >
-                {renderSectionHeader('Taxation', 'Tax registration and compliance documents', 'taxation')}
-
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Taxation Type <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      name="company_taxation"
-                      value={formData.company_taxation}
-                      onChange={handleChange}
-                      disabled={sectionDisabled('taxation')}
-                      placeholder="e.g. GST, VAT, TIN"
-                      className={`${inputClass} ${errors.company_taxation ? 'border-red-500' : ''}`}
-                    />
-                    {errors.company_taxation && (
-                      <p className="mt-1 text-xs text-red-600">{errors.company_taxation}</p>
-                    )}
-                  </div>
-
-                  {existing.company_taxation_docs && existing.company_taxation_docs.length > 0 && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Taxation Documents
-                      </label>
-                      <div className="flex flex-wrap gap-2 mb-2">
-                        {existing.company_taxation_docs.map((doc, idx) => (
-                          <div
-                            key={idx}
-                            className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded text-xs"
-                          >
-                            <FileText size={12} />
-                            <a
-                              href={doc.signed_url || '#'}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="hover:underline"
-                            >
-                              {doc.name}
-                            </a>
-                            {!sectionDisabled('taxation') && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleDeleteDoc('company_taxation_docs', doc.path)
-                                }
-                                className="text-red-500 hover:text-red-700"
-                              >
-                                <X size={12} />
-                              </button>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <MultiFileUpload
-                    label="Taxation Documents (Multiple Upload)"
-                    accept={DOC_ACCEPT}
-                    maxSize={MAX_FILE_MB}
-                    value={compTaxDocFiles}
-                    onChange={setCompTaxDocFiles}
-                    disabled={sectionDisabled('taxation')}
-                    required
-                    error={errors.company_taxation_docs}
                     helperText="JPG, PNG, or PDF — multiple files allowed"
                   />
                 </div>

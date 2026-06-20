@@ -100,6 +100,57 @@ export const getOwnerDetails = async (req, res) => {
   }
 };
 
+const parseDocArray = (value) => {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+};
+
+const OWNER_TEXT_FIELDS = [
+  'name', 'father_name', 'mother_name', 'mobile_no', 'email_id',
+  'address', 'dob', 'nationality', 'gender', 'marital_status',
+  'education', 'other_details'
+];
+
+const COMPANY_TEXT_FIELDS = [
+  'display_name', 'company_name', 'company_registration', 'company_taxation'
+];
+
+const OWNER_SINGLE_FILE_FIELDS = [
+  { field: 'photo', pathKey: 'photo_path', urlKey: 'photo_url' },
+  { field: 'id_proof', pathKey: 'id_proof_path', urlKey: 'id_proof_url' },
+  { field: 'address_proof', pathKey: 'address_proof_path', urlKey: 'address_proof_url' }
+];
+
+const COMPANY_SINGLE_FILE_FIELDS = [
+  { field: 'logo', pathKey: 'logo_path', urlKey: 'logo_url' }
+];
+
+const OWNER_MULTI_FILE_FIELDS = [
+  { field: 'other_documents', key: 'other_documents' }
+];
+
+const COMPANY_MULTI_FILE_FIELDS = [
+  { field: 'company_registration_docs', key: 'company_registration_docs' },
+  { field: 'company_taxation_docs', key: 'company_taxation_docs' }
+];
+
+const applyTextFields = (updates, body, fields) => {
+  for (const key of fields) {
+    if (Object.prototype.hasOwnProperty.call(body, key)) {
+      updates[key] = key === 'dob' ? (body[key] || null) : (body[key] ?? '');
+    }
+  }
+};
+
 /**
  * Save/Update owner details for the logged-in partner
  * POST /api/v1/partner/owner-details
@@ -124,13 +175,8 @@ export const saveOwnerDetails = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Profile already under review, cannot modify' });
     }
 
-    const {
-      name, father_name, mother_name, mobile_no, email_id,
-      address, dob, nationality, gender, marital_status,
-      education, other_details, display_name,
-      company_name, company_registration, company_taxation
-    } = req.body;
-
+    const section = req.body.section;
+    const submitForVerification = req.body.submit_for_verification === 'true';
     const folder = `owner_details/user_${userId}`;
 
     // Find or create owner details
@@ -138,31 +184,29 @@ export const saveOwnerDetails = async (req, res) => {
       where: { user_id: userId, registration_id: clientReg.id }
     });
 
-    const updates = {
-      name, father_name, mother_name, mobile_no, email_id,
-      address, dob: dob || null, nationality, gender, marital_status,
-      education, other_details, display_name,
-      company_name, company_registration, company_taxation,
-      status: 'submitted',
-      updated_at: new Date()
-    };
+    const existingData = ownerDetails ? ownerDetails.toJSON() : null;
+    const updates = { updated_at: new Date() };
 
-    // Handle file uploads
+    if (section === 'owner') {
+      applyTextFields(updates, req.body, OWNER_TEXT_FIELDS);
+    } else if (section === 'company') {
+      applyTextFields(updates, req.body, COMPANY_TEXT_FIELDS);
+    } else {
+      applyTextFields(updates, req.body, [...OWNER_TEXT_FIELDS, ...COMPANY_TEXT_FIELDS]);
+    }
+
     const files = req.files || {};
 
-    // Single file fields: photo, logo, id_proof, address_proof
-    const singleFileFields = [
-      { field: 'photo', pathKey: 'photo_path', urlKey: 'photo_url' },
-      { field: 'logo', pathKey: 'logo_path', urlKey: 'logo_url' },
-      { field: 'id_proof', pathKey: 'id_proof_path', urlKey: 'id_proof_url' },
-      { field: 'address_proof', pathKey: 'address_proof_path', urlKey: 'address_proof_url' }
-    ];
+    const singleFileFields = section === 'owner'
+      ? OWNER_SINGLE_FILE_FIELDS
+      : section === 'company'
+        ? COMPANY_SINGLE_FILE_FIELDS
+        : [...OWNER_SINGLE_FILE_FIELDS, ...COMPANY_SINGLE_FILE_FIELDS];
 
     for (const { field, pathKey, urlKey } of singleFileFields) {
       if (files[field] && files[field][0]) {
-        // Delete old file if exists
-        if (ownerDetails && ownerDetails[pathKey]) {
-          try { await deleteFile(ownerDetails[pathKey]); } catch (e) { /* ignore */ }
+        if (existingData?.[pathKey]) {
+          try { await deleteFile(existingData[pathKey]); } catch (e) { /* ignore */ }
         }
         const f = files[field][0];
         const result = await uploadFile(f.buffer, f.originalname, f.mimetype, folder);
@@ -173,16 +217,15 @@ export const saveOwnerDetails = async (req, res) => {
       }
     }
 
-    // Multiple file fields: other_documents, company_registration_docs, company_taxation_docs
-    const multiFileFields = [
-      { field: 'other_documents', key: 'other_documents' },
-      { field: 'company_registration_docs', key: 'company_registration_docs' },
-      { field: 'company_taxation_docs', key: 'company_taxation_docs' }
-    ];
+    const multiFileFields = section === 'owner'
+      ? OWNER_MULTI_FILE_FIELDS
+      : section === 'company'
+        ? COMPANY_MULTI_FILE_FIELDS
+        : [...OWNER_MULTI_FILE_FIELDS, ...COMPANY_MULTI_FILE_FIELDS];
 
     for (const { field, key } of multiFileFields) {
       if (files[field] && files[field].length > 0) {
-        const existingDocs = (ownerDetails && ownerDetails[key]) ? ownerDetails[key] : [];
+        const existingDocs = parseDocArray(existingData?.[key]);
         const newDocs = [...existingDocs];
         for (const f of files[field]) {
           const result = await uploadFile(f.buffer, f.originalname, f.mimetype, folder);
@@ -199,8 +242,17 @@ export const saveOwnerDetails = async (req, res) => {
       }
     }
 
+    const shouldMarkSubmitted = submitForVerification && clientReg.status === 'pending';
+
+    if (shouldMarkSubmitted) {
+      updates.status = 'submitted';
+    } else if (!ownerDetails) {
+      updates.status = 'draft';
+    }
+
     if (ownerDetails) {
       await ownerDetails.update(updates);
+      await ownerDetails.reload();
     } else {
       ownerDetails = await OwnerDetails.create({
         user_id: userId,
@@ -209,14 +261,16 @@ export const saveOwnerDetails = async (req, res) => {
       });
     }
 
-    // Update client_registration status to 'submitted'
-    await clientReg.update({ status: 'submitted', updated_at: new Date() });
+    if (shouldMarkSubmitted) {
+      await clientReg.update({ status: 'submitted', updated_at: new Date() });
+      await clientReg.reload();
+    }
 
     res.json({
       success: true,
       message: 'Owner details saved successfully',
       data: ownerDetails,
-      registration_status: 'submitted'
+      registration_status: clientReg.status
     });
   } catch (error) {
     console.error('Error saving owner details:', error);
@@ -247,7 +301,7 @@ export const deleteOwnerDocument = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid document field' });
     }
 
-    const docs = ownerDetails[doc_field] || [];
+    const docs = parseDocArray(ownerDetails[doc_field]);
     const updatedDocs = docs.filter(d => d.path !== doc_path);
 
     // Delete from Wasabi
