@@ -1,5 +1,35 @@
 import { OwnerDetails, ClientRegistration, User } from '../models/index.js';
 import { uploadFile, deleteFile, getSignedReadUrl } from '../services/wasabiService.js';
+import { buildRegistrationFormSummary } from '../utils/resolveCustomFormData.js';
+
+const buildOwnerDetailsResponse = async (user, clientReg, ownerData) => {
+  const userRecord = await User.findByPk(user.id, {
+    attributes: ['email', 'username', 'identification_code', 'created_on']
+  });
+
+  const { resolved_form_data, registration_fields } = await buildRegistrationFormSummary(
+    user.group_id,
+    clientReg.custom_form_data
+  );
+
+  return {
+    success: true,
+    data: ownerData,
+    registration_status: clientReg.status,
+    registration_date: clientReg.created_at,
+    registration_fields,
+    resolved_form_data,
+    custom_form_data: clientReg.custom_form_data,
+    user: userRecord
+      ? {
+          email: userRecord.email,
+          username: userRecord.username,
+          identification_code: userRecord.identification_code,
+          created_on: userRecord.created_on
+        }
+      : null
+  };
+};
 
 /**
  * Get owner details for the logged-in partner
@@ -60,20 +90,10 @@ export const getOwnerDetails = async (req, res) => {
           }
         }
       }
-      return res.json({
-        success: true,
-        data,
-        registration_status: clientReg.status,
-        custom_form_data: clientReg.custom_form_data
-      });
+      return res.json(await buildOwnerDetailsResponse(user, clientReg, data));
     }
 
-    return res.json({
-      success: true,
-      data: null,
-      registration_status: clientReg.status,
-      custom_form_data: clientReg.custom_form_data
-    });
+    return res.json(await buildOwnerDetailsResponse(user, clientReg, null));
   } catch (error) {
     console.error('Error fetching owner details:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch owner details' });

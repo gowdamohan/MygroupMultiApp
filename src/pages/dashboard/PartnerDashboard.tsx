@@ -36,6 +36,7 @@ interface UserProfile {
   identification_code: string | null;
   first_name: string | null;
   last_name: string | null;
+  display_name?: string | null;
   email: string;
   username: string;
   company?: string | null;
@@ -300,6 +301,7 @@ export const PartnerDashboard: React.FC = () => {
 
   const getDisplayName = () => {
     if (userProfile) {
+      if (userProfile.display_name?.trim()) return userProfile.display_name.trim();
       const fullName = [userProfile.first_name, userProfile.last_name].filter(Boolean).join(' ').trim();
       if (fullName) return fullName;
       if (userProfile.company_name?.trim()) return userProfile.company_name.trim();

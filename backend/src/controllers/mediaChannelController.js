@@ -619,7 +619,7 @@ export const getUserProfile = async (req, res) => {
 
     const ownerDetails = await OwnerDetails.findOne({
       where: { user_id: userId },
-      attributes: ['company_name']
+      attributes: ['company_name', 'display_name']
     });
 
     // Get client_registration status
@@ -643,6 +643,7 @@ export const getUserProfile = async (req, res) => {
       data: {
         ...userData,
         company_name: ownerDetails?.company_name || userData.company || null,
+        display_name: ownerDetails?.display_name || null,
         registration_status: registrationStatus
       }
     });

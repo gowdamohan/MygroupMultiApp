@@ -66,6 +66,34 @@ interface ExistingFiles {
   company_taxation_docs?: { name: string; path: string; signed_url?: string }[];
 }
 
+interface RegistrationSummaryField {
+  id: string;
+  label: string;
+  value: string;
+  order?: number;
+}
+
+interface RegistrationSummary {
+  email?: string;
+  username?: string;
+  identification_code?: string;
+  registration_date?: string;
+  fields: RegistrationSummaryField[];
+}
+
+const formatRegistrationDate = (value?: string) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+};
+
 const defaultFormData: ProfileFormData = {
   name: '',
   father_name: '',
@@ -106,6 +134,7 @@ export const PartnerProfileCompletionForm: React.FC<PartnerProfileCompletionForm
   const [success, setSuccess] = useState('');
   const [currentStatus, setCurrentStatus] = useState(registrationStatus);
   const [existing, setExisting] = useState<ExistingFiles>({});
+  const [registrationSummary, setRegistrationSummary] = useState<RegistrationSummary>({ fields: [] });
   const [editingSections, setEditingSections] = useState<Record<SectionKey, boolean>>({
     owner: false,
     company: false,
@@ -132,14 +161,28 @@ export const PartnerProfileCompletionForm: React.FC<PartnerProfileCompletionForm
     try {
       setLoading(true);
       const token = localStorage.getItem('accessToken');
-      const response = await axios.get(`${API_BASE_URL}/partner/owner-details`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const headers = { Authorization: `Bearer ${token}` };
+
+      const response = await axios.get(`${API_BASE_URL}/partner/owner-details`, { headers });
 
       if (response.data.success) {
         if (response.data.registration_status) {
           setCurrentStatus(response.data.registration_status);
         }
+
+        const userData = response.data.user;
+        const registrationFields = Array.isArray(response.data.registration_fields)
+          ? response.data.registration_fields
+          : [];
+
+        setRegistrationSummary({
+          email: userData?.email,
+          username: userData?.username,
+          identification_code: userData?.identification_code,
+          registration_date: response.data.registration_date,
+          fields: registrationFields
+        });
+
         const d = response.data.data;
         if (d) {
           setFormData({
@@ -477,10 +520,72 @@ export const PartnerProfileCompletionForm: React.FC<PartnerProfileCompletionForm
   const initialMessage =
     'Registered Successfully. To proceed with your account activation, please ensure all fields in the Profile section are accurately filled and upload the necessary documentation for verification.';
   const postSubmissionMessage =
-    'Your Account will be verified and activated within 24 working hours. For any queries or details, please send a message to Admin in the support chat option.';
+    'Your Account will be verified and activate within 24 working hours. For any queries or details please send message to Admin in support chat option.';
+
+  const summaryEntries = [
+    ...(registrationSummary.registration_date
+      ? [{ id: 'registration_date', label: 'Registration Date', value: formatRegistrationDate(registrationSummary.registration_date) }]
+      : []),
+    ...(registrationSummary.email
+      ? [{ id: 'email', label: 'Registered Email', value: registrationSummary.email }]
+      : []),
+    ...(registrationSummary.username
+      ? [{ id: 'username', label: 'Username', value: registrationSummary.username }]
+      : []),
+    ...(registrationSummary.identification_code
+      ? [{ id: 'identification_code', label: 'Identification Code', value: registrationSummary.identification_code }]
+      : []),
+    ...registrationSummary.fields.map(field => ({
+      id: field.id,
+      label: field.label,
+      value: field.value
+    }))
+  ];
+
+  const renderProfileSummary = () => (
+    <div className="rounded-xl shadow-sm border border-gray-200 bg-white p-5 space-y-4">
+      <div>
+        <h3 className="text-base font-semibold text-gray-900">Registration Details</h3>
+        <p className="text-xs text-gray-500 mt-0.5">Information entered at the time of registration</p>
+      </div>
+      {summaryEntries.length > 0 ? (
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+          {summaryEntries.map(({ id, label, value }) => (
+            <div key={id} className="border-b border-gray-100 pb-2 last:border-0">
+              <dt className="text-xs font-medium text-gray-500">{label}</dt>
+              <dd className="text-sm text-gray-900 mt-0.5 break-words">{value || '—'}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : (
+        <p className="text-sm text-gray-500">No registration details available.</p>
+      )}
+    </div>
+  );
+
+  const renderSectionHeader = (
+    title: string,
+    subtitle: string,
+    section: SectionKey
+  ) => (
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-gray-100 pb-3">
+      <div>
+        <h3 className={`text-lg font-semibold ${isSectionVerified ? 'text-green-800' : 'text-gray-900'}`}>
+          {title}
+          {isSectionVerified && (
+            <span className="ml-2 inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
+              <CheckCircle size={12} /> Verified
+            </span>
+          )}
+        </h3>
+        <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>
+      </div>
+      {renderSectionActions(section)}
+    </div>
+  );
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <div className="max-w-7xl mx-auto space-y-6">
       {variant === 'edit' && isActiveAccount ? (
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Edit Profile</h2>
@@ -545,32 +650,260 @@ export const PartnerProfileCompletionForm: React.FC<PartnerProfileCompletionForm
             </div>
           )}
 
-          {/* Section A: Owner Details */}
-          <div
-            className={`rounded-xl shadow-sm border p-6 space-y-4 ${sectionHeaderClass(isSectionVerified)} ${
-              isSectionVerified ? 'border-green-300' : 'border-gray-200'
-            }`}
-          >
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <div>
-                <h3 className={`text-lg font-semibold ${isSectionVerified ? 'text-green-800' : 'text-gray-900'}`}>
-                  Section A: Owner Details
-                  {isSectionVerified && (
-                    <span className="ml-2 inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
-                      <CheckCircle size={12} /> Verified
-                    </span>
-                  )}
-                </h3>
-                <p className="text-xs text-gray-500 mt-0.5">Personal information and identity documents</p>
+          <div className="grid grid-cols-12 gap-6 items-start">
+            {/* Left sidebar — profile summary, company & taxation */}
+            <div className="col-span-12 lg:col-span-6 space-y-6 lg:sticky lg:top-6">
+              {renderProfileSummary()}
+
+              {/* Company Details */}
+              <div
+                className={`rounded-xl shadow-sm border p-5 space-y-4 ${sectionHeaderClass(isSectionVerified)} ${
+                  isSectionVerified ? 'border-green-300' : 'border-gray-200'
+                }`}
+              >
+                {renderSectionHeader('Company Details', 'Business identity and branding', 'company')}
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Company Display Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="display_name"
+                      value={formData.display_name}
+                      onChange={handleChange}
+                      disabled={sectionDisabled('company')}
+                      className={`${inputClass} ${errors.display_name ? 'border-red-500' : ''}`}
+                    />
+                    {errors.display_name && (
+                      <p className="mt-1 text-xs text-red-600">{errors.display_name}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Company Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="company_name"
+                      value={formData.company_name}
+                      onChange={handleChange}
+                      disabled={sectionDisabled('company')}
+                      className={`${inputClass} ${errors.company_name ? 'border-red-500' : ''}`}
+                    />
+                    {errors.company_name && (
+                      <p className="mt-1 text-xs text-red-600">{errors.company_name}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Registration Type <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      name="company_registration"
+                      value={formData.company_registration}
+                      onChange={handleChange}
+                      disabled={sectionDisabled('company')}
+                      className={`${inputClass} ${errors.company_registration ? 'border-red-500' : ''}`}
+                    >
+                      <option value="">Select registration type</option>
+                      {BUSINESS_CATEGORIES.map(cat => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                    </select>
+                    {errors.company_registration && (
+                      <p className="mt-1 text-xs text-red-600">{errors.company_registration}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    {existing.logo_signed_url && !logoFile && (
+                      <img
+                        src={existing.logo_signed_url}
+                        alt="Logo"
+                        className="w-20 h-20 rounded-lg object-cover mb-2 border border-gray-200"
+                      />
+                    )}
+                    <FileUpload
+                      label="Upload Logo"
+                      accept={IMAGE_ACCEPT}
+                      maxSize={MAX_FILE_MB}
+                      value={logoFile || existing.logo_signed_url || null}
+                      onChange={setLogoFile}
+                      disabled={sectionDisabled('company')}
+                      required
+                      error={errors.logo}
+                      helperText="JPG or PNG, max 5MB"
+                    />
+                  </div>
+
+                  <div>
+                    {existing.photo_signed_url && !photoFile && (
+                      <img
+                        src={existing.photo_signed_url}
+                        alt="Company"
+                        className="w-20 h-20 rounded-lg object-cover mb-2 border border-gray-200"
+                      />
+                    )}
+                    <FileUpload
+                      label="Company Photo Upload"
+                      accept={IMAGE_ACCEPT}
+                      maxSize={MAX_FILE_MB}
+                      value={photoFile || existing.photo_signed_url || null}
+                      onChange={setPhotoFile}
+                      disabled={sectionDisabled('company')}
+                      required
+                      error={errors.photo}
+                      helperText="JPG or PNG, max 5MB"
+                    />
+                  </div>
+
+                  {existing.company_registration_docs &&
+                    existing.company_registration_docs.length > 0 && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Registration Documents
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                          {existing.company_registration_docs.map((doc, idx) => (
+                            <div
+                              key={idx}
+                              className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded text-xs"
+                            >
+                              <FileText size={12} />
+                              <a
+                                href={doc.signed_url || '#'}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="hover:underline"
+                              >
+                                {doc.name}
+                              </a>
+                              {!sectionDisabled('company') && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleDeleteDoc('company_registration_docs', doc.path)
+                                  }
+                                  className="text-red-500 hover:text-red-700"
+                                >
+                                  <X size={12} />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                  <MultiFileUpload
+                    label="Registration Documents (Multiple Upload)"
+                    accept={DOC_ACCEPT}
+                    maxSize={MAX_FILE_MB}
+                    value={compRegDocFiles}
+                    onChange={setCompRegDocFiles}
+                    disabled={sectionDisabled('company')}
+                    helperText="JPG, PNG, or PDF — multiple files allowed"
+                  />
+                </div>
               </div>
-              {renderSectionActions('owner')}
+
+              {/* Taxation */}
+              <div
+                className={`rounded-xl shadow-sm border p-5 space-y-4 ${sectionHeaderClass(isSectionVerified)} ${
+                  isSectionVerified ? 'border-green-300' : 'border-gray-200'
+                }`}
+              >
+                {renderSectionHeader('Taxation', 'Tax registration and compliance documents', 'taxation')}
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Taxation Type <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="company_taxation"
+                      value={formData.company_taxation}
+                      onChange={handleChange}
+                      disabled={sectionDisabled('taxation')}
+                      placeholder="e.g. GST, VAT, TIN"
+                      className={`${inputClass} ${errors.company_taxation ? 'border-red-500' : ''}`}
+                    />
+                    {errors.company_taxation && (
+                      <p className="mt-1 text-xs text-red-600">{errors.company_taxation}</p>
+                    )}
+                  </div>
+
+                  {existing.company_taxation_docs && existing.company_taxation_docs.length > 0 && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Taxation Documents
+                      </label>
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {existing.company_taxation_docs.map((doc, idx) => (
+                          <div
+                            key={idx}
+                            className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded text-xs"
+                          >
+                            <FileText size={12} />
+                            <a
+                              href={doc.signed_url || '#'}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="hover:underline"
+                            >
+                              {doc.name}
+                            </a>
+                            {!sectionDisabled('taxation') && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleDeleteDoc('company_taxation_docs', doc.path)
+                                }
+                                className="text-red-500 hover:text-red-700"
+                              >
+                                <X size={12} />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <MultiFileUpload
+                    label="Taxation Documents (Multiple Upload)"
+                    accept={DOC_ACCEPT}
+                    maxSize={MAX_FILE_MB}
+                    value={compTaxDocFiles}
+                    onChange={setCompTaxDocFiles}
+                    disabled={sectionDisabled('taxation')}
+                    required
+                    error={errors.company_taxation_docs}
+                    helperText="JPG, PNG, or PDF — multiple files allowed"
+                  />
+                </div>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Full Name <span className="text-red-500">*</span>
-                </label>
+            {/* Right column — owner details */}
+            <div className="col-span-12 lg:col-span-6">
+              <div
+                className={`rounded-xl shadow-sm border p-6 space-y-4 ${sectionHeaderClass(isSectionVerified)} ${
+                  isSectionVerified ? 'border-green-300' : 'border-gray-200'
+                }`}
+              >
+                {renderSectionHeader('Owner Details', 'Personal information and identity documents', 'owner')}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Name <span className="text-red-500">*</span>
+                    </label>
                 <input
                   type="text"
                   name="name"
@@ -762,7 +1095,7 @@ export const PartnerProfileCompletionForm: React.FC<PartnerProfileCompletionForm
                   </a>
                 )}
                 <FileUpload
-                  label="ID Proof Upload"
+                  label="Id Proof"
                   accept={DOC_ACCEPT}
                   maxSize={MAX_FILE_MB}
                   preview={false}
@@ -787,7 +1120,7 @@ export const PartnerProfileCompletionForm: React.FC<PartnerProfileCompletionForm
                   </a>
                 )}
                 <FileUpload
-                  label="Address Proof Upload"
+                  label="Address Proof"
                   accept={DOC_ACCEPT}
                   maxSize={MAX_FILE_MB}
                   preview={false}
@@ -823,7 +1156,7 @@ export const PartnerProfileCompletionForm: React.FC<PartnerProfileCompletionForm
                   </div>
                 )}
                 <MultiFileUpload
-                  label="Any other details (Multiple Uploads)"
+                  label="Any other details (Multiple Upload)"
                   accept={DOC_ACCEPT}
                   maxSize={MAX_FILE_MB}
                   value={otherDocFiles}
@@ -833,238 +1166,7 @@ export const PartnerProfileCompletionForm: React.FC<PartnerProfileCompletionForm
                 />
               </div>
             </div>
-          </div>
-
-          {/* Section B: Company Details */}
-          <div
-            className={`rounded-xl shadow-sm border p-6 space-y-4 ${sectionHeaderClass(isSectionVerified)} ${
-              isSectionVerified ? 'border-green-300' : 'border-gray-200'
-            }`}
-          >
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <div>
-                <h3 className={`text-lg font-semibold ${isSectionVerified ? 'text-green-800' : 'text-gray-900'}`}>
-                  Section B: Company Details
-                  {isSectionVerified && (
-                    <span className="ml-2 inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
-                      <CheckCircle size={12} /> Verified
-                    </span>
-                  )}
-                </h3>
-                <p className="text-xs text-gray-500 mt-0.5">Business identity and branding</p>
               </div>
-              {renderSectionActions('company')}
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Company Display Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  name="display_name"
-                  value={formData.display_name}
-                  onChange={handleChange}
-                  disabled={sectionDisabled('company')}
-                  className={`${inputClass} ${errors.display_name ? 'border-red-500' : ''}`}
-                />
-                {errors.display_name && <p className="mt-1 text-xs text-red-600">{errors.display_name}</p>}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Company Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  name="company_name"
-                  value={formData.company_name}
-                  onChange={handleChange}
-                  disabled={sectionDisabled('company')}
-                  className={`${inputClass} ${errors.company_name ? 'border-red-500' : ''}`}
-                />
-                {errors.company_name && <p className="mt-1 text-xs text-red-600">{errors.company_name}</p>}
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Business Type/Category <span className="text-red-500">*</span>
-                </label>
-                <select
-                  name="company_registration"
-                  value={formData.company_registration}
-                  onChange={handleChange}
-                  disabled={sectionDisabled('company')}
-                  className={`${inputClass} ${errors.company_registration ? 'border-red-500' : ''}`}
-                >
-                  <option value="">Select category</option>
-                  {BUSINESS_CATEGORIES.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
-                {errors.company_registration && (
-                  <p className="mt-1 text-xs text-red-600">{errors.company_registration}</p>
-                )}
-              </div>
-
-              <div>
-                {existing.logo_signed_url && !logoFile && (
-                  <img
-                    src={existing.logo_signed_url}
-                    alt="Logo"
-                    className="w-20 h-20 rounded-lg object-cover mb-2 border border-gray-200"
-                  />
-                )}
-                <FileUpload
-                  label="Logo Upload"
-                  accept={IMAGE_ACCEPT}
-                  maxSize={MAX_FILE_MB}
-                  value={logoFile || existing.logo_signed_url || null}
-                  onChange={setLogoFile}
-                  disabled={sectionDisabled('company')}
-                  required
-                  error={errors.logo}
-                  helperText="JPG or PNG, max 5MB"
-                />
-              </div>
-
-              <div>
-                {existing.photo_signed_url && !photoFile && (
-                  <img
-                    src={existing.photo_signed_url}
-                    alt="Company"
-                    className="w-20 h-20 rounded-lg object-cover mb-2 border border-gray-200"
-                  />
-                )}
-                <FileUpload
-                  label="Company Photo Upload"
-                  accept={IMAGE_ACCEPT}
-                  maxSize={MAX_FILE_MB}
-                  value={photoFile || existing.photo_signed_url || null}
-                  onChange={setPhotoFile}
-                  disabled={sectionDisabled('company')}
-                  required
-                  error={errors.photo}
-                  helperText="JPG or PNG, max 5MB"
-                />
-              </div>
-
-              {existing.company_registration_docs && existing.company_registration_docs.length > 0 && (
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Company Registration Documents</label>
-                  <div className="flex flex-wrap gap-2">
-                    {existing.company_registration_docs.map((doc, idx) => (
-                      <div key={idx} className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded text-xs">
-                        <FileText size={12} />
-                        <a href={doc.signed_url || '#'} target="_blank" rel="noreferrer" className="hover:underline">
-                          {doc.name}
-                        </a>
-                        {!sectionDisabled('company') && (
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteDoc('company_registration_docs', doc.path)}
-                            className="text-red-500 hover:text-red-700"
-                          >
-                            <X size={12} />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="md:col-span-2">
-                <MultiFileUpload
-                  label="Company Registration Documents (Optional)"
-                  accept={DOC_ACCEPT}
-                  maxSize={MAX_FILE_MB}
-                  value={compRegDocFiles}
-                  onChange={setCompRegDocFiles}
-                  disabled={sectionDisabled('company')}
-                  helperText="JPG, PNG, or PDF — multiple files allowed"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Section C: Taxation */}
-          <div
-            className={`rounded-xl shadow-sm border p-6 space-y-4 ${sectionHeaderClass(isSectionVerified)} ${
-              isSectionVerified ? 'border-green-300' : 'border-gray-200'
-            }`}
-          >
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <div>
-                <h3 className={`text-lg font-semibold ${isSectionVerified ? 'text-green-800' : 'text-gray-900'}`}>
-                  Section C: Taxation
-                  {isSectionVerified && (
-                    <span className="ml-2 inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
-                      <CheckCircle size={12} /> Verified
-                    </span>
-                  )}
-                </h3>
-                <p className="text-xs text-gray-500 mt-0.5">Tax registration and compliance documents</p>
-              </div>
-              {renderSectionActions('taxation')}
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Tax Type (e.g., GST/VAT/TIN) <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  name="company_taxation"
-                  value={formData.company_taxation}
-                  onChange={handleChange}
-                  disabled={sectionDisabled('taxation')}
-                  placeholder="e.g. GST, VAT, TIN"
-                  className={`${inputClass} ${errors.company_taxation ? 'border-red-500' : ''}`}
-                />
-                {errors.company_taxation && (
-                  <p className="mt-1 text-xs text-red-600">{errors.company_taxation}</p>
-                )}
-              </div>
-
-              {existing.company_taxation_docs && existing.company_taxation_docs.length > 0 && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Taxation Records</label>
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {existing.company_taxation_docs.map((doc, idx) => (
-                      <div key={idx} className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded text-xs">
-                        <FileText size={12} />
-                        <a href={doc.signed_url || '#'} target="_blank" rel="noreferrer" className="hover:underline">
-                          {doc.name}
-                        </a>
-                        {!sectionDisabled('taxation') && (
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteDoc('company_taxation_docs', doc.path)}
-                            className="text-red-500 hover:text-red-700"
-                          >
-                            <X size={12} />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <MultiFileUpload
-                label="Taxation Records (Multiple Uploads)"
-                accept={DOC_ACCEPT}
-                maxSize={MAX_FILE_MB}
-                value={compTaxDocFiles}
-                onChange={setCompTaxDocFiles}
-                disabled={sectionDisabled('taxation')}
-                required
-                error={errors.company_taxation_docs}
-                helperText="JPG, PNG, or PDF — multiple files allowed"
-              />
             </div>
           </div>
 
