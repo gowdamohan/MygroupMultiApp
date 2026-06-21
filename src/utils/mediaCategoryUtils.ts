@@ -73,6 +73,38 @@ export const categoryNameIncludesTV = (name?: string | null): boolean => {
 export const categoryNameIncludesRadio = (name?: string | null): boolean =>
   norm(name).includes('radio');
 
+export const categoryNameIncludesYouTube = (name?: string | null): boolean => {
+  const n = norm(name);
+  return n.includes('youtube') || n.includes('you tube');
+};
+
+/**
+ * Detect if a media_url is a YouTube channel URL.
+ * Matches formats like:
+ *   https://www.youtube.com/@channelName
+ *   https://youtube.com/channel/UCxxxx
+ *   https://www.youtube.com/c/channelName
+ *   https://www.youtube.com/user/channelName
+ */
+export const isYouTubeChannelUrl = (url?: string | null): boolean => {
+  if (!url) return false;
+  return /youtube\.com\/((@[\w.-]+)|(channel\/UC[\w-]+)|(c\/[\w.-]+)|(user\/[\w.-]+))/i.test(url);
+};
+
+/**
+ * Extract the YouTube handle or channel identifier from a media_url.
+ * Returns e.g. "@channelName", "UCxxxxxx", "c/channelName", "user/channelName"
+ */
+export const extractYouTubeHandle = (url: string): string | null => {
+  const match = url.match(/youtube\.com\/((@[\w.-]+)|(channel\/(UC[\w-]+))|(c\/([\w.-]+))|(user\/([\w.-]+)))/i);
+  if (!match) return null;
+  if (match[2]) return match[2]; // @handle
+  if (match[4]) return match[4]; // channel ID (UCxxx)
+  if (match[6]) return `c/${match[6]}`; // custom URL
+  if (match[8]) return `user/${match[8]}`; // legacy username
+  return null;
+};
+
 export const categoryNameIsDocument = (name?: string | null): boolean => {
   const n = norm(name);
   return (

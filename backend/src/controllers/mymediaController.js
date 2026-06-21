@@ -437,7 +437,7 @@ export const getMyMediaChannels = async (req, res) => {
       where: whereClause,
       attributes: [
         'id', 'media_logo', 'media_name_english', 'media_name_regional',
-        'select_type', 'category_id', 'parent_category_id', 'language_id'
+        'select_type', 'category_id', 'parent_category_id', 'language_id', 'media_url'
       ],
       include: [
         {
