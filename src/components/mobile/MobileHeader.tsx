@@ -928,18 +928,18 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
               {/* Spacer — same width as logo column in Row B so icons align under ads */}
               <div style={{ minWidth: 160 }} />
               {/* Non-clickable app icon pills, flush start under header ad columns */}
-              <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide py-1.5 px-2 min-w-0">
+              <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide py-2 px-2 min-w-0">
                 {topIcons.map((icon, index) => (
                   <div
                     key={`dtop-${icon.id}-${index}`}
                     title={icon.name}
                     className="flex-shrink-0"
                   >
-                    <div className="w-6 h-6 rounded-full bg-white/20 overflow-hidden flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-full bg-white/20 overflow-hidden flex items-center justify-center">
                       {icon.icon ? (
-                        <img src={resolveAssetUrl(icon.icon)} alt={icon.name} className="w-4 h-4 object-contain" />
+                        <img src={resolveAssetUrl(icon.icon)} alt={icon.name} className="w-8 h-8 object-contain" />
                       ) : (
-                        <span className="text-white font-bold text-[9px]">
+                        <span className="text-white font-bold text-[11px]">
                           {icon.name.charAt(0)}
                         </span>
                       )}
@@ -1679,8 +1679,8 @@ export const getMobileHeaderHeight = (
     // Row A (compact teal top-icons strip): 36px when visible
     // Row B (logo + two header ads):       80px
     // Row C (brand bar with icons):         52px
-    const topIconsRow = showTopIcons ? 36 : 0;
-    return topIconsRow + 120 + 52; // Row B now 120px
+    const topIconsRow = showTopIcons ? 44 : 0; // Row A: w-10/h-10 icons + py-2 = ~44px
+    return topIconsRow + 120 + 52; // Row A + Row B (120px) + Row C (52px)
   }
   if (variant === 'desktop' && !showTopIcons && !_showAds) {
     return 72;
