@@ -159,6 +159,7 @@ export const MediaDashboard: React.FC = () => {
   const [mainCategories, setMainCategories] = useState<MainCategory[]>([]);
   const [uploadCategories, setUploadCategories] = useState<UploadCategory[]>([]);
   const [selectedUploadCategory, setSelectedUploadCategory] = useState<UploadCategory | null>(null);
+  const [inlineUploadView, setInlineUploadView] = useState<'epaper' | 'magazine' | null>(null);
   const [channelToggleLoading, setChannelToggleLoading] = useState<number | null>(null);
   const [categoriesExpanded, setCategoriesExpanded] = useState<Record<number, boolean>>({});
 
@@ -456,12 +457,13 @@ export const MediaDashboard: React.FC = () => {
     setUploadingOffline(true);
     try {
       const token = localStorage.getItem('accessToken');
+      const effectiveType = isRadio ? 'image' : offlineType;
       const fd = new FormData();
       fd.append('media_file', offlineFile);
       fd.append('title', offlineTitle);
-      fd.append('media_type', offlineType);
+      fd.append('media_type', effectiveType);
       fd.append('is_default', '0');
-      if (offlineType === 'image' && offlineAudioFile) {
+      if ((effectiveType === 'image' || isRadio) && offlineAudioFile) {
         fd.append('audio_file', offlineAudioFile);
       }
 
@@ -594,9 +596,9 @@ export const MediaDashboard: React.FC = () => {
 
   const navigateToPrintUpload = () => {
     if (showMagazineMenu) {
-      navigate(`/media/dashboard/${channelId}/magazine`);
+      setInlineUploadView('magazine');
     } else if (showEPaperMenu) {
-      navigate(`/media/dashboard/${channelId}/e-papers`);
+      setInlineUploadView('epaper');
     }
   };
 
@@ -715,7 +717,29 @@ export const MediaDashboard: React.FC = () => {
       );
     }
 
-    // Route based on current path
+    // Inline upload view (triggered from the Upload button in PrintMediaOutputPanel)
+    if (inlineUploadView === 'magazine' && channelId && channelInfo?.category_id) {
+      return (
+        <MagazineUpload
+          channelId={parseInt(channelId)}
+          categoryId={channelInfo.category_id}
+          periodicalType={channelInfo.periodical_type}
+          periodicalSchedule={channelInfo.periodical_schedule}
+          onBack={() => setInlineUploadView(null)}
+        />
+      );
+    }
+    if (inlineUploadView === 'epaper' && channelId && channelInfo?.category_id) {
+      return (
+        <EPaperUpload
+          channelId={parseInt(channelId)}
+          categoryId={channelInfo.category_id}
+          onBack={() => setInlineUploadView(null)}
+        />
+      );
+    }
+
+    // Route based on current path (handles direct URL navigation and sidebar links)
     const path = location.pathname;
     if (path.includes('/view-profile')) return <ViewProfileSection channelInfo={channelInfo} />;
     if (path.includes('/address')) return <AddressSection channelInfo={channelInfo} />;
@@ -806,6 +830,7 @@ export const MediaDashboard: React.FC = () => {
             formatTimeAgo={formatTimeAgo}
             formatCount={formatCount}
             onNavigateUpload={navigateToPrintUpload}
+            onSwitchToPreview={() => setActiveTab('preview')}
           />
         ) : isWebOrYouTube && activeTab === 'output' ? (() => {
           const embedInfo = channelInfo?.media_url ? getEmbedBlockInfo(channelInfo.media_url) : null;
@@ -1112,7 +1137,7 @@ export const MediaDashboard: React.FC = () => {
                   <div className="w-full h-full flex items-center justify-center text-gray-500 text-xs">Not saved yet</div>
                 )}
               </div>
-              {!isTV && (
+              {!isTV && !isRadio && (
                 <button onClick={() => handleSetActiveSource('live')} className={`mx-2 mb-2 py-1 text-sm font-bold rounded ${switcher?.active_source === 'live' ? 'bg-green-600 text-white' : 'bg-gray-500 text-white hover:bg-gray-400'}`}>
                   {switcher?.active_source === 'live' ? 'On Air' : 'Set as Output'}
                 </button>
@@ -1143,7 +1168,7 @@ export const MediaDashboard: React.FC = () => {
                   <div className="w-full h-full flex items-center justify-center text-gray-500 text-xs">Not saved yet</div>
                 )}
               </div>
-              {!isTV && (
+              {!isTV && !isRadio && (
                 <button onClick={() => handleSetActiveSource('mymedia')} className={`mx-2 mb-2 py-1 text-sm font-bold rounded ${switcher?.active_source === 'mymedia' ? 'bg-green-600 text-white' : 'bg-gray-500 text-white hover:bg-gray-400'}`}>
                   {switcher?.active_source === 'mymedia' ? 'On Air' : 'Set as Output'}
                 </button>
@@ -1194,7 +1219,7 @@ export const MediaDashboard: React.FC = () => {
                   <div className="text-amber-500 text-xs">Not on output</div>
                 )}
               </div>
-              {!isTV && (
+              {!isTV && !isRadio && (
                 <button onClick={() => selectedOfflineId && handleSetActiveSource('offline', selectedOfflineId)} className={`mx-2 mb-2 py-1 text-sm font-bold rounded ${switcher?.active_source === 'offline' ? 'bg-green-600 text-white' : 'bg-amber-400 text-amber-900 hover:bg-amber-500'}`}>
                   {switcher?.active_source === 'offline' ? 'On Air' : 'Set as Output'}
                 </button>
@@ -1211,7 +1236,7 @@ export const MediaDashboard: React.FC = () => {
                 {isTV
                   ? 'Upload image or video files (max 500MB).'
                   : isRadio
-                  ? 'Upload image files (max 500MB).'
+                  ? 'Upload an image file and optionally an audio file (max 500MB each).'
                   : 'Upload video or audio files (max 500MB).'}
               </p>
               <div className="space-y-4">
@@ -1282,11 +1307,11 @@ export const MediaDashboard: React.FC = () => {
                 </button>
               </div>
             </div>
-            {/* Queue List (TV only — vertical list of uploaded media) */}
-            {isTV && offlineMediaList.length > 0 && (
+            {/* Media list panel — shown for TV and Radio */}
+            {(isTV || isRadio) && offlineMediaList.length > 0 && (
               <div className="flex-1 bg-gray-700 rounded-lg border border-gray-600 overflow-hidden flex flex-col">
                 <div className="bg-gray-800 px-4 py-2 text-white font-bold text-sm border-b border-gray-600">
-                  Media Queue ({offlineMediaList.length})
+                  {isRadio ? `Uploaded Media (${offlineMediaList.length})` : `Media Queue (${offlineMediaList.length})`}
                 </div>
                 <div className="flex-1 overflow-y-auto divide-y divide-gray-600">
                   {offlineMediaList.map((m) => (
@@ -1319,11 +1344,13 @@ export const MediaDashboard: React.FC = () => {
             <div className="flex-1 flex flex-col">
               <div className="flex-1 bg-gray-900 relative min-h-[250px] border-2 border-gray-500">{renderMedia()}</div>
               <div className="flex gap-2 mt-2">
-                <button
-                  onClick={() => !isTV && handleSetActiveSource('live')}
-                  disabled={isTV}
-                  className={`flex-1 py-2 font-bold text-center ${isTV ? 'opacity-40 cursor-not-allowed bg-gray-400 text-gray-600' : switcher?.active_source === 'live' ? 'bg-blue-600 text-white' : 'bg-gray-400 text-gray-800 hover:bg-gray-300'}`}
-                >Band</button>
+                {!isRadio && (
+                  <button
+                    onClick={() => !isTV && handleSetActiveSource('live')}
+                    disabled={isTV}
+                    className={`flex-1 py-2 font-bold text-center ${isTV ? 'opacity-40 cursor-not-allowed bg-gray-400 text-gray-600' : switcher?.active_source === 'live' ? 'bg-blue-600 text-white' : 'bg-gray-400 text-gray-800 hover:bg-gray-300'}`}
+                  >Band</button>
+                )}
                 {!isRadio && (
                   <button
                     onClick={() => !isTV && handleSetActiveSource('mymedia')}
@@ -1331,11 +1358,13 @@ export const MediaDashboard: React.FC = () => {
                     className={`flex-1 py-2 font-bold text-center ${isTV ? 'opacity-40 cursor-not-allowed bg-gray-400 text-gray-600' : switcher?.active_source === 'mymedia' ? 'bg-blue-600 text-white' : 'bg-gray-400 text-gray-800 hover:bg-gray-300'}`}
                   >Video</button>
                 )}
-                <button
-                  onClick={() => { if (!isTV) { const id = selectedOfflineId ?? switcher?.offline_media_id ?? offlineMediaList[0]?.id; if (id) handleSetActiveSource('offline', id); } }}
-                  disabled={isTV || !offlineMediaList.length}
-                  className={`flex-1 py-2 font-bold text-center ${isTV ? 'opacity-40 cursor-not-allowed bg-gray-400 text-gray-600' : switcher?.active_source === 'offline' ? 'bg-red-600 text-white' : 'bg-gray-400 text-gray-800 hover:bg-gray-300'}`}
-                >Audio</button>
+                {!isRadio && (
+                  <button
+                    onClick={() => { if (!isTV) { const id = selectedOfflineId ?? switcher?.offline_media_id ?? offlineMediaList[0]?.id; if (id) handleSetActiveSource('offline', id); } }}
+                    disabled={isTV || !offlineMediaList.length}
+                    className={`flex-1 py-2 font-bold text-center ${isTV ? 'opacity-40 cursor-not-allowed bg-gray-400 text-gray-600' : switcher?.active_source === 'offline' ? 'bg-red-600 text-white' : 'bg-gray-400 text-gray-800 hover:bg-gray-300'}`}
+                  >Audio</button>
+                )}
               </div>
               <div className="flex gap-2 mt-2">
                 <div className="flex-1 bg-gray-800 h-16 flex items-center justify-center"><Wifi className="text-gray-400" size={24} /></div>
@@ -1475,7 +1504,7 @@ export const MediaDashboard: React.FC = () => {
           <PartnerHeader fallbackMarqueeText="Welcome to Media Dashboard" />
         </div>
 
-        {isMainDashboard() && !selectedUploadCategory ? (
+        {isMainDashboard() && !selectedUploadCategory && !inlineUploadView ? (
           <div className="flex-1 overflow-hidden min-h-0">{renderContent()}</div>
         ) : (
           <>

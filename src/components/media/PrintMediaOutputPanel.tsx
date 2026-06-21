@@ -3,7 +3,7 @@ import axios from 'axios';
 import { API_BASE_URL } from '../../config/api.config';
 import { PdfDocumentViewer } from '../shared/PdfDocumentViewer';
 import { isPdfFile } from '../../utils/pdfViewer';
-import { FileText, MessageCircle, Send, User, Upload, Calendar } from 'lucide-react';
+import { FileText, MessageCircle, Send, User, Upload, Calendar, Eye } from 'lucide-react';
 import { MONTHS } from '../../utils/periodicalSlots';
 import { isMagazineCategory, ChannelCategoryContext } from '../../utils/mediaCategoryUtils';
 
@@ -54,6 +54,7 @@ interface PrintMediaOutputPanelProps {
   formatTimeAgo: (date: string) => string;
   formatCount: (count: number) => string;
   onNavigateUpload: () => void;
+  onSwitchToPreview?: () => void;
 }
 
 export const PrintMediaOutputPanel: React.FC<PrintMediaOutputPanelProps> = ({
@@ -72,7 +73,8 @@ export const PrintMediaOutputPanel: React.FC<PrintMediaOutputPanelProps> = ({
   onAddComment,
   formatTimeAgo,
   formatCount,
-  onNavigateUpload
+  onNavigateUpload,
+  onSwitchToPreview
 }) => {
   const isMagazine = isMagazineCategory(categoryCtx);
   const now = new Date();
@@ -140,13 +142,24 @@ export const PrintMediaOutputPanel: React.FC<PrintMediaOutputPanelProps> = ({
         <div className={`flex flex-col items-center justify-center text-gray-400 ${className}`}>
           <FileText size={48} className="mb-2 opacity-50" />
           <p className="text-sm">No issue uploaded for {monthLabel}</p>
-          <button
-            type="button"
-            onClick={onNavigateUpload}
-            className="mt-3 px-4 py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700 flex items-center gap-2"
-          >
-            <Upload size={16} /> Upload PDF
-          </button>
+          <div className="mt-3 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onNavigateUpload}
+              className="px-4 py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700 flex items-center gap-2"
+            >
+              <Upload size={16} /> Upload PDF
+            </button>
+            {onSwitchToPreview && (
+              <button
+                type="button"
+                onClick={onSwitchToPreview}
+                className="px-4 py-2 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-500 flex items-center gap-2"
+              >
+                <Eye size={16} /> Preview
+              </button>
+            )}
+          </div>
         </div>
       );
     }

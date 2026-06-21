@@ -126,6 +126,7 @@ export const PartnerProfileCompletionForm: React.FC<PartnerProfileCompletionForm
     company: false
   });
 
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [idProofFile, setIdProofFile] = useState<File | null>(null);
   const [addressProofFile, setAddressProofFile] = useState<File | null>(null);
@@ -279,20 +280,11 @@ export const PartnerProfileCompletionForm: React.FC<PartnerProfileCompletionForm
     if (section === 'company') {
       if (!formData.display_name.trim()) next.display_name = 'Company display name is required';
       if (!formData.company_name.trim()) next.company_name = 'Company name is required';
-      if (!formData.company_taxation.trim()) {
-        next.company_taxation = 'Taxation details are required (e.g. GST/VAT/TIN)';
-      }
-      if (
-        compTaxDocFiles.length === 0 &&
-        (!existing.company_taxation_docs || existing.company_taxation_docs.length === 0)
-      ) {
-        next.company_taxation_docs = 'At least one taxation document is required';
+      if (!formData.company_registration.trim()) {
+        next.company_registration = 'Registration number is required';
       }
       if (!logoFile && !existing.logo_signed_url) {
         next.logo = 'Logo upload is required';
-      }
-      if (!formData.company_registration.trim()) {
-        next.company_registration = 'Registration number is required';
       }
     }
 
@@ -333,6 +325,7 @@ export const PartnerProfileCompletionForm: React.FC<PartnerProfileCompletionForm
     if (section === 'owner') {
       fd.append('section', 'owner');
       appendTextFields(ownerTextFields);
+      if (photoFile) fd.append('photo', photoFile);
       if (idProofFile) fd.append('id_proof', idProofFile);
       if (addressProofFile) fd.append('address_proof', addressProofFile);
       otherDocFiles.forEach(f => fd.append('other_documents', f));
@@ -344,6 +337,7 @@ export const PartnerProfileCompletionForm: React.FC<PartnerProfileCompletionForm
       compTaxDocFiles.forEach(f => fd.append('company_taxation_docs', f));
     } else {
       appendTextFields([...ownerTextFields, ...companyTextFields]);
+      if (photoFile) fd.append('photo', photoFile);
       if (logoFile) fd.append('logo', logoFile);
       if (idProofFile) fd.append('id_proof', idProofFile);
       if (addressProofFile) fd.append('address_proof', addressProofFile);
@@ -361,6 +355,7 @@ export const PartnerProfileCompletionForm: React.FC<PartnerProfileCompletionForm
 
   const clearSectionFileState = (section: SectionKey | 'all') => {
     if (section === 'owner' || section === 'all') {
+      setPhotoFile(null);
       setIdProofFile(null);
       setAddressProofFile(null);
       setOtherDocFiles([]);
@@ -395,6 +390,7 @@ export const PartnerProfileCompletionForm: React.FC<PartnerProfileCompletionForm
         setEditingSections(prev => ({ ...prev, [section]: false }));
         clearSectionFileState(section);
         await fetchProfile({ silent: true });
+        window.dispatchEvent(new CustomEvent('partner:profile-saved'));
       }
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { message?: string } } };
@@ -428,6 +424,7 @@ export const PartnerProfileCompletionForm: React.FC<PartnerProfileCompletionForm
         setEditingSections({ owner: false, company: false });
         clearSectionFileState('all');
         await fetchProfile({ silent: true });
+        window.dispatchEvent(new CustomEvent('partner:profile-saved'));
       }
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { message?: string } } };
@@ -766,8 +763,6 @@ export const PartnerProfileCompletionForm: React.FC<PartnerProfileCompletionForm
                     value={compTaxDocFiles}
                     onChange={setCompTaxDocFiles}
                     disabled={sectionDisabled('company')}
-                    required
-                    error={errors.company_taxation_docs}
                     helperText="JPG, PNG, or PDF — multiple files allowed"
                   />
 
@@ -1054,6 +1049,29 @@ export const PartnerProfileCompletionForm: React.FC<PartnerProfileCompletionForm
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-gray-100">
+              {/* Owner Photo upload */}
+              <div className="md:col-span-2">
+                <div className="flex items-start gap-4">
+                  {existing.photo_signed_url && !photoFile && (
+                    <img
+                      src={existing.photo_signed_url}
+                      alt="Owner"
+                      className="w-20 h-20 rounded-lg object-cover border border-gray-200 flex-shrink-0"
+                    />
+                  )}
+                  <div className="flex-1">
+                    <FileUpload
+                      label="Owner Photo"
+                      accept={IMAGE_ACCEPT}
+                      maxSize={MAX_FILE_MB}
+                      value={photoFile || existing.photo_signed_url || null}
+                      onChange={setPhotoFile}
+                      disabled={sectionDisabled('owner')}
+                      helperText="JPG or PNG, max 5MB"
+                    />
+                  </div>
+                </div>
+              </div>
               <div>
                 {existing.id_proof_signed_url && !idProofFile && (
                   <a

@@ -922,76 +922,105 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
       <div className="fixed top-0 left-0 right-0 z-50">
         {/* Section A: Top Navigation Bar with Icons - Updated with pink/rose background */}
         {showTopIcons && (
-          <div className="bg-gradient-to-r from-pink-200 via-pink-100 to-pink-200 px-3 py-2 shadow-sm">
-            <div className="flex items-center gap-2 min-h-[44px]">
-              {/* Fixed Menu Icon on the Left */}
-              <button
-                type="button"
-                onClick={() => setShowMoreAppsModal(true)}
-                aria-label="All apps"
-                className="flex-shrink-0 cursor-pointer"
-              >
-                <div className={`${APP_ICON_SIZE} rounded-full bg-white shadow-sm flex items-center justify-center hover:shadow-md transition-shadow`}>
-                  <Menu size={18} className="text-gray-700" />
-                </div>
-              </button>
+          isDesktopHomeLayout ? (
+            /* ── Desktop-home top strip: teal background, icons aligned under header ads ── */
+            <div style={{ background: '#057284', display: 'grid', gridTemplateColumns: 'auto 1fr' }}>
+              {/* Spacer — same width as logo column in Row B so icons align under ads */}
+              <div style={{ minWidth: 160 }} />
+              {/* Non-clickable app icon pills, flush start under header ad columns */}
+              <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide py-1.5 px-2 min-w-0">
+                {topIcons.map((icon, index) => (
+                  <div
+                    key={`dtop-${icon.id}-${index}`}
+                    title={icon.name}
+                    className="flex-shrink-0"
+                  >
+                    <div className="w-6 h-6 rounded-full bg-white/20 overflow-hidden flex items-center justify-center">
+                      {icon.icon ? (
+                        <img src={resolveAssetUrl(icon.icon)} alt={icon.name} className="w-4 h-4 object-contain" />
+                      ) : (
+                        <span className="text-white font-bold text-[9px]">
+                          {icon.name.charAt(0)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            /* ── Mobile / regular desktop top strip: pink gradient ── */
+            <div className="bg-gradient-to-r from-pink-200 via-pink-100 to-pink-200 px-3 py-2 shadow-sm">
+              <div className="flex items-center gap-2 min-h-[44px]">
+                {/* Fixed Menu Icon on the Left */}
+                <button
+                  type="button"
+                  onClick={() => setShowMoreAppsModal(true)}
+                  aria-label="All apps"
+                  className="flex-shrink-0 cursor-pointer"
+                >
+                  <div className={`${APP_ICON_SIZE} rounded-full bg-white shadow-sm flex items-center justify-center hover:shadow-md transition-shadow`}>
+                    <Menu size={18} className="text-gray-700" />
+                  </div>
+                </button>
 
-              {/* Horizontally Scrollable Top Icons (My Apps) */}
-              <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide flex-1 min-w-0 py-0.5">
-                {topIcons.length > 0 ? (
-                  topIcons.map((icon, index) => (
-                    <a
-                      key={`top-${icon.id}-${icon.name}-${index}`}
-                      href={icon.url || `/mobile/${normalizeAppKey(icon.name)}`}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        setSelectedApp(icon);
-                        setSearchQuery('');
-                        setSearchResults([]);
-                        setHasSearched(false);
-                        if (onTopIconClick) {
-                          onTopIconClick(icon);
-                        } else {
-                          window.location.href = icon.url || `/mobile/${normalizeAppKey(icon.name)}`;
-                        }
-                      }}
-                      className={`flex flex-col items-center min-w-[44px] flex-shrink-0 cursor-pointer transition-all ${
-                        selectedApp?.id === icon.id ? 'scale-105' : 'opacity-90 hover:opacity-100'
-                      }`}
-                    >
-                      {renderCircularAppIcon(icon, selectedApp?.id === icon.id)}
-                    </a>
-                  ))
-                ) : (
-                  ['Home', 'My Chat', 'My Media', 'My Video', 'My Go'].map((name) => {
-                    const fallbackUrl = `/mobile/${normalizeAppKey(name)}`;
-                    const isSelected = normalizeAppKey(name) === normalizeAppKey(appName);
-                    const fallbackIcon: TopIcon = { id: 0, name, icon: '', url: fallbackUrl };
-                    return (
+                {/* Horizontally Scrollable Top Icons (My Apps) */}
+                <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide flex-1 min-w-0 py-0.5">
+                  {topIcons.length > 0 ? (
+                    topIcons.map((icon, index) => (
                       <a
-                        key={name}
-                        href={fallbackUrl}
+                        key={`top-${icon.id}-${icon.name}-${index}`}
+                        href={icon.url || `/mobile/${normalizeAppKey(icon.name)}`}
                         onClick={(e) => {
                           e.preventDefault();
-                          setSelectedApp(fallbackIcon);
+                          setSelectedApp(icon);
+                          setSearchQuery('');
+                          setSearchResults([]);
+                          setHasSearched(false);
                           if (onTopIconClick) {
-                            onTopIconClick(fallbackIcon);
+                            onTopIconClick(icon);
                           } else {
-                            window.location.href = fallbackUrl;
+                            window.location.href = icon.url || `/mobile/${normalizeAppKey(icon.name)}`;
                           }
                         }}
                         className={`flex flex-col items-center min-w-[44px] flex-shrink-0 cursor-pointer transition-all ${
-                          isSelected ? 'scale-105' : 'opacity-90 hover:opacity-100'
+                          selectedApp?.id === icon.id ? 'scale-105' : 'opacity-90 hover:opacity-100'
                         }`}
                       >
-                        {renderCircularAppIcon(fallbackIcon, isSelected)}
+                        {renderCircularAppIcon(icon, selectedApp?.id === icon.id)}
                       </a>
-                    );
-                  })
-                )}
+                    ))
+                  ) : (
+                    ['Home', 'My Chat', 'My Media', 'My Video', 'My Go'].map((name) => {
+                      const fallbackUrl = `/mobile/${normalizeAppKey(name)}`;
+                      const isSelected = normalizeAppKey(name) === normalizeAppKey(appName);
+                      const fallbackIcon: TopIcon = { id: 0, name, icon: '', url: fallbackUrl };
+                      return (
+                        <a
+                          key={name}
+                          href={fallbackUrl}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setSelectedApp(fallbackIcon);
+                            if (onTopIconClick) {
+                              onTopIconClick(fallbackIcon);
+                            } else {
+                              window.location.href = fallbackUrl;
+                            }
+                          }}
+                          className={`flex flex-col items-center min-w-[44px] flex-shrink-0 cursor-pointer transition-all ${
+                            isSelected ? 'scale-105' : 'opacity-90 hover:opacity-100'
+                          }`}
+                        >
+                          {renderCircularAppIcon(fallbackIcon, isSelected)}
+                        </a>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             </div>
-          </div>
+          )
         )}
 
         {/* Section B: Profile bar — desktop variant or mobile pink bar */}
@@ -1007,45 +1036,159 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
           }
         >
           {isDesktopHomeLayout ? (
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-[80px] grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 sm:gap-4 lg:gap-6">
-              <div className="flex items-center gap-2.5 sm:gap-3 flex-shrink-0 min-w-0">
-                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center shadow-md shadow-purple-500/25 flex-shrink-0">
+            <>
+              {/* ── Row B: Logo (left teal) | Header Ad 1 | Header Ad 2 ── */}
+              <div
+                className={`border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}
+                style={{ display: 'grid', gridTemplateColumns: 'auto 1fr 1fr', height: 80 }}
+              >
+                {/* Logo cell — teal background */}
+                <div
+                  className="flex items-center justify-center gap-2 px-5 flex-shrink-0"
+                  style={{ background: '#057284', minWidth: 160 }}
+                >
                   {displayLogo || displayIcon ? (
                     <img
-                      src={(displayLogo || displayIcon)!.startsWith('http') ? (displayLogo || displayIcon) : `${BACKEND_URL}${displayLogo || displayIcon}`}
+                      src={
+                        (displayLogo || displayIcon)!.startsWith('http')
+                          ? (displayLogo || displayIcon)!
+                          : `${BACKEND_URL}${displayLogo || displayIcon}`
+                      }
                       alt={appInfo?.name || 'My Group'}
-                      className="w-6 h-6 sm:w-7 sm:h-7 object-contain"
+                      className="h-10 object-contain"
                     />
                   ) : (
-                    <span className="text-white font-bold text-base sm:text-lg">
-                      {(appInfo?.name || appName || 'M').charAt(0).toUpperCase()}
-                    </span>
+                    <>
+                      <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
+                        {(appInfo?.name || appName || 'M').charAt(0).toUpperCase()}
+                      </div>
+                      <span className="text-white font-semibold text-sm hidden sm:block truncate max-w-[80px]">
+                        {appInfo?.name || 'My Group'}
+                      </span>
+                    </>
                   )}
                 </div>
-                <div className="hidden md:block min-w-0">
-                  <p className="text-sm font-semibold leading-tight text-gray-900 truncate">My Group</p>
-                  <p className="text-xs text-gray-500 truncate">Enterprise Platform</p>
+
+                {/* Header Ad 1 */}
+                <div className={`overflow-hidden border-l ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                  {ads[0] ? (
+                    <a
+                      href={ads[0].url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block w-full h-full"
+                    >
+                      <img
+                        src={ads[0].image}
+                        alt={ads[0].title}
+                        className="w-full h-full object-cover"
+                      />
+                    </a>
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-50">
+                      <span className="text-xs font-medium text-gray-400">Header Ads</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Header Ad 2 */}
+                <div className={`overflow-hidden border-l ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                  {ads[1] ? (
+                    <a
+                      href={ads[1].url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block w-full h-full"
+                    >
+                      <img
+                        src={ads[1].image}
+                        alt={ads[1].title}
+                        className="w-full h-full object-cover"
+                      />
+                    </a>
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-50">
+                      <span className="text-xs font-medium text-gray-400">Header Ads</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              <div className="min-w-0 flex justify-center px-1">
-                {showAds && (
-                  <InlineHeaderAds
-                    ads={ads}
-                    currentIndex={currentAdIndex}
-                    onPrev={handlePrevAd}
-                    onNext={handleNextAd}
-                    onSelect={setCurrentAdIndex}
-                  />
-                )}
-              </div>
-
-              {showAppDownloadButtons && (
+              {/* ── Row C: User photo | Mygroup brand (center) | Action icons ── */}
+              <div
+                className={`flex items-center justify-between px-4 relative ${
+                  darkMode ? 'bg-gray-900' : 'bg-white'
+                }`}
+                style={{ height: 52 }}
+              >
+                {/* Left: logged-in user profile photo — display only, not clickable */}
                 <div className="flex-shrink-0">
-                  <AppDownloadBadges />
+                  {userProfile?.profile_img || userProfile?.profile_img_url ? (
+                    <img
+                      src={resolveProfileImageUrl(userProfile.profile_img, userProfile.profile_img_url)}
+                      alt="Profile"
+                      {...WASABI_IMG_PROPS}
+                      className="w-8 h-8 rounded-full object-cover border-2 border-gray-200"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center">
+                      <User size={16} className="text-white" />
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+
+                {/* Center: Mygroup logo + name (absolute-centered) */}
+                <div className="flex items-center gap-2 absolute left-1/2 -translate-x-1/2 pointer-events-none select-none">
+                  <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center shadow-sm flex-shrink-0">
+                    {displayLogo || displayIcon ? (
+                      <img
+                        src={
+                          (displayLogo || displayIcon)!.startsWith('http')
+                            ? (displayLogo || displayIcon)!
+                            : `${BACKEND_URL}${displayLogo || displayIcon}`
+                        }
+                        alt={appInfo?.name || 'Mygroup'}
+                        className="w-5 h-5 object-contain"
+                      />
+                    ) : (
+                      <span className="text-white font-bold text-xs">
+                        {(appInfo?.name || appName || 'M').charAt(0).toUpperCase()}
+                      </span>
+                    )}
+                  </div>
+                  <span className={`font-semibold text-sm ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    {appInfo?.name || appInfo?.apps_name || appName || 'Mygroup'}
+                  </span>
+                </div>
+
+                {/* Right: action icons — list view + dark-mode toggle only */}
+                <div className="flex items-center gap-0.5">
+                  <button
+                    type="button"
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                      darkMode ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                    aria-label="List view"
+                  >
+                    <List size={17} />
+                  </button>
+                  {showDarkModeToggle && onDarkModeToggle && (
+                    <button
+                      type="button"
+                      onClick={onDarkModeToggle}
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                        darkMode
+                          ? 'bg-gray-800 text-amber-400 hover:bg-gray-700'
+                          : 'text-gray-600 hover:bg-gray-100'
+                      }`}
+                      aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+                    >
+                      {darkMode ? <Sun size={17} /> : <Moon size={17} />}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </>
           ) : (
           <div
             className={`flex items-center justify-between gap-3 ${
@@ -1533,7 +1676,11 @@ export const getMobileHeaderHeight = (
   searchExpanded: boolean = false,
 ) => {
   if (variant === 'desktop' && desktopLayout === 'home') {
-    return 80;
+    // Row A (compact teal top-icons strip): 36px when visible
+    // Row B (logo + two header ads):       80px
+    // Row C (brand bar with icons):         52px
+    const topIconsRow = showTopIcons ? 36 : 0;
+    return topIconsRow + 80 + 52;
   }
   if (variant === 'desktop' && !showTopIcons && !_showAds) {
     return 72;

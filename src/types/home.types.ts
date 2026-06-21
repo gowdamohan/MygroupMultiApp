@@ -106,17 +106,51 @@ export interface CopyRight {
   company_name?: string;
 }
 
+/** Generic footer_page row (group_name = 'corporate') */
+export interface FooterPageItem {
+  id: number;
+  footer_page_type?: string;
+  title?: string;
+  tag_line?: string;
+  image?: string;
+  content?: string;
+  url?: string;
+  event_date?: string;
+  year?: number;
+  group_name?: string;
+}
+
+/** A single image from gallery_images_master */
+export interface GalleryImageItem {
+  image_id: number;
+  gallery_id: number;
+  image_name: string;
+  image_description?: string | null;
+  gallery_name?: string | null;
+  group_id?: number | null;
+}
+
 export interface HomeData {
   logo: Logo;
   topIcon: TopIconList;
   socialLink: SocialLink[];
   copyRight?: CopyRight;
-  aboutUs: AboutUs[];
   mainAds?: MainAds;
-  newsroom?: Newsroom;
-  awards?: Awards;
-  event?: Events;
-  gallery?: Gallery;
+
+  // ── footer_page arrays (group_name = 'corporate') ──
+  clients: FooterPageItem[];          // footer_page_type = 'clients'
+  eventsList: FooterPageItem[];       // footer_page_type = 'events'
+  newsroomList: FooterPageItem[];     // footer_page_type = 'newsroom'
+  awardsList: FooterPageItem[];       // footer_page_type = 'awards'
+  testimonialsList: FooterPageItem[]; // footer_page_type = 'testimonials'
+  galleryImages: GalleryImageItem[];  // gallery_list + gallery_images_master
+
+  // ── Legacy single-item fields (mobile / backward compat) ──
+  aboutUs: AboutUs[];
+  newsroom?: Newsroom | null;
+  awards?: Awards | null;
+  event?: Events | null;
+  gallery?: Gallery | null;
   testimonials: Testimonial[];
 }
 

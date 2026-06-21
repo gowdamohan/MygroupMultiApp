@@ -4,6 +4,63 @@
   scroll-behavior: smooth;
 }
 
+/* ── Scrolling news ticker ── */
+@keyframes home-marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.home-ticker-track {
+  display: flex;
+  width: max-content;
+  animation: home-marquee 35s linear infinite;
+}
+.home-ticker-track:hover {
+  animation-play-state: paused;
+}
+
+/* ── Portal layout sidebar scrollbar hide ── */
+.home-portal-sidebar {
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.home-portal-sidebar::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── Horizontal app-icon strip ── */
+.home-app-strip {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding: 0.375rem 0.5rem 0.625rem;
+  scrollbar-width: none;
+}
+.home-app-strip::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── Side-ad placeholder (shown when no real ad image is loaded) ── */
+.home-side-ad-placeholder {
+  background: linear-gradient(135deg, #fde047 0%, #facc15 100%);
+  border-radius: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #78350f;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+/* ── Portal zone separator ── */
+.home-portal-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(124,58,237,0.15) 30%, rgba(124,58,237,0.15) 70%, transparent);
+}
+body.dark-mode .home-portal-divider {
+  background: linear-gradient(90deg, transparent, rgba(167,139,250,0.18) 30%, rgba(167,139,250,0.18) 70%, transparent);
+}
+
 /* Desktop home top navbar — inline ads + store badges */
 .desktop-home .inline-header-ads-placeholder {
   background: linear-gradient(90deg, #f5f3ff 0%, #eef2ff 50%, #f5f3ff 100%);
@@ -144,4 +201,18 @@ body.dark-mode .desktop-home .home-nav-card {
 
 body.dark-mode .desktop-home .home-app-card:hover {
   box-shadow: 0 20px 40px -12px rgba(124, 58, 237, 0.25);
+}
+
+body.dark-mode .desktop-home .home-portal-sidebar {
+  background-color: #1f2937;
+  border-color: #374151;
+}
+
+body.dark-mode .desktop-home .home-side-ad-placeholder {
+  background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
+  color: #9ca3af;
+}
+
+body.dark-mode .desktop-home .home-ticker-track span {
+  color: #d1d5db;
 }

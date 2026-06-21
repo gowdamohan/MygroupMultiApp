@@ -5,7 +5,8 @@ import {
   LayoutDashboard, User, Lock, Video, List,
   LogOut, ChevronDown, ChevronRight, Menu, X,
   MessageCircle,
-  Users, Star, TrendingUp, DollarSign, Megaphone, Wallet
+  Users, Star, TrendingUp, DollarSign, Megaphone, Wallet,
+  Building2
 } from 'lucide-react';
 import { EditProfile } from '../partner/EditProfile';
 import { ChangePassword } from '../partner/ChangePassword';
@@ -53,6 +54,14 @@ interface SelectedAppInfo {
   };
 }
 
+interface OwnerDetails {
+  photo_signed_url?: string | null;
+  logo_signed_url?: string | null;
+  company_name?: string | null;
+  company_registration?: string | null;
+  company_taxation?: string | null;
+}
+
 export const PartnerDashboard: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -62,6 +71,7 @@ export const PartnerDashboard: React.FC = () => {
   const [activeMenu, setActiveMenu] = useState('dashboard');
   const [user, setUser] = useState<any>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [ownerDetails, setOwnerDetails] = useState<OwnerDetails | null>(null);
   const [registrationStatus, setRegistrationStatus] = useState<string>('pending');
   const [appName, setAppName] = useState<string>('');
   const [selectedAppInfo, setSelectedAppInfo] = useState<SelectedAppInfo | null>(null);
@@ -130,12 +140,34 @@ export const PartnerDashboard: React.FC = () => {
     }
   }, []);
 
+  const fetchOwnerDetails = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const response = await axios.get(`${API_BASE_URL}/partner/owner-details`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.success && response.data.data) {
+        const d = response.data.data;
+        setOwnerDetails({
+          photo_signed_url: d.photo_signed_url || null,
+          logo_signed_url: d.logo_signed_url || null,
+          company_name: d.company_name || null,
+          company_registration: d.company_registration || null,
+          company_taxation: d.company_taxation || null,
+        });
+      }
+    } catch {
+      // silently ignore — owner details are optional at this stage
+    }
+  }, []);
+
   useEffect(() => {
     const userData = localStorage.getItem('user');
     if (userData) {
       const parsedUser = JSON.parse(userData);
       setUser(parsedUser);
       fetchUserProfile();
+      fetchOwnerDetails();
     } else {
       navigate('/partner');
     }
@@ -151,7 +183,7 @@ export const PartnerDashboard: React.FC = () => {
         setSelectedAppInfo(null);
       }
     }
-  }, [navigate, fetchUserProfile]);
+  }, [navigate, fetchUserProfile, fetchOwnerDetails]);
 
   // Poll for unread support chat messages
   useEffect(() => {
@@ -166,6 +198,16 @@ export const PartnerDashboard: React.FC = () => {
       markSupportChatRead();
     }
   }, [location.pathname, markSupportChatRead]);
+
+  // Re-fetch owner details when PartnerProfileCompletionForm saves successfully
+  useEffect(() => {
+    const handler = () => {
+      fetchOwnerDetails();
+      fetchUserProfile();
+    };
+    window.addEventListener('partner:profile-saved', handler);
+    return () => window.removeEventListener('partner:profile-saved', handler);
+  }, [fetchOwnerDetails, fetchUserProfile]);
 
   // Common menu items for ALL partner dashboards
   const commonMenuItems: MenuItem[] = [
@@ -314,10 +356,10 @@ export const PartnerDashboard: React.FC = () => {
 
   const registrationEmail = userProfile?.email || user?.email || '';
   const appLogo = selectedAppInfo?.details?.logo;
+  const appIcon = selectedAppInfo?.details?.icon;
 
   const renderSidebarIdentity = (variant: 'desktop' | 'mobile') => {
     const isDesktop = variant === 'desktop';
-    const logoSize = isDesktop ? 'w-14 h-14' : 'w-12 h-12';
 
     return (
       <div className={`relative overflow-hidden ${isDesktop ? 'mx-3 mt-2 mb-1' : 'mb-0'}`}>
@@ -334,45 +376,94 @@ export const PartnerDashboard: React.FC = () => {
             </div>
           )}
 
-          <div className={`flex ${isDesktop ? 'flex-col items-center text-center' : 'items-center gap-3'} gap-3`}>
-            <div className={`${logoSize} rounded-xl overflow-hidden border-2 border-primary-400/70 bg-white shadow-lg flex-shrink-0 ring-2 ring-primary-500/20`}>
-              {appLogo ? (
-                <img src={appLogo} alt={selectedAppInfo?.name || 'App'} className="w-full h-full object-contain p-1.5" />
-              ) : userProfile?.profile_img || userProfile?.profile_img_url ? (
-                <img
-                  src={resolveProfileImageUrl(userProfile.profile_img, userProfile.profile_img_url)}
-                  alt="Profile"
-                  {...WASABI_IMG_PROPS}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center">
-                  <User className="text-white" size={isDesktop ? 24 : 20} />
-                </div>
-              )}
-            </div>
-
-            {(isDesktop ? sidebarOpen : true) && (
-              <div className={`min-w-0 ${isDesktop ? 'w-full' : 'flex-1'}`}>
-                <p className="text-[10px] uppercase tracking-widest text-primary-300/80 font-semibold mb-0.5">
-                  Partner Account
-                </p>
-                <p className="text-sm font-semibold text-white leading-snug truncate">
-                  {getDisplayName()}
-                </p>
-                {userProfile?.identification_code && (
-                  <p className="text-xl font-bold text-primary-300 mt-1.5 tracking-wide leading-none">
-                    {userProfile.identification_code}
-                  </p>
-                )}
-                {registrationEmail && (
-                  <p className="text-[11px] text-gray-400 mt-2 break-all leading-relaxed">
-                    {registrationEmail}
-                  </p>
+          {/* Three-column image header */}
+          <div className="grid grid-cols-3 gap-2 items-start mb-3">
+            {/* Left — app icon */}
+            <div className="flex flex-col items-center gap-1">
+              <div className="w-11 h-11 rounded-full overflow-hidden border-2 border-amber-400/70 bg-white shadow-sm ring-2 ring-amber-500/20 flex items-center justify-center">
+                {appIcon ? (
+                  <img
+                    src={appIcon}
+                    alt={selectedAppInfo?.name || 'App'}
+                    className="w-full h-full object-contain p-0.5"
+                  />
+                ) : (
+                  <span className="text-base font-bold text-amber-600 leading-none select-none">
+                    {(selectedAppInfo?.name || 'A').charAt(0).toUpperCase()}
+                  </span>
                 )}
               </div>
-            )}
+              <span className="text-[9px] text-gray-400 text-center leading-tight truncate w-full text-center">
+                {selectedAppInfo?.name ? selectedAppInfo.name.split(' ')[0] : 'App'}
+              </span>
+            </div>
+
+            {/* Center — company logo */}
+            <div className="flex flex-col items-center gap-1">
+              <div className="w-12 h-12 rounded-xl overflow-hidden border-2 border-primary-400/70 bg-white shadow-lg ring-2 ring-primary-500/20">
+                {ownerDetails?.logo_signed_url ? (
+                  <img
+                    src={ownerDetails.logo_signed_url}
+                    alt="Company logo"
+                    {...WASABI_IMG_PROPS}
+                    className="w-full h-full object-contain p-1"
+                  />
+                ) : appLogo ? (
+                  <img src={appLogo} alt={selectedAppInfo?.name || 'App'} className="w-full h-full object-contain p-1.5" />
+                ) : (
+                  <div className="w-full h-full bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center">
+                    <Building2 className="text-white" size={18} />
+                  </div>
+                )}
+              </div>
+              <span className="text-[9px] text-gray-400">Company</span>
+            </div>
+
+            {/* Right — owner photo */}
+            <div className="flex flex-col items-center gap-1">
+              <div className="w-12 h-12 rounded-xl overflow-hidden border-2 border-indigo-400/70 bg-white shadow-lg ring-2 ring-indigo-500/20">
+                {ownerDetails?.photo_signed_url ? (
+                  <img
+                    src={ownerDetails.photo_signed_url}
+                    alt="Owner"
+                    {...WASABI_IMG_PROPS}
+                    className="w-full h-full object-cover"
+                  />
+                ) : userProfile?.profile_img || userProfile?.profile_img_url ? (
+                  <img
+                    src={resolveProfileImageUrl(userProfile.profile_img, userProfile.profile_img_url)}
+                    alt="Profile"
+                    {...WASABI_IMG_PROPS}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-purple-700 flex items-center justify-center">
+                    <User className="text-white" size={18} />
+                  </div>
+                )}
+              </div>
+              <span className="text-[9px] text-gray-400">Owner</span>
+            </div>
           </div>
+
+          {/* Text identity (display name / ID / email) */}
+          {(isDesktop ? sidebarOpen : true) && (
+            <div className="text-center min-w-0">
+              <p className="text-sm font-semibold text-white leading-snug truncate">
+                {getDisplayName()}
+              </p>
+              {userProfile?.identification_code && (
+                <p className="text-xl font-bold text-primary-300 mt-1.5 tracking-wide leading-none">
+                  {userProfile.identification_code}
+                </p>
+              )}
+              {registrationEmail && (
+                <p className="text-[11px] text-gray-400 mt-2 break-all leading-relaxed">
+                  {registrationEmail}
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -490,6 +581,7 @@ export const PartnerDashboard: React.FC = () => {
       onStatusChange={(newStatus) => {
         setRegistrationStatus(newStatus);
         fetchUserProfile();
+        fetchOwnerDetails();
       }}
     />
   );
@@ -538,6 +630,7 @@ export const PartnerDashboard: React.FC = () => {
             onStatusChange={(newStatus) => {
               setRegistrationStatus(newStatus);
               fetchUserProfile();
+              fetchOwnerDetails();
             }}
           />
         );

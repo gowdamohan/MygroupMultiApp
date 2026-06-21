@@ -206,13 +206,21 @@ export const saveOwnerDetails = async (req, res) => {
     for (const { field, pathKey, urlKey } of singleFileFields) {
       if (files[field] && files[field][0]) {
         if (existingData?.[pathKey]) {
-          try { await deleteFile(existingData[pathKey]); } catch (e) { /* ignore */ }
+          try { await deleteFile(existingData[pathKey]); } catch (e) { /* ignore old-file delete errors */ }
         }
         const f = files[field][0];
-        const result = await uploadFile(f.buffer, f.originalname, f.mimetype, folder);
-        if (result.success) {
-          updates[pathKey] = result.fileName;
-          updates[urlKey] = result.publicUrl;
+        try {
+          const result = await uploadFile(f.buffer, f.originalname, f.mimetype, folder);
+          if (result.success) {
+            updates[pathKey] = result.fileName;
+            updates[urlKey] = result.publicUrl;
+          }
+        } catch (uploadErr) {
+          console.error(`Wasabi upload failed for field "${field}":`, uploadErr?.message || uploadErr);
+          return res.status(500).json({
+            success: false,
+            message: `File upload failed for ${field}. Please try again.`
+          });
         }
       }
     }
@@ -228,13 +236,21 @@ export const saveOwnerDetails = async (req, res) => {
         const existingDocs = parseDocArray(existingData?.[key]);
         const newDocs = [...existingDocs];
         for (const f of files[field]) {
-          const result = await uploadFile(f.buffer, f.originalname, f.mimetype, folder);
-          if (result.success) {
-            newDocs.push({
-              name: f.originalname,
-              path: result.fileName,
-              url: result.publicUrl,
-              uploaded_at: new Date().toISOString()
+          try {
+            const result = await uploadFile(f.buffer, f.originalname, f.mimetype, folder);
+            if (result.success) {
+              newDocs.push({
+                name: f.originalname,
+                path: result.fileName,
+                url: result.publicUrl,
+                uploaded_at: new Date().toISOString()
+              });
+            }
+          } catch (uploadErr) {
+            console.error(`Wasabi upload failed for multi-file field "${field}" (${f.originalname}):`, uploadErr?.message || uploadErr);
+            return res.status(500).json({
+              success: false,
+              message: `File upload failed for ${f.originalname}. Please try again.`
             });
           }
         }
