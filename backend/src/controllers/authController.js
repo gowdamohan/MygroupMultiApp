@@ -727,7 +727,7 @@ export const partnerLogin = async (req, res) => {
     if (!user) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid credentials'
+        message: 'Your email ID is not registered with our partner account'
       });
     }
 
@@ -735,7 +735,7 @@ export const partnerLogin = async (req, res) => {
     if (!isPasswordValid) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid credentials'
+        message: 'Password is wrong'
       });
     }
 

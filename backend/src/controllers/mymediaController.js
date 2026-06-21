@@ -1254,6 +1254,280 @@ export const toggleFollow = async (req, res) => {
   }
 };
 
+/* ─────────────────────────────────────────────────────────────────────────
+ *  NEWS FEED HELPERS  (server-side RSS / Atom / OpenGraph parser)
+ * ────────────────────────────────────────────────────────────────────────── */
+
+/** Returns true for live-streaming protocols / YouTube watch URLs that are
+ *  not usable as an RSS/article feed. */
+const isStreamingMediaUrl = (url) => {
+  if (!url) return true;
+  const u = url.toLowerCase();
+  return (
+    u.startsWith('rtmp://') || u.startsWith('rtmps://') ||
+    u.startsWith('srt://') || u.startsWith('udp://') ||
+    u.endsWith('.m3u8') || u.includes('.m3u8?') ||
+    /youtube\.com\/watch|youtu\.be\/[a-z0-9_-]{11}/i.test(u) ||
+    /youtube\.com\/embed\//i.test(u)
+  );
+};
+
+/** Fetch a URL with timeout via native fetch (Node ≥18). */
+const fetchText = async (url, timeoutMs = 10_000) => {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      signal: ac.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; MyMediaBot/1.0; +https://mymedia.app)',
+        Accept: 'application/rss+xml, application/atom+xml, text/xml, text/html, */*',
+      },
+      redirect: 'follow',
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.text();
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+/** Strip HTML tags from a string. */
+const stripHtml = (html) =>
+  (html || '').replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ').replace(/\s{2,}/g, ' ').trim();
+
+/** Pull text from CDATA section or plain tag content. */
+const getXmlTagText = (xml, tag) => {
+  const cdata = new RegExp(`<${tag}[^>]*><!\\[CDATA\\[([\\s\\S]*?)\\]\\]><\\/${tag}>`, 'i');
+  const cdataM = xml.match(cdata);
+  if (cdataM) return cdataM[1].trim();
+  const plain = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i');
+  const plainM = xml.match(plain);
+  if (plainM) return plainM[1].replace(/<[^>]+>/g, '').trim();
+  return '';
+};
+
+/** Parse RSS 2.0 or Atom XML → array of news items (up to maxItems). */
+const parseXmlFeed = (xmlText, maxItems = 20) => {
+  const items = [];
+  const isAtom = /<feed[^>]*xmlns/i.test(xmlText);
+  const itemTag = isAtom ? 'entry' : 'item';
+  const rawItems =
+    xmlText.match(new RegExp(`<${itemTag}[\\s>][\\s\\S]*?<\\/${itemTag}>`, 'gi')) || [];
+
+  // Channel-level image (RSS)
+  let channelImage = '';
+  const chanImgMatch = xmlText.match(/<channel[\s\S]*?<image[\s\S]*?<url>([\s\S]*?)<\/url>/i);
+  if (chanImgMatch) channelImage = chanImgMatch[1].trim();
+
+  const channelTitle =
+    getXmlTagText(xmlText.replace(/<item[\s\S]*$/i, '').replace(/<entry[\s\S]*$/i, ''), 'title') ||
+    '';
+
+  for (const raw of rawItems.slice(0, maxItems)) {
+    const title = stripHtml(getXmlTagText(raw, 'title'));
+    if (!title) continue;
+
+    // Link
+    let link = '';
+    if (isAtom) {
+      const alt = raw.match(/<link[^>]*rel=["']alternate["'][^>]*href=["']([^"']+)["']/i);
+      const any = raw.match(/<link[^>]*href=["']([^"']+)["']/i);
+      link = (alt || any)?.[1] || getXmlTagText(raw, 'id');
+    } else {
+      link =
+        raw.match(/<link>\s*([^\s<]+)\s*<\/link>/i)?.[1] ||
+        raw.match(/<link\s*\/>([^\s<]+)/i)?.[1] ||
+        getXmlTagText(raw, 'guid') ||
+        '';
+    }
+    if (!link || link.startsWith('urn:')) continue;
+
+    // Description / summary
+    const rawDesc =
+      getXmlTagText(raw, 'content:encoded') ||
+      getXmlTagText(raw, 'content') ||
+      getXmlTagText(raw, 'description') ||
+      getXmlTagText(raw, 'summary');
+    const description = stripHtml(rawDesc).substring(0, 300);
+
+    // Published date
+    const publishedAt =
+      getXmlTagText(raw, 'pubDate') ||
+      getXmlTagText(raw, 'published') ||
+      getXmlTagText(raw, 'updated') ||
+      getXmlTagText(raw, 'dc:date') ||
+      new Date().toISOString();
+
+    // Image – try several sources in priority order
+    let image = '';
+
+    // 1. media:content / media:thumbnail with explicit image mime type
+    const mediaCT = raw.match(
+      /<media:(?:content|thumbnail)[^>]*url=["']([^"']+)["'][^>]*(?:medium=["']image["']|type=["']image\/[^"']+["'])?[^>]*>/i
+    );
+    if (mediaCT) image = mediaCT[1];
+
+    // 2. enclosure with image type
+    if (!image) {
+      const enc = raw.match(/<enclosure[^>]*url=["']([^"']+)["'][^>]*type=["']image\/[^"']+["'][^>]*>/i);
+      if (enc) image = enc[1];
+    }
+
+    // 3. First <img> in the encoded/description HTML
+    if (!image && rawDesc) {
+      const imgTag = rawDesc.match(/<img[^>]+src=["']([^"']+)["']/i);
+      if (imgTag) image = imgTag[1];
+    }
+
+    // 4. Fallback to channel image
+    if (!image) image = channelImage;
+
+    items.push({ title, url: link, description, image, publishedAt });
+  }
+
+  return { items, channelTitle };
+};
+
+/** Discover RSS feed URL from HTML <link rel="alternate"> tags. */
+const discoverRssFeedUrl = (html, baseUrl) => {
+  const rssTypes = [
+    'application/rss+xml', 'application/atom+xml', 'application/feed+json',
+    'text/xml', 'application/xml',
+  ];
+  for (const type of rssTypes) {
+    const re = new RegExp(
+      `<link[^>]*type=["']${type.replace(/[/+]/g, '\\$&')}["'][^>]*href=["']([^"']+)["']`,
+      'i'
+    );
+    const m = html.match(re);
+    if (m) {
+      const href = m[1];
+      if (href.startsWith('http')) return href;
+      try {
+        return new URL(href, baseUrl).href;
+      } catch {
+        return null;
+      }
+    }
+  }
+  return null;
+};
+
+/** Extract OpenGraph / meta tags as a single article item from an HTML page. */
+const extractOpenGraph = (html, pageUrl) => {
+  const getOg = (property) => {
+    const m = html.match(new RegExp(`<meta[^>]*property=["']og:${property}["'][^>]*content=["']([^"']+)["']`, 'i'))
+      || html.match(new RegExp(`<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:${property}["']`, 'i'));
+    return m ? m[1].trim() : '';
+  };
+  const title = getOg('title') || html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1]?.trim() || '';
+  const description = getOg('description') || '';
+  const image = getOg('image') || '';
+  if (!title) return null;
+  return { title, url: pageUrl, description, image, publishedAt: new Date().toISOString() };
+};
+
+/** Master helper: fetch URL, try RSS/Atom, discover feed, fall back to OG. */
+const fetchAndParseNewsFeed = async (url) => {
+  const text = await fetchText(url);
+  const isXml =
+    text.trimStart().startsWith('<?xml') ||
+    /<rss[^>]*version/i.test(text) ||
+    /<feed[^>]*xmlns/i.test(text) ||
+    /<channel>[\s\S]*<item/i.test(text);
+
+  if (isXml) {
+    return parseXmlFeed(text);
+  }
+
+  // HTML: try to discover embedded RSS feed link
+  const discoveredUrl = discoverRssFeedUrl(text, url);
+  if (discoveredUrl) {
+    try {
+      const feedText = await fetchText(discoveredUrl);
+      return parseXmlFeed(feedText);
+    } catch {
+      /* fall through */
+    }
+  }
+
+  // Last resort: OpenGraph extraction
+  const ogItem = extractOpenGraph(text, url);
+  return { items: ogItem ? [ogItem] : [], channelTitle: '' };
+};
+
+/* ─────────────────────────────────────────────────────────────────────────
+ *  getChannelNewsFeed  –  GET /api/v1/mymedia/channel/:channelId/news-feed
+ * ────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Fetch latest news/articles for a Web or TV channel by parsing its media_url
+ * (or website social link) as an RSS / Atom feed.
+ * GET /api/v1/mymedia/channel/:channelId/news-feed
+ */
+export const getChannelNewsFeed = async (req, res) => {
+  try {
+    const { channelId } = req.params;
+
+    const channel = await MediaChannel.findOne({
+      where: { id: channelId, is_active: 1 },
+      attributes: ['id', 'media_name_english', 'media_url', 'media_logo'],
+    });
+
+    if (!channel) {
+      return res.status(404).json({ success: false, message: 'Channel not found' });
+    }
+
+    // Collect candidate URLs to try (prefer non-streaming)
+    const candidateUrls = [];
+    if (channel.media_url && !isStreamingMediaUrl(channel.media_url)) {
+      candidateUrls.push(channel.media_url);
+    }
+
+    // Also check social links for website/blog URLs
+    const socialLinks = await MediaSocialLinks.findAll({
+      where: { media_channel_id: channelId, is_active: 1 },
+    });
+    for (const link of socialLinks) {
+      const platform = (link.platform || link.link_type || '').toLowerCase();
+      if (['website', 'blog', 'news'].includes(platform) && link.url) {
+        if (!candidateUrls.includes(link.url)) candidateUrls.push(link.url);
+      }
+    }
+
+    let items = [];
+    let feedTitle = channel.media_name_english;
+
+    for (const url of candidateUrls) {
+      try {
+        const result = await fetchAndParseNewsFeed(url);
+        if (result.items.length > 0) {
+          items = result.items;
+          if (result.channelTitle) feedTitle = result.channelTitle;
+          break;
+        }
+      } catch (err) {
+        console.warn(`[newsFeed] Failed to fetch from ${url}:`, err.message);
+      }
+    }
+
+    const mediaLogoUrl = await getMediaLogoUrl(channel.media_logo);
+
+    res.json({
+      success: true,
+      data: {
+        channelName: feedTitle || channel.media_name_english,
+        channelLogo: mediaLogoUrl || channel.media_logo,
+        items,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching channel news feed:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch news feed', error: error.message });
+  }
+};
+
 /**
  * Get top icons for an app
  * GET /api/v1/apps/:appId/top-icons

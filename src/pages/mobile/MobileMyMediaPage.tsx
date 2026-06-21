@@ -11,6 +11,7 @@ import { EPaperMagazineView } from '../../components/mobile/EPaperMagazineView';
 import { TVChannelView } from '../../components/mobile/TVChannelView';
 import { TVChannelDetailPage } from '../../components/mobile/TVChannelDetailPage';
 import { YoutubeChannelView } from '../../components/mobile/YoutubeChannelView';
+import { WebNewsFeedView } from '../../components/mobile/WebNewsFeedView';
 import { getCategoryIcon, DefaultCategoryIcon } from '../../components/mobile/CategoryIcons';
 import {
   pickDefaultParentCategory,
@@ -132,10 +133,10 @@ function formatTime12h(time24: string): string {
 /** 4 days for TV/Radio: Yesterday, Today, Tomorrow, Day after tomorrow (day_of_week 0–6 for API) */
 const SCHEDULE_DAY_LABELS = ['Yesterday', 'Today', 'Tomorrow', 'Day after tomorrow'] as const;
 
-type ViewMode = 'list' | 'channel-detail' | 'epaper-view' | 'tv-player' | 'youtube-channel';
+type ViewMode = 'list' | 'channel-detail' | 'epaper-view' | 'tv-player' | 'youtube-channel' | 'web-news-feed';
 type ChannelLayout = 'grid' | 'list';
 
-const VIEW_MODES: ViewMode[] = ['list', 'channel-detail', 'epaper-view', 'tv-player', 'youtube-channel'];
+const VIEW_MODES: ViewMode[] = ['list', 'channel-detail', 'epaper-view', 'tv-player', 'youtube-channel', 'web-news-feed'];
 
 export const MobileMyMediaPage: React.FC = () => {
   // Get app name from URL params (e.g., /mobile/mymedia or /mobile/mycompany)
@@ -273,12 +274,26 @@ export const MobileMyMediaPage: React.FC = () => {
   const isYouTubeCategory = (): boolean =>
     categoryNameIncludesYouTube(getCurrentParentCategoryName());
 
+  /** True when the parent category name includes "web" (but not youtube/tv/radio). */
+  const isWebCategory = (): boolean => {
+    const name = getCurrentParentCategoryName().trim().toLowerCase();
+    return (
+      name.includes('web') &&
+      !name.includes('youtube') &&
+      !name.includes('you tube') &&
+      !name.includes('tv') &&
+      !name.includes('radio')
+    );
+  };
+
   const resolveChannelViewMode = (channel?: Channel | null): ViewMode => {
     if (isDocumentCategory()) return 'epaper-view';
     if (isStreamCategory()) return 'tv-player';
     // YouTube: either category is named "YouTube" or channel has a YouTube media_url
     if (isYouTubeCategory()) return 'youtube-channel';
     if (channel && isYouTubeChannelUrl(channel.media_url)) return 'youtube-channel';
+    // Web category: open the news aggregator view
+    if (isWebCategory()) return 'web-news-feed';
     return 'channel-detail';
   };
 
@@ -853,6 +868,18 @@ export const MobileMyMediaPage: React.FC = () => {
         channelName={selectedChannel.media_name_english}
         channelLogo={selectedChannel.media_logo_url || selectedChannel.media_logo}
         mediaUrl={selectedChannel.media_url}
+        onBack={handleBackToList}
+      />
+    );
+  }
+
+  // Render Web category news aggregator view
+  if (viewMode === 'web-news-feed' && selectedChannel) {
+    return (
+      <WebNewsFeedView
+        channelId={selectedChannel.id}
+        channelName={selectedChannel.media_name_english}
+        channelLogo={selectedChannel.media_logo_url || selectedChannel.media_logo}
         onBack={handleBackToList}
       />
     );

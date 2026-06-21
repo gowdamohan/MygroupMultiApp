@@ -69,6 +69,14 @@ interface ReviewStats {
   counts: Record<string, number>;
 }
 
+interface NewsItem {
+  title: string;
+  url: string;
+  description: string;
+  image: string;
+  publishedAt: string;
+}
+
 /* ─── Helpers ────────────────────────────────────────────────── */
 const fmt = (n: number): string => {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -132,6 +140,10 @@ export const TVChannelDetailPage: React.FC<Props> = ({
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewSuccess, setReviewSuccess] = useState(false);
   const [showReviewForm, setShowReviewForm] = useState(false);
+
+  /* news feed state */
+  const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
+  const [newsLoading, setNewsLoading] = useState(true);
 
   /* logo */
   const logoSrc = (() => {
@@ -216,12 +228,23 @@ export const TVChannelDetailPage: React.FC<Props> = ({
     } catch { /* non-critical */ }
   }, [channelId]);
 
+  /* ── Load latest news feed ── */
+  const loadNews = useCallback(async () => {
+    setNewsLoading(true);
+    try {
+      const res = await axios.get(`${API_BASE_URL}/mymedia/channel/${channelId}/news-feed`);
+      if (res.data.success) setNewsItems(res.data.data.items || []);
+    } catch { /* non-critical — news is supplementary */ }
+    finally { setNewsLoading(false); }
+  }, [channelId]);
+
   useEffect(() => {
     loadPlayback();
     loadDetails();
     incrementView();
     loadReviews();
-  }, [loadPlayback, loadDetails, incrementView, loadReviews]);
+    loadNews();
+  }, [loadPlayback, loadDetails, incrementView, loadReviews, loadNews]);
 
   /* Autoplay after load */
   useEffect(() => {
@@ -597,6 +620,35 @@ export const TVChannelDetailPage: React.FC<Props> = ({
         </div>
       </div>
 
+      {/* ═══ LATEST NEWS ════════════════════════════════════════ */}
+      {(newsLoading || newsItems.length > 0) && (
+        <Section title="Latest News" action={
+          <span className="flex items-center gap-1 text-xs text-gray-400">
+            <Globe size={12} /> Web Updates
+          </span>
+        }>
+          <div className="px-4 space-y-0">
+            {newsLoading ? (
+              /* Loading skeletons */
+              Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="flex gap-3 py-3 border-b border-gray-100 animate-pulse">
+                  <div className="flex-1 space-y-2">
+                    <div className="h-3 bg-gray-200 rounded w-full" />
+                    <div className="h-3 bg-gray-200 rounded w-4/5" />
+                    <div className="h-2.5 bg-gray-100 rounded w-2/5 mt-3" />
+                  </div>
+                  <div className="w-20 h-16 rounded-xl bg-gray-200 flex-shrink-0" />
+                </div>
+              ))
+            ) : (
+              newsItems.slice(0, 6).map((item, idx) => (
+                <NewsCard key={`${item.url}-${idx}`} item={item} channelName={channelName} />
+              ))
+            )}
+          </div>
+        </Section>
+      )}
+
       {/* ═══ RATINGS & REVIEWS ═══════════════════════════════════ */}
       <Section title="Ratings & Reviews" action={
         <button onClick={() => setShowReviewForm(v => !v)} className="text-xs font-semibold text-red-500 hover:text-red-600">
@@ -916,6 +968,68 @@ const Section: React.FC<{ title: string; action?: React.ReactNode; children: Rea
     {children}
   </div>
 );
+
+/** Relative human-readable timestamp ("5 mins ago", "1 hr ago", "Yesterday", …) */
+const newsRelativeTime = (dateStr: string): string => {
+  if (!dateStr) return '';
+  const then = new Date(dateStr);
+  if (Number.isNaN(then.getTime())) return '';
+  const diffMins = Math.floor((Date.now() - then.getTime()) / 60_000);
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins} min${diffMins === 1 ? '' : 's'} ago`;
+  const diffHrs = Math.floor(diffMins / 60);
+  if (diffHrs < 24) return `${diffHrs} hr${diffHrs === 1 ? '' : 's'} ago`;
+  const diffDays = Math.floor(diffHrs / 24);
+  if (diffDays === 1) return 'Yesterday';
+  return then.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+};
+
+/** Inline news card – mirrors the WebNewsFeedView card layout */
+const NewsCard: React.FC<{ item: NewsItem; channelName: string }> = ({ item, channelName }) => {
+  const [imgErr, setImgErr] = React.useState(false);
+  const handleOpen = () => {
+    if (item.url) window.open(item.url, '_blank', 'noopener,noreferrer');
+  };
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={handleOpen}
+      onKeyDown={(e) => e.key === 'Enter' && handleOpen()}
+      className="flex gap-3 py-3 bg-white border-b border-gray-100 cursor-pointer hover:bg-gray-50 active:bg-gray-100 transition-colors"
+    >
+      {/* Text */}
+      <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+        <p className="font-semibold text-gray-900 text-sm leading-snug line-clamp-2">{item.title}</p>
+        {item.description && (
+          <p className="text-xs text-gray-500 line-clamp-1">
+            {item.description.substring(0, 80)}
+          </p>
+        )}
+        <div className="flex items-center gap-1.5 mt-auto pt-0.5">
+          <Globe size={10} className="text-red-500 flex-shrink-0" />
+          <span className="text-[10px] font-semibold text-red-600 truncate max-w-[100px]">{channelName}</span>
+          {item.publishedAt && (
+            <>
+              <span className="text-gray-300 text-[10px]">•</span>
+              <span className="text-[10px] text-gray-400 flex-shrink-0">{newsRelativeTime(item.publishedAt)}</span>
+            </>
+          )}
+        </div>
+      </div>
+      {/* Thumbnail */}
+      {item.image && !imgErr ? (
+        <div className="flex-shrink-0 w-20 h-16 rounded-xl overflow-hidden bg-gray-100">
+          <img src={item.image} alt={item.title} className="w-full h-full object-cover" onError={() => setImgErr(true)} />
+        </div>
+      ) : (
+        <div className="flex-shrink-0 w-20 h-16 rounded-xl bg-gradient-to-br from-red-50 to-red-100 flex items-center justify-center">
+          <Newspaper size={22} className="text-red-300" />
+        </div>
+      )}
+    </div>
+  );
+};
 
 const Chip: React.FC<{ label: string; active?: boolean }> = ({ label, active }) => (
   <span className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border whitespace-nowrap ${
