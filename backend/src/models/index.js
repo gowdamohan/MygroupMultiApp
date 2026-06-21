@@ -61,6 +61,7 @@ import FooterPageImage from './FooterPageImage.js';
 import FranchiseOfferAd from './FranchiseOfferAd.js';
 import PartnerAdsManagement from './PartnerAdsManagement.js';
 import FranchiseOfficeAddress from './FranchiseOfficeAddress.js';
+import MainAds from './MainAds.js';
 import MyGroupProfile from './MyGroupProfile.js';
 import OwnerDetails from './OwnerDetails.js';
 
@@ -839,6 +840,7 @@ export {
   PartnerAdsManagement,
   FranchiseOfficeAddress,
   MyGroupProfile,
-  OwnerDetails
+  OwnerDetails,
+  MainAds
 };
 

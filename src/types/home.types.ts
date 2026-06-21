@@ -44,12 +44,16 @@ export interface AboutUs {
 
 export interface MainAds {
   id: number;
-  ads1?: string;
-  ads2?: string;
-  ads3?: string;
-  ads1_url?: string;
-  ads2_url?: string;
-  ads3_url?: string;
+  /** Center page carousel ad (main_ads.main_ad_path) */
+  main_ad_path?: string | null;
+  main_ad_url?: string | null;
+  /** Side panel ad slots (main_ads.side_ad_1/2/3_path) */
+  side_ad_1_path?: string | null;
+  side_ad_1_url?: string | null;
+  side_ad_2_path?: string | null;
+  side_ad_2_url?: string | null;
+  side_ad_3_path?: string | null;
+  side_ad_3_url?: string | null;
 }
 
 export interface Newsroom {

@@ -238,13 +238,17 @@ export const DesktopHomePage: React.FC = () => {
   }
 
   /* ── Derived data ── */
-  const sideAds = [
-    homeData.mainAds?.ads1 ? { image: homeData.mainAds.ads1, url: homeData.mainAds.ads1_url } : null,
-    homeData.mainAds?.ads2 ? { image: homeData.mainAds.ads2, url: homeData.mainAds.ads2_url } : null,
-    homeData.mainAds?.ads3 ? { image: homeData.mainAds.ads3, url: homeData.mainAds.ads3_url } : null,
-  ].filter(Boolean) as { image: string; url?: string }[];
+  // Center carousel: one slide from main_ad_path
+  const mainAdsSlides = homeData.mainAds?.main_ad_path
+    ? [{ image: homeData.mainAds.main_ad_path, url: homeData.mainAds.main_ad_url ?? undefined }]
+    : [];
 
-  const mainAdsSlides = sideAds;
+  // Right-panel side ads: up to 3 slots from side_ad_1/2/3_path
+  const sideAds = [
+    homeData.mainAds?.side_ad_1_path ? { image: homeData.mainAds.side_ad_1_path, url: homeData.mainAds.side_ad_1_url ?? undefined } : null,
+    homeData.mainAds?.side_ad_2_path ? { image: homeData.mainAds.side_ad_2_path, url: homeData.mainAds.side_ad_2_url ?? undefined } : null,
+    homeData.mainAds?.side_ad_3_path ? { image: homeData.mainAds.side_ad_3_path, url: homeData.mainAds.side_ad_3_url ?? undefined } : null,
+  ].filter(Boolean) as { image: string; url?: string }[];
 
   const tickerItems = [
     ...(homeData.newsroomList ?? []).map((n) => n.title),

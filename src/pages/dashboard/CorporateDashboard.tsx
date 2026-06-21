@@ -17,6 +17,7 @@ import { FooterFaqManager } from '../corporate/FooterFaqManager';
 import { HeaderAdsPricing } from '../corporate/HeaderAdsPricing';
 import { CorporateHeaderAdsPricing } from '../corporate/CorporateHeaderAdsPricing';
 import { CorporateOfferAds } from '../corporate/CorporateOfferAds';
+import { MainPageAds } from '../corporate/MainPageAds';
 import { ChangePassword } from '../corporate/ChangePassword';
 import {
   LayoutDashboard, Users, Building2, MapPin, Globe, FileText,
@@ -259,7 +260,7 @@ export const CorporateDashboard: React.FC = () => {
       case '/corporate/company-header-ads':
         return <CompanyHeaderAds />;
       case '/corporate/main-page-ads':
-        return <div className="p-6"><h2 className="text-2xl font-bold">Main Page Ads Management</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
+        return <MainPageAds />;
       case '/corporate/profile':
         return <div className="p-6"><h2 className="text-2xl font-bold">Profile</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
       case '/corporate/application-details':

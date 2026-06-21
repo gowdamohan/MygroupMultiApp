@@ -3,7 +3,8 @@ import {
   CreateDetails,
   FooterPage,
   GalleryList,
-  GalleryImagesMaster
+  GalleryImagesMaster,
+  MainAds
 } from '../models/index.js';
 
 /**
@@ -129,8 +130,22 @@ export const getMobileHomeData = async (_req, res) => {
         }))
       : [];
 
-    /* ── 5. Main ads (placeholder – implemented via header ads system) ── */
-    const mainAds = null;
+    /* ── 5. Main ads — fetch the active row from main_ads table ── */
+    const mainAdsRow = await MainAds.findOne({
+      where: { is_active: 1 },
+      order: [['id', 'DESC']]
+    });
+    const mainAds = mainAdsRow ? {
+      id: mainAdsRow.id,
+      main_ad_path:  mainAdsRow.main_ad_path  || null,
+      main_ad_url:   mainAdsRow.main_ad_url   || null,
+      side_ad_1_path: mainAdsRow.side_ad_1_path || null,
+      side_ad_1_url:  mainAdsRow.side_ad_1_url  || null,
+      side_ad_2_path: mainAdsRow.side_ad_2_path || null,
+      side_ad_2_url:  mainAdsRow.side_ad_2_url  || null,
+      side_ad_3_path: mainAdsRow.side_ad_3_path || null,
+      side_ad_3_url:  mainAdsRow.side_ad_3_url  || null,
+    } : null;
 
     /* ── Build response ── */
     const homeData = {
