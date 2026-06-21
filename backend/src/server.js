@@ -61,6 +61,8 @@ const cspConnectSrc = [
   // Allow Wasabi S3 object storage (all regions and buckets)
   'https://*.wasabisys.com',
   'https://s3.us-west-1.wasabisys.com',
+  // Allow YouTube Data API v3 calls from the frontend
+  'https://www.googleapis.com',
 ];
 
 // In production, allow connections to same origin (API is served from same server)
