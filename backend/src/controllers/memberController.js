@@ -31,8 +31,6 @@ export const registerMember = async (req, res) => {
       password,
       // Step 2 fields
       display_name,
-      last_name,
-      alter_number,
       nationality,
       marital_status,
       gender,
@@ -46,9 +44,7 @@ export const registerMember = async (req, res) => {
       profession,
       education_others,
       work_others,
-      country_code,
-      country_flag,
-      country_code_alter
+      country_code
     } = req.body;
 
     // Check if mobile number already exists
@@ -78,13 +74,11 @@ export const registerMember = async (req, res) => {
     // Create user
     const user = await User.create({
       username: mobile,
-      email: `${mobile}@member.com`, // Generate email from mobile
+      email: `${mobile}@member.com`,
       password: password,
       first_name: first_name,
-      last_name: last_name || null,
       phone: mobile,
       display_name: display_name || first_name,
-      alter_number: alter_number || null,
       created_on: Math.floor(Date.now() / 1000),
       active: 1
     });
@@ -187,7 +181,7 @@ export const registerMemberStep1 = async (req, res) => {
     if (!first_name || !mobile || !password) {
       return res.status(400).json({
         success: false,
-        message: 'First name, mobile number, and password are required'
+        message: 'Full name, mobile number, and password are required'
       });
     }
 
@@ -282,9 +276,6 @@ export const updateMemberProfile = async (req, res) => {
     const {
       user_id: userIdRaw,
       display_name,
-      last_name,
-      alter_number,
-      alter_country_code,
       nationality,
       marital_status,
       gender,
@@ -366,11 +357,9 @@ export const updateMemberProfile = async (req, res) => {
       console.log('Skipping identification code generation - missing country/state/district');
     }
 
-    // Build user update payload (users table: display_name, last_name, alter_number, identification_code, profile_img)
+    // Build user update payload (users table: display_name, identification_code, profile_img)
     const userUpdatePayload = {
       display_name: display_name || null,
-      last_name: last_name || null,
-      alter_number: alter_number || null,
     };
     if (identification_code) {
       userUpdatePayload.identification_code = identification_code;
@@ -435,8 +424,7 @@ export const updateMemberProfile = async (req, res) => {
       education: education === 'others' ? null : (education || null),
       profession: profession === 'others' ? null : (profession || null),
       education_others: education_others || null,
-      work_others: work_others || null,
-      country_code_alter: alter_country_code || null
+      work_others: work_others || null
     };
 
     console.log('Profile data to save:', JSON.stringify(profileData, null, 2));
@@ -462,7 +450,6 @@ export const updateMemberProfile = async (req, res) => {
         profile_img: userUpdatePayload.profile_img || undefined,
         profile_img_url: profileImgPublicUrl || undefined,
         display_name: display_name || undefined,
-        alter_number: alter_number || undefined,
       }
     });
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { API_BASE_URL, getUploadUrl } from '../config/api.config';
+import { API_BASE_URL } from '../config/api.config';
 
 
 interface FormField {
@@ -52,9 +52,6 @@ export const RegisterStep2Form: React.FC<RegisterStep2FormProps> = ({
   // Form data
   const [formData, setFormData] = useState({
     display_name: '',
-    last_name: '',
-    alter_number: '',
-    alter_country_code: '',
     nationality: '',
     marital_status: '',
     gender: '',
@@ -119,22 +116,6 @@ export const RegisterStep2Form: React.FC<RegisterStep2FormProps> = ({
     }
   };
 
-  const renderImage = (path?: string, alt?: string) => {
-    if (!path) {
-      return <span className="text-gray-500">-</span>;
-    }
-    return (
-      <img
-        src={getUploadUrl(path)}
-        alt={alt || 'asset'}
-        className="h-8 w-8 rounded border border-gray-300 object-cover bg-gray-100"
-        onError={(e) => {
-          (e.target as HTMLImageElement).style.display = 'none';
-        }}
-      />
-    );
-  };
-
   const fetchDistricts = async (stateId: string) => {
     try {
       const response = await axios.get(`${API_BASE_URL}/geo/districts/${stateId}`);
@@ -179,8 +160,18 @@ export const RegisterStep2Form: React.FC<RegisterStep2FormProps> = ({
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 100 }, (_, i) => currentYear - i);
   const months = [
-    '01', '02', '03', '04', '05', '06',
-    '07', '08', '09', '10', '11', '12'
+    { value: '01', label: 'January' },
+    { value: '02', label: 'February' },
+    { value: '03', label: 'March' },
+    { value: '04', label: 'April' },
+    { value: '05', label: 'May' },
+    { value: '06', label: 'June' },
+    { value: '07', label: 'July' },
+    { value: '08', label: 'August' },
+    { value: '09', label: 'September' },
+    { value: '10', label: 'October' },
+    { value: '11', label: 'November' },
+    { value: '12', label: 'December' },
   ];
   const dates = Array.from({ length: 31 }, (_, i) => i + 1);
 
@@ -192,7 +183,7 @@ export const RegisterStep2Form: React.FC<RegisterStep2FormProps> = ({
         </div>
       )}
 
-      {/* Display Name */}
+      {/* 1. Display Name */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
           Display Name <span className="text-red-500">*</span>
@@ -207,10 +198,10 @@ export const RegisterStep2Form: React.FC<RegisterStep2FormProps> = ({
         />
       </div>
 
-      {/* First Name (from Step 1 - display only) */}
+      {/* 2. Full Name (from Step 1 - display only) */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          First Name
+          Full Name
         </label>
         <input
           type="text"
@@ -220,112 +211,7 @@ export const RegisterStep2Form: React.FC<RegisterStep2FormProps> = ({
         />
       </div>
 
-      {/* Last Name */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Last Name
-        </label>
-        <input
-          type="text"
-          value={formData.last_name}
-          onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          placeholder="Enter last name"
-        />
-      </div>
-
-      {/* Alternate Number with Country Code */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Alternate Number
-        </label>
-        <div className="flex gap-2">
-          {/* Country Code Dropdown */}
-          <select
-            value={formData.alter_country_code}
-            onChange={(e) => {
-              setFormData({
-                ...formData,
-                alter_country_code: e.target.value
-              });
-            }}
-            className="w-32 px-2 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="">Code</option>
-            {countries.map((country: any) => (
-              <option key={country.id} value={country.phone_code}>
-               {renderImage(country.country_flag, `${country.country} flag`)} {country.phone_code}
-              </option>
-            ))}
-          </select>
-
-          {/* Phone Number Input */}
-          <input
-            type="tel"
-            value={formData.alter_number}
-            onChange={(e) => setFormData({ ...formData, alter_number: e.target.value })}
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="Enter alternate number"
-            pattern="[0-9]{10}"
-          />
-        </div>
-      </div>
-
-      {/* Nationality */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Nationality
-        </label>
-        <select
-          value={formData.nationality}
-          onChange={(e) => setFormData({ ...formData, nationality: e.target.value })}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        >
-          <option value="">Select Nationality</option>
-          {nationalityList.map((nationality: string, index: number) => (
-            <option key={index} value={nationality}>
-              {nationality}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Marital Status */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Marital Status
-        </label>
-        <select
-          value={formData.marital_status}
-          onChange={(e) => setFormData({ ...formData, marital_status: e.target.value })}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        >
-          <option value="">Select Marital Status</option>
-          <option value="Single">Single</option>
-          <option value="Married">Married</option>
-          <option value="Divorced">Divorced</option>
-          <option value="Widowed">Widowed</option>
-        </select>
-      </div>
-
-      {/* Gender */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Gender
-        </label>
-        <select
-          value={formData.gender}
-          onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        >
-          <option value="">Select Gender</option>
-          <option value="Male">Male</option>
-          <option value="Female">Female</option>
-          <option value="Other">Other</option>
-        </select>
-      </div>
-
-      {/* Date of Birth */}
+      {/* 3. Date of Birth */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
           Date of Birth
@@ -348,7 +234,7 @@ export const RegisterStep2Form: React.FC<RegisterStep2FormProps> = ({
           >
             <option value="">Month</option>
             {months.map(month => (
-              <option key={month} value={month}>{month}</option>
+              <option key={month.value} value={month.value}>{month.label}</option>
             ))}
           </select>
           <select
@@ -364,7 +250,61 @@ export const RegisterStep2Form: React.FC<RegisterStep2FormProps> = ({
         </div>
       </div>
 
-      {/* Country */}
+      {/* 4. Gender */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Gender
+        </label>
+        <select
+          value={formData.gender}
+          onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        >
+          <option value="">Select Gender</option>
+          <option value="Male">Male</option>
+          <option value="Female">Female</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+
+      {/* 5. Marital Status */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Marital Status
+        </label>
+        <select
+          value={formData.marital_status}
+          onChange={(e) => setFormData({ ...formData, marital_status: e.target.value })}
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        >
+          <option value="">Select Marital Status</option>
+          <option value="Single">Single</option>
+          <option value="Married">Married</option>
+          <option value="Divorced">Divorced</option>
+          <option value="Widowed">Widowed</option>
+        </select>
+      </div>
+
+      {/* 6. Nationality */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Nationality
+        </label>
+        <select
+          value={formData.nationality}
+          onChange={(e) => setFormData({ ...formData, nationality: e.target.value })}
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        >
+          <option value="">Select Nationality</option>
+          {nationalityList.map((nationality: string, index: number) => (
+            <option key={index} value={nationality}>
+              {nationality}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* 7. Country */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
           Country
@@ -381,7 +321,7 @@ export const RegisterStep2Form: React.FC<RegisterStep2FormProps> = ({
         </select>
       </div>
 
-      {/* State */}
+      {/* 8. State */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
           State
@@ -399,7 +339,7 @@ export const RegisterStep2Form: React.FC<RegisterStep2FormProps> = ({
         </select>
       </div>
 
-      {/* District */}
+      {/* 9. District */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
           District
@@ -417,7 +357,7 @@ export const RegisterStep2Form: React.FC<RegisterStep2FormProps> = ({
         </select>
       </div>
 
-      {/* Education */}
+      {/* 10. Education */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
           Education
@@ -438,7 +378,6 @@ export const RegisterStep2Form: React.FC<RegisterStep2FormProps> = ({
         </select>
       </div>
 
-      {/* Education Others (if "Others" selected) */}
       {showEducationOthers && (
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -455,7 +394,7 @@ export const RegisterStep2Form: React.FC<RegisterStep2FormProps> = ({
         </div>
       )}
 
-      {/* Profession */}
+      {/* 11. Profession */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
           Profession
@@ -476,7 +415,6 @@ export const RegisterStep2Form: React.FC<RegisterStep2FormProps> = ({
         </select>
       </div>
 
-      {/* Work Others (if "Others" selected) */}
       {showWorkOthers && (
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">

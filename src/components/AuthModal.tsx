@@ -285,14 +285,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, allowClos
             <form onSubmit={handleRegisterStep1} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  First Name
+                  Full Name
                 </label>
                 <input
                   type="text"
                   value={registerData.first_name}
                   onChange={(e) => setRegisterData({ ...registerData, first_name: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Enter first name"
+                  placeholder="Enter full name"
                   required
                 />
               </div>
@@ -304,13 +304,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, allowClos
                 <div className="relative">
                   <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
                   <input
-                    type="tel"
+                    type="text"
+                    inputMode="numeric"
                     value={registerData.mobile}
-                    onChange={(e) => setRegisterData({ ...registerData, mobile: e.target.value })}
+                    onChange={(e) => setRegisterData({ ...registerData, mobile: e.target.value.replace(/\D/g, '') })}
                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Enter mobile number"
                     required
-                    pattern="[0-9]{10}"
+                    maxLength={10}
                     title="Please enter a valid 10-digit mobile number"
                   />
                 </div>
