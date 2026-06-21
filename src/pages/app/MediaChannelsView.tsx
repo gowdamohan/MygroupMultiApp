@@ -29,6 +29,11 @@ interface AppCategoryRef {
   category_name: string;
 }
 
+interface EditSubCategory {
+  id: number;
+  category_name: string;
+}
+
 interface ChannelPartner {
   id?: number;
   identification_code?: string | null;
@@ -47,6 +52,9 @@ interface MediaChannel {
   status: string;
   is_active: number;
   created_at: string;
+  category_id?: number | null;
+  parent_category_id?: number | null;
+  select_type?: string | null;
   country_id?: number | null;
   state_id?: number | null;
   district_id?: number | null;
@@ -98,6 +106,9 @@ const StackedCell: React.FC<{ lines: (string | null | undefined)[] }> = ({ lines
 interface EditFormData {
   media_name_english: string;
   media_name_regional: string;
+  category_id: string;
+  parent_category_id: string;
+  select_type: string;
   country_id: string;
   state_id: string;
   district_id: string;
@@ -114,6 +125,9 @@ interface MediaChannelsViewProps {
 const emptyEditForm: EditFormData = {
   media_name_english: '',
   media_name_regional: '',
+  category_id: '',
+  parent_category_id: '',
+  select_type: '',
   country_id: '',
   state_id: '',
   district_id: '',
@@ -135,6 +149,7 @@ export const MediaChannelsView: React.FC<MediaChannelsViewProps> = ({ appId, cat
   const [districts, setDistricts] = useState<District[]>([]);
   const [languages, setLanguages] = useState<Language[]>([]);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [subCategories, setSubCategories] = useState<EditSubCategory[]>([]);
 
   useEffect(() => {
     if (appId && categoryId) {
@@ -162,6 +177,14 @@ export const MediaChannelsView: React.FC<MediaChannelsViewProps> = ({ appId, cat
       setDistricts([]);
     }
   }, [editFormData.state_id]);
+
+  useEffect(() => {
+    if (editFormData.category_id && appId) {
+      fetchSubCategories(editFormData.category_id);
+    } else {
+      setSubCategories([]);
+    }
+  }, [editFormData.category_id]);
 
   const fetchMediaChannels = async () => {
     try {
@@ -222,11 +245,34 @@ export const MediaChannelsView: React.FC<MediaChannelsViewProps> = ({ appId, cat
     }
   };
 
+  const fetchSubCategories = async (categoryId: string) => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const res = await axios.get(
+        `${API_BASE_URL}/partner/media-sub-categories/${appId}/${categoryId}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (res.data.success) setSubCategories(res.data.data || []);
+      else setSubCategories([]);
+    } catch (e) {
+      console.error('Fetch sub categories:', e);
+      setSubCategories([]);
+    }
+  };
+
+  const isSelectTypeCategory = (): boolean => {
+    const lower = categoryName.toLowerCase();
+    return lower.includes('tv') || lower.includes('television') || lower.includes('radio');
+  };
+
   const openEditModal = (channel: MediaChannel) => {
     setSelectedChannel(channel);
     setEditFormData({
       media_name_english: channel.media_name_english || '',
       media_name_regional: channel.media_name_regional || '',
+      category_id: channel.category_id ? String(channel.category_id) : '',
+      parent_category_id: channel.parent_category_id ? String(channel.parent_category_id) : '',
+      select_type: channel.select_type || '',
       country_id: channel.country_id ? String(channel.country_id) : '',
       state_id: channel.state_id ? String(channel.state_id) : '',
       district_id: channel.district_id ? String(channel.district_id) : '',
@@ -271,6 +317,11 @@ export const MediaChannelsView: React.FC<MediaChannelsViewProps> = ({ appId, cat
       const formData = new FormData();
       formData.append('media_name_english', editFormData.media_name_english);
       formData.append('media_name_regional', editFormData.media_name_regional);
+      if (editFormData.category_id) formData.append('category_id', editFormData.category_id);
+      if (editFormData.parent_category_id) formData.append('parent_category_id', editFormData.parent_category_id);
+      if (editFormData.select_type && isSelectTypeCategory()) {
+        formData.append('select_type', editFormData.select_type);
+      }
       if (editFormData.country_id) formData.append('country_id', editFormData.country_id);
       if (editFormData.state_id) formData.append('state_id', editFormData.state_id);
       if (editFormData.district_id) formData.append('district_id', editFormData.district_id);
@@ -547,6 +598,35 @@ export const MediaChannelsView: React.FC<MediaChannelsViewProps> = ({ appId, cat
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Sub Category</label>
+                <select
+                  value={editFormData.parent_category_id}
+                  onChange={e => handleEditFormChange('parent_category_id', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Select sub category</option>
+                  {subCategories.map(sc => (
+                    <option key={sc.id} value={sc.id}>{sc.category_name}</option>
+                  ))}
+                </select>
+              </div>
+              {isSelectTypeCategory() && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Select Type</label>
+                  <select
+                    value={editFormData.select_type}
+                    onChange={e => handleEditFormChange('select_type', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">Select type</option>
+                    <option value="International">International</option>
+                    <option value="National">National</option>
+                    <option value="Regional">Regional</option>
+                    <option value="Local">Local</option>
+                  </select>
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
                 <select
