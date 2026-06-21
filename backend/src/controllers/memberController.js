@@ -276,6 +276,7 @@ export const updateMemberProfile = async (req, res) => {
     const {
       user_id: userIdRaw,
       display_name,
+      alter_number,
       nationality,
       marital_status,
       gender,
@@ -305,30 +306,22 @@ export const updateMemberProfile = async (req, res) => {
     console.log('User ID:', user_id);
     console.log('Country:', country, 'State:', state, 'District:', district);
 
-    // Generate identification code
+    // Generate identification code (only when all three location fields are present)
     let identification_code = null;
     if (country && state && district) {
       console.log('Generating identification code...');
 
-      // Fetch country, state, district codes
       const [countryData, stateData, districtData] = await Promise.all([
         Country.findByPk(country, { attributes: ['code'] }),
         State.findByPk(state, { attributes: ['code'] }),
         District.findByPk(district, { attributes: ['code'] })
       ]);
 
-      console.log('Country data:', countryData?.toJSON());
-      console.log('State data:', stateData?.toJSON());
-      console.log('District data:', districtData?.toJSON());
-
       if (countryData && stateData && districtData) {
         const countryCode = (countryData.code || '').toUpperCase();
         const stateCode = (stateData.code || '').toUpperCase();
         const districtCode = (districtData.code || '').toUpperCase();
 
-        console.log('Codes:', { countryCode, stateCode, districtCode });
-
-        // Get the next sequence number for this district
         const lastUser = await User.findOne({
           where: {
             identification_code: {
@@ -338,32 +331,24 @@ export const updateMemberProfile = async (req, res) => {
           order: [['id', 'DESC']]
         });
 
-        console.log('Last user with this pattern:', lastUser?.identification_code);
-
         let sequenceNumber = 1;
         if (lastUser && lastUser.identification_code) {
-          // Extract the last 7 digits
           const lastSequence = lastUser.identification_code.slice(-7);
           sequenceNumber = parseInt(lastSequence, 10) + 1;
         }
 
-        // Format: INDKA-BENG0000001
         identification_code = `${countryCode}${stateCode}-${districtCode}${String(sequenceNumber).padStart(7, '0')}`;
         console.log('Generated identification code:', identification_code);
-      } else {
-        console.log('ERROR: Could not fetch country/state/district data');
       }
-    } else {
-      console.log('Skipping identification code generation - missing country/state/district');
     }
 
-    // Build user update payload (users table: display_name, identification_code, profile_img)
-    const userUpdatePayload = {
-      display_name: display_name || null,
-    };
-    if (identification_code) {
-      userUpdatePayload.identification_code = identification_code;
-    }
+    // ── Users table update ──────────────────────────────────────────────────
+    // Only include a field if it was actually sent in the request (not undefined).
+    // This prevents partial saves (e.g. alter_number only) from wiping other columns.
+    const userUpdatePayload = {};
+    if (display_name !== undefined) userUpdatePayload.display_name = display_name || null;
+    if (alter_number !== undefined) userUpdatePayload.alter_number = alter_number || null;
+    if (identification_code) userUpdatePayload.identification_code = identification_code;
 
     let profileImgPublicUrl;
     if (req.file && req.file.buffer) {
@@ -389,67 +374,64 @@ export const updateMemberProfile = async (req, res) => {
       profileImgPublicUrl = uploadResult.publicUrl;
     }
 
-    console.log('Updating user table...');
-    const userUpdateResult = await User.update(userUpdatePayload, {
-      where: { id: user_id }
-    });
-    console.log('User update result:', userUpdateResult);
-
-    // Create DOB if all parts provided
-    let dob = null;
-    if (dob_year && dob_month != null && dob_date) {
-      const monthStr = typeof dob_month === 'string' ? dob_month : String(dob_month);
-      dob = `${dob_year}-${monthStr.padStart(2, '0')}-${String(dob_date).padStart(2, '0')}`;
+    if (Object.keys(userUpdatePayload).length > 0) {
+      console.log('Updating user table with:', userUpdatePayload);
+      await User.update(userUpdatePayload, { where: { id: user_id } });
     }
 
-    // Create or update user_registration_form
-    console.log('Checking for existing profile...');
-    const existingProfile = await UserRegistration.findOne({
-      where: { user_id: user_id }
-    });
-    console.log('Existing profile:', existingProfile ? 'Found' : 'Not found');
+    // ── user_registration_form update ───────────────────────────────────────
+    // Build only the fields that were actually sent; never overwrite existing
+    // data with null just because a field wasn't included in this request.
+    const profileUpdateFields = {};
+    if (gender !== undefined)           profileUpdateFields.gender          = gender || null;
+    if (nationality !== undefined)      profileUpdateFields.nationality     = nationality || null;
+    if (marital_status !== undefined)   profileUpdateFields.marital_status  = marital_status || null;
+    if (country !== undefined)          profileUpdateFields.country         = country || null;
+    if (state !== undefined)            profileUpdateFields.state           = state || null;
+    if (district !== undefined)         profileUpdateFields.district        = district || null;
+    if (education !== undefined)        profileUpdateFields.education       = education === 'others' ? null : (education || null);
+    if (profession !== undefined)       profileUpdateFields.profession      = profession === 'others' ? null : (profession || null);
+    if (education_others !== undefined) profileUpdateFields.education_others = education_others || null;
+    if (work_others !== undefined)      profileUpdateFields.work_others     = work_others || null;
 
-    const profileData = {
-      user_id: user_id,
-      gender: gender || null,
-      nationality: nationality || null,
-      marital_status: marital_status || null,
-      dob: dob,
-      dob_date: dob_date || null,
-      dob_month: dob_month || null,
-      dob_year: dob_year || null,
-      country: country || null,
-      state: state || null,
-      district: district || null,
-      education: education === 'others' ? null : (education || null),
-      profession: profession === 'others' ? null : (profession || null),
-      education_others: education_others || null,
-      work_others: work_others || null
-    };
+    // DOB: only update the parts that were actually sent
+    if (dob_date !== undefined)  profileUpdateFields.dob_date  = dob_date  || null;
+    if (dob_month !== undefined) profileUpdateFields.dob_month = dob_month || null;
+    if (dob_year !== undefined)  profileUpdateFields.dob_year  = dob_year  || null;
 
-    console.log('Profile data to save:', JSON.stringify(profileData, null, 2));
+    // Rebuild the combined dob string when all three parts are present in this request
+    if (dob_year && dob_month != null && dob_date) {
+      const monthStr = typeof dob_month === 'string' ? dob_month : String(dob_month);
+      profileUpdateFields.dob = `${dob_year}-${monthStr.padStart(2, '0')}-${String(dob_date).padStart(2, '0')}`;
+    }
 
-    if (existingProfile) {
-      console.log('Updating existing profile...');
-      await UserRegistration.update(profileData, {
-        where: { user_id: user_id }
-      });
-      console.log('Profile updated successfully');
+    if (Object.keys(profileUpdateFields).length > 0) {
+      console.log('Checking for existing registration profile...');
+      const existingProfile = await UserRegistration.findOne({ where: { user_id } });
+      console.log('Existing profile:', existingProfile ? 'Found' : 'Not found');
+
+      if (existingProfile) {
+        console.log('Updating existing profile with:', profileUpdateFields);
+        await UserRegistration.update(profileUpdateFields, { where: { user_id } });
+      } else {
+        console.log('Creating new profile...');
+        await UserRegistration.create({ user_id, ...profileUpdateFields });
+      }
+      console.log('Profile saved successfully');
     } else {
-      console.log('Creating new profile...');
-      await UserRegistration.create(profileData);
-      console.log('Profile created successfully');
+      console.log('No registration fields to update - skipping user_registration_form');
     }
 
     console.log('=== Update Member Profile Complete ===');
     res.status(200).json({
       success: true,
-      message: 'Registration completed successfully! Please login to continue.',
+      message: 'Profile updated successfully!',
       data: {
         identification_code: identification_code || undefined,
         profile_img: userUpdatePayload.profile_img || undefined,
         profile_img_url: profileImgPublicUrl || undefined,
-        display_name: display_name || undefined,
+        display_name: display_name !== undefined ? display_name : undefined,
+        alter_number: alter_number !== undefined ? alter_number : undefined,
       }
     });
 

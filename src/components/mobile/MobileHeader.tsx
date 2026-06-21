@@ -94,7 +94,8 @@ interface UserProfile {
   username: string;
   email?: string;
   first_name?: string;
-  last_name?: string;
+  display_name?: string;
+  alter_number?: string;
   phone?: string;
   profile_img?: string;
   profile_img_url?: string;
@@ -272,7 +273,8 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
           username: userData.username || '',
           email: userData.email,
           first_name: userData.first_name,
-          last_name: userData.last_name,
+          display_name: userData.display_name,
+          alter_number: userData.alter_number,
           phone: userData.phone,
           profile_img: userData.profile_img,
           profile_img_url: userData.profile_img_url,

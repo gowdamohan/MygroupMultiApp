@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import {
   X, Camera, Home, MapPin, Settings, FileText, HelpCircle, Share2, Download,
   Phone, Star, LogOut, ChevronRight, ChevronDown, Lock, Globe, DollarSign,
-  Key, MessageCircle, Mail, Users, Building2, Map, Eye, EyeOff, ArrowLeft
+  Key, MessageCircle, Mail, Users, Building2, Map, Eye, EyeOff, ArrowLeft,
+  Pencil, Check
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
@@ -17,13 +18,12 @@ interface UserProfile {
   username: string;
   email?: string;
   first_name?: string;
-  last_name?: string;
   display_name?: string;
+  alter_number?: string;
   phone?: string;
   profile_img?: string;
   profile_img_url?: string;
   identification_code?: string;
-  alter_number?: string;
 }
 
 interface UserRegistrationData {
@@ -43,7 +43,7 @@ interface UserRegistrationData {
   set_district?: number;
 }
 
-interface Country { id: number; country: string; }
+interface Country { id: number; country: string; nationality?: string; }
 interface State { id: number; state: string; }
 interface District { id: number; district: string; }
 interface Education { id: number; education: string; }
@@ -213,6 +213,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     country: '', state: '', pincode: ''
   });
   
+  // Alternate number inline edit
+  const [editingAlterNumber, setEditingAlterNumber] = useState(false);
+  const [alterNumberInput, setAlterNumberInput] = useState('');
+  const [alterNumberSaving, setAlterNumberSaving] = useState(false);
+
   // Loading states
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -268,10 +273,10 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     if (userProfile) {
       setProfileFormData({
         first_name: userProfile.first_name || '',
-        last_name: userProfile.last_name || '',
         display_name: userProfile.display_name || '',
         email: userProfile.email || ''
       });
+      setAlterNumberInput(userProfile.alter_number || '');
       setLocalProfileImg(userProfile.profile_img || null);
       setLocalProfileImgUrl(userProfile.profile_img_url || null);
     }
@@ -310,9 +315,16 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       if (educationRes.data.success) setEducationList(educationRes.data.data || []);
       if (professionRes.data.success) setProfessionList(professionRes.data.data || []);
 
-      // Set nationality list from countries
-      const nationalities = (countriesRes.data.data || []).map((c: Country) => c.country);
-      setNationalityList(nationalities);
+      // Extract unique, non-empty nationality values from country records
+      const seen = new Set<string>();
+      const nationalities: string[] = [];
+      (countriesRes.data.data || []).forEach((c: Country) => {
+        if (c.nationality && c.nationality.trim() && !seen.has(c.nationality)) {
+          seen.add(c.nationality);
+          nationalities.push(c.nationality);
+        }
+      });
+      setNationalityList(nationalities.sort());
     } catch (error) {
       console.error('Error fetching form fields:', error);
     }
@@ -642,6 +654,29 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     }
   };
 
+  const handleSaveAlterNumber = async () => {
+    if (!userProfile?.id) return;
+    setAlterNumberSaving(true);
+    try {
+      const token = localStorage.getItem('accessToken');
+      const formData = new FormData();
+      formData.append('user_id', String(userProfile.id));
+      formData.append('alter_number', alterNumberInput);
+      const response = await axios.put(`${API_BASE_URL}/member/update-profile`, formData, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.success) {
+        onProfileUpdate?.({ alter_number: alterNumberInput });
+        setEditingAlterNumber(false);
+      }
+    } catch (error) {
+      console.error('Error saving alternate number:', error);
+      alert('Failed to save alternate number');
+    } finally {
+      setAlterNumberSaving(false);
+    }
+  };
+
   const handleTabSelect = (tab: ProfileTab) => {
     if (activeTab === tab) {
       setActiveTab(null);
@@ -935,35 +970,71 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
             <div className="flex-1 min-w-0">
               <h3 className="text-white font-semibold text-lg leading-tight truncate">
-                {displayName}
+                {userProfile?.first_name || displayName}
               </h3>
-              {(userProfile?.first_name || userProfile?.last_name) && userProfile?.display_name && (
+              {userProfile?.identification_code && (
                 <p className="text-white/80 text-sm mt-0.5 truncate">
-                  {[userProfile.first_name, userProfile.last_name].filter(Boolean).join(' ')}
+                  {userProfile.identification_code}
                 </p>
               )}
             </div>
           </div>
 
           {/* Information Block */}
-          <div className="mt-4 space-y-1.5 rounded-lg bg-white/10 px-3 py-2.5">
-            <div className="flex items-baseline gap-2 text-sm">
-              <span className="text-white/70 shrink-0">ID Number:</span>
-              <span className="text-white font-medium truncate">
-                {userProfile?.identification_code || '—'}
-              </span>
-            </div>
-            <div className="flex items-baseline gap-2 text-sm">
+          <div className="mt-4 space-y-2 rounded-lg bg-white/10 px-3 py-2.5">
+            <div className="flex items-center gap-2 text-sm">
               <span className="text-white/70 shrink-0">Mobile Number:</span>
               <span className="text-white font-medium truncate">
                 {userProfile?.username || '—'}
               </span>
             </div>
-            <div className="flex items-baseline gap-2 text-sm">
+            <div className="flex items-center gap-2 text-sm">
               <span className="text-white/70 shrink-0">Alternative Number:</span>
-              <span className="text-white font-medium truncate">
-                {profileFormData.alter_number || userProfile?.alter_number || '—'}
-              </span>
+              {editingAlterNumber ? (
+                <div className="flex items-center gap-1 flex-1 min-w-0">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={alterNumberInput}
+                    onChange={(e) => setAlterNumberInput(e.target.value.replace(/\D/g, ''))}
+                    className="flex-1 min-w-0 px-2 py-0.5 text-sm rounded border border-white/40 bg-white/20 text-white placeholder-white/50 focus:outline-none focus:border-white"
+                    placeholder="Enter number"
+                    maxLength={15}
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSaveAlterNumber}
+                    disabled={alterNumberSaving}
+                    className="p-1 rounded-full bg-white/20 hover:bg-white/30 disabled:opacity-50"
+                    title="Save"
+                  >
+                    <Check size={14} className="text-white" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setEditingAlterNumber(false); setAlterNumberInput(userProfile?.alter_number || ''); }}
+                    className="p-1 rounded-full bg-white/20 hover:bg-white/30"
+                    title="Cancel"
+                  >
+                    <X size={14} className="text-white" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <span className="text-white font-medium truncate">
+                    {userProfile?.alter_number || alterNumberInput || '—'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => { setAlterNumberInput(userProfile?.alter_number || alterNumberInput || ''); setEditingAlterNumber(true); }}
+                    className="p-1 rounded-full hover:bg-white/20 flex-shrink-0"
+                    title="Edit alternative number"
+                  >
+                    <Pencil size={13} className="text-white/70" />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -991,7 +1062,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         {/* Tab Content (render only after a tab is selected) */}
         {activeTab && (
         <div className="p-4">
-          {/* Profile Tab - Combined Profile and Personal fields */}
+          {/* Profile Tab */}
           {activeTab === 'profile' && (
             <div className="space-y-4">
               {uploadingPhoto && (
@@ -1005,7 +1076,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   Photo upload failed. Click <strong>Update Profile</strong> to retry.
                 </div>
               )}
-              {/* Basic Profile Fields */}
+
+              {/* 1. Display Name */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Display Name</label>
                 <input
@@ -1015,26 +1087,19 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
-                  <input
-                    type="text"
-                    value={profileFormData.first_name || ''}
-                    onChange={(e) => setProfileFormData({ ...profileFormData, first_name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
-                  <input
-                    type="text"
-                    value={profileFormData.last_name || ''}
-                    onChange={(e) => setProfileFormData({ ...profileFormData, last_name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                  />
-                </div>
+
+              {/* 2. Full Name */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                <input
+                  type="text"
+                  value={profileFormData.first_name || ''}
+                  onChange={(e) => setProfileFormData({ ...profileFormData, first_name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                />
               </div>
+
+              {/* Email */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
                 <input
@@ -1045,52 +1110,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 />
               </div>
 
-              {/* Personal Information Fields */}
-              <div className="border-t border-gray-200 pt-4 mt-4">
-                <h4 className="text-sm font-semibold text-gray-700 mb-3">Personal Information</h4>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
-                  <select
-                    value={registrationData.gender || ''}
-                    onChange={(e) => setRegistrationData({ ...registrationData, gender: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
-                  >
-                    <option value="">Select</option>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Marital Status</label>
-                  <select
-                    value={registrationData.marital_status || ''}
-                    onChange={(e) => setRegistrationData({ ...registrationData, marital_status: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
-                  >
-                    <option value="">Select</option>
-                    <option value="Single">Single</option>
-                    <option value="Married">Married</option>
-                    <option value="Divorced">Divorced</option>
-                    <option value="Widowed">Widowed</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nationality</label>
-                <select
-                  value={registrationData.nationality || ''}
-                  onChange={(e) => setRegistrationData({ ...registrationData, nationality: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
-                >
-                  <option value="">Select Nationality</option>
-                  {nationalityList.map((nat) => (
-                    <option key={nat} value={nat}>{nat}</option>
-                  ))}
-                </select>
-              </div>
+              {/* 3. Date of Birth */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
                 <div className="grid grid-cols-3 gap-2">
@@ -1110,8 +1130,21 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     className="px-2 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 text-sm"
                   >
                     <option value="">Month</option>
-                    {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((m, i) => (
-                      <option key={m} value={String(i + 1).padStart(2, '0')}>{m}</option>
+                    {[
+                      { value: '01', label: 'January' },
+                      { value: '02', label: 'February' },
+                      { value: '03', label: 'March' },
+                      { value: '04', label: 'April' },
+                      { value: '05', label: 'May' },
+                      { value: '06', label: 'June' },
+                      { value: '07', label: 'July' },
+                      { value: '08', label: 'August' },
+                      { value: '09', label: 'September' },
+                      { value: '10', label: 'October' },
+                      { value: '11', label: 'November' },
+                      { value: '12', label: 'December' },
+                    ].map((m) => (
+                      <option key={m.value} value={m.value}>{m.label}</option>
                     ))}
                   </select>
                   <select
@@ -1126,33 +1159,142 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   </select>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Education</label>
-                  <select
-                    value={registrationData.education || ''}
-                    onChange={(e) => setRegistrationData({ ...registrationData, education: parseInt(e.target.value) })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
-                  >
-                    <option value="">Select</option>
-                    {educationList.map((edu) => (
-                      <option key={edu.id} value={edu.id}>{edu.education}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Profession</label>
-                  <select
-                    value={registrationData.profession || ''}
-                    onChange={(e) => setRegistrationData({ ...registrationData, profession: parseInt(e.target.value) })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
-                  >
-                    <option value="">Select</option>
-                    {professionList.map((prof) => (
-                      <option key={prof.id} value={prof.id}>{prof.profession}</option>
-                    ))}
-                  </select>
-                </div>
+
+              {/* 4. Gender */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+                <select
+                  value={registrationData.gender || ''}
+                  onChange={(e) => setRegistrationData({ ...registrationData, gender: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
+                >
+                  <option value="">Select Gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              {/* 5. Marital Status */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Marital Status</label>
+                <select
+                  value={registrationData.marital_status || ''}
+                  onChange={(e) => setRegistrationData({ ...registrationData, marital_status: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
+                >
+                  <option value="">Select Marital Status</option>
+                  <option value="Single">Single</option>
+                  <option value="Married">Married</option>
+                  <option value="Divorced">Divorced</option>
+                  <option value="Widowed">Widowed</option>
+                </select>
+              </div>
+
+              {/* 6. Nationality */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nationality</label>
+                <select
+                  value={registrationData.nationality || ''}
+                  onChange={(e) => setRegistrationData({ ...registrationData, nationality: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
+                >
+                  <option value="">Select Nationality</option>
+                  {nationalityList.map((nat) => (
+                    <option key={nat} value={nat}>{nat}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 7. Country */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+                <select
+                  value={registrationData.country || ''}
+                  onChange={(e) => {
+                    const countryId = e.target.value ? parseInt(e.target.value) : undefined;
+                    setRegistrationData({ ...registrationData, country: countryId, state: undefined, district: undefined });
+                    setStates([]);
+                    setDistricts([]);
+                    if (countryId) fetchStates(countryId);
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
+                >
+                  <option value="">Select Country</option>
+                  {countries.map((c) => (
+                    <option key={c.id} value={c.id}>{c.country}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 8. State */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
+                <select
+                  value={registrationData.state || ''}
+                  onChange={(e) => {
+                    const stateId = e.target.value ? parseInt(e.target.value) : undefined;
+                    setRegistrationData({ ...registrationData, state: stateId, district: undefined });
+                    setDistricts([]);
+                    if (stateId) fetchDistricts(stateId);
+                  }}
+                  disabled={!registrationData.country}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 disabled:bg-gray-100"
+                >
+                  <option value="">Select State</option>
+                  {states.map((s) => (
+                    <option key={s.id} value={s.id}>{s.state}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 9. District */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">District</label>
+                <select
+                  value={registrationData.district || ''}
+                  onChange={(e) => {
+                    const districtId = e.target.value ? parseInt(e.target.value) : undefined;
+                    setRegistrationData({ ...registrationData, district: districtId });
+                  }}
+                  disabled={!registrationData.state}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 disabled:bg-gray-100"
+                >
+                  <option value="">Select District</option>
+                  {districts.map((d) => (
+                    <option key={d.id} value={d.id}>{d.district}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 10. Education */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Education</label>
+                <select
+                  value={registrationData.education || ''}
+                  onChange={(e) => setRegistrationData({ ...registrationData, education: parseInt(e.target.value) })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
+                >
+                  <option value="">Select Education</option>
+                  {educationList.map((edu) => (
+                    <option key={edu.id} value={edu.id}>{edu.education}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 11. Profession */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Profession</label>
+                <select
+                  value={registrationData.profession || ''}
+                  onChange={(e) => setRegistrationData({ ...registrationData, profession: parseInt(e.target.value) })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
+                >
+                  <option value="">Select Profession</option>
+                  {professionList.map((prof) => (
+                    <option key={prof.id} value={prof.id}>{prof.profession}</option>
+                  ))}
+                </select>
               </div>
 
               <button
