@@ -233,8 +233,8 @@ export const PartnerRegister: React.FC = () => {
           setSuccess('Continue your registration');
           setStep('customForm');
         } else {
-          // Normal case - OTP sent
-          setSuccess('OTP sent to your email! Please check your inbox.');
+          // Normal case - OTP sent; banner is shown inside the OTP step form
+          setSuccess('');
           setStep('otp');
           setTimer(60); // 60 seconds timer
         }
@@ -539,7 +539,15 @@ export const PartnerRegister: React.FC = () => {
           {/* Step 2: OTP Verification */}
           {step === 'otp' && (
             <form onSubmit={handleVerifyOtp}>
-              <p className="text-center text-gray-600 mb-2">OTP sent to</p>
+              <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-start gap-2">
+                <svg className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="text-sm text-green-700">
+                  Verification code sent successfully. Please check your email inbox. If you can't find the email, please check your <strong>Spam or Junk</strong> folder.
+                </p>
+              </div>
+              <p className="text-center text-gray-600 mb-2">Code sent to</p>
               <p className="text-center text-sm text-[#057284] font-medium mb-4">{email}</p>
 
               <div className="mb-6">

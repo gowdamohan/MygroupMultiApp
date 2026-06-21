@@ -60,7 +60,7 @@ export const HomeFooter: React.FC<HomeFooterProps> = ({ socialLinks, copyRight }
           <div>
             <h3 className="font-bold text-sm mb-3 text-teal-400">Logins</h3>
             <ul className="space-y-1.5 text-xs">
-              <li><a href="/parnter" className="hover:text-teal-400 transition-colors">Partner Login</a></li>
+              <li><Link to="/partner" className="hover:text-teal-400 transition-colors">Partner Login</Link></li>
               <li><Link to="/franchise-login" className="hover:text-teal-400 transition-colors">Franchise</Link></li>
               <li><Link to="/reporter/login" className="hover:text-teal-400 transition-colors">Reporters</Link></li>
             </ul>
