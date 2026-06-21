@@ -1040,7 +1040,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
               {/* ── Row B: Logo (left teal) | Header Ad 1 | Header Ad 2 ── */}
               <div
                 className={`border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}
-                style={{ display: 'grid', gridTemplateColumns: 'auto 1fr 1fr', height: 80 }}
+                style={{ display: 'grid', gridTemplateColumns: 'auto 1fr 1fr', height: 120 }}
               >
                 {/* Logo cell — teal background */}
                 <div
@@ -1680,7 +1680,7 @@ export const getMobileHeaderHeight = (
     // Row B (logo + two header ads):       80px
     // Row C (brand bar with icons):         52px
     const topIconsRow = showTopIcons ? 36 : 0;
-    return topIconsRow + 80 + 52;
+    return topIconsRow + 120 + 52; // Row B now 120px
   }
   if (variant === 'desktop' && !showTopIcons && !_showAds) {
     return 72;
