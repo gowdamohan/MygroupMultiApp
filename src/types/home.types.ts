@@ -44,6 +44,8 @@ export interface AboutUs {
 
 export interface MainAds {
   id: number;
+  /** Scrolling ticker text (main_ads.scrooling_text) */
+  scrooling_text?: string | null;
   /** Center page carousel ad (main_ads.main_ad_path) */
   main_ad_path?: string | null;
   main_ad_url?: string | null;

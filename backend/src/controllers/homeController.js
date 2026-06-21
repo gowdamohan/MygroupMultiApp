@@ -105,6 +105,8 @@ export const getMobileHomeData = async (_req, res) => {
     const mainAds = mainAdsRow
       ? {
           id: mainAdsRow.id,
+          // Scrolling ticker text
+          scrooling_text: mainAdsRow.scrooling_text || null,
           // Center carousel ad
           main_ad_path:   mainAdsRow.main_ad_path   ? await resolveImg(mainAdsRow.main_ad_path)   : null,
           main_ad_url:    mainAdsRow.main_ad_url    || null,

@@ -32,32 +32,39 @@ const SidebarSection: React.FC<SidebarSectionProps> = ({ title, apps, darkMode }
   return (
     <div className={`border-b ${darkMode ? 'border-gray-700' : 'border-gray-100'}`}>
       <h3
-        className={`text-[11px] font-bold px-3 pt-2.5 pb-0.5 uppercase tracking-wider ${
+        className={`text-[11px] font-bold px-3 pt-2.5 pb-1.5 uppercase tracking-wider ${
           darkMode ? 'text-teal-400' : 'text-[#057284]'
         }`}
       >
         {title}
       </h3>
-      <div className="home-app-strip">
+      {/* 4-column grid — each app icon + label occupies one cell */}
+      <div className="grid grid-cols-4 gap-x-1 gap-y-3 px-2 pb-3">
         {apps.map((app) => (
           <Link
             key={app.id}
             to={getAppLink(app)}
-            className="flex-shrink-0 flex flex-col items-center gap-1 w-[52px] group"
+            className="flex flex-col items-center gap-1 group"
           >
             <div
-              className={`w-9 h-9 rounded-full overflow-hidden flex items-center justify-center transition-transform group-hover:scale-110 ${
+              className={`w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm ${
                 darkMode ? 'bg-gray-700' : 'bg-gray-100'
               }`}
             >
-              <img
-                src={resolveImageUrl(app.icon)}
-                alt={app.name}
-                className="w-7 h-7 object-contain"
-              />
+              {app.icon ? (
+                <img
+                  src={resolveImageUrl(app.icon)}
+                  alt={app.name}
+                  className="w-8 h-8 object-contain"
+                />
+              ) : (
+                <span className={`text-xs font-bold ${darkMode ? 'text-gray-300' : 'text-gray-500'}`}>
+                  {app.name?.charAt(0)?.toUpperCase()}
+                </span>
+              )}
             </div>
             <span
-              className={`text-[9px] text-center leading-tight line-clamp-2 ${
+              className={`text-[9px] text-center leading-tight line-clamp-2 w-full ${
                 darkMode ? 'text-gray-300' : 'text-gray-600'
               }`}
             >
@@ -250,11 +257,15 @@ export const DesktopHomePage: React.FC = () => {
     homeData.mainAds?.side_ad_3_path ? { image: homeData.mainAds.side_ad_3_path, url: homeData.mainAds.side_ad_3_url ?? undefined } : null,
   ].filter(Boolean) as { image: string; url?: string }[];
 
-  const tickerItems = [
-    ...(homeData.newsroomList ?? []).map((n) => n.title),
-    ...(homeData.awardsList ?? []).map((a) => a.title),
-    ...(homeData.eventsList ?? []).map((e) => e.title),
-  ].filter((t): t is string => !!t);
+  // Ticker: split scrooling_text on '|' or newline; fall back to newsroom/awards/events titles
+  const rawTicker = homeData.mainAds?.scrooling_text;
+  const tickerItems: string[] = rawTicker
+    ? rawTicker.split(/[|\n]+/).map((s) => s.trim()).filter(Boolean)
+    : [
+        ...(homeData.newsroomList ?? []).map((n) => n.title),
+        ...(homeData.awardsList ?? []).map((a) => a.title),
+        ...(homeData.eventsList ?? []).map((e) => e.title),
+      ].filter((t): t is string => !!t);
   const tickerDoubled = tickerItems.length > 0 ? [...tickerItems, ...tickerItems] : [];
 
   const myCompanyFiltered = homeData.topIcon.myCompany.filter((a) => a.name !== 'Mygroup');

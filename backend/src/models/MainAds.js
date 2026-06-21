@@ -47,6 +47,11 @@ const MainAds = sequelize.define('main_ads', {
     allowNull: true,
     comment: 'Click-through destination URL for side ad slot 3'
   },
+  scrooling_text: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    comment: 'Scrolling ticker text shown on the home page header strip'
+  },
   is_active: {
     type: DataTypes.TINYINT,
     allowNull: false,
