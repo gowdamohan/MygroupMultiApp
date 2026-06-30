@@ -1,22 +1,55 @@
 /**
- * WhatsApp OTP delivery via MSG91 WhatsApp API
+ * WhatsApp OTP delivery via MSG91 WhatsApp API (v5 outbound)
  */
 
 const MSG91_WHATSAPP_URL =
-  'https://api.msg91.com/api/v5/whatsapp/whatsapp-outbound-message/bulk/';
+  'https://control.msg91.com/api/v5/whatsapp/whatsapp-outbound-message/';
+
+const DEFAULT_INTEGRATED_NUMBER = '917353247365';
 
 /**
- * Format Indian mobile number to E.164 without + (e.g. 919876543210)
+ * Format Indian mobile number with country code (e.g. 919876543210).
+ * Strictly prepends 91 to any 10-digit number.
  */
 const formatPhoneNumber = (mobile) => {
-  const digits = String(mobile).replace(/\D/g, '');
+  let digits = String(mobile).replace(/\D/g, '');
+
+  // Normalize 11-digit numbers starting with 0 (e.g. 09876543210)
+  if (digits.length === 11 && digits.startsWith('0')) {
+    digits = digits.slice(1);
+  }
+
   if (digits.length === 10) {
     return `91${digits}`;
   }
+
   if (digits.length === 12 && digits.startsWith('91')) {
     return digits;
   }
-  return digits;
+
+  throw new Error('Invalid mobile number. Expected a 10-digit Indian mobile number.');
+};
+
+/**
+ * Build template components for OTP delivery.
+ */
+const buildOtpComponents = (otp) => {
+  const components = {
+    body_1: {
+      type: 'text',
+      value: otp
+    }
+  };
+
+  if (process.env.WHATSAPP_TEMPLATE_HAS_BUTTON === 'true') {
+    components.button_1 = {
+      subtype: 'url',
+      type: 'text',
+      value: otp
+    };
+  }
+
+  return components;
 };
 
 /**
@@ -27,61 +60,85 @@ const formatPhoneNumber = (mobile) => {
 export const sendWhatsAppOtp = async (mobile, otp) => {
   const authkey = process.env.WHATSAPP_AUTH_KEY || '543373AzRX4OlX26a37b2f7P1';
   const templateName = process.env.WHATSAPP_TEMPLATE_NAME || 'mygroup';
-  const integratedNumber = process.env.WHATSAPP_INTEGRATED_NUMBER;
+  const integratedNumber =
+    process.env.WHATSAPP_INTEGRATED_NUMBER || DEFAULT_INTEGRATED_NUMBER;
   const namespace = process.env.WHATSAPP_TEMPLATE_NAMESPACE;
   const languageCode = process.env.WHATSAPP_TEMPLATE_LANGUAGE || 'en';
 
-  if (!integratedNumber || !namespace) {
+  const recipientNumber = formatPhoneNumber(mobile);
+
+  if (!namespace) {
     console.warn(
-      'WhatsApp: WHATSAPP_INTEGRATED_NUMBER or WHATSAPP_TEMPLATE_NAMESPACE not set. OTP logged to console.'
+      'WhatsApp: WHATSAPP_TEMPLATE_NAMESPACE is not set. Template delivery may fail.'
     );
-    console.log(`[WhatsApp OTP] mobile=${mobile} otp=${otp}`);
-    return { success: true, devMode: true };
   }
 
-  const phone = formatPhoneNumber(mobile);
+  const template = {
+    name: templateName,
+    language: {
+      code: languageCode,
+      policy: 'deterministic'
+    },
+    components: buildOtpComponents(otp)
+  };
+
+  if (namespace) {
+    template.namespace = namespace;
+  }
 
   const payload = {
     integrated_number: integratedNumber,
     content_type: 'template',
     payload: {
       messaging_product: 'whatsapp',
+      to: recipientNumber,
       type: 'template',
-      template: {
-        name: templateName,
-        language: {
-          code: languageCode,
-          policy: 'deterministic'
-        },
-        namespace,
-        to_and_components: [
-          {
-            to: [phone],
-            components: {
-              body_1: {
-                type: 'text',
-                value: otp
-              }
-            }
-          }
-        ]
-      }
+      template
     }
   };
+
+  console.log(
+    `[WhatsApp] Sending template "${templateName}" from ${integratedNumber} to ${recipientNumber}`
+  );
 
   const response = await fetch(MSG91_WHATSAPP_URL, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      authkey
+      accept: 'application/json',
+      authkey,
+      'content-type': 'application/json'
     },
     body: JSON.stringify(payload)
   });
 
-  const data = await response.json().catch(() => ({}));
+  const rawText = await response.text();
+  let data = {};
+  try {
+    data = rawText ? JSON.parse(rawText) : {};
+  } catch {
+    data = { raw: rawText };
+  }
+
+  console.log('[WhatsApp] MSG91 response:', JSON.stringify(data));
 
   if (!response.ok) {
-    const message = data?.message || data?.errors || `WhatsApp API error (${response.status})`;
+    const message =
+      data?.message ||
+      data?.error ||
+      data?.errors ||
+      rawText ||
+      `WhatsApp API error (${response.status})`;
+    throw new Error(typeof message === 'string' ? message : JSON.stringify(message));
+  }
+
+  const hasError =
+    data?.type === 'error' ||
+    data?.status === 'fail' ||
+    data?.success === false;
+
+  if (hasError) {
+    const message =
+      data?.message || data?.error || data?.errors || 'WhatsApp API returned an error';
     throw new Error(typeof message === 'string' ? message : JSON.stringify(message));
   }
 
