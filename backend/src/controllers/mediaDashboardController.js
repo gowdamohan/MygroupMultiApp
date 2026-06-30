@@ -16,6 +16,7 @@ import {
   User
 } from '../models/index.js';
 import { uploadFile, deleteFile, getSignedReadUrl, resolveStorageReadUrl } from '../services/wasabiService.js';
+import { analyzeWebsiteUrl } from '../services/websiteAnalyzerService.js';
 
 // ============================================
 // SOCIAL LINKS
@@ -1164,5 +1165,48 @@ export const uploadAddressImage = async (req, res) => {
   } catch (error) {
     console.error('Error uploading address image:', error);
     res.status(500).json({ success: false, message: 'Failed to upload image' });
+  }
+};
+
+// ============================================
+// WEBSITE PREVIEW (Web channels)
+// ============================================
+
+/**
+ * Analyze channel media_url and return website name, logo, and latest updates.
+ * GET /api/v1/media-dashboard/website-preview/:channelId
+ */
+export const getWebsitePreview = async (req, res) => {
+  try {
+    const { channelId } = req.params;
+
+    const channel = await MediaChannel.findOne({
+      where: { id: channelId, is_active: 1 },
+      attributes: ['id', 'media_url', 'media_name_english'],
+    });
+
+    if (!channel) {
+      return res.status(404).json({ success: false, message: 'Channel not found' });
+    }
+
+    if (!channel.media_url?.trim()) {
+      return res.status(400).json({ success: false, message: 'No website URL configured for this channel' });
+    }
+
+    const preview = await analyzeWebsiteUrl(channel.media_url);
+
+    res.json({
+      success: true,
+      data: {
+        ...preview,
+        channelName: channel.media_name_english,
+      },
+    });
+  } catch (error) {
+    console.error('Error analyzing website preview:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to analyze website URL',
+    });
   }
 };

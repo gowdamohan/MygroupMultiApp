@@ -5,7 +5,7 @@ import {
   ArrowLeft, User, MapPin, Share2, Eye, Send,
   DollarSign, Megaphone, FileText, Award, Newspaper, Image, Users,
   ChevronDown, ChevronRight, Menu, X, LogOut, Wifi, Calendar, Upload, MessageCircle,
-  ToggleLeft, ToggleRight, Edit3, Tv, BookOpen, ExternalLink, Link, AlertTriangle
+  ToggleLeft, ToggleRight, Edit3, Tv, BookOpen, ExternalLink, Link, AlertTriangle, Globe, Newspaper
 } from 'lucide-react';
 import { DocumentUpload } from './DocumentUpload';
 import { TimeTable } from './TimeTable';
@@ -146,6 +146,22 @@ interface InteractionsData {
   views_count: number;
 }
 
+interface WebsiteUpdateItem {
+  title: string;
+  url: string;
+  description: string;
+  publishedAt: string;
+  image: string;
+}
+
+interface WebsitePreviewData {
+  websiteName: string;
+  websiteLogoUrl: string | null;
+  latestUpdates: WebsiteUpdateItem[];
+  sourceUrl: string;
+  channelName?: string;
+}
+
 export const MediaDashboard: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -174,6 +190,11 @@ export const MediaDashboard: React.FC = () => {
   const [commentText, setCommentText] = useState('');
   const [replyingTo, setReplyingTo] = useState<number | null>(null);
   const [replyText, setReplyText] = useState('');
+
+  // Website preview (Web category output)
+  const [websitePreview, setWebsitePreview] = useState<WebsitePreviewData | null>(null);
+  const [websitePreviewLoading, setWebsitePreviewLoading] = useState(false);
+  const [websitePreviewError, setWebsitePreviewError] = useState<string | null>(null);
 
   // Real-time date/time state
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
@@ -339,6 +360,35 @@ export const MediaDashboard: React.FC = () => {
       }
     } catch (error) {
       console.error('Error fetching interactions:', error);
+    }
+  };
+
+  const fetchWebsitePreview = async () => {
+    if (!channelId || !channelInfo?.media_url) return;
+    const typeName = (
+      channelInfo.media_type ||
+      channelInfo.category?.category_name ||
+      ''
+    ).toLowerCase().trim();
+    if (typeName !== 'web') return;
+    setWebsitePreviewLoading(true);
+    setWebsitePreviewError(null);
+    try {
+      const token = localStorage.getItem('accessToken');
+      const response = await axios.get(`${API_BASE_URL}/media-dashboard/website-preview/${channelId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.success) {
+        setWebsitePreview(response.data.data);
+      } else {
+        setWebsitePreviewError(response.data.message || 'Could not analyze website.');
+      }
+    } catch (error: any) {
+      console.error('Error fetching website preview:', error);
+      setWebsitePreviewError(error?.response?.data?.message || 'Failed to analyze website URL.');
+      setWebsitePreview(null);
+    } finally {
+      setWebsitePreviewLoading(false);
     }
   };
 
@@ -538,7 +588,15 @@ export const MediaDashboard: React.FC = () => {
   ).toLowerCase().trim();
   const isTV = mediaTypeName === 'tv' || mediaTypeName.includes('television');
   const isRadio = mediaTypeName === 'radio';
-  const isWebOrYouTube = mediaTypeName === 'web' || mediaTypeName === 'youtube';
+  const isWeb = mediaTypeName === 'web';
+  const isYouTube = mediaTypeName === 'youtube';
+  const isWebOrYouTube = isWeb || isYouTube;
+
+  useEffect(() => {
+    if (channelId && isWeb && activeTab === 'output' && channelInfo?.media_url) {
+      fetchWebsitePreview();
+    }
+  }, [channelId, isWeb, activeTab, channelInfo?.media_url]);
 
   const showTimeTableMenu = !printMedia && !isWebOrYouTube;
 
@@ -834,13 +892,110 @@ export const MediaDashboard: React.FC = () => {
           />
         ) : isWebOrYouTube && activeTab === 'output' ? (() => {
           const embedInfo = channelInfo?.media_url ? getEmbedBlockInfo(channelInfo.media_url) : null;
+          const renderWebsitePreviewContent = () => {
+            if (!channelInfo?.media_url) {
+              return (
+                <div className="w-full h-full flex flex-col items-center justify-center text-gray-500 gap-3">
+                  <Link size={48} className="opacity-40" />
+                  <p className="text-sm">No URL configured for this channel.</p>
+                </div>
+              );
+            }
+            if (websitePreviewLoading) {
+              return (
+                <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 gap-3">
+                  <div className="w-10 h-10 border-4 border-gray-600 border-t-blue-500 rounded-full animate-spin" />
+                  <p className="text-sm">Analyzing website...</p>
+                </div>
+              );
+            }
+            if (websitePreviewError) {
+              return (
+                <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 gap-3 px-6 text-center">
+                  <AlertTriangle className="text-yellow-400" size={40} />
+                  <p className="text-sm text-gray-300">{websitePreviewError}</p>
+                  <a href={channelInfo.media_url} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm">
+                    <ExternalLink size={14} /> Open Website
+                  </a>
+                </div>
+              );
+            }
+            if (!websitePreview) {
+              return (
+                <div className="w-full h-full flex items-center justify-center text-gray-500 text-sm">
+                  No preview data available.
+                </div>
+              );
+            }
+            return (
+              <div className="w-full h-full overflow-y-auto bg-gray-900 p-4 md:p-6">
+                <div className="flex items-center gap-4 mb-6 pb-4 border-b border-gray-700">
+                  {websitePreview.websiteLogoUrl ? (
+                    <img
+                      src={websitePreview.websiteLogoUrl}
+                      alt={websitePreview.websiteName}
+                      className="h-16 md:h-20 w-auto max-w-[180px] object-contain bg-white/10 rounded-lg p-2"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    />
+                  ) : (
+                    <div className="h-16 w-16 rounded-lg bg-gray-800 flex items-center justify-center">
+                      <Globe className="text-gray-500" size={32} />
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-white font-bold text-lg md:text-xl truncate">{websitePreview.websiteName}</h2>
+                    <a href={websitePreview.sourceUrl} target="_blank" rel="noopener noreferrer"
+                      className="text-blue-400 hover:text-blue-300 text-xs truncate block mt-1">
+                      {websitePreview.sourceUrl}
+                    </a>
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-white font-bold text-sm uppercase tracking-wide mb-3 flex items-center gap-2">
+                    <Newspaper size={16} className="text-red-400" />
+                    Latest Updates
+                  </h3>
+                  {websitePreview.latestUpdates.length === 0 ? (
+                    <p className="text-gray-500 text-sm">No latest updates found on this website.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {websitePreview.latestUpdates.map((item, idx) => (
+                        <a
+                          key={`${item.url}-${idx}`}
+                          href={item.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg p-3 transition-colors"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-white font-semibold text-sm leading-snug line-clamp-2">{item.title}</p>
+                              {item.description && (
+                                <p className="text-gray-400 text-xs mt-1 line-clamp-2">{item.description}</p>
+                              )}
+                            </div>
+                            {item.publishedAt && (
+                              <span className="text-gray-500 text-xs flex-shrink-0 whitespace-nowrap">{item.publishedAt}</span>
+                            )}
+                          </div>
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          };
           return (
             // WEB/YOUTUBE OUTPUT TAB - media + stats + interactions + comments (same layout as TV/Radio)
             <div className="flex-1 flex bg-black min-h-0">
               {/* Left - Media Player with Stats */}
               <div className="flex-1 flex flex-col min-h-0">
                 <div className="flex-1 bg-gray-900 relative min-h-[250px] overflow-hidden">
-                  {!channelInfo?.media_url ? (
+                  {isWeb ? (
+                    renderWebsitePreviewContent()
+                  ) : !channelInfo?.media_url ? (
                     <div className="w-full h-full flex flex-col items-center justify-center text-gray-500 gap-3">
                       <Link size={48} className="opacity-40" />
                       <p className="text-sm">No URL configured for this channel.</p>
