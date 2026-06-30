@@ -10,7 +10,8 @@ import {
   checkUserProfile,
   memberLogin,
   getRegistrationFormFields,
-  getUserStats
+  getUserStats,
+  getUserTerms
 } from '../controllers/memberController.js';
 
 const router = express.Router();
@@ -63,6 +64,9 @@ router.get('/registration-data', getRegistrationFormFields);
 
 // GET /api/v1/member/user-stats - Get user statistics (public)
 router.get('/user-stats', getUserStats);
+
+// GET /api/v1/member/user-terms - Get user terms and conditions (public)
+router.get('/user-terms', getUserTerms);
 
 export default router;
 

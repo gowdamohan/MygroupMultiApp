@@ -572,6 +572,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, allowClos
 
           {activeTab === 'register' && registrationStep === 2 && userId && (
             <RegisterStep2Form
+              key={`register-step2-${userId}`}
               registerData={registerData}
               userId={userId}
               onBack={handleBackInRegister}

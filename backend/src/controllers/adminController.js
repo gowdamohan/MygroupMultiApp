@@ -15,6 +15,7 @@ import {
   AppCategoryCustomForm,
   User,
   UserGroup,
+  UserRegistration,
   ClientRegistration,
   OwnerDetails
 } from '../models/index.js';
@@ -2994,6 +2995,85 @@ export const updateMediaChannel = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to update media channel',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * ============================================
+ * PUBLIC DATABASE
+ * ============================================
+ */
+
+/**
+ * Get public user database (users with completed registration profiles)
+ * GET /api/v1/admin/public-database
+ */
+export const getPublicDatabase = async (req, res) => {
+  try {
+    const users = await User.findAll({
+      attributes: ['id', 'email', 'phone', 'first_name', 'display_name'],
+      include: [
+        {
+          model: UserRegistration,
+          as: 'profile',
+          required: true,
+          include: [
+            {
+              model: Country,
+              as: 'countryData',
+              required: true,
+              attributes: ['country']
+            },
+            {
+              model: State,
+              as: 'stateData',
+              required: true,
+              attributes: ['state']
+            },
+            {
+              model: District,
+              as: 'districtData',
+              required: true,
+              attributes: ['district']
+            }
+          ]
+        }
+      ]
+    });
+
+    const data = users.map((user) => {
+      const profile = user.profile;
+      const {
+        countryData,
+        stateData,
+        districtData,
+        ...registrationDetails
+      } = profile.toJSON();
+
+      return {
+        userId: user.id,
+        email: user.email,
+        phone: user.phone,
+        first_name: user.first_name,
+        display_name: user.display_name,
+        country_name: countryData?.country ?? null,
+        state_name: stateData?.state ?? null,
+        district_name: districtData?.district ?? null,
+        ...registrationDetails
+      };
+    });
+
+    res.json({
+      success: true,
+      data
+    });
+  } catch (error) {
+    console.error('Error fetching public database:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch public database',
       error: error.message
     });
   }

@@ -8,7 +8,8 @@ import {
   District,
   Education,
   Profession,
-  MemberRegisterOtp
+  MemberRegisterOtp,
+  UserTermsConditions
 } from '../models/index.js';
 import { Op } from 'sequelize';
 import jwt from 'jsonwebtoken';
@@ -698,6 +699,33 @@ export const checkUserProfile = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to check profile',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Get user terms and conditions for registration (public)
+ * GET /api/v1/member/user-terms
+ */
+export const getUserTerms = async (req, res) => {
+  try {
+    const terms = await UserTermsConditions.findOne({
+      where: { type: 'user_terms' },
+      attributes: ['id', 'content', 'type']
+    });
+
+    res.json({
+      success: true,
+      data: {
+        content: terms?.content || ''
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching user terms:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch terms and conditions',
       error: error.message
     });
   }

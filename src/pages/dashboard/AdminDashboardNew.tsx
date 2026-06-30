@@ -24,6 +24,8 @@ import { AccountsLogin } from '../admin/AccountsLogin';
 import { CreateCategoryPage } from '../admin/CreateCategory';
 import { AdminSupportChat } from '../admin/AdminSupportChat';
 import { Profile } from '../admin/Profile';
+import { PublicDatabase } from '../admin/PublicDatabase';
+import { ClientDatabase } from '../admin/ClientDatabase';
 
 
 interface MenuItem {
@@ -98,6 +100,10 @@ export const AdminDashboardNew: React.FC = () => {
       case '/admin/support-chat':
         console.log('Rendering Support Chart');
         return <AdminSupportChat />;
+      case '/admin/public-database':
+        return <PublicDatabase />;
+      case '/admin/client-database':
+        return <ClientDatabase />;
 
       default:
         return (

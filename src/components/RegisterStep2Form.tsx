@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import axios from 'axios';
-import { API_BASE_URL } from '../config/api.config';
+import { X, Loader2 } from 'lucide-react';
+import { API_BASE_URL, API_ENDPOINTS } from '../config/api.config';
 
 
 interface FormField {
@@ -36,6 +38,11 @@ export const RegisterStep2Form: React.FC<RegisterStep2FormProps> = ({
 }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [acceptedTerms, setAcceptedTerms] = useState(true);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [termsContent, setTermsContent] = useState('');
+  const [termsLoading, setTermsLoading] = useState(false);
+  const [termsError, setTermsError] = useState('');
   
   // Form fields data
   const [countries, setCountries] = useState<FormField[]>([]);
@@ -70,6 +77,7 @@ export const RegisterStep2Form: React.FC<RegisterStep2FormProps> = ({
   // Fetch form fields on mount
   useEffect(() => {
     fetchFormFields();
+    fetchTermsContent();
   }, []);
 
   // Fetch states when country changes
@@ -90,6 +98,29 @@ export const RegisterStep2Form: React.FC<RegisterStep2FormProps> = ({
       setDistricts([]);
     }
   }, [formData.state]);
+
+  const fetchTermsContent = async () => {
+    try {
+      setTermsLoading(true);
+      setTermsError('');
+      const response = await axios.get(`${API_BASE_URL}${API_ENDPOINTS.member.userTerms}`);
+      if (response.data.success) {
+        setTermsContent(response.data.data?.content || '');
+      }
+    } catch (err) {
+      console.error('Error fetching terms:', err);
+      setTermsError('Failed to load terms and conditions');
+    } finally {
+      setTermsLoading(false);
+    }
+  };
+
+  const openTermsModal = () => {
+    setShowTermsModal(true);
+    if (!termsContent && !termsLoading) {
+      fetchTermsContent();
+    }
+  };
 
   const fetchFormFields = async () => {
     try {
@@ -135,6 +166,12 @@ export const RegisterStep2Form: React.FC<RegisterStep2FormProps> = ({
     // Validate required fields
     if (!formData.display_name) {
       setError('Display name is required');
+      setLoading(false);
+      return;
+    }
+
+    if (!acceptedTerms) {
+      setError('You must accept the Terms and Conditions to register');
       setLoading(false);
       return;
     }
@@ -431,6 +468,27 @@ export const RegisterStep2Form: React.FC<RegisterStep2FormProps> = ({
         </div>
       )}
 
+      {/* Terms and Conditions */}
+      <div className="flex items-start gap-2 pt-1">
+        <input
+          type="checkbox"
+          id="accept-terms"
+          checked={acceptedTerms}
+          onChange={(e) => setAcceptedTerms(e.target.checked)}
+          className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+        />
+        <span className="text-sm text-gray-700 leading-snug">
+          I agree to the{' '}
+          <button
+            type="button"
+            onClick={openTermsModal}
+            className="text-blue-600 hover:text-blue-800 underline font-medium"
+          >
+            Terms and Conditions
+          </button>
+        </span>
+      </div>
+
       {/* Buttons */}
       <div className="flex gap-3">
         <button
@@ -442,12 +500,59 @@ export const RegisterStep2Form: React.FC<RegisterStep2FormProps> = ({
         </button>
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || !acceptedTerms}
           className="flex-1 bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:bg-blue-400 disabled:cursor-not-allowed"
         >
           {loading ? 'Registering...' : 'Register'}
         </button>
       </div>
+
+      {showTermsModal &&
+        createPortal(
+          <div className="fixed inset-0 z-[10050] flex items-center justify-center bg-black/50 p-4">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[85vh] flex flex-col">
+              <div className="flex items-center justify-between p-4 border-b">
+                <h3 className="text-lg font-bold text-gray-900">Terms and Conditions</h3>
+                <button
+                  type="button"
+                  onClick={() => setShowTermsModal(false)}
+                  className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+                  aria-label="Close terms"
+                >
+                  <X size={20} className="text-gray-600" />
+                </button>
+              </div>
+              <div className="p-4 overflow-y-auto flex-1">
+                {termsLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="animate-spin text-blue-600" size={28} />
+                  </div>
+                ) : termsError ? (
+                  <p className="text-red-600 text-sm">{termsError}</p>
+                ) : termsContent ? (
+                  <div
+                    className="prose prose-sm max-w-none text-gray-700"
+                    dangerouslySetInnerHTML={{ __html: termsContent }}
+                  />
+                ) : (
+                  <p className="text-gray-500 text-sm italic">
+                    No terms and conditions have been published yet.
+                  </p>
+                )}
+              </div>
+              <div className="p-4 border-t flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowTermsModal(false)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </form>
   );
 };

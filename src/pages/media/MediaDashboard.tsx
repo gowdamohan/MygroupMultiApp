@@ -5,7 +5,7 @@ import {
   ArrowLeft, User, MapPin, Share2, Eye, Send,
   DollarSign, Megaphone, FileText, Award, Newspaper, Image, Users,
   ChevronDown, ChevronRight, Menu, X, LogOut, Wifi, Calendar, Upload, MessageCircle,
-  ToggleLeft, ToggleRight, Edit3, Tv, BookOpen, ExternalLink, Link, AlertTriangle, Globe, Newspaper
+  ToggleLeft, ToggleRight, Edit3, Tv, BookOpen, ExternalLink, Link, AlertTriangle, Globe
 } from 'lucide-react';
 import { DocumentUpload } from './DocumentUpload';
 import { TimeTable } from './TimeTable';
