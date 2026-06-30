@@ -31,22 +31,43 @@ const formatPhoneNumber = (mobile) => {
 };
 
 /**
- * Build template components for OTP delivery.
+ * Build template components array for MSG91 v5 single outbound API.
+ * mygroup template expects 2 body params: greeting ({{1}}) and OTP ({{2}}).
  */
 const buildOtpComponents = (otp) => {
-  const components = {
-    body_1: {
-      type: 'text',
-      value: otp
-    }
-  };
+  const otpValue = String(otp);
+  const greetingParam =
+    process.env.WHATSAPP_TEMPLATE_BODY_PARAM_1 || 'Hello Mygroup user';
 
+  const components = [
+    {
+      type: 'body',
+      parameters: [
+        {
+          type: 'text',
+          text: greetingParam
+        },
+        {
+          type: 'text',
+          text: otpValue
+        }
+      ]
+    }
+  ];
+
+  // Authentication templates with a Copy Code button require this second component
   if (process.env.WHATSAPP_TEMPLATE_HAS_BUTTON === 'true') {
-    components.button_1 = {
-      subtype: 'url',
-      type: 'text',
-      value: otp
-    };
+    components.push({
+      type: 'button',
+      sub_type: 'copy_code',
+      index: '0',
+      parameters: [
+        {
+          type: 'coupon_code',
+          coupon_code: otpValue
+        }
+      ]
+    });
   }
 
   return components;
