@@ -21,7 +21,7 @@ import { sendWhatsAppOtp } from '../services/whatsappService.js';
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
 const OTP_EXPIRY_MS = 10 * 60 * 1000;
 const VERIFIED_WINDOW_MS = 15 * 60 * 1000;
-const VERIFIED_OTP_MARKER = '__VERIFIED__';
+const VERIFIED_OTP_MARKER = 'VERIFD';
 
 const isValidMobile = (mobile) => /^\d{10}$/.test(String(mobile));
 
@@ -474,13 +474,12 @@ export const verifyMemberWhatsappOtp = async (req, res) => {
       });
     }
 
-    await MemberRegisterOtp.update(
-      {
-        otp: VERIFIED_OTP_MARKER,
-        expires_at: Date.now() + VERIFIED_WINDOW_MS
-      },
-      { where: { mobile } }
-    );
+    await MemberRegisterOtp.destroy({ where: { mobile } });
+    await MemberRegisterOtp.create({
+      mobile,
+      otp: VERIFIED_OTP_MARKER,
+      expires_at: Date.now() + VERIFIED_WINDOW_MS
+    });
 
     return res.json({
       success: true,

@@ -14,7 +14,7 @@ const MemberRegisterOtp = sequelize.define(
       allowNull: false
     },
     otp: {
-      type: DataTypes.STRING(6),
+      type: DataTypes.STRING(20),
       allowNull: false
     },
     expires_at: {
