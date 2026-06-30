@@ -26,6 +26,7 @@ import FranchiseTermsConditions from './FranchiseTermsConditions.js';
 import UserTermsConditions from './UserTermsConditions.js';
 import TncDetails from './TncDetails.js';
 import ClientRegisterOtp from './ClientRegisterOtp.js';
+import MemberRegisterOtp from './MemberRegisterOtp.js';
 import ClientRegistration from './ClientRegistration.js';
 import Testimonial from './Testimonial.js';
 import MediaChannel from './MediaChannel.js';
@@ -804,6 +805,7 @@ export {
   UserTermsConditions,
   TncDetails,
   ClientRegisterOtp,
+  MemberRegisterOtp,
   ClientRegistration,
   Testimonial,
   MediaChannel,

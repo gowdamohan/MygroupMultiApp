@@ -7,7 +7,8 @@ import {
   State,
   District,
   Education,
-  Profession
+  Profession,
+  MemberRegisterOtp
 } from '../models/index.js';
 import { Op } from 'sequelize';
 import jwt from 'jsonwebtoken';
@@ -15,6 +16,108 @@ import bcrypt from 'bcrypt';
 import { uploadFile as wasabiUploadFile } from '../services/wasabiService.js';
 import { compressProfileImageToBuffer } from '../utils/imageCompress.js';
 import { deleteStoredProfileImage } from '../utils/profileImageStorage.js';
+import { sendWhatsAppOtp } from '../services/whatsappService.js';
+
+const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
+const OTP_EXPIRY_MS = 10 * 60 * 1000;
+const VERIFIED_WINDOW_MS = 15 * 60 * 1000;
+const VERIFIED_OTP_MARKER = '__VERIFIED__';
+
+const isValidMobile = (mobile) => /^\d{10}$/.test(String(mobile));
+
+const isMobileWhatsappVerified = async (mobile) => {
+  const record = await MemberRegisterOtp.findOne({
+    where: { mobile, otp: VERIFIED_OTP_MARKER }
+  });
+  if (!record) return false;
+  if (Date.now() > Number(record.expires_at)) {
+    await MemberRegisterOtp.destroy({ where: { mobile } });
+    return false;
+  }
+  return true;
+};
+
+/**
+ * Create member account (Step 1) or return existing incomplete profile
+ */
+const createMemberAccount = async (first_name, mobile, password) => {
+  const existingUser = await User.findOne({
+    where: { username: mobile }
+  });
+
+  if (existingUser) {
+    const profile = await UserRegistration.findOne({
+      where: { user_id: existingUser.id }
+    });
+
+    if (!profile) {
+      return {
+        status: 200,
+        body: {
+          success: true,
+          message: 'User exists. Please complete your profile.',
+          data: {
+            user_id: existingUser.id,
+            first_name: existingUser.first_name,
+            mobile: existingUser.username,
+            profileIncomplete: true
+          }
+        }
+      };
+    }
+
+    return {
+      status: 400,
+      body: {
+        success: false,
+        message: 'Mobile number already registered. Please login.',
+        redirectToLogin: true
+      }
+    };
+  }
+
+  const memberGroup = await Group.findOne({
+    where: { name: 'member' }
+  });
+
+  if (!memberGroup) {
+    return {
+      status: 500,
+      body: {
+        success: false,
+        message: 'Member group not found. Please contact administrator.'
+      }
+    };
+  }
+
+  const user = await User.create({
+    username: mobile,
+    email: `${mobile}@member.com`,
+    password,
+    first_name,
+    phone: mobile,
+    created_on: Math.floor(Date.now() / 1000),
+    active: 1
+  });
+
+  await UserGroup.create({
+    user_id: user.id,
+    group_id: memberGroup.id
+  });
+
+  return {
+    status: 201,
+    body: {
+      success: true,
+      message: 'Step 1 completed. Please continue with your profile.',
+      data: {
+        user_id: user.id,
+        first_name: user.first_name,
+        mobile: user.username
+      }
+    }
+  };
+};
 
 /**
  * MEMBER CONTROLLER
@@ -177,7 +280,6 @@ export const registerMemberStep1 = async (req, res) => {
   try {
     const { first_name, mobile, password } = req.body;
 
-    // Validate required fields
     if (!first_name || !mobile || !password) {
       return res.status(400).json({
         success: false,
@@ -185,22 +287,177 @@ export const registerMemberStep1 = async (req, res) => {
       });
     }
 
-    // Check if mobile number already exists
+    if (!isValidMobile(mobile)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mobile number must be 10 digits'
+      });
+    }
+
+    const verified = await isMobileWhatsappVerified(mobile);
+    if (!verified) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please verify your mobile number via WhatsApp first.'
+      });
+    }
+
+    const result = await createMemberAccount(first_name, mobile, password);
+    if (result.body.success) {
+      await MemberRegisterOtp.destroy({ where: { mobile } });
+    }
+    return res.status(result.status).json(result.body);
+  } catch (error) {
+    console.error('Error in registration step 1:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Registration failed. Please try again.',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Send OTP to mobile via WhatsApp
+ * POST /api/v1/member/send-whatsapp-otp
+ */
+export const sendMemberWhatsappOtp = async (req, res) => {
+  try {
+    const { mobile } = req.body;
+
+    if (!mobile) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mobile number is required'
+      });
+    }
+
+    if (!isValidMobile(mobile)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mobile number must be 10 digits'
+      });
+    }
+
     const existingUser = await User.findOne({
       where: { username: mobile }
     });
 
     if (existingUser) {
-      // Check if user has completed profile
       const profile = await UserRegistration.findOne({
         where: { user_id: existingUser.id }
       });
 
+      if (profile) {
+        return res.status(400).json({
+          success: false,
+          message: 'Mobile number already registered. Please login.',
+          redirectToLogin: true
+        });
+      }
+    }
+
+    const otp = generateOTP();
+    const expiresAt = Date.now() + OTP_EXPIRY_MS;
+
+    await MemberRegisterOtp.destroy({ where: { mobile } });
+    await MemberRegisterOtp.create({
+      mobile,
+      otp,
+      expires_at: expiresAt
+    });
+
+    try {
+      await sendWhatsAppOtp(mobile, otp);
+      console.log(`WhatsApp OTP sent to ${mobile}`);
+    } catch (whatsappError) {
+      console.error('WhatsApp OTP send failed:', whatsappError);
+      if (process.env.NODE_ENV !== 'development') {
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to send OTP via WhatsApp. Please try again.'
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'OTP sent to your WhatsApp successfully.',
+      code: 'OTP_SENT'
+    });
+  } catch (error) {
+    console.error('Send WhatsApp OTP error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error sending OTP',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Verify WhatsApp OTP (marks mobile as verified for registration)
+ * POST /api/v1/member/verify-whatsapp-otp
+ */
+export const verifyMemberWhatsappOtp = async (req, res) => {
+  try {
+    const { mobile, otp } = req.body;
+
+    if (!mobile || !otp) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mobile number and OTP are required'
+      });
+    }
+
+    if (!isValidMobile(mobile)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mobile number must be 10 digits'
+      });
+    }
+
+    if (!/^\d{6}$/.test(String(otp))) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please enter a valid 6-digit OTP'
+      });
+    }
+
+    const otpRecord = await MemberRegisterOtp.findOne({
+      where: { mobile, otp: String(otp) }
+    });
+
+    if (!otpRecord) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid OTP'
+      });
+    }
+
+    if (Date.now() > Number(otpRecord.expires_at)) {
+      await MemberRegisterOtp.destroy({ where: { mobile } });
+      return res.status(400).json({
+        success: false,
+        message: 'OTP has expired. Please request a new one.'
+      });
+    }
+
+    const existingUser = await User.findOne({
+      where: { username: mobile }
+    });
+
+    if (existingUser) {
+      const profile = await UserRegistration.findOne({
+        where: { user_id: existingUser.id }
+      });
+
+      await MemberRegisterOtp.destroy({ where: { mobile } });
+
       if (!profile) {
-        // User exists but profile incomplete - allow to continue to Step 2
-        return res.status(200).json({
+        return res.json({
           success: true,
-          message: 'User exists. Please complete your profile.',
+          message: 'Mobile verified. Please complete your profile.',
           data: {
             user_id: existingUser.id,
             first_name: existingUser.first_name,
@@ -210,7 +467,6 @@ export const registerMemberStep1 = async (req, res) => {
         });
       }
 
-      // User exists and profile complete - redirect to login
       return res.status(400).json({
         success: false,
         message: 'Mobile number already registered. Please login.',
@@ -218,50 +474,27 @@ export const registerMemberStep1 = async (req, res) => {
       });
     }
 
-    // Find 'member' group
-    const memberGroup = await Group.findOne({
-      where: { name: 'member' }
-    });
+    await MemberRegisterOtp.update(
+      {
+        otp: VERIFIED_OTP_MARKER,
+        expires_at: Date.now() + VERIFIED_WINDOW_MS
+      },
+      { where: { mobile } }
+    );
 
-    if (!memberGroup) {
-      return res.status(500).json({
-        success: false,
-        message: 'Member group not found. Please contact administrator.'
-      });
-    }
-
-    // Create user
-    const user = await User.create({
-      username: mobile,
-      email: `${mobile}@member.com`,
-      password: password,
-      first_name: first_name,
-      phone: mobile,
-      created_on: Math.floor(Date.now() / 1000),
-      active: 1
-    });
-
-    // Create user-group association
-    await UserGroup.create({
-      user_id: user.id,
-      group_id: memberGroup.id
-    });
-
-    res.status(201).json({
+    return res.json({
       success: true,
-      message: 'Step 1 completed. Please continue with your profile.',
+      message: 'Mobile verified successfully.',
       data: {
-        user_id: user.id,
-        first_name: user.first_name,
-        mobile: user.username
+        mobile,
+        mobileVerified: true
       }
     });
-
   } catch (error) {
-    console.error('Error in registration step 1:', error);
+    console.error('Verify WhatsApp OTP error:', error);
     res.status(500).json({
       success: false,
-      message: 'Registration failed. Please try again.',
+      message: 'Error verifying OTP',
       error: error.message
     });
   }

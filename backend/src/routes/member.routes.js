@@ -4,6 +4,8 @@ import path from 'path';
 import {
   registerMember,
   registerMemberStep1,
+  sendMemberWhatsappOtp,
+  verifyMemberWhatsappOtp,
   updateMemberProfile,
   checkUserProfile,
   memberLogin,
@@ -37,6 +39,12 @@ router.post('/register', registerMember);
 
 // POST /api/v1/member/register-step1 - Register new member (Step 1: Create user)
 router.post('/register-step1', registerMemberStep1);
+
+// POST /api/v1/member/send-whatsapp-otp - Send registration OTP via WhatsApp
+router.post('/send-whatsapp-otp', sendMemberWhatsappOtp);
+
+// POST /api/v1/member/verify-whatsapp-otp - Verify WhatsApp OTP and complete Step 1
+router.post('/verify-whatsapp-otp', verifyMemberWhatsappOtp);
 
 // POST /api/v1/member/update-profile - Update member profile (Step 2, JSON body e.g. RegisterStep2Form)
 router.post('/update-profile', updateMemberProfile);
