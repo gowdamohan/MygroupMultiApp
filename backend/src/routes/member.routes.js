@@ -48,9 +48,12 @@ router.post('/send-whatsapp-otp', sendMemberWhatsappOtp);
 // POST /api/v1/member/verify-whatsapp-otp - Verify WhatsApp OTP and complete Step 1
 router.post('/verify-whatsapp-otp', verifyMemberWhatsappOtp);
 
-// Protected member profile routes
-router.post('/update-profile', authenticate, updateMemberProfile);
-router.put('/update-profile', authenticate, profileUpload.single('profile_img'), updateMemberProfile);
+// POST /api/v1/member/update-profile - Step 2 registration (JSON); public — uses user_id in body
+router.post('/update-profile', updateMemberProfile);
+
+// PUT /api/v1/member/update-profile - Step 2 / profile modal (FormData); public when no session yet
+router.put('/update-profile', profileUpload.single('profile_img'), updateMemberProfile);
+
 router.get('/check-profile/:userId', authenticate, checkUserProfile);
 
 // GET /api/v1/member/registration-fields - Get registration form fields
