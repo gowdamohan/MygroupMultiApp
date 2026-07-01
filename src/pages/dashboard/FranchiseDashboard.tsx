@@ -17,6 +17,8 @@ import { FranchiseChangePassword } from '../franchise/FranchiseChangePassword';
 import { FranchiseOfferAds } from '../franchise/FranchiseOfferAds';
 import axios from 'axios';
 import { API_BASE_URL } from '../../config/api.config';
+import { useAuth } from '../../contexts/AuthContext';
+import AuthLoadingScreen from '../../components/auth/AuthLoadingScreen';
 
 interface MenuItem {
   id: string;
@@ -38,11 +40,11 @@ interface DashboardStats {
 export const FranchiseDashboard: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState<string[]>(['dashboard']);
   const [activeMenu, setActiveMenu] = useState('dashboard');
-  const [user, setUser] = useState<any>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
   const [userRole, setUserRole] = useState<'head_office' | 'regional' | 'branch'>('head_office');
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -55,32 +57,23 @@ export const FranchiseDashboard: React.FC = () => {
   });
 
   useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      const parsedUser = JSON.parse(userData);
-      setUser(parsedUser);
-      
-      // Determine user role from groups
-      if (parsedUser.groups && parsedUser.groups.length > 0) {
-        const role = parsedUser.groups[0].name;
-        if (role === 'head_office' || role === 'regional' || role === 'branch') {
-          setUserRole(role);
-        }
+    if (!user) return;
+
+    if (user.groups && user.groups.length > 0) {
+      const role = user.groups[0].name;
+      if (role === 'head_office' || role === 'regional' || role === 'branch') {
+        setUserRole(role);
       }
-      
-      // Fetch full user profile with group description
-      fetchUserProfile();
-    } else {
-      navigate('/auth/login');
     }
 
-    // Update clock every second
+    fetchUserProfile();
+
     const timer = setInterval(() => {
       setCurrentTime(new Date());
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [navigate]);
+  }, [user]);
 
   // Sync active menu and expanded menus from current path
   useEffect(() => {
@@ -267,12 +260,14 @@ export const FranchiseDashboard: React.FC = () => {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('user');
+  const handleLogout = async () => {
+    await logout();
     navigate('/auth/login');
   };
+
+  if (!user) {
+    return <AuthLoadingScreen message="Loading dashboard..." />;
+  }
 
   const getRoleDisplayName = () => {
     const roleMap = {

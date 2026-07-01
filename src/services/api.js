@@ -1,5 +1,7 @@
 import axios from 'axios';
 import { API_BASE_URL } from '../config/api.config';
+import { clearAuthStorage } from '../utils/authSession';
+import { redirectToLoginForPath } from '../utils/authRedirect';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -171,16 +173,21 @@ api.interceptors.response.use(
           }
         }
       } catch (refreshError) {
-        // Refresh failed, logout user
         stopTokenRefreshInterval();
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        localStorage.removeItem('lastActivity');
-        
+        clearAuthStorage();
+
         if (typeof window !== 'undefined') {
-          window.location.href = '/';
+          redirectToLoginForPath();
         }
         return Promise.reject(refreshError);
+      }
+    }
+
+    if (error.response?.status === 401 && originalRequest._retry) {
+      stopTokenRefreshInterval();
+      clearAuthStorage();
+      if (typeof window !== 'undefined') {
+        redirectToLoginForPath();
       }
     }
 

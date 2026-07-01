@@ -8,8 +8,9 @@ import {
   updateGroup,
   deleteGroup
 } from '../controllers/groupController.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, authorize } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
+import { ROLE_SETS } from '../constants/roles.js';
 
 const router = express.Router();
 
@@ -42,6 +43,7 @@ router.get('/name/:name', getGroupByName);
 router.post(
   '/',
   authenticate,
+  authorize(...ROLE_SETS.ADMIN),
   [
     body('name')
       .trim()
@@ -66,6 +68,7 @@ router.post(
 router.put(
   '/:id',
   authenticate,
+  authorize(...ROLE_SETS.ADMIN),
   [
     body('name')
       .optional()
@@ -88,7 +91,7 @@ router.put(
  * @desc    Delete group (Admin only)
  * @access  Private (Admin)
  */
-router.delete('/:id', authenticate, deleteGroup);
+router.delete('/:id', authenticate, authorize(...ROLE_SETS.ADMIN), deleteGroup);
 
 export default router;
 

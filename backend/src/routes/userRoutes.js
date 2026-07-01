@@ -7,24 +7,28 @@ import {
   updateUser,
   deleteUser
 } from '../controllers/userController.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, authorize } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
+import { ROLE_SETS } from '../constants/roles.js';
 
 const router = express.Router();
+
+router.use(authenticate);
+router.use(authorize(...ROLE_SETS.ADMIN_EXTENDED));
 
 /**
  * @route   GET /api/v1/users
  * @desc    Get all users
  * @access  Private (Admin)
  */
-router.get('/', authenticate, getAllUsers);
+router.get('/', getAllUsers);
 
 /**
  * @route   GET /api/v1/users/:id
  * @desc    Get user by ID
  * @access  Private (Admin)
  */
-router.get('/:id', authenticate, getUserById);
+router.get('/:id', getUserById);
 
 /**
  * @route   POST /api/v1/users
@@ -33,7 +37,6 @@ router.get('/:id', authenticate, getUserById);
  */
 router.post(
   '/',
-  authenticate,
   [
     body('username')
       .trim()
@@ -80,7 +83,6 @@ router.post(
  */
 router.put(
   '/:id',
-  authenticate,
   [
     body('username')
       .optional()
@@ -126,7 +128,7 @@ router.put(
  * @desc    Delete user
  * @access  Private (Admin)
  */
-router.delete('/:id', authenticate, deleteUser);
+router.delete('/:id', deleteUser);
 
 export default router;
 

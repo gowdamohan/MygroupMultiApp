@@ -1,28 +1,24 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { buildLoginRedirectUrl } from '../../utils/authRedirect';
+import AuthLoadingScreen from './AuthLoadingScreen';
 
 /**
- * RequireAuth Component
- * Simple authentication check without role validation
- * Use this for routes that just need authentication
+ * Authentication gate — redirects unauthenticated users to the role-appropriate login.
  */
 export default function RequireAuth({ children }) {
   const { isAuthenticated, loading } = useAuth();
   const location = useLocation();
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-      </div>
-    );
+    return <AuthLoadingScreen />;
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/" state={{ from: location }} replace />;
+    const target = buildLoginRedirectUrl(location.pathname, location.search);
+    return <Navigate to={target} replace state={{ from: location }} />;
   }
 
   return children;
 }
-

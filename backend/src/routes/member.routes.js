@@ -13,6 +13,7 @@ import {
   getUserStats,
   getUserTerms
 } from '../controllers/memberController.js';
+import { authenticate } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -47,14 +48,10 @@ router.post('/send-whatsapp-otp', sendMemberWhatsappOtp);
 // POST /api/v1/member/verify-whatsapp-otp - Verify WhatsApp OTP and complete Step 1
 router.post('/verify-whatsapp-otp', verifyMemberWhatsappOtp);
 
-// POST /api/v1/member/update-profile - Update member profile (Step 2, JSON body e.g. RegisterStep2Form)
-router.post('/update-profile', updateMemberProfile);
-
-// PUT /api/v1/member/update-profile - Update member profile (Step 2, FormData + optional profile_img e.g. UserProfileModal)
-router.put('/update-profile', profileUpload.single('profile_img'), updateMemberProfile);
-
-// GET /api/v1/member/check-profile/:userId - Check if user profile is complete
-router.get('/check-profile/:userId', checkUserProfile);
+// Protected member profile routes
+router.post('/update-profile', authenticate, updateMemberProfile);
+router.put('/update-profile', authenticate, profileUpload.single('profile_img'), updateMemberProfile);
+router.get('/check-profile/:userId', authenticate, checkUserProfile);
 
 // GET /api/v1/member/registration-fields - Get registration form fields
 router.get('/registration-fields', getRegistrationFormFields);

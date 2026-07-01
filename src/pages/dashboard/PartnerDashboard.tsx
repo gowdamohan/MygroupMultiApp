@@ -16,6 +16,8 @@ import { HeaderAdsBooking } from '../partner/HeaderAdsBooking';
 import { SupportChat } from '../partner/SupportChat';
 import { PartnerProfileCompletionForm } from '../../components/PartnerProfileCompletionForm';
 import { PartnerHeader } from '../../components/dashboard/PartnerHeader';
+import { useAuth } from '../../contexts/AuthContext';
+import AuthLoadingScreen from '../../components/auth/AuthLoadingScreen';
 import { API_BASE_URL, resolveProfileImageUrl, WASABI_IMG_PROPS } from '../../config/api.config';
 import { ADMIN_SUPPORT_APP_ID } from '../../config/supportChat.config';
 
@@ -65,11 +67,11 @@ interface OwnerDetails {
 export const PartnerDashboard: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState<string[]>(['dashboard']);
   const [activeMenu, setActiveMenu] = useState('dashboard');
-  const [user, setUser] = useState<any>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [ownerDetails, setOwnerDetails] = useState<OwnerDetails | null>(null);
   const [registrationStatus, setRegistrationStatus] = useState<string>('pending');
@@ -162,15 +164,9 @@ export const PartnerDashboard: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      const parsedUser = JSON.parse(userData);
-      setUser(parsedUser);
-      fetchUserProfile();
-      fetchOwnerDetails();
-    } else {
-      navigate('/partner');
-    }
+    if (!user) return;
+    fetchUserProfile();
+    fetchOwnerDetails();
 
     const selectedApp = localStorage.getItem('selectedApp');
     if (selectedApp) {
@@ -183,7 +179,7 @@ export const PartnerDashboard: React.FC = () => {
         setSelectedAppInfo(null);
       }
     }
-  }, [navigate, fetchUserProfile, fetchOwnerDetails]);
+  }, [user, fetchUserProfile, fetchOwnerDetails]);
 
   // Poll for unread support chat messages
   useEffect(() => {
@@ -295,13 +291,15 @@ export const PartnerDashboard: React.FC = () => {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('user');
+  const handleLogout = async () => {
+    await logout();
     localStorage.removeItem('selectedApp');
     navigate('/partner');
   };
+
+  if (!user) {
+    return <AuthLoadingScreen message="Loading dashboard..." />;
+  }
 
   const renderMenuItem = (item: MenuItem, depth: number = 0) => {
     const isExpanded = expandedMenus.includes(item.id);

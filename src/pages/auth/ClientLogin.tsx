@@ -1,11 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useNavigate, useParams, Link, useLocation } from 'react-router-dom';
 import { Mail, Lock, ArrowLeft, Loader2, AlertCircle } from 'lucide-react';
 import axios from 'axios';
 import { API_BASE_URL } from '../../config/api.config';
+import { useAuth } from '../../contexts/AuthContext';
+import { persistAuthStorage, getPostLoginPath } from '../../utils/authSession';
+import { startTokenRefreshInterval } from '../../services/api';
 
 export const ClientLogin: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { updateUser } = useAuth();
   const { groupName } = useParams<{ groupName: string }>();
   const [formData, setFormData] = useState({
     identity: '',
@@ -50,17 +55,13 @@ export const ClientLogin: React.FC = () => {
         if (response.data.requiresProfileCompletion) {
           navigate(response.data.data.redirectTo);
         } else {
-          // Store tokens
-          localStorage.setItem('accessToken', response.data.data.accessToken);
-          if (response.data.data.refreshToken) {
-            localStorage.setItem('refreshToken', response.data.data.refreshToken);
-          }
-          
-          // Store user data
-          localStorage.setItem('user', JSON.stringify(response.data.data.user));
-          
-          // Navigate to dashboard
-          navigate(response.data.data.dashboardRoute || '/dashboard/client');
+          const { user, accessToken, refreshToken } = response.data.data;
+          persistAuthStorage(user, accessToken, refreshToken);
+          updateUser(user);
+          startTokenRefreshInterval();
+
+          const fallback = response.data.data.dashboardRoute || '/dashboard/client';
+          navigate(getPostLoginPath(user, location.search, fallback), { replace: true });
         }
       }
     } catch (err: any) {

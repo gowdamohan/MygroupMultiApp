@@ -9,6 +9,8 @@ import {
   Eye, Phone, Share2, Link as LinkIcon, Upload, CheckCircle,
   AlertCircle, Package, DollarSign, Briefcase, FileCheck
 } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import AuthLoadingScreen from '../../components/auth/AuthLoadingScreen';
 
 interface MenuItem {
   id: string;
@@ -21,35 +23,27 @@ interface MenuItem {
 
 export const ClientDashboard: React.FC = () => {
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState<string[]>(['dashboard']);
   const [activeMenu, setActiveMenu] = useState('dashboard');
-  const [user, setUser] = useState<any>(null);
   const [profileComplete, setProfileComplete] = useState(false);
   const [clientType, setClientType] = useState<'god' | 'media' | 'union'>('god');
 
   useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      const parsedUser = JSON.parse(userData);
-      setUser(parsedUser);
-      
-      // Determine client type based on user data
-      if (parsedUser.role === 'client_god') {
-        setClientType('god');
-      } else if (parsedUser.groupDetails?.name?.toLowerCase().includes('media')) {
-        setClientType('media');
-      } else if (parsedUser.groupDetails?.name?.toLowerCase().includes('union')) {
-        setClientType('union');
-      }
-      
-      // Check profile completion
-      setProfileComplete(parsedUser.profileComplete || false);
-    } else {
-      navigate('/auth/login');
+    if (!user) return;
+
+    if (user.role === 'client_god') {
+      setClientType('god');
+    } else if (user.groupDetails?.name?.toLowerCase().includes('media')) {
+      setClientType('media');
+    } else if (user.groupDetails?.name?.toLowerCase().includes('union')) {
+      setClientType('union');
     }
-  }, [navigate]);
+
+    setProfileComplete(user.profileComplete || false);
+  }, [user]);
 
   // God/Temple Dashboard Menu
   const godMenuItems: MenuItem[] = [
@@ -326,12 +320,14 @@ export const ClientDashboard: React.FC = () => {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('user');
+  const handleLogout = async () => {
+    await logout();
     navigate('/auth/login');
   };
+
+  if (!user) {
+    return <AuthLoadingScreen message="Loading dashboard..." />;
+  }
 
   const renderMenuItem = (item: MenuItem, level: number = 0) => {
     const isExpanded = expandedMenus.includes(item.id);
