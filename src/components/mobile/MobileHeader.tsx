@@ -845,7 +845,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
 
   const handleSearchResultClick = (result: MobileSearchResult) => {
     if (result.href) {
-      window.location.href = result.href;
+      guardedNavigate(result.href);
     }
   };
 
@@ -892,6 +892,20 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
         )}
       </>
     );
+  };
+
+  const requiresAuth = (url: string): boolean => {
+    const publicPaths = ['/', '/register', '/forgot-password', '/reset-password', '/partner/register'];
+    return !publicPaths.includes(url) && !url.startsWith('/auth/') && !url.startsWith('/client-login/') && !url.startsWith('/god-login/') && !url.startsWith('/media-login/') && !url.startsWith('/register-form/');
+  };
+
+  const guardedNavigate = (url: string) => {
+    const token = localStorage.getItem('accessToken');
+    if (!token && requiresAuth(url)) {
+      window.location.href = '/';
+      return;
+    }
+    window.location.href = url;
   };
 
   // Handle logout
@@ -982,7 +996,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                           if (onTopIconClick) {
                             onTopIconClick(icon);
                           } else {
-                            window.location.href = icon.url || `/mobile/${normalizeAppKey(icon.name)}`;
+                            guardedNavigate(icon.url || `/mobile/${normalizeAppKey(icon.name)}`);
                           }
                         }}
                         className={`flex flex-col items-center min-w-[44px] flex-shrink-0 cursor-pointer transition-all ${
@@ -1007,7 +1021,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                             if (onTopIconClick) {
                               onTopIconClick(fallbackIcon);
                             } else {
-                              window.location.href = fallbackUrl;
+                              guardedNavigate(fallbackUrl);
                             }
                           }}
                           className={`flex flex-col items-center min-w-[44px] flex-shrink-0 cursor-pointer transition-all ${
@@ -1547,7 +1561,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                             if (onTopIconClick) {
                               onTopIconClick(app);
                             } else {
-                              window.location.href = app.url;
+                              guardedNavigate(app.url);
                             }
                           }}
                           className={`flex flex-col items-center p-2 rounded-xl transition-colors ${

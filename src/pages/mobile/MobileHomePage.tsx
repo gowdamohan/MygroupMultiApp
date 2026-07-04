@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   User, Sun, Moon, Settings, MoreHorizontal, X, Camera,
   Lock, Globe, DollarSign, Key, FileText, Shield,
@@ -155,11 +155,21 @@ export const MobileHomePage: React.FC = () => {
     document.body.classList.toggle('dark-mode');
   };
 
+  const navigate = useNavigate();
+
+  const guardedNavigate = useCallback((url: string, e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
+    if (!isLoggedIn) {
+      setShowAuthModal(true);
+      return;
+    }
+    navigate(url);
+  }, [isLoggedIn, navigate]);
+
   // Handle top icon click from MobileHeader
   const handleTopIconClick = (icon: TopIcon) => {
-    // Navigate to the app page
     if (icon.url) {
-      window.location.href = icon.url;
+      guardedNavigate(icon.url);
     }
   };
 
@@ -364,9 +374,10 @@ export const MobileHomePage: React.FC = () => {
           <h2 className="text-2xl font-bold text-white text-center mb-6">My Apps</h2>
           <div className="flex flex-col gap-3 w-full max-w-md mx-auto">
             {homeData.topIcon.myapps.map((app) => (
-              <Link
+              <a
                 key={app.id}
-                to={app.url || `/mobile/${app.name?.toLowerCase().replace(/\s+/g, '')}`}
+                href={app.url || `/mobile/${app.name?.toLowerCase().replace(/\s+/g, '')}`}
+                onClick={(e) => guardedNavigate(app.url || `/mobile/${app.name?.toLowerCase().replace(/\s+/g, '')}`, e)}
                 className="flex items-center gap-4 bg-white/10 backdrop-blur-sm border border-white/30 rounded-xl py-4 px-5 text-white hover:bg-white/20 transition-all duration-300"
               >
                 <img
@@ -375,7 +386,7 @@ export const MobileHomePage: React.FC = () => {
                   className="w-10 h-10 object-contain rounded-lg"
                 />
                 <span className="font-medium">{app.name}</span>
-              </Link>
+              </a>
             ))}
           </div>
         </section>
@@ -415,9 +426,10 @@ export const MobileHomePage: React.FC = () => {
             <h2 className={`text-xl font-bold text-center mb-6 ${darkMode ? 'text-white' : 'text-gray-900'}`}>My Company</h2>
             <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
               {homeData.topIcon.myCompany.map((app) => (
-                <Link
+                <a
                   key={app.id}
-                  to={app.url || `/mobile/${app.name?.toLowerCase().replace(/\s+/g, '')}`}
+                  href={app.url || `/mobile/${app.name?.toLowerCase().replace(/\s+/g, '')}`}
+                  onClick={(e) => guardedNavigate(app.url || `/mobile/${app.name?.toLowerCase().replace(/\s+/g, '')}`, e)}
                   className={`flex flex-col items-center p-4 rounded-xl transition-all duration-300 ${
                     darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-100 shadow-md'
                   }`}
@@ -428,7 +440,7 @@ export const MobileHomePage: React.FC = () => {
                     className="w-14 h-14 object-contain rounded-xl mb-2"
                   />
                   <span className={`text-sm font-medium text-center ${darkMode ? 'text-white' : 'text-gray-900'}`}>{app.name}</span>
-                </Link>
+                </a>
               ))}
             </div>
           </section>
@@ -487,9 +499,10 @@ export const MobileHomePage: React.FC = () => {
             <h2 className={`text-xl font-bold text-center mb-6 ${darkMode ? 'text-white' : 'text-gray-900'}`}>Online Apps</h2>
             <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
               {homeData.topIcon.online.map((app) => (
-                <Link
+                <a
                   key={app.id}
-                  to={app.url || `/mobile/${app.name?.toLowerCase().replace(/\s+/g, '')}`}
+                  href={app.url || `/mobile/${app.name?.toLowerCase().replace(/\s+/g, '')}`}
+                  onClick={(e) => guardedNavigate(app.url || `/mobile/${app.name?.toLowerCase().replace(/\s+/g, '')}`, e)}
                   className={`flex flex-col items-center p-4 rounded-xl transition-all duration-300 ${
                     darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-100 shadow-md'
                   }`}
@@ -500,7 +513,7 @@ export const MobileHomePage: React.FC = () => {
                     className="w-14 h-14 object-contain rounded-xl mb-2"
                   />
                   <span className={`text-sm font-medium text-center ${darkMode ? 'text-white' : 'text-gray-900'}`}>{app.name}</span>
-                </Link>
+                </a>
               ))}
             </div>
           </section>
@@ -512,9 +525,10 @@ export const MobileHomePage: React.FC = () => {
             <h2 className={`text-xl font-bold text-center mb-6 ${darkMode ? 'text-white' : 'text-gray-900'}`}>Offline Apps</h2>
             <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
               {homeData.topIcon.offline.map((app) => (
-                <Link
+                <a
                   key={app.id}
-                  to={app.url || `/mobile/${app.name?.toLowerCase().replace(/\s+/g, '')}`}
+                  href={app.url || `/mobile/${app.name?.toLowerCase().replace(/\s+/g, '')}`}
+                  onClick={(e) => guardedNavigate(app.url || `/mobile/${app.name?.toLowerCase().replace(/\s+/g, '')}`, e)}
                   className={`flex flex-col items-center p-4 rounded-xl transition-all duration-300 ${
                     darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-50 hover:bg-gray-100 shadow-md'
                   }`}
@@ -525,7 +539,7 @@ export const MobileHomePage: React.FC = () => {
                     className="w-14 h-14 object-contain rounded-xl mb-2"
                   />
                   <span className={`text-sm font-medium text-center ${darkMode ? 'text-white' : 'text-gray-900'}`}>{app.name}</span>
-                </Link>
+                </a>
               ))}
             </div>
           </section>
@@ -583,12 +597,12 @@ export const MobileHomePage: React.FC = () => {
               <div>
                 <h3 className="font-bold text-sm mb-3 text-teal-400">Know Us</h3>
                 <ul className="space-y-1.5 text-xs">
-                  <li><Link to="/" className="hover:text-teal-400 transition-colors">Home</Link></li>
-                  <li><Link to="/about" className="hover:text-teal-400 transition-colors">About Us</Link></li>
-                  <li><Link to="/clients" className="hover:text-teal-400 transition-colors">Clients</Link></li>
-                  <li><Link to="/milestones" className="hover:text-teal-400 transition-colors">Milestones</Link></li>
-                  <li><Link to="/testimonials" className="hover:text-teal-400 transition-colors">Testimonials</Link></li>
-                  <li><Link to="/sitemap" className="hover:text-teal-400 transition-colors">Sitemap</Link></li>
+                  <li><a href="/" onClick={(e) => guardedNavigate('/', e)} className="hover:text-teal-400 transition-colors">Home</a></li>
+                  <li><a href="/about" onClick={(e) => guardedNavigate('/about', e)} className="hover:text-teal-400 transition-colors">About Us</a></li>
+                  <li><a href="/clients" onClick={(e) => guardedNavigate('/clients', e)} className="hover:text-teal-400 transition-colors">Clients</a></li>
+                  <li><a href="/milestones" onClick={(e) => guardedNavigate('/milestones', e)} className="hover:text-teal-400 transition-colors">Milestones</a></li>
+                  <li><a href="/testimonials" onClick={(e) => guardedNavigate('/testimonials', e)} className="hover:text-teal-400 transition-colors">Testimonials</a></li>
+                  <li><a href="/sitemap" onClick={(e) => guardedNavigate('/sitemap', e)} className="hover:text-teal-400 transition-colors">Sitemap</a></li>
                 </ul>
               </div>
 
@@ -596,10 +610,10 @@ export const MobileHomePage: React.FC = () => {
               <div>
                 <h3 className="font-bold text-sm mb-3 text-teal-400">Media</h3>
                 <ul className="space-y-1.5 text-xs">
-                  <li><Link to="/newsroom" className="hover:text-teal-400 transition-colors">Newsroom</Link></li>
-                  <li><Link to="/gallery" className="hover:text-teal-400 transition-colors">Gallery</Link></li>
-                  <li><Link to="/awards" className="hover:text-teal-400 transition-colors">Awards</Link></li>
-                  <li><Link to="/events" className="hover:text-teal-400 transition-colors">Events</Link></li>
+                  <li><a href="/newsroom" onClick={(e) => guardedNavigate('/newsroom', e)} className="hover:text-teal-400 transition-colors">Newsroom</a></li>
+                  <li><a href="/gallery" onClick={(e) => guardedNavigate('/gallery', e)} className="hover:text-teal-400 transition-colors">Gallery</a></li>
+                  <li><a href="/awards" onClick={(e) => guardedNavigate('/awards', e)} className="hover:text-teal-400 transition-colors">Awards</a></li>
+                  <li><a href="/events" onClick={(e) => guardedNavigate('/events', e)} className="hover:text-teal-400 transition-colors">Events</a></li>
                 </ul>
               </div>
 
@@ -607,10 +621,10 @@ export const MobileHomePage: React.FC = () => {
               <div>
                 <h3 className="font-bold text-sm mb-3 text-teal-400">Opportunity</h3>
                 <ul className="space-y-1.5 text-xs">
-                  <li><Link to="/careers" className="hover:text-teal-400 transition-colors">Careers</Link></li>
-                  <li><Link to="/jobs" className="hover:text-teal-400 transition-colors">My Jobs</Link></li>
-                  <li><Link to="/franchise" className="hover:text-teal-400 transition-colors">Franchise</Link></li>
-                  <li><Link to="/advertise" className="hover:text-teal-400 transition-colors">Advertise</Link></li>
+                  <li><a href="/careers" onClick={(e) => guardedNavigate('/careers', e)} className="hover:text-teal-400 transition-colors">Careers</a></li>
+                  <li><a href="/jobs" onClick={(e) => guardedNavigate('/jobs', e)} className="hover:text-teal-400 transition-colors">My Jobs</a></li>
+                  <li><a href="/franchise" onClick={(e) => guardedNavigate('/franchise', e)} className="hover:text-teal-400 transition-colors">Franchise</a></li>
+                  <li><a href="/advertise" onClick={(e) => guardedNavigate('/advertise', e)} className="hover:text-teal-400 transition-colors">Advertise</a></li>
                 </ul>
               </div>
 
@@ -618,10 +632,10 @@ export const MobileHomePage: React.FC = () => {
               <div>
                 <h3 className="font-bold text-sm mb-3 text-teal-400">Our Policy</h3>
                 <ul className="space-y-1.5 text-xs">
-                  <li><Link to="/privacy" className="hover:text-teal-400 transition-colors">Privacy Policy</Link></li>
-                  <li><Link to="/terms" className="hover:text-teal-400 transition-colors">Terms</Link></li>
-                  <li><Link to="/faq" className="hover:text-teal-400 transition-colors">FAQ's</Link></li>
-                  <li><Link to="/refund" className="hover:text-teal-400 transition-colors">Refund Policy</Link></li>
+                  <li><a href="/privacy" onClick={(e) => guardedNavigate('/privacy', e)} className="hover:text-teal-400 transition-colors">Privacy Policy</a></li>
+                  <li><a href="/terms" onClick={(e) => guardedNavigate('/terms', e)} className="hover:text-teal-400 transition-colors">Terms</a></li>
+                  <li><a href="/faq" onClick={(e) => guardedNavigate('/faq', e)} className="hover:text-teal-400 transition-colors">FAQ's</a></li>
+                  <li><a href="/refund" onClick={(e) => guardedNavigate('/refund', e)} className="hover:text-teal-400 transition-colors">Refund Policy</a></li>
                 </ul>
               </div>
 
@@ -629,10 +643,10 @@ export const MobileHomePage: React.FC = () => {
               <div>
                 <h3 className="font-bold text-sm mb-3 text-teal-400">Support</h3>
                 <ul className="space-y-1.5 text-xs">
-                  <li><Link to="/contact" className="hover:text-teal-400 transition-colors">Contact Us</Link></li>
-                  <li><Link to="/enquiry" className="hover:text-teal-400 transition-colors">Enquiry</Link></li>
-                  <li><Link to="/support" className="hover:text-teal-400 transition-colors">Tech Support</Link></li>
-                  <li><Link to="/feedback" className="hover:text-teal-400 transition-colors">Feedback</Link></li>
+                  <li><a href="/contact" onClick={(e) => guardedNavigate('/contact', e)} className="hover:text-teal-400 transition-colors">Contact Us</a></li>
+                  <li><a href="/enquiry" onClick={(e) => guardedNavigate('/enquiry', e)} className="hover:text-teal-400 transition-colors">Enquiry</a></li>
+                  <li><a href="/support" onClick={(e) => guardedNavigate('/support', e)} className="hover:text-teal-400 transition-colors">Tech Support</a></li>
+                  <li><a href="/feedback" onClick={(e) => guardedNavigate('/feedback', e)} className="hover:text-teal-400 transition-colors">Feedback</a></li>
                 </ul>
               </div>
 
@@ -640,10 +654,10 @@ export const MobileHomePage: React.FC = () => {
               <div>
                 <h3 className="font-bold text-sm mb-3 text-teal-400">Logins</h3>
                 <ul className="space-y-1.5 text-xs">
-                  <li><Link to="/client-login" className="hover:text-teal-400 transition-colors">Client Login</Link></li>
-                  <li><Link to="/franchise-login" className="hover:text-teal-400 transition-colors">Franchise</Link></li>
-                  <li><Link to="/reporter-login" className="hover:text-teal-400 transition-colors">Reporters</Link></li>
-                  <li><Link to="/labor-login" className="hover:text-teal-400 transition-colors">My Labor</Link></li>
+                  <li><a href="/client-login" onClick={(e) => guardedNavigate('/client-login', e)} className="hover:text-teal-400 transition-colors">Client Login</a></li>
+                  <li><a href="/franchise-login" onClick={(e) => guardedNavigate('/franchise-login', e)} className="hover:text-teal-400 transition-colors">Franchise</a></li>
+                  <li><a href="/reporter-login" onClick={(e) => guardedNavigate('/reporter-login', e)} className="hover:text-teal-400 transition-colors">Reporters</a></li>
+                  <li><a href="/labor-login" onClick={(e) => guardedNavigate('/labor-login', e)} className="hover:text-teal-400 transition-colors">My Labor</a></li>
                 </ul>
               </div>
             </div>
@@ -720,11 +734,15 @@ export const MobileHomePage: React.FC = () => {
                         <h3 className="text-xl font-bold text-white mb-6">{category}</h3>
                         <div className="grid grid-cols-4 gap-6">
                           {categoryApps.map((app) => (
-                            <Link
+                            <a
                               key={app.id}
-                              to="#"
+                              href="#"
                               className="flex flex-col items-center gap-2 group"
-                              onClick={() => setShowMoreAppsModal(false)}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setShowMoreAppsModal(false);
+                                guardedNavigate(`/mobile/${app.name?.toLowerCase().replace(/\s+/g, '')}`);
+                              }}
                             >
                               <div className="relative">
                                 {app.details?.icon ? (
@@ -744,7 +762,7 @@ export const MobileHomePage: React.FC = () => {
                               <span className="text-white text-xs text-center font-medium leading-tight">
                                 {app.name}
                               </span>
-                            </Link>
+                            </a>
                           ))}
                         </div>
                       </div>

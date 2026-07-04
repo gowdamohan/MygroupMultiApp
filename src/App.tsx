@@ -208,8 +208,12 @@ function App() {
             </RequireAuth>
           } />
 
-          {/* Mobile Routes */}
-          <Route path="/mobile/:appName" element={<MobileAppPage />} />
+          {/* Mobile Routes - Protected */}
+          <Route path="/mobile/:appName" element={
+            <RequireAuth>
+              <MobileAppPage />
+            </RequireAuth>
+          } />
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
