@@ -6,16 +6,19 @@ import AuthLoadingScreen from './AuthLoadingScreen';
 
 /**
  * Authentication gate — redirects unauthenticated users to the role-appropriate login.
+ * Also checks localStorage token as fallback for the mobile AuthModal flow
+ * which stores tokens directly without updating AuthContext.
  */
 export default function RequireAuth({ children }) {
   const { isAuthenticated, loading } = useAuth();
   const location = useLocation();
+  const hasToken = !!localStorage.getItem('accessToken');
 
   if (loading) {
     return <AuthLoadingScreen />;
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated && !hasToken) {
     const target = buildLoginRedirectUrl(location.pathname, location.search);
     return <Navigate to={target} replace state={{ from: location }} />;
   }

@@ -26,7 +26,6 @@ import DashboardRouter from './components/auth/DashboardRouter';
 import RequireAuth from './components/auth/RequireAuth';
 import ForgotPassword from './pages/auth/ForgotPassword';
 import ResetPassword from './pages/auth/ResetPassword';
-import { DesktopOnlyGuard } from './components/DesktopOnlyGuard';
 
 const ADMIN_ROLES = ['admin', 'groups', 'corporate', 'head_office', 'regional', 'branch'] as const;
 const CLIENT_ROLES = ['client', 'client_god'] as const;
@@ -45,13 +44,13 @@ function App() {
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
 
-          <Route path="/auth/login" element={<DesktopOnlyGuard><AdminLogin /></DesktopOnlyGuard>} />
+          <Route path="/auth/login" element={<AdminLogin />} />
           <Route path="/auth/admin" element={<AdminLogin />} />
-          <Route path="/admin/login" element={<DesktopOnlyGuard><GroupAdminLogin /></DesktopOnlyGuard>} />
+          <Route path="/admin/login" element={<GroupAdminLogin />} />
           <Route path="/god-login/:groupName/:subGroup" element={<GodLogin />} />
           <Route path="/client-login/:groupName" element={<ClientLogin />} />
           <Route path="/media-login/:groupName" element={<ClientLogin />} />
-          <Route path="/partner" element={<DesktopOnlyGuard><PartnerLogin /></DesktopOnlyGuard>} />
+          <Route path="/partner" element={<PartnerLogin />} />
           <Route path="/partner/register" element={<PartnerRegister />} />
           <Route path="/reporter/login" element={<AdminLogin />} />
           <Route path="/register-form/:groupName" element={<RegistrationForm />} />
@@ -89,8 +88,6 @@ function App() {
               <MobileAppPage />
             </RequireAuth>
           } />
-          {/* Consumer mobile app — stays public per product decision */}
-          <Route path="/mobile/:appName" element={<MobileAppPage />} />
 
           {/* ── Protected routes (specific paths before wildcards) ── */}
           <Route path="/dashboard" element={
