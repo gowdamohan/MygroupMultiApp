@@ -29,6 +29,8 @@ import { SocialMediaLinks } from '../corporate/SocialMediaLinks';
 import { Gallery } from '../corporate/Gallery';
 import { FooterFaqManager } from '../corporate/FooterFaqManager';
 import { AppApplicationDetails } from './AppApplicationDetails';
+import { useAuth } from '../../contexts/AuthContext';
+import AuthLoadingScreen from '../../components/auth/AuthLoadingScreen';
 
 interface AppInfo {
   id: number;
@@ -91,8 +93,8 @@ export const AppDashboard: React.FC = () => {
   const { appId } = useParams<{ appId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, logout } = useAuth();
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
-  const [user, setUser] = useState<any>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [loading, setLoading] = useState(true);
   const [activeView, setActiveView] = useState<'partners' | string>('partners');
@@ -101,13 +103,6 @@ export const AppDashboard: React.FC = () => {
   const [expandedMenus, setExpandedMenus] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    // Get user from localStorage
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-
-    // Fetch app info and categories
     fetchAppInfo();
     fetchCategories();
   }, [appId]);
@@ -144,12 +139,14 @@ export const AppDashboard: React.FC = () => {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('user');
+  const handleLogout = async () => {
+    await logout();
     navigate('/admin/login');
   };
+
+  if (!user) {
+    return <AuthLoadingScreen message="Loading dashboard..." />;
+  }
 
   const handleCategoryClick = (categoryId: number, categoryName: string) => {
     setSelectedCategoryId(categoryId);

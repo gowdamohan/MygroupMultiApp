@@ -9,7 +9,6 @@ import { GodLogin } from './pages/auth/GodLogin';
 import { PartnerLogin } from './pages/auth/PartnerLogin';
 import { PartnerRegister } from './pages/auth/PartnerRegister';
 import { RegistrationForm } from './pages/auth/RegistrationForm';
-import { AdminDashboard } from './pages/dashboard/AdminDashboard';
 import { AdminDashboardNew } from './pages/dashboard/AdminDashboardNew';
 import { ClientDashboard } from './pages/dashboard/ClientDashboard';
 import { CorporateDashboard } from './pages/dashboard/CorporateDashboard';
@@ -20,16 +19,8 @@ import { PartnerDashboard } from './pages/dashboard/PartnerDashboard';
 import { MediaDashboard } from './pages/media/MediaDashboard';
 import { AppDashboard } from './pages/app/AppDashboard';
 import Register from './pages/Register';
-import Dashboard from './pages/Dashboard';
 import { MobileAppPage } from './pages/mobile/MobileAppPage';
 
-// New Layout Components
-import AdminDashboardLayout from './layouts/AdminDashboardLayout';
-import ClientDashboardLayout from './layouts/ClientDashboardLayout';
-import Overview from './pages/dashboard/Overview';
-import Users from './pages/dashboard/Users';
-
-// Auth Components
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import DashboardRouter from './components/auth/DashboardRouter';
 import RequireAuth from './components/auth/RequireAuth';
@@ -37,139 +28,23 @@ import ForgotPassword from './pages/auth/ForgotPassword';
 import ResetPassword from './pages/auth/ResetPassword';
 import { DesktopOnlyGuard } from './components/DesktopOnlyGuard';
 
+const ADMIN_ROLES = ['admin', 'groups', 'corporate', 'head_office', 'regional', 'branch'] as const;
+const CLIENT_ROLES = ['client', 'client_god'] as const;
+const FRANCHISE_ROLES = ['head_office', 'regional', 'branch'] as const;
+const MEDIA_ROLES = ['client', 'client_god', 'media'] as const;
+const MEDIA_DASHBOARD_ROLES = ['partner', 'client', 'client_god', 'media'] as const;
+
 function App() {
   return (
     <AuthProvider>
       <Router>
         <Routes>
-          {/* Home */}
+          {/* ── Public routes (no auth) ── */}
           <Route path="/" element={<HomePage />} />
-
-          {/* Authentication Routes - use /partner, /admin/login, /auth/login, etc. per role */}
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
 
-          {/* Dashboard Router - Auto-routes based on role */}
-          <Route path="/dashboard" element={
-            <RequireAuth>
-              <DashboardRouter />
-            </RequireAuth>
-          } />
-
-          {/* Admin Dashboard with Layout - Protected */}
-          <Route path="/dashboard/admin" element={
-            <ProtectedRoute allowedRoles={['admin', 'groups', 'corporate', 'head_office', 'regional', 'branch']}>
-              <AdminDashboardNew />
-            </ProtectedRoute>
-          } />
-
-          {/* Admin Sub-Routes */}
-          <Route path="/admin/*" element={
-            <ProtectedRoute allowedRoles={['admin', 'groups', 'corporate', 'head_office', 'regional', 'branch']}>
-              <AdminDashboardNew />
-            </ProtectedRoute>
-          } />
-
-          {/* Client Dashboard with Layout - Protected */}
-          <Route path="/dashboard/client" element={
-            <ProtectedRoute allowedRoles={['client', 'client_god']}>
-              <ClientDashboard />
-            </ProtectedRoute>
-          } />
-
-          {/* Client Sub-Routes */}
-          <Route path="/client/*" element={
-            <ProtectedRoute allowedRoles={['client', 'client_god']}>
-              <ClientDashboard />
-            </ProtectedRoute>
-          } />
-
-          {/* Corporate Dashboard - Protected */}
-          <Route path="/dashboard/corporate" element={
-            <ProtectedRoute allowedRoles={['corporate']}>
-              <CorporateDashboard />
-            </ProtectedRoute>
-          } />
-
-          {/* Corporate Sub-Routes */}
-          <Route path="/corporate/*" element={
-            <ProtectedRoute allowedRoles={['corporate']}>
-              <CorporateDashboard />
-            </ProtectedRoute>
-          } />
-
-          {/* Franchise Dashboard - Protected */}
-          <Route path="/dashboard/franchise" element={
-            <ProtectedRoute allowedRoles={['head_office', 'regional', 'branch']}>
-              <FranchiseDashboard />
-            </ProtectedRoute>
-          } />
-
-          {/* Franchise Sub-Routes */}
-          <Route path="/franchise/*" element={
-            <ProtectedRoute allowedRoles={['head_office', 'regional', 'branch']}>
-              <FranchiseDashboard />
-            </ProtectedRoute>
-          } />
-
-          {/* Labor Dashboard - Protected */}
-          <Route path="/dashboard/labor" element={
-            <ProtectedRoute allowedRoles={['labor']}>
-              <LaborDashboard />
-            </ProtectedRoute>
-          } />
-
-          {/* Labor Sub-Routes */}
-          <Route path="/labor/*" element={
-            <ProtectedRoute allowedRoles={['labor']}>
-              <LaborDashboard />
-            </ProtectedRoute>
-          } />
-
-          {/* Media Channel Dashboard - Protected */}
-          <Route path="/dashboard/media" element={
-            <ProtectedRoute allowedRoles={['client', 'client_god', 'media']}>
-              <MediaChannelDashboard />
-            </ProtectedRoute>
-          } />
-
-          {/* Media Sub-Routes */}
-          <Route path="/media/*" element={
-            <ProtectedRoute allowedRoles={['client', 'client_god', 'media']}>
-              <MediaChannelDashboard />
-            </ProtectedRoute>
-          } />
-
-          {/* Media Dashboard for individual channel - Protected */}
-          <Route path="/media/dashboard/:channelId/*" element={
-            <ProtectedRoute allowedRoles={['partner', 'client', 'client_god', 'media']}>
-              <MediaDashboard />
-            </ProtectedRoute>
-          } />
-
-          {/* Partner Dashboard - Protected */}
-          <Route path="/dashboard/partner" element={
-            <ProtectedRoute allowedRoles={['partner']}>
-              <PartnerDashboard />
-            </ProtectedRoute>
-          } />
-
-          {/* Partner Sub-Routes */}
-          <Route path="/partner/*" element={
-            <ProtectedRoute allowedRoles={['partner']}>
-              <PartnerDashboard />
-            </ProtectedRoute>
-          } />
-
-          {/* Reporter Dashboard - Protected */}
-          <Route path="/dashboard/reporter" element={
-            <ProtectedRoute allowedRoles={['reporter']}>
-              <div className="p-6">Reporter Dashboard (Coming Soon)</div>
-            </ProtectedRoute>
-          } />
-
-          {/* Original Authentication Routes */}
           <Route path="/auth/login" element={<DesktopOnlyGuard><AdminLogin /></DesktopOnlyGuard>} />
           <Route path="/auth/admin" element={<AdminLogin />} />
           <Route path="/admin/login" element={<DesktopOnlyGuard><GroupAdminLogin /></DesktopOnlyGuard>} />
@@ -214,8 +89,111 @@ function App() {
               <MobileAppPage />
             </RequireAuth>
           } />
+          {/* Consumer mobile app — stays public per product decision */}
+          <Route path="/mobile/:appName" element={<MobileAppPage />} />
 
-          {/* Fallback */}
+          {/* ── Protected routes (specific paths before wildcards) ── */}
+          <Route path="/dashboard" element={
+            <RequireAuth>
+              <DashboardRouter />
+            </RequireAuth>
+          } />
+
+          <Route path="/media/dashboard/:channelId/*" element={
+            <ProtectedRoute allowedRoles={[...MEDIA_DASHBOARD_ROLES]}>
+              <MediaDashboard />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/dashboard/admin" element={
+            <ProtectedRoute allowedRoles={[...ADMIN_ROLES]}>
+              <AdminDashboardNew />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/*" element={
+            <ProtectedRoute allowedRoles={[...ADMIN_ROLES]}>
+              <AdminDashboardNew />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/dashboard/corporate" element={
+            <ProtectedRoute allowedRoles={['corporate']}>
+              <CorporateDashboard />
+            </ProtectedRoute>
+          } />
+          <Route path="/corporate/*" element={
+            <ProtectedRoute allowedRoles={['corporate']}>
+              <CorporateDashboard />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/dashboard/franchise" element={
+            <ProtectedRoute allowedRoles={[...FRANCHISE_ROLES]}>
+              <FranchiseDashboard />
+            </ProtectedRoute>
+          } />
+          <Route path="/franchise/*" element={
+            <ProtectedRoute allowedRoles={[...FRANCHISE_ROLES]}>
+              <FranchiseDashboard />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/dashboard/labor" element={
+            <ProtectedRoute allowedRoles={['labor']}>
+              <LaborDashboard />
+            </ProtectedRoute>
+          } />
+          <Route path="/labor/*" element={
+            <ProtectedRoute allowedRoles={['labor']}>
+              <LaborDashboard />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/dashboard/media" element={
+            <ProtectedRoute allowedRoles={[...MEDIA_ROLES]}>
+              <MediaChannelDashboard />
+            </ProtectedRoute>
+          } />
+          <Route path="/media/*" element={
+            <ProtectedRoute allowedRoles={[...MEDIA_ROLES]}>
+              <MediaChannelDashboard />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/dashboard/partner" element={
+            <ProtectedRoute allowedRoles={['partner']}>
+              <PartnerDashboard />
+            </ProtectedRoute>
+          } />
+          <Route path="/partner/*" element={
+            <ProtectedRoute allowedRoles={['partner']}>
+              <PartnerDashboard />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/dashboard/client" element={
+            <ProtectedRoute allowedRoles={[...CLIENT_ROLES]}>
+              <ClientDashboard />
+            </ProtectedRoute>
+          } />
+          <Route path="/client/*" element={
+            <ProtectedRoute allowedRoles={[...CLIENT_ROLES]}>
+              <ClientDashboard />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/dashboard/reporter" element={
+            <ProtectedRoute allowedRoles={['reporter']}>
+              <div className="p-6">Reporter Dashboard (Coming Soon)</div>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/app/:appId/*" element={
+            <RequireAuth>
+              <AppDashboard />
+            </RequireAuth>
+          } />
+
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Router>

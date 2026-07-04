@@ -6,6 +6,8 @@ import {
   LogOut, Menu, X, Search, Bell, Settings, Shield, Calendar,
   Clock, TrendingUp, BarChart3, AlertCircle, CheckCircle2, Briefcase
 } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import AuthLoadingScreen from '../../components/auth/AuthLoadingScreen';
 
 interface MenuItem {
   id: string;
@@ -31,10 +33,10 @@ interface Permission {
 
 export const LaborDashboard: React.FC = () => {
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [activeMenu, setActiveMenu] = useState('dashboard');
-  const [user, setUser] = useState<any>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [permissions, setPermissions] = useState<Permission>({
     laborDetails: true,
@@ -50,24 +52,11 @@ export const LaborDashboard: React.FC = () => {
   });
 
   useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      const parsedUser = JSON.parse(userData);
-      setUser(parsedUser);
-      
-      // In a real app, fetch permissions from backend
-      // For now, we'll use default permissions
-    } else {
-      navigate('/auth/login');
-    }
-
-    // Update clock every second
     const timer = setInterval(() => {
       setCurrentTime(new Date());
     }, 1000);
-
     return () => clearInterval(timer);
-  }, [navigate]);
+  }, []);
 
   const menuItems: MenuItem[] = [
     {
@@ -136,12 +125,14 @@ export const LaborDashboard: React.FC = () => {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('user');
+  const handleLogout = async () => {
+    await logout();
     navigate('/auth/login');
   };
+
+  if (!user) {
+    return <AuthLoadingScreen message="Loading dashboard..." />;
+  }
 
   const renderMenuItem = (item: MenuItem) => {
     const isActive = activeMenu === item.id;

@@ -114,5 +114,10 @@ router.post(
   controller.uploadAddressImage
 );
 
+// ============================================
+// WEBSITE PREVIEW
+// ============================================
+router.get('/website-preview/:channelId', authenticate, controller.getWebsitePreview);
+
 export default router;
 

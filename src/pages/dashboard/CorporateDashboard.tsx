@@ -19,6 +19,8 @@ import { CorporateHeaderAdsPricing } from '../corporate/CorporateHeaderAdsPricin
 import { CorporateOfferAds } from '../corporate/CorporateOfferAds';
 import { MainPageAds } from '../corporate/MainPageAds';
 import { ChangePassword } from '../corporate/ChangePassword';
+import { useAuth } from '../../contexts/AuthContext';
+import AuthLoadingScreen from '../../components/auth/AuthLoadingScreen';
 import {
   LayoutDashboard, Users, Building2, MapPin, Globe, FileText,
   LogOut, ChevronDown, ChevronRight, Menu, X,
@@ -50,11 +52,11 @@ interface DashboardStats {
 export const CorporateDashboard: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState<string[]>(['dashboard']);
   const [activeMenu, setActiveMenu] = useState('dashboard');
-  const [user, setUser] = useState<any>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [stats, setStats] = useState<DashboardStats>({
     headOfficeUsers: 0,
@@ -68,20 +70,12 @@ export const CorporateDashboard: React.FC = () => {
   const [carouselSlide, setCarouselSlide] = useState(0);
 
   useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      setUser(JSON.parse(userData));
-    } else {
-      navigate('/auth/login');
-    }
-
-    // Update clock every second
     const timer = setInterval(() => {
       setCurrentTime(new Date());
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [navigate]);
+  }, []);
 
   useEffect(() => {
     const fetchOfferAds = async () => {
@@ -232,12 +226,14 @@ export const CorporateDashboard: React.FC = () => {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('user');
+  const handleLogout = async () => {
+    await logout();
     navigate('/auth/login');
   };
+
+  if (!user) {
+    return <AuthLoadingScreen message="Loading dashboard..." />;
+  }
 
   const renderContent = () => {
     const path = location.pathname;

@@ -62,7 +62,8 @@ import {
   getMediaChannels,
   updateMediaChannelStatus,
   updateMediaChannelActive,
-  updateMediaChannel
+  updateMediaChannel,
+  getPublicDatabase
 } from '../controllers/adminController.js';
 import { getProfile, createProfile, updateProfile } from '../controllers/profileController.js';
 import {
@@ -270,5 +271,12 @@ router.patch('/accounts-users/:id/status', toggleAccountsUserStatus);
  */
 router.get('/chat-messages', getPartnerChatMessages);
 router.post('/chat-messages', sendPartnerChatMessage);
+
+/**
+ * ============================================
+ * PUBLIC DATABASE
+ * ============================================
+ */
+router.get('/public-database', getPublicDatabase);
 
 export default router;

@@ -24,7 +24,10 @@ import { AccountsLogin } from '../admin/AccountsLogin';
 import { CreateCategoryPage } from '../admin/CreateCategory';
 import { AdminSupportChat } from '../admin/AdminSupportChat';
 import { Profile } from '../admin/Profile';
-
+import { PublicDatabase } from '../admin/PublicDatabase';
+import { ClientDatabase } from '../admin/ClientDatabase';
+import { useAuth } from '../../contexts/AuthContext';
+import AuthLoadingScreen from '../../components/auth/AuthLoadingScreen';
 
 interface MenuItem {
   id: string;
@@ -39,20 +42,15 @@ interface MenuItem {
 export const AdminDashboardNew: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState<string[]>(['dashboard']);
   const [activeMenu, setActiveMenu] = useState('dashboard');
-  const [user, setUser] = useState<any>(null);
 
-  useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      setUser(JSON.parse(userData));
-    } else {
-      navigate('/auth/admin');
-    }
-  }, [navigate]);
+  if (!user) {
+    return <AuthLoadingScreen message="Loading dashboard..." />;
+  }
 
   // Render content based on current path
   const renderContent = () => {
@@ -98,6 +96,10 @@ export const AdminDashboardNew: React.FC = () => {
       case '/admin/support-chat':
         console.log('Rendering Support Chart');
         return <AdminSupportChat />;
+      case '/admin/public-database':
+        return <PublicDatabase />;
+      case '/admin/client-database':
+        return <ClientDatabase />;
 
       default:
         return (
@@ -256,10 +258,8 @@ export const AdminDashboardNew: React.FC = () => {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('user');
+  const handleLogout = async () => {
+    await logout();
     navigate('/auth/admin');
   };
 

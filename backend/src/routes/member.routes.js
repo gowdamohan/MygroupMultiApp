@@ -4,12 +4,16 @@ import path from 'path';
 import {
   registerMember,
   registerMemberStep1,
+  sendMemberWhatsappOtp,
+  verifyMemberWhatsappOtp,
   updateMemberProfile,
   checkUserProfile,
   memberLogin,
   getRegistrationFormFields,
-  getUserStats
+  getUserStats,
+  getUserTerms
 } from '../controllers/memberController.js';
+import { authenticate } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -38,14 +42,19 @@ router.post('/register', registerMember);
 // POST /api/v1/member/register-step1 - Register new member (Step 1: Create user)
 router.post('/register-step1', registerMemberStep1);
 
-// POST /api/v1/member/update-profile - Update member profile (Step 2, JSON body e.g. RegisterStep2Form)
+// POST /api/v1/member/send-whatsapp-otp - Send registration OTP via WhatsApp
+router.post('/send-whatsapp-otp', sendMemberWhatsappOtp);
+
+// POST /api/v1/member/verify-whatsapp-otp - Verify WhatsApp OTP and complete Step 1
+router.post('/verify-whatsapp-otp', verifyMemberWhatsappOtp);
+
+// POST /api/v1/member/update-profile - Step 2 registration (JSON); public — uses user_id in body
 router.post('/update-profile', updateMemberProfile);
 
-// PUT /api/v1/member/update-profile - Update member profile (Step 2, FormData + optional profile_img e.g. UserProfileModal)
+// PUT /api/v1/member/update-profile - Step 2 / profile modal (FormData); public when no session yet
 router.put('/update-profile', profileUpload.single('profile_img'), updateMemberProfile);
 
-// GET /api/v1/member/check-profile/:userId - Check if user profile is complete
-router.get('/check-profile/:userId', checkUserProfile);
+router.get('/check-profile/:userId', authenticate, checkUserProfile);
 
 // GET /api/v1/member/registration-fields - Get registration form fields
 router.get('/registration-fields', getRegistrationFormFields);
@@ -55,6 +64,9 @@ router.get('/registration-data', getRegistrationFormFields);
 
 // GET /api/v1/member/user-stats - Get user statistics (public)
 router.get('/user-stats', getUserStats);
+
+// GET /api/v1/member/user-terms - Get user terms and conditions (public)
+router.get('/user-terms', getUserTerms);
 
 export default router;
 

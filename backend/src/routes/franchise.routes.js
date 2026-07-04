@@ -18,9 +18,13 @@ import {
   getOfficeAddress,
   updateOfficeAddress
 } from '../controllers/franchiseController.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, authorize } from '../middleware/auth.js';
+import { ROLE_SETS } from '../constants/roles.js';
 
 const router = express.Router();
+
+router.use(authenticate);
+router.use(authorize(...ROLE_SETS.FRANCHISE));
 
 // Head Office Login Management
 router.get('/head-office-users', getHeadOfficeUsers);
@@ -43,9 +47,8 @@ router.put('/branch-office-users/:id', updateBranchOfficeUser);
 router.post('/branch-office-users/:id/reset-password', resetBranchOfficePassword);
 router.patch('/branch-office-users/:id/toggle-status', toggleBranchOfficeStatus);
 
-// Franchise office address (authenticated)
-router.get('/office-address', authenticate, getOfficeAddress);
-router.put('/office-address', authenticate, updateOfficeAddress);
+// Franchise office address
+router.get('/office-address', getOfficeAddress);
+router.put('/office-address', updateOfficeAddress);
 
 export default router;
-

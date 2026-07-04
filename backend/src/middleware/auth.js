@@ -140,11 +140,17 @@ export const authenticate = async (req, res, next) => {
 
 export const authenticateToken = authenticate;
 
+const getUserRoleNames = (user) => {
+  if (!user?.groups) return [];
+  return user.groups.map((g) => g.name);
+};
+
 /**
- * Check if user has specific role
+ * Require at least one of the given roles (after authenticate).
  */
 export const authorize = (...roles) => {
-  return async (req, res, next) => {
+  const allowed = roles.flat();
+  return (req, res, next) => {
     try {
       if (!req.user) {
         return res.status(401).json({
@@ -153,8 +159,20 @@ export const authorize = (...roles) => {
         });
       }
 
-      // TODO: Implement role checking with users_groups table
-      // For now, just pass through
+      if (allowed.length === 0) {
+        return next();
+      }
+
+      const userRoles = getUserRoleNames(req.user);
+      const hasRole = userRoles.some((role) => allowed.includes(role));
+
+      if (!hasRole) {
+        return res.status(403).json({
+          success: false,
+          message: 'Insufficient permissions'
+        });
+      }
+
       next();
     } catch (error) {
       return res.status(403).json({
@@ -166,3 +184,13 @@ export const authorize = (...roles) => {
   };
 };
 
+/**
+ * Authenticate when a Bearer token is present; continue as guest otherwise.
+ */
+export const optionalAuthenticate = async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return next();
+  }
+  return authenticate(req, res, next);
+};

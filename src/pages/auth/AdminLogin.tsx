@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Mail, Lock, Shield, ArrowLeft } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
 import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
+import { persistAuthStorage, getPostLoginPath } from '../../utils/authSession';
+import { startTokenRefreshInterval } from '../../services/api';
 
 export const AdminLogin: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { updateUser } = useAuth();
   const [formData, setFormData] = useState({
     identity: '',
@@ -24,20 +27,13 @@ export const AdminLogin: React.FC = () => {
     try {
       const response = await axios.post(`${API_BASE_URL}/auth/admin/login`, formData);
       if (response.data.success) {
-        // Store tokens
-        localStorage.setItem('accessToken', response.data.data.accessToken);
-        if (response.data.data.refreshToken) {
-          localStorage.setItem('refreshToken', response.data.data.refreshToken);
-        }
+        const { user, accessToken, refreshToken } = response.data.data;
+        persistAuthStorage(user, accessToken, refreshToken);
+        updateUser(user);
+        startTokenRefreshInterval();
 
-        // Store user data
-        localStorage.setItem('user', JSON.stringify(response.data.data.user));
-
-        // Update AuthContext with user data
-        updateUser(response.data.data.user);
-
-        // Navigate to dashboard
-        navigate(response.data.data.dashboardRoute || '/dashboard/admin');
+        const fallback = response.data.data.dashboardRoute || '/dashboard/admin';
+        navigate(getPostLoginPath(user, location.search, fallback), { replace: true });
       }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Login failed. Please try again.');

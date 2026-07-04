@@ -139,7 +139,10 @@ export const API_ENDPOINTS = {
   },
   member: {
     registerStep1: '/member/register-step1',
+    sendWhatsappOtp: '/member/send-whatsapp-otp',
+    verifyWhatsappOtp: '/member/verify-whatsapp-otp',
     checkProfile: (userId: number) => `/member/check-profile/${userId}`,
+    userTerms: '/member/user-terms',
   },
   admin: {
     appsAdminLogin: '/admin/apps-admin-login',

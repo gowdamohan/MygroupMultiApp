@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { User, Lock, ArrowLeft, LogIn } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
 import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
+import { useAuth } from '../../contexts/AuthContext';
+import { persistAuthStorage, getPostLoginPath } from '../../utils/authSession';
+import { startTokenRefreshInterval } from '../../services/api';
 
 interface AppDetails {
   id: number;
@@ -24,6 +27,8 @@ const CATEGORY_MAP: { label: string; match: string[] }[] = [
 
 export const GroupAdminLogin: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { updateUser } = useAuth();
   const [searchParams] = useSearchParams();
 
   // State
@@ -101,23 +106,20 @@ export const GroupAdminLogin: React.FC = () => {
         password: formData.password
       });
       if (response.data.success) {
-        // Store tokens
-        localStorage.setItem('accessToken', response.data.data.accessToken);
-        if (response.data.data.refreshToken) {
-          localStorage.setItem('refreshToken', response.data.data.refreshToken);
-        }
+        const { user, accessToken, refreshToken } = response.data.data;
+        persistAuthStorage(user, accessToken, refreshToken);
+        updateUser(user);
+        startTokenRefreshInterval();
 
-        // Store user data
-        localStorage.setItem('user', JSON.stringify(response.data.data.user));
-
-        // If user is a partner, store selected app and redirect to partner dashboard
         if (response.data.data.isPartner && response.data.data.selectedApp) {
           localStorage.setItem('selectedApp', JSON.stringify(response.data.data.selectedApp));
-          navigate('/dashboard/partner');
+          navigate(getPostLoginPath(user, location.search, '/dashboard/partner'), { replace: true });
         } else {
-          // Redirect to app-specific dashboard for app admins
-          const dashboardRoute = response.data.data.dashboardRoute || selectedApp.dashboard_route || `/app/${selectedApp.id}/dashboard`;
-          navigate(dashboardRoute);
+          const dashboardRoute =
+            response.data.data.dashboardRoute ||
+            selectedApp.dashboard_route ||
+            `/app/${selectedApp.id}/dashboard`;
+          navigate(getPostLoginPath(user, location.search, dashboardRoute), { replace: true });
         }
       }
     } catch (err: any) {

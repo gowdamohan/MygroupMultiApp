@@ -6,6 +6,8 @@ import {
   Mail, MapPin, LogOut, Menu, X, Search, Bell, Settings,
   TrendingUp, Users, Eye, Heart, MessageSquare, Play, Globe
 } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import AuthLoadingScreen from '../../components/auth/AuthLoadingScreen';
 
 interface MenuItem {
   id: string;
@@ -25,10 +27,10 @@ interface DashboardStats {
 
 export const MediaChannelDashboard: React.FC = () => {
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [activeMenu, setActiveMenu] = useState('dashboard');
-  const [user, setUser] = useState<any>(null);
   const [mediaType, setMediaType] = useState<'tv' | 'radio' | 'newspaper' | 'magazine'>('tv');
   const [channelInfo, setChannelInfo] = useState<any>(null);
   const [stats, setStats] = useState<DashboardStats>({
@@ -40,26 +42,17 @@ export const MediaChannelDashboard: React.FC = () => {
   });
 
   useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      const parsedUser = JSON.parse(userData);
-      setUser(parsedUser);
-      
-      // Determine media type from user data or group details
-      // For now, we'll use a default
-      if (parsedUser.company?.toLowerCase().includes('tv')) {
-        setMediaType('tv');
-      } else if (parsedUser.company?.toLowerCase().includes('radio')) {
-        setMediaType('radio');
-      } else if (parsedUser.company?.toLowerCase().includes('newspaper')) {
-        setMediaType('newspaper');
-      } else if (parsedUser.company?.toLowerCase().includes('magazine')) {
-        setMediaType('magazine');
-      }
-    } else {
-      navigate('/auth/login');
+    if (!user) return;
+    if (user.company?.toLowerCase().includes('tv')) {
+      setMediaType('tv');
+    } else if (user.company?.toLowerCase().includes('radio')) {
+      setMediaType('radio');
+    } else if (user.company?.toLowerCase().includes('newspaper')) {
+      setMediaType('newspaper');
+    } else if (user.company?.toLowerCase().includes('magazine')) {
+      setMediaType('magazine');
     }
-  }, [navigate]);
+  }, [user]);
 
   const menuItems: MenuItem[] = [
     {
@@ -133,12 +126,14 @@ export const MediaChannelDashboard: React.FC = () => {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('user');
+  const handleLogout = async () => {
+    await logout();
     navigate('/auth/login');
   };
+
+  if (!user) {
+    return <AuthLoadingScreen message="Loading dashboard..." />;
+  }
 
   const getMediaTypeIcon = () => {
     const iconMap = {

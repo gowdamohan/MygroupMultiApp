@@ -1,16 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { X, User, Lock, Phone, Eye, EyeOff } from 'lucide-react';
+import { X, User, Lock, Phone, Eye, EyeOff, MessageCircle } from 'lucide-react';
 import axios from 'axios';
 import { RegisterStep2Form } from './RegisterStep2Form';
-import { API_BASE_URL } from '../config/api.config';
+import { API_BASE_URL, API_ENDPOINTS } from '../config/api.config';
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
-  allowClose?: boolean; // Allow closing the modal
+  allowClose?: boolean;
 }
+
+type RegisterSubStep = 'mobile' | 'otp' | 'details';
+
+const OTP_RESEND_SECONDS = 60;
+
+const formatTimer = (seconds: number) => {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+};
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, allowClose = false }) => {
   const navigate = useNavigate();
@@ -18,16 +28,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, allowClos
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [registrationStep, setRegistrationStep] = useState(1);
+  const [registerSubStep, setRegisterSubStep] = useState<RegisterSubStep>('mobile');
+  const [otp, setOtp] = useState('');
+  const [otpTimer, setOtpTimer] = useState(0);
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Login form state
   const [loginData, setLoginData] = useState({
     username: '',
     password: ''
   });
 
-  // Registration Step 1 form state
   const [registerData, setRegisterData] = useState({
     first_name: '',
     mobile: '',
@@ -35,8 +47,31 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, allowClos
     confirmPassword: ''
   });
 
-  // User ID for Step 2 registration
   const [userId, setUserId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (otpTimer <= 0) return;
+    const interval = setInterval(() => {
+      setOtpTimer((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [otpTimer]);
+
+  const resetRegistrationState = () => {
+    setRegistrationStep(1);
+    setRegisterSubStep('mobile');
+    setOtp('');
+    setOtpTimer(0);
+    setSuccess('');
+    setError('');
+    setUserId(null);
+    setRegisterData({
+      first_name: '',
+      mobile: '',
+      password: '',
+      confirmPassword: ''
+    });
+  };
 
   const redirectToMyMedia = () => {
     onClose();
@@ -46,6 +81,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, allowClos
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
     setLoading(true);
 
     try {
@@ -57,21 +93,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, allowClos
       if (response.data.success) {
         const user = response.data.data.user;
 
-        // Store tokens
         localStorage.setItem('accessToken', response.data.data.accessToken);
         localStorage.setItem('refreshToken', response.data.data.refreshToken);
         localStorage.setItem('user', JSON.stringify(user));
 
-        // Check if user has completed registration (Step 2)
         try {
-          const profileResponse = await axios.get(`${API_BASE_URL}/member/check-profile/${user.id}`, {
-            headers: {
-              Authorization: `Bearer ${response.data.data.accessToken}`
+          const profileResponse = await axios.get(
+            `${API_BASE_URL}${API_ENDPOINTS.member.checkProfile(user.id)}`,
+            {
+              headers: {
+                Authorization: `Bearer ${response.data.data.accessToken}`
+              }
             }
-          });
+          );
 
           if (profileResponse.data.success && !profileResponse.data.data.profileComplete) {
-            // Profile not complete - show Step 2 form
             setUserId(user.id);
             setRegisterData({
               first_name: user.first_name || '',
@@ -88,7 +124,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, allowClos
           console.error('Error checking profile:', profileErr);
         }
 
-        // Profile complete or error checking - redirect to My Media
         redirectToMyMedia();
       }
     } catch (err: any) {
@@ -98,35 +133,124 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, allowClos
     }
   };
 
+  const validateMobile = () => {
+    if (!/^\d{10}$/.test(registerData.mobile)) {
+      setError('Mobile number must be 10 digits');
+      return false;
+    }
+    return true;
+  };
+
+  const validateAccountDetails = () => {
+    if (!registerData.first_name.trim()) {
+      setError('Full name is required');
+      return false;
+    }
+    if (registerData.password !== registerData.confirmPassword) {
+      setError('Passwords do not match');
+      return false;
+    }
+    if (registerData.password.length < 6) {
+      setError('Password must be at least 6 characters');
+      return false;
+    }
+    return true;
+  };
+
+  const handleSendWhatsappOtp = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setError('');
+    setSuccess('');
+
+    if (!validateMobile()) return;
+
+    setLoading(true);
+
+    try {
+      const response = await axios.post(`${API_BASE_URL}${API_ENDPOINTS.member.sendWhatsappOtp}`, {
+        mobile: registerData.mobile
+      });
+
+      if (response.data.success) {
+        setRegisterSubStep('otp');
+        setOtp('');
+        setOtpTimer(OTP_RESEND_SECONDS);
+        setSuccess(`Code sent to WhatsApp Number ending in ****${registerData.mobile.slice(-4)}`);
+      }
+    } catch (err: any) {
+      if (err.response?.data?.redirectToLogin) {
+        setError(err.response.data.message);
+        setTimeout(() => {
+          setActiveTab('login');
+          setError('');
+        }, 2000);
+      } else {
+        setError(err.response?.data?.message || 'Failed to send code via WhatsApp');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyWhatsappOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+
+    const cleanOtp = otp.replace(/\D/g, '').slice(0, 6);
+    if (cleanOtp.length !== 6) {
+      setError('Please enter a valid 6-digit code');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await axios.post(`${API_BASE_URL}${API_ENDPOINTS.member.verifyWhatsappOtp}`, {
+        mobile: registerData.mobile,
+        otp: cleanOtp
+      });
+
+      if (response.data.success) {
+        if (response.data.data?.profileIncomplete) {
+          setUserId(response.data.data.user_id);
+          setRegisterData((prev) => ({
+            ...prev,
+            first_name: response.data.data.first_name || prev.first_name
+          }));
+          setSuccess('Mobile verified! Please complete your profile.');
+          setRegistrationStep(2);
+        } else {
+          setSuccess('Mobile verified! Enter your account details.');
+          setRegisterSubStep('details');
+        }
+      }
+    } catch (err: any) {
+      if (err.response?.data?.redirectToLogin) {
+        setError(err.response.data.message);
+        setTimeout(() => {
+          setActiveTab('login');
+          setError('');
+        }, 2000);
+      } else {
+        setError(err.response?.data?.message || 'Invalid or expired code');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleRegisterStep1 = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
+
+    if (!validateAccountDetails()) return;
+
     setLoading(true);
 
-    // Validate passwords match
-    if (registerData.password !== registerData.confirmPassword) {
-      setError('Passwords do not match');
-      setLoading(false);
-      return;
-    }
-
-    // Validate password length
-    if (registerData.password.length < 6) {
-      setError('Password must be at least 6 characters');
-      setLoading(false);
-      return;
-    }
-
-    // Validate mobile number (10 digits)
-    if (!/^\d{10}$/.test(registerData.mobile)) {
-      setError('Mobile number must be 10 digits');
-      setLoading(false);
-      return;
-    }
-
     try {
-      // Create user in database (Step 1)
-      const response = await axios.post(`${API_BASE_URL}/member/register-step1`, {
+      const response = await axios.post(`${API_BASE_URL}${API_ENDPOINTS.member.registerStep1}`, {
         first_name: registerData.first_name,
         mobile: registerData.mobile,
         password: registerData.password
@@ -134,21 +258,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, allowClos
 
       if (response.data.success) {
         setUserId(response.data.data.user_id);
-
-        // Check if profile is incomplete (user already exists)
-        if (response.data.data.profileIncomplete) {
-          // User exists but profile incomplete - go to Step 2
-          setRegistrationStep(2);
-        } else {
-          // New user created - go to Step 2
-          setRegistrationStep(2);
-        }
+        setRegistrationStep(2);
       }
     } catch (err: any) {
-      // Check if should redirect to login
       if (err.response?.data?.redirectToLogin) {
         setError(err.response.data.message);
-        // Auto-switch to login tab after 2 seconds
         setTimeout(() => {
           setActiveTab('login');
           setError('');
@@ -161,9 +275,26 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, allowClos
     }
   };
 
-  const handleBackToStep1 = () => {
-    setRegistrationStep(1);
+  const handleBackInRegister = () => {
+    if (registrationStep === 2) {
+      setRegistrationStep(1);
+      setRegisterSubStep('details');
+    } else if (registerSubStep === 'details') {
+      setRegisterSubStep('otp');
+    } else if (registerSubStep === 'otp') {
+      setRegisterSubStep('mobile');
+      setOtp('');
+      setOtpTimer(0);
+    }
     setError('');
+    setSuccess('');
+  };
+
+  const getRegisterTitle = () => {
+    if (registrationStep === 2) return 'Register - Step 2';
+    if (registerSubStep === 'mobile') return 'Register - Verify Mobile';
+    if (registerSubStep === 'otp') return 'Enter 6-digit code';
+    return 'Register - Step 1';
   };
 
   if (!isOpen) return null;
@@ -171,10 +302,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, allowClos
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black bg-opacity-50 p-4">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto relative z-[10000]">
-        {/* Header */}
         <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white z-10">
           <h2 className="text-xl font-bold text-gray-800">
-            {activeTab === 'login' ? 'Login' : registrationStep === 1 ? 'Register - Step 1' : 'Register - Step 2'}
+            {activeTab === 'login' ? 'Login' : getRegisterTitle()}
           </h2>
           {allowClose && (
             <button
@@ -186,13 +316,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, allowClos
           )}
         </div>
 
-        {/* Tabs */}
         <div className="flex border-b">
           <button
             onClick={() => {
               setActiveTab('login');
-              setRegistrationStep(1);
-              setError('');
+              resetRegistrationState();
             }}
             className={`flex-1 py-3 text-center font-medium transition-colors ${
               activeTab === 'login'
@@ -205,8 +333,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, allowClos
           <button
             onClick={() => {
               setActiveTab('register');
-              setRegistrationStep(1);
-              setError('');
+              resetRegistrationState();
             }}
             className={`flex-1 py-3 text-center font-medium transition-colors ${
               activeTab === 'register'
@@ -218,7 +345,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, allowClos
           </button>
         </div>
 
-        {/* Content */}
         <div className="p-6">
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
@@ -226,7 +352,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, allowClos
             </div>
           )}
 
-          {/* Login Form */}
+          {success && (
+            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
+              {success}
+            </div>
+          )}
+
           {activeTab === 'login' && (
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
@@ -247,9 +378,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, allowClos
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Password
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
                   <input
@@ -280,13 +409,101 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, allowClos
             </form>
           )}
 
-          {/* Register Step 1 Form */}
-          {activeTab === 'register' && registrationStep === 1 && (
-            <form onSubmit={handleRegisterStep1} className="space-y-4">
+          {activeTab === 'register' && registrationStep === 1 && registerSubStep === 'mobile' && (
+            <form onSubmit={handleSendWhatsappOtp} className="space-y-4">
+              <p className="text-sm text-gray-600">
+                Enter your mobile number. We will send a verification code to your WhatsApp.
+              </p>
+
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Full Name
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Mobile Number</label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={registerData.mobile}
+                    onChange={(e) =>
+                      setRegisterData({ ...registerData, mobile: e.target.value.replace(/\D/g, '') })
+                    }
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    placeholder="10-digit mobile number"
+                    required
+                    maxLength={10}
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-green-600 text-white py-2 rounded-lg font-medium hover:bg-green-700 transition-colors disabled:bg-green-400 flex items-center justify-center gap-2"
+              >
+                <MessageCircle size={18} />
+                {loading ? 'Sending...' : 'Send Code'}
+              </button>
+            </form>
+          )}
+
+          {activeTab === 'register' && registrationStep === 1 && registerSubStep === 'otp' && (
+            <form onSubmit={handleVerifyWhatsappOtp} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">6-digit code</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-center text-2xl tracking-widest"
+                  placeholder="000000"
+                  maxLength={6}
+                  autoFocus
+                  required
+                />
+              </div>
+
+              <div className="text-center text-sm text-gray-600">
+                {otpTimer > 0 ? (
+                  <span>Resend code in {formatTimer(otpTimer)}</span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleSendWhatsappOtp()}
+                    disabled={loading}
+                    className="text-green-700 font-medium hover:underline disabled:opacity-50"
+                  >
+                    Resend Code
+                  </button>
+                )}
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={handleBackInRegister}
+                  className="flex-1 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Back
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading || otp.length !== 6}
+                  className="flex-1 bg-green-600 text-white py-2 rounded-lg font-medium hover:bg-green-700 transition-colors disabled:bg-green-400"
+                >
+                  {loading ? 'Verifying...' : 'Verify'}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {activeTab === 'register' && registrationStep === 1 && registerSubStep === 'details' && (
+            <form onSubmit={handleRegisterStep1} className="space-y-4">
+              <p className="text-sm text-gray-600">
+                Mobile <span className="font-medium">{registerData.mobile}</span> verified. Create your account.
+              </p>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
                 <input
                   type="text"
                   value={registerData.first_name}
@@ -298,29 +515,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, allowClos
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Mobile Number (Username)
-                </label>
-                <div className="relative">
-                  <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={registerData.mobile}
-                    onChange={(e) => setRegisterData({ ...registerData, mobile: e.target.value.replace(/\D/g, '') })}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Enter mobile number"
-                    required
-                    maxLength={10}
-                    title="Please enter a valid 10-digit mobile number"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Password
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
                   <input
@@ -343,9 +538,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, allowClos
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Confirm Password
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
                   <input
@@ -369,29 +562,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, allowClos
 
               <button
                 type="submit"
-                className="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                disabled={loading}
+                className="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:bg-blue-400"
               >
-                Next Step
+                {loading ? 'Please wait...' : 'Next Step'}
               </button>
             </form>
           )}
 
-          {/* Register Step 2 Form */}
           {activeTab === 'register' && registrationStep === 2 && userId && (
             <RegisterStep2Form
+              key={`register-step2-${userId}`}
               registerData={registerData}
               userId={userId}
-              onBack={handleBackToStep1}
+              onBack={handleBackInRegister}
               onSuccess={() => {
                 setActiveTab('login');
-                setRegistrationStep(1);
-                setUserId(null);
-                setRegisterData({
-                  first_name: '',
-                  mobile: '',
-                  password: '',
-                  confirmPassword: ''
-                });
+                resetRegistrationState();
               }}
             />
           )}
@@ -401,4 +588,3 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, allowClos
     document.body
   );
 };
-

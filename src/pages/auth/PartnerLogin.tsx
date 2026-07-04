@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { User, Lock, ArrowLeft, LogIn, Mail, KeyRound, LayoutGrid, Megaphone } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
 import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
-
-
+import { useAuth } from '../../contexts/AuthContext';
+import { persistAuthStorage, getPostLoginPath } from '../../utils/authSession';
+import { startTokenRefreshInterval } from '../../services/api';
 
 type ViewMode = 'login' | 'forgot-email' | 'forgot-otp' | 'forgot-password';
 
@@ -25,6 +26,8 @@ interface AppDetails {
 
 export const PartnerLogin: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { updateUser } = useAuth();
   const [searchParams] = useSearchParams();
 
   // State
@@ -124,20 +127,14 @@ export const PartnerLogin: React.FC = () => {
       });
       
       if (response.data.success) {
-        // Store tokens
-        localStorage.setItem('accessToken', response.data.data.accessToken);
-        if (response.data.data.refreshToken) {
-          localStorage.setItem('refreshToken', response.data.data.refreshToken);
-        }
-
-        // Store user data
-        localStorage.setItem('user', JSON.stringify(response.data.data.user));
-
-        // Store selected app
+        const { user, accessToken, refreshToken } = response.data.data;
+        persistAuthStorage(user, accessToken, refreshToken);
+        updateUser(user);
+        startTokenRefreshInterval();
         localStorage.setItem('selectedApp', JSON.stringify(selectedApp));
 
-        // Navigate to dashboard
-        navigate(response.data.data.dashboardRoute || '/dashboard/partner');
+        const fallback = response.data.data.dashboardRoute || '/dashboard/partner';
+        navigate(getPostLoginPath(user, location.search, fallback), { replace: true });
       }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Login failed. Please try again.');
