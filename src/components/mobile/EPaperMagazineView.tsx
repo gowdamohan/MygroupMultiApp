@@ -6,12 +6,12 @@
  * Layout:
  *  • Sticky header with channel branding
  *  • Year accordion → month chip-tabs → 2-column issue grid
- *  • Full-screen PDF reader modal (PdfDocumentViewer) with toolbar,
- *    page indicator, download button and seamless back navigation
+ *  • PDF click opens directly in browser for fast native rendering
+ *  • Full-screen modal for non-PDF media (images)
  *
  * API: GET /api/v1/mymedia/channel/:channelId/documents
  */
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import {
   ArrowLeft, Download, Calendar, ChevronDown, ChevronUp,
   Loader2, Newspaper, BookOpen,
@@ -19,8 +19,11 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { API_BASE_URL, getUploadUrl, WASABI_IMG_PROPS } from '../../config/api.config';
-import { PdfDocumentViewer } from '../shared/PdfDocumentViewer';
-import { isPdfFile } from '../../utils/pdfViewer';
+import { isPdfFile, getDocumentStreamUrl } from '../../utils/pdfViewer';
+import * as pdfjsLib from 'pdfjs-dist';
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 /* ── Types ──────────────────────────────────────────────────────── */
 interface EPaperMagazineViewProps {
@@ -80,6 +83,105 @@ const SkeletonCard: React.FC = () => (
   </div>
 );
 
+/** Resolve the best available URL for a document (direct Wasabi → stream → upload). */
+const getDocUrl = (doc: Document): string => {
+  if (doc.file_url && (doc.file_url.startsWith('http://') || doc.file_url.startsWith('https://'))) {
+    return doc.file_url;
+  }
+  if (doc.id) return getDocumentStreamUrl(doc.id);
+  return getUploadUrl(doc.file_url);
+};
+
+/** Lazy PDF first-page thumbnail rendered via pdf.js + IntersectionObserver */
+const PdfThumbnail = memo<{ doc: Document; gradient: string }>(({ doc, gradient }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+  const startedRef = useRef(false);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || startedRef.current) return;
+    let cancelled = false;
+
+    const render = async () => {
+      startedRef.current = true;
+      setStatus('loading');
+      let pdf: pdfjsLib.PDFDocumentProxy | null = null;
+      try {
+        const url = getDocUrl(doc);
+        pdf = await pdfjsLib.getDocument({ url, withCredentials: false }).promise;
+        if (cancelled) { pdf.destroy(); return; }
+
+        const page = await pdf.getPage(1);
+        if (cancelled) { page.cleanup(); pdf.destroy(); return; }
+
+        const canvas = canvasRef.current;
+        if (!canvas || cancelled) { page.cleanup(); pdf.destroy(); return; }
+
+        const vp = page.getViewport({ scale: 1 });
+        const targetW = el.clientWidth || 180;
+        const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+        const scale = (targetW * dpr) / vp.width;
+        const scaled = page.getViewport({ scale });
+
+        canvas.width = scaled.width;
+        canvas.height = scaled.height;
+        canvas.style.width = '100%';
+        canvas.style.height = '100%';
+
+        const ctx = canvas.getContext('2d', { alpha: false });
+        if (!ctx) { setStatus('error'); page.cleanup(); pdf.destroy(); return; }
+
+        await page.render({ canvasContext: ctx, viewport: scaled }).promise;
+        if (!cancelled) setStatus('done');
+        page.cleanup();
+        pdf.destroy();
+      } catch {
+        if (!cancelled) setStatus('error');
+        pdf?.destroy();
+      }
+    };
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          observer.disconnect();
+          render();
+        }
+      },
+      { rootMargin: '300px 0px' },
+    );
+    observer.observe(el);
+
+    return () => { cancelled = true; observer.disconnect(); };
+  }, [doc.id, doc.file_url]);
+
+  return (
+    <div ref={containerRef} className="w-full h-full relative bg-gray-100">
+      {status === 'loading' && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <Loader2 size={20} className="animate-spin text-teal-500" />
+        </div>
+      )}
+      {status === 'error' && (
+        <div className={`absolute inset-0 bg-gradient-to-br ${gradient} flex flex-col items-center justify-center gap-2`}>
+          <Newspaper size={32} className="text-white/60" />
+          <span className="text-white/80 text-xs font-bold px-2 text-center leading-tight line-clamp-2">
+            {doc.title}
+          </span>
+        </div>
+      )}
+      <canvas
+        ref={canvasRef}
+        className="w-full h-full object-cover"
+        style={{ opacity: status === 'done' ? 1 : 0, transition: 'opacity 0.3s' }}
+      />
+    </div>
+  );
+});
+PdfThumbnail.displayName = 'PdfThumbnail';
+
 /** Single issue card (cover image or gradient fallback) */
 const IssueCard: React.FC<{
   doc: Document;
@@ -107,6 +209,8 @@ const IssueCard: React.FC<{
             loading="lazy"
             {...WASABI_IMG_PROPS}
           />
+        ) : isPdfFile(doc.file_url, doc.document_type) ? (
+          <PdfThumbnail doc={doc} gradient={gradient} />
         ) : (
           <div className={`w-full h-full bg-gradient-to-br ${gradient} flex flex-col items-center justify-center gap-2`}>
             <Newspaper size={32} className="text-white/60" />
@@ -235,12 +339,19 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
 
   const years = Object.keys(groupedDocs).sort((a, b) => +b - +a);
 
-  /* ── Download helper ──────────────────────────────────────────── */
+  /* ── Download / open helper ───────────────────────────────────── */
   const handleDownload = (doc: Document) => {
-    const url = doc.id
-      ? `${API_BASE_URL}/mymedia/document/${doc.id}/stream`
-      : getUploadUrl(doc.file_url);
+    const url = getDocUrl(doc);
     if (url) window.open(url, '_blank');
+  };
+
+  /** PDF → open directly in browser; non-PDF → open in-app modal */
+  const handleDocClick = (doc: Document) => {
+    if (isPdfFile(doc.file_url, doc.document_type)) {
+      handleDownload(doc);
+    } else {
+      setSelectedDoc(doc);
+    }
   };
 
   /* ── Toggle year accordion & auto-select month ─────────────── */
@@ -414,7 +525,7 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
                             key={doc.id}
                             doc={doc}
                             index={idx}
-                            onClick={() => setSelectedDoc(doc)}
+                            onClick={() => handleDocClick(doc)}
                           />
                         ))}
                       </div>
@@ -491,25 +602,15 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
               </button>
             </div>
 
-            {/* PDF viewer */}
-            {isPdfFile(selectedDoc.file_url, selectedDoc.document_type) ? (
-              <PdfDocumentViewer
-                documentId={selectedDoc.id}
-                src={selectedDoc.file_url}
-                title={selectedDoc.title}
-                className="flex-1 min-h-0"
+            {/* Image / non-PDF viewer (PDFs open directly in browser) */}
+            <div className="flex-1 flex items-center justify-center bg-gray-800 p-4">
+              <img
+                src={getUploadUrl(selectedDoc.file_url)}
+                alt={selectedDoc.title}
+                className="max-w-full max-h-full object-contain rounded-lg shadow-xl"
+                {...WASABI_IMG_PROPS}
               />
-            ) : (
-              /* Non-PDF (image, etc.) */
-              <div className="flex-1 flex items-center justify-center bg-gray-800 p-4">
-                <img
-                  src={getUploadUrl(selectedDoc.file_url)}
-                  alt={selectedDoc.title}
-                  className="max-w-full max-h-full object-contain rounded-lg shadow-xl"
-                  {...WASABI_IMG_PROPS}
-                />
-              </div>
-            )}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
