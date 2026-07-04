@@ -489,8 +489,9 @@ export const MobileMyMediaPage: React.FC = () => {
       setStates(statesList);
       setDistricts(districtsList);
       setSelectedCountry(String(validated.countryId));
-      setSelectedState(validated.stateId ? String(validated.stateId) : '');
-      setSelectedDistrict(validated.districtId ? String(validated.districtId) : '');
+      // Default to "All states" — no specific state/district preselected
+      setSelectedState('');
+      setSelectedDistrict('');
       return true;
     } catch (error) {
       console.error('Error applying viewer location:', error);
