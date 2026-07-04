@@ -460,11 +460,25 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     }
   };
 
-  // Fetch social links
+  const SOCIAL_PLATFORM_ORDER = ['website', 'youtube', 'facebook', 'instagram', 'twitter', 'linkedin', 'blogger'];
+
   const fetchSocialLinks = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/footer/social-media`);
-      if (response.data.success) setSocialLinks(response.data.data || []);
+      const response = await axios.get(`${API_BASE_URL}/footer/social-media?group_name=corporate`);
+      if (response.data.success) {
+        const links: SocialLink[] = (response.data.data || []).map((item: any) => ({
+          id: item.id,
+          platform: item.title || '',
+          url: item.url || '',
+          icon: item.icon
+        }));
+        links.sort((a, b) => {
+          const ai = SOCIAL_PLATFORM_ORDER.indexOf(a.platform.toLowerCase());
+          const bi = SOCIAL_PLATFORM_ORDER.indexOf(b.platform.toLowerCase());
+          return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+        });
+        setSocialLinks(links);
+      }
     } catch (error) {
       console.error('Error fetching social links:', error);
     }
@@ -872,17 +886,18 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     }
   };
 
-  // Get social icon component
   const getSocialIcon = (platform: string) => {
-    const iconClass = "w-6 h-6";
-    if (!platform) return <Globe className={iconClass} />;
+    const base = "w-7 h-7 flex items-center justify-center text-white text-xs font-bold";
+    if (!platform) return <Globe className="w-7 h-7" />;
     switch (platform.toLowerCase()) {
-      case 'facebook': return <div className={`${iconClass} bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold`}>f</div>;
-      case 'instagram': return <div className={`${iconClass} bg-gradient-to-br from-purple-600 via-pink-500 to-orange-400 rounded-lg flex items-center justify-center text-white text-xs`}>📷</div>;
-      case 'twitter': return <div className={`${iconClass} bg-sky-500 rounded-full flex items-center justify-center text-white text-xs font-bold`}>𝕏</div>;
-      case 'youtube': return <div className={`${iconClass} bg-red-600 rounded-lg flex items-center justify-center text-white text-xs`}>▶</div>;
-      case 'linkedin': return <div className={`${iconClass} bg-blue-700 rounded flex items-center justify-center text-white text-xs font-bold`}>in</div>;
-      default: return <Globe className={iconClass} />;
+      case 'website': return <div className={`${base} bg-teal-600 rounded-full`}><Globe size={16} className="text-white" /></div>;
+      case 'youtube': return <div className={`${base} bg-red-600 rounded-lg`}>▶</div>;
+      case 'facebook': return <div className={`${base} bg-blue-600 rounded-full`}>f</div>;
+      case 'instagram': return <div className={`${base} bg-gradient-to-br from-purple-600 via-pink-500 to-orange-400 rounded-lg`}><Camera size={14} className="text-white" /></div>;
+      case 'twitter': return <div className={`${base} bg-black rounded-full`}>𝕏</div>;
+      case 'linkedin': return <div className={`${base} bg-blue-700 rounded`}>in</div>;
+      case 'blogger': return <div className={`${base} bg-orange-500 rounded-full`}>B</div>;
+      default: return <Globe className="w-7 h-7" />;
     }
   };
 
@@ -1778,7 +1793,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         {/* Follow Us Section */}
         <div className="border-t border-gray-200 px-4 py-4">
           <h4 className="text-sm font-semibold text-gray-700 mb-3">Follow Us</h4>
-          <div className="flex gap-3 flex-wrap">
+          <div className="flex gap-4 flex-wrap">
             {socialLinks.length > 0 ? (
               socialLinks.map((link) => (
                 <a
@@ -1786,19 +1801,21 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   href={link.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="p-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                  className="flex flex-col items-center gap-1 hover:opacity-80 transition-opacity"
                 >
                   {getSocialIcon(link.platform)}
+                  <span className="text-[10px] text-gray-500 font-medium">{link.platform}</span>
                 </a>
               ))
             ) : (
-              ['facebook', 'instagram', 'twitter', 'youtube', 'linkedin'].map((platform) => (
-                <button
+              ['Website', 'YouTube', 'Facebook', 'Instagram', 'Twitter', 'LinkedIn', 'Blogger'].map((platform) => (
+                <div
                   key={platform}
-                  className="p-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                  className="flex flex-col items-center gap-1 opacity-50"
                 >
                   {getSocialIcon(platform)}
-                </button>
+                  <span className="text-[10px] text-gray-500 font-medium">{platform}</span>
+                </div>
               ))
             )}
           </div>
