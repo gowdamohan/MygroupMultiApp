@@ -92,25 +92,55 @@ const getDocUrl = (doc: Document): string => {
   return getUploadUrl(doc.file_url);
 };
 
-/** Lazy PDF first-page thumbnail rendered via pdf.js + IntersectionObserver */
+/* ── Thumbnail concurrency & cache ─────────────────────────────── */
+const THUMB_MAX_CONCURRENT = 2;
+const THUMB_CANVAS_PX = 150;
+const thumbCache = new Map<number, string>();
+let thumbActive = 0;
+const thumbQueue: (() => void)[] = [];
+
+function acquireThumbSlot(): Promise<void> {
+  if (thumbActive < THUMB_MAX_CONCURRENT) { thumbActive++; return Promise.resolve(); }
+  return new Promise(r => thumbQueue.push(r));
+}
+function releaseThumbSlot() {
+  thumbActive--;
+  const next = thumbQueue.shift();
+  if (next) { thumbActive++; next(); }
+}
+
+/** PDF first-page thumbnail — range-fetched, queued, cached as JPEG data-URL */
 const PdfThumbnail = memo<{ doc: Document; gradient: string }>(({ doc, gradient }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const startedRef = useRef(false);
+  const [cachedSrc, setCachedSrc] = useState<string | null>(() => thumbCache.get(doc.id) ?? null);
+  const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>(() =>
+    cachedSrc ? 'done' : 'idle',
+  );
 
   useEffect(() => {
+    if (cachedSrc || startedRef.current) return;
     const el = containerRef.current;
-    if (!el || startedRef.current) return;
+    if (!el) return;
     let cancelled = false;
 
     const render = async () => {
       startedRef.current = true;
+      await acquireThumbSlot();
+      if (cancelled) { releaseThumbSlot(); return; }
       setStatus('loading');
+
       let pdf: pdfjsLib.PDFDocumentProxy | null = null;
       try {
         const url = getDocUrl(doc);
-        pdf = await pdfjsLib.getDocument({ url, withCredentials: false }).promise;
+        pdf = await pdfjsLib.getDocument({
+          url,
+          withCredentials: false,
+          disableAutoFetch: true,
+          disableStream: true,
+          rangeChunkSize: 65536,
+        }).promise;
         if (cancelled) { pdf.destroy(); return; }
 
         const page = await pdf.getPage(1);
@@ -120,9 +150,7 @@ const PdfThumbnail = memo<{ doc: Document; gradient: string }>(({ doc, gradient 
         if (!canvas || cancelled) { page.cleanup(); pdf.destroy(); return; }
 
         const vp = page.getViewport({ scale: 1 });
-        const targetW = el.clientWidth || 180;
-        const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-        const scale = (targetW * dpr) / vp.width;
+        const scale = THUMB_CANVAS_PX / vp.width;
         const scaled = page.getViewport({ scale });
 
         canvas.width = scaled.width;
@@ -131,31 +159,42 @@ const PdfThumbnail = memo<{ doc: Document; gradient: string }>(({ doc, gradient 
         canvas.style.height = '100%';
 
         const ctx = canvas.getContext('2d', { alpha: false });
-        if (!ctx) { setStatus('error'); page.cleanup(); pdf.destroy(); return; }
+        if (!ctx) { page.cleanup(); pdf.destroy(); setStatus('error'); return; }
 
         await page.render({ canvasContext: ctx, viewport: scaled }).promise;
-        if (!cancelled) setStatus('done');
+
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.65);
+        thumbCache.set(doc.id, dataUrl);
+
+        if (!cancelled) { setCachedSrc(dataUrl); setStatus('done'); }
         page.cleanup();
         pdf.destroy();
       } catch {
         if (!cancelled) setStatus('error');
         pdf?.destroy();
+      } finally {
+        releaseThumbSlot();
       }
     };
 
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) {
-          observer.disconnect();
-          render();
-        }
+        if (entry.isIntersecting) { observer.disconnect(); render(); }
       },
-      { rootMargin: '300px 0px' },
+      { rootMargin: '200px 0px' },
     );
     observer.observe(el);
 
     return () => { cancelled = true; observer.disconnect(); };
-  }, [doc.id, doc.file_url]);
+  }, [doc.id, doc.file_url, cachedSrc]);
+
+  if (cachedSrc) {
+    return (
+      <div className="w-full h-full">
+        <img src={cachedSrc} alt={doc.title} className="w-full h-full object-cover" />
+      </div>
+    );
+  }
 
   return (
     <div ref={containerRef} className="w-full h-full relative bg-gray-100">
@@ -175,7 +214,7 @@ const PdfThumbnail = memo<{ doc: Document; gradient: string }>(({ doc, gradient 
       <canvas
         ref={canvasRef}
         className="w-full h-full object-cover"
-        style={{ opacity: status === 'done' ? 1 : 0, transition: 'opacity 0.3s' }}
+        style={{ opacity: 0 }}
       />
     </div>
   );
