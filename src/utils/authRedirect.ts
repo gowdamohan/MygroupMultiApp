@@ -66,6 +66,9 @@ export const getLoginPathForRoute = (pathname: string): string => {
   if (pathname.startsWith('/dashboard/partner')) {
     return '/partner';
   }
+  if (pathname.startsWith('/mobile/')) {
+    return '/';
+  }
   return '/auth/login';
 };
 
