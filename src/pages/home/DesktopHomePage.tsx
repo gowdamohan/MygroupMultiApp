@@ -1,24 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import { ExternalLink, Megaphone, Calendar, Newspaper, Trophy } from 'lucide-react';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Autoplay, Pagination, Navigation } from 'swiper/modules';
-import { MobileHeader } from '../../components/mobile/MobileHeader';
+import { DesktopHomeHeader } from './sections/DesktopHomeHeader';
+import { useHomeDarkMode } from '../../hooks/useHomeDarkMode';
 import { useHomeData } from '../../hooks/useHomeData';
 import { TestimonialsCarousel } from './sections/TestimonialsCarousel';
+import { HomeGallerySection } from './sections/HomeGallerySection';
 import { HomeFooter } from './sections/HomeFooter';
 import { resolveImageUrl, getAppLink } from './utils';
-import { BACKEND_URL } from '../../config/api.config';
 import { AppDetails } from '../../types/home.types';
 import 'swiper/css';
 import 'swiper/css/pagination';
 import 'swiper/css/navigation';
 import '../../styles/home.css';
-
-const DARK_MODE_KEY = 'home_dark_mode';
-
-/** Mygroup logo served from backend/public/uploads/logo.png — Row B logo cell */
-const MYGROUP_LOGO_URL = `${BACKEND_URL}/uploads/logo.png`;
 
 /* ─────────────────────────────────────────────────────────────
    Left-sidebar: one app-category section (title + icon grid)
@@ -200,22 +196,7 @@ const SideAdPanel: React.FC<SideAdPanelProps> = ({ ads, darkMode }) => (
 ───────────────────────────────────────────────────────────── */
 export const DesktopHomePage: React.FC = () => {
   const { data: homeData, loading, error } = useHomeData();
-  const [darkMode, setDarkMode] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return localStorage.getItem(DARK_MODE_KEY) === '1';
-  });
-
-  useEffect(() => {
-    if (darkMode) {
-      document.body.classList.add('dark-mode');
-    } else {
-      document.body.classList.remove('dark-mode');
-    }
-    localStorage.setItem(DARK_MODE_KEY, darkMode ? '1' : '0');
-    return () => { document.body.classList.remove('dark-mode'); };
-  }, [darkMode]);
-
-  const toggleDarkMode = () => setDarkMode((prev) => !prev);
+  const { darkMode, toggleDarkMode } = useHomeDarkMode();
 
   const pageBg  = darkMode ? 'bg-gray-900' : 'bg-gray-50';
   const cardBg  = darkMode ? 'bg-gray-800' : 'bg-white';
@@ -266,9 +247,6 @@ export const DesktopHomePage: React.FC = () => {
 
   const myCompanyFiltered = homeData.topIcon.myCompany.filter((a) => a.name !== 'Mygroup');
 
-  /* ── Mygroup logo: direct path from backend/public/uploads ── */
-  const mygroupLogo = MYGROUP_LOGO_URL;
-
   /* ── Check if any of the 3 events-section lists have content ── */
   const hasEventsSection =
     (homeData.eventsList?.length ?? 0) > 0 ||
@@ -281,20 +259,7 @@ export const DesktopHomePage: React.FC = () => {
       {/* ══════════════════════════════════════════
           HEADER — logo + header ads + brand bar
       ══════════════════════════════════════════ */}
-      <MobileHeader
-        appName="mymedia"
-        variant="desktop"
-        desktopLayout="home"
-        darkMode={darkMode}
-        onDarkModeToggle={toggleDarkMode}
-        showTopIcons={false}
-        showAds
-        showDarkModeToggle
-        showProfileButton={false}
-        showSettingsButton={false}
-        showAppDownloadButtons={false}
-        customLogo={mygroupLogo}
-      />
+      <DesktopHomeHeader darkMode={darkMode} onDarkModeToggle={toggleDarkMode} />
 
       <main className="desktop-home-main transition-colors duration-300">
 
@@ -638,54 +603,10 @@ export const DesktopHomePage: React.FC = () => {
         )}
 
         {/* ══════════════════════════════════════════
-            SECTION 3 — GALLERY masonry grid
+            SECTION 3 — GALLERY bento grid (5–8 images)
             source: gallery_list + gallery_images_master
         ══════════════════════════════════════════ */}
-        {homeData.galleryImages && homeData.galleryImages.length > 0 && (
-          <>
-            <div className="home-portal-divider" />
-            <section className={`border-b ${border} px-6 py-5 ${altBg} home-section-transition`}>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className={`text-xs font-bold uppercase tracking-widest ${headTxt}`}>Gallery</h3>
-                <Link
-                  to="/gallery"
-                  className={`text-[10px] font-semibold px-3 py-1 rounded-full border transition-colors ${
-                    darkMode
-                      ? 'border-gray-600 text-gray-300 hover:bg-gray-700'
-                      : 'border-gray-300 text-gray-500 hover:bg-gray-100'
-                  }`}
-                >
-                  View All →
-                </Link>
-              </div>
-              {/* Masonry grid — CSS columns for natural image heights */}
-              <div className="home-gallery-masonry">
-                {homeData.galleryImages.slice(0, 16).map((img) => (
-                  <div
-                    key={img.image_id}
-                    className={`home-gallery-item rounded-xl overflow-hidden shadow-sm group cursor-pointer hover:shadow-lg transition-shadow`}
-                  >
-                    <img
-                      src={resolveImageUrl(img.image_name)}
-                      alt={img.image_description || img.gallery_name || 'Gallery'}
-                      className="w-full h-auto object-cover group-hover:scale-105 transition-transform duration-300"
-                      loading="lazy"
-                    />
-                    {img.image_description && (
-                      <div
-                        className={`absolute inset-x-0 bottom-0 px-2 py-1.5 opacity-0 group-hover:opacity-100 transition-opacity ${
-                          darkMode ? 'bg-black/70' : 'bg-black/50'
-                        }`}
-                      >
-                        <p className="text-[10px] text-white line-clamp-1">{img.image_description}</p>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </section>
-          </>
-        )}
+        <HomeGallerySection images={homeData.galleryImages ?? []} darkMode={darkMode} />
 
         {/* ══════════════════════════════════════════
             SECTION 4 — TESTIMONIALS sliding cards

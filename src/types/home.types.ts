@@ -133,6 +133,7 @@ export interface GalleryImageItem {
   image_name: string;
   image_description?: string | null;
   gallery_name?: string | null;
+  gallery_date?: string | null;
   group_id?: number | null;
 }
 

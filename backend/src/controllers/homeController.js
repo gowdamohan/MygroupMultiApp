@@ -52,6 +52,39 @@ const formatFooterItems = async (rows) =>
     }))
   );
 
+/** Collect up to `limit` recent gallery images across all albums (newest albums first). */
+const fetchHomeGalleryImages = async (limit = 8) => {
+  const albums = await GalleryList.findAll({
+    order: [['gallery_date', 'DESC'], ['gallery_id', 'DESC']],
+  });
+  if (!albums.length) return [];
+
+  const collected = [];
+  for (const album of albums) {
+    if (collected.length >= limit) break;
+    const rows = await GalleryImagesMaster.findAll({
+      where: { gallery_id: album.gallery_id },
+      order: [['image_id', 'DESC']],
+      limit: limit - collected.length,
+    });
+    for (const row of rows) {
+      collected.push({ row, album });
+    }
+  }
+
+  return Promise.all(
+    collected.map(async ({ row, album }) => ({
+      image_id: row.image_id,
+      gallery_id: row.gallery_id,
+      image_name: row.image_name ? await resolveImg(row.image_name) : null,
+      image_description: row.image_description || null,
+      gallery_name: album.gallery_name || null,
+      gallery_date: album.gallery_date || null,
+      group_id: row.group_id || null,
+    }))
+  );
+};
+
 const CORPORATE_GROUP = 'corporate';
 
 const corporateFooterWhere = (type, extra = {}) => ({
@@ -268,26 +301,8 @@ export const getMobileHomeData = async (_req, res) => {
       formatFooterItems(testimonialsRows),
     ]);
 
-    /* ── 5. Gallery (latest album's images — signed URLs) ── */
-    const latestAlbum = await GalleryList.findOne({ order: [['gallery_id', 'DESC']] });
-    const galleryImages = latestAlbum
-      ? await Promise.all(
-          (
-            await GalleryImagesMaster.findAll({
-              where: { gallery_id: latestAlbum.gallery_id },
-              order: [['image_id', 'ASC']],
-              limit: 30,
-            })
-          ).map(async (img) => ({
-            image_id: img.image_id,
-            gallery_id: img.gallery_id,
-            image_name: img.image_name ? await resolveImg(img.image_name) : null,
-            image_description: img.image_description || null,
-            gallery_name: latestAlbum.gallery_name || null,
-            group_id: img.group_id || null,
-          }))
-        )
-      : [];
+    /* ── 5. Gallery — up to 8 recent images across all albums ── */
+    const galleryImages = await fetchHomeGalleryImages(8);
 
     /* ── 6. Social media links (footer_page social_media) ── */
     const socialRows = await FooterPage.findAll({

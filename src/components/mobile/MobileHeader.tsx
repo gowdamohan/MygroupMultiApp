@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { User, ChevronLeft, ChevronRight, X, Search, Menu, Sun, Moon, Settings, LayoutGrid, List } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
@@ -942,7 +943,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
             /* ── Desktop-home top strip: teal background, icons aligned under header ads ── */
             <div style={{ background: '#057284', display: 'grid', gridTemplateColumns: 'auto 1fr' }}>
               {/* Spacer — same width as logo column in Row B so icons align under ads */}
-              <div style={{ minWidth: 160 }} />
+              <div style={{ minWidth: 200 }} />
               {/* Non-clickable app icon pills, flush start under header ad columns */}
               <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide py-2 px-2 min-w-0">
                 {topIcons.map((icon, index) => (
@@ -1058,10 +1059,12 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                 className={`border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'} relative`}
                 style={{ display: 'grid', gridTemplateColumns: 'auto 1fr 1fr', height: 120 }}
               >
-                {/* Logo cell — teal background */}
-                <div
-                  className="flex items-center justify-center gap-2 px-5 flex-shrink-0"
-                  style={{ background: '#057284', minWidth: 160 }}
+                {/* Logo cell — teal background, links to home */}
+                <Link
+                  to="/"
+                  className="flex items-center justify-center gap-2 px-5 flex-shrink-0 hover:opacity-95 transition-opacity"
+                  style={{ background: '#057284', minWidth: 200 }}
+                  aria-label="Go to home page"
                 >
                   {displayLogo || displayIcon ? (
                     <img
@@ -1071,19 +1074,19 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                           : `${BACKEND_URL}${displayLogo || displayIcon}`
                       }
                       alt={appInfo?.name || 'My Group'}
-                      className="h-10 object-contain"
+                      className="h-24 w-auto max-w-[180px] object-contain"
                     />
                   ) : (
                     <>
-                      <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
+                      <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center text-white font-bold text-xl flex-shrink-0">
                         {(appInfo?.name || appName || 'M').charAt(0).toUpperCase()}
                       </div>
-                      <span className="text-white font-semibold text-sm hidden sm:block truncate max-w-[80px]">
+                      <span className="text-white font-semibold text-sm hidden sm:block truncate max-w-[90px]">
                         {appInfo?.name || 'My Group'}
                       </span>
                     </>
                   )}
-                </div>
+                </Link>
 
                 {/* Header Ad 1 */}
                 <div

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { CopyRight, SocialLink } from '../../../types/home.types';
-import { resolveImageUrl } from '../utils';
+import { FooterSocialBar } from './FooterSocialBar';
 
 interface HomeFooterProps {
   socialLinks: SocialLink[];
@@ -11,18 +11,17 @@ interface HomeFooterProps {
 /* Each footer column */
 interface FooterColumnProps {
   heading: string;
-  headingColor: string;
   links: { label: string; to?: string; href?: string; external?: boolean }[];
 }
 
-const FooterColumn: React.FC<FooterColumnProps> = ({ heading, headingColor, links }) => (
+const FooterColumn: React.FC<FooterColumnProps> = ({ heading, links }) => (
   <div>
-    <h3 className={`font-bold text-sm mb-3 ${headingColor}`}>{heading}</h3>
+    <h3 className="home-footer-heading font-bold text-sm mb-3">{heading}</h3>
     <ul className="space-y-1.5 text-xs">
       {links.map(({ label, to, href, external }) => (
         <li key={label}>
           {to ? (
-            <Link to={to} className="text-gray-400 hover:text-white transition-colors">
+            <Link to={to} className="home-footer-link">
               {label}
             </Link>
           ) : href ? (
@@ -30,12 +29,12 @@ const FooterColumn: React.FC<FooterColumnProps> = ({ heading, headingColor, link
               href={href}
               target={external ? '_blank' : '_self'}
               rel={external ? 'noopener noreferrer' : undefined}
-              className="text-gray-400 hover:text-white transition-colors"
+              className="home-footer-link"
             >
               {label}
             </a>
           ) : (
-            <span className="text-gray-500">{label}</span>
+            <span className="home-footer-label cursor-default">{label}</span>
           )}
         </li>
       ))}
@@ -48,7 +47,7 @@ export const HomeFooter: React.FC<HomeFooterProps> = ({
   copyRight,
 }) => {
   return (
-    <footer className="home-footer bg-gray-900 text-white pt-10 pb-6">
+    <footer className="home-footer pt-10 pb-6">
       <div className="max-w-7xl mx-auto px-6 md:px-8">
 
         {/* 6-column link grid */}
@@ -56,7 +55,6 @@ export const HomeFooter: React.FC<HomeFooterProps> = ({
 
           <FooterColumn
             heading="Know Us"
-            headingColor="text-teal-400"
             links={[
               { label: 'Home',         to: '/' },
               { label: 'About Us',     to: '/about' },
@@ -68,7 +66,6 @@ export const HomeFooter: React.FC<HomeFooterProps> = ({
 
           <FooterColumn
             heading="Media"
-            headingColor="text-teal-400"
             links={[
               { label: 'Newsroom', to: '/newsroom' },
               { label: 'Gallery',  to: '/gallery' },
@@ -79,18 +76,15 @@ export const HomeFooter: React.FC<HomeFooterProps> = ({
 
           <FooterColumn
             heading="Opportunity"
-            headingColor="text-teal-400"
             links={[
               { label: 'Careers',   to: '/careers' },
               { label: 'My Jobs',   to: '/careers' },
-              { label: 'Franchise', to: '/partner' },
               { label: 'Advertise', to: '/contact' },
             ]}
           />
 
           <FooterColumn
             heading="Our Policy"
-            headingColor="text-teal-400"
             links={[
               { label: 'Privacy Policy', to: '/privacy' },
               { label: 'Terms',          to: '/terms' },
@@ -100,7 +94,6 @@ export const HomeFooter: React.FC<HomeFooterProps> = ({
 
           <FooterColumn
             heading="Support"
-            headingColor="text-teal-400"
             links={[
               { label: 'Contact Us', to: '/contact' },
               { label: 'Enquiry',    to: '/contact' },
@@ -110,44 +103,18 @@ export const HomeFooter: React.FC<HomeFooterProps> = ({
 
           <FooterColumn
             heading="Logins"
-            headingColor="text-teal-400"
             links={[
               { label: 'Partner Login', to: '/partner' },
-              { label: 'Franchise',     to: '/partner' },
-              { label: 'Reporters',     to: '/reporter/login' },
+              { label: 'Franchise' },
+              { label: 'Reporters' },
             ]}
           />
         </div>
 
-        {/* Social links + copyright */}
-        <div className="border-t border-gray-700 pt-6">
-          {socialLinks?.length > 0 && (
-            <div className="flex justify-center gap-3 mb-4 flex-wrap">
-              {socialLinks.map((social) => (
-                <a
-                  key={social.id}
-                  href={social.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-9 h-9 rounded-full bg-gray-800 hover:bg-teal-600 flex items-center justify-center transition-colors"
-                  title={social.platform}
-                >
-                  {social.icon ? (
-                    <img
-                      src={resolveImageUrl(social.icon)}
-                      alt={social.platform}
-                      className="w-4 h-4 object-contain"
-                    />
-                  ) : (
-                    <span className="text-xs font-bold text-white">
-                      {social.platform?.charAt(0).toUpperCase()}
-                    </span>
-                  )}
-                </a>
-              ))}
-            </div>
-          )}
-          <p className="text-center text-xs text-gray-500">
+        {/* Follow us — social icons + copyright */}
+        <FooterSocialBar socialLinks={socialLinks} />
+        <div className="home-footer-divider border-t pt-5 pb-1">
+          <p className="text-center text-xs home-footer-copy">
             &copy; {copyRight?.year || new Date().getFullYear()}{' '}
             {copyRight?.company_name || copyRight?.text || 'Mygroup'}. All rights reserved.
           </p>
