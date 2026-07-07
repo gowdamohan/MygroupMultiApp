@@ -2,6 +2,8 @@ import {
   GroupCreate,
   CreateDetails,
   FooterPage,
+  FooterPageImage,
+  FooterFaq,
   GalleryList,
   GalleryImagesMaster,
   MainAds
@@ -50,19 +52,27 @@ const formatFooterItems = async (rows) =>
     }))
   );
 
-// ─── Public footer page by type (user_id = 2 / corporate) ────────────────────
+const CORPORATE_GROUP = 'corporate';
+
+const corporateFooterWhere = (type, extra = {}) => ({
+  footer_page_type: type,
+  group_name: CORPORATE_GROUP,
+  ...extra,
+});
+
+// ─── Public footer page by type (group_name = corporate) ─────────────────────
 /**
  * GET /api/v1/home/page/:type
  * Public — no auth required.
- * Returns all footer_page rows for the given type belonging to user_id = 2.
+ * Returns all footer_page rows for the given type (corporate group).
  * Supported types: about_us, clients, testimonials, milestones, events,
- *   newsroom, awards, terms, privacy_policy, contact_us, social_media
+ *   newsroom, awards, careers, terms, privacy_policy, contact_us, social_media
  */
 export const getPublicFooterPage = async (req, res) => {
   try {
     const { type } = req.params;
     const rows = await FooterPage.findAll({
-      where: { footer_page_type: type, user_id: 2 },
+      where: corporateFooterWhere(type),
       order: [['id', 'ASC']],
     });
     const items = await formatFooterItems(rows);
@@ -70,6 +80,95 @@ export const getPublicFooterPage = async (req, res) => {
   } catch (error) {
     console.error(`Error fetching public footer page [${req.params.type}]:`, error);
     res.status(500).json({ success: false, message: 'Failed to fetch page data', error: error.message });
+  }
+};
+
+/**
+ * GET /api/v1/home/page/:type/:id
+ * Public single footer_page entry (detail view).
+ */
+export const getPublicFooterPageItem = async (req, res) => {
+  try {
+    const { type, id } = req.params;
+    const row = await FooterPage.findOne({
+      where: corporateFooterWhere(type, { id }),
+    });
+    if (!row) {
+      return res.status(404).json({ success: false, message: 'Content not found' });
+    }
+
+    const [item] = await formatFooterItems([row]);
+    const extraImages = await FooterPageImage.findAll({
+      where: { footer_page_id: row.id },
+      order: [['id', 'ASC']],
+    });
+    const images = await Promise.all(
+      extraImages.map(async (img) => ({
+        id: img.id,
+        image: img.image_path ? await resolveImg(img.image_path) : null,
+      }))
+    );
+
+    res.json({ success: true, type, data: { ...item, extra_images: images } });
+  } catch (error) {
+    console.error(`Error fetching public footer item [${req.params.type}/${req.params.id}]:`, error);
+    res.status(500).json({ success: false, message: 'Failed to fetch page item', error: error.message });
+  }
+};
+
+/**
+ * GET /api/v1/home/gallery
+ * Public gallery albums with images (corporate footer gallery).
+ */
+export const getPublicGallery = async (req, res) => {
+  try {
+    const galleries = await GalleryList.findAll({
+      include: [{ model: GalleryImagesMaster, as: 'images' }],
+      order: [['gallery_date', 'DESC']],
+    });
+
+    const data = await Promise.all(
+      galleries.map(async (gallery) => {
+        const item = gallery.toJSON();
+        if (item.images?.length) {
+          item.images = await Promise.all(
+            item.images.map(async (image) => ({
+              image_id: image.image_id,
+              gallery_id: image.gallery_id,
+              image_name: image.image_name ? await resolveImg(image.image_name) : null,
+              image_description: image.image_description || null,
+              group_id: image.group_id || null,
+            }))
+          );
+        } else {
+          item.images = [];
+        }
+        return item;
+      })
+    );
+
+    res.json({ success: true, data, count: data.length });
+  } catch (error) {
+    console.error('Error fetching public gallery:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch gallery', error: error.message });
+  }
+};
+
+/**
+ * GET /api/v1/home/faq
+ * Public active FAQs for corporate group.
+ */
+export const getPublicFaqs = async (req, res) => {
+  try {
+    const faqs = await FooterFaq.findAll({
+      where: { group_name: CORPORATE_GROUP, is_active: 1 },
+      order: [['order_index', 'ASC'], ['id', 'ASC']],
+      attributes: ['id', 'question', 'answer', 'order_index'],
+    });
+    res.json({ success: true, data: faqs, count: faqs.length });
+  } catch (error) {
+    console.error('Error fetching public FAQs:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch FAQs', error: error.message });
   }
 };
 
@@ -190,11 +289,24 @@ export const getMobileHomeData = async (_req, res) => {
         )
       : [];
 
+    /* ── 6. Social media links (footer_page social_media) ── */
+    const socialRows = await FooterPage.findAll({
+      where: { footer_page_type: 'social_media', group_name: CORPORATE_GROUP },
+      order: [['id', 'ASC']],
+    });
+    const socialLink = socialRows.map((s) => ({
+      id: s.id,
+      group_id: 0,
+      platform: s.title || 'link',
+      url: s.url || '#',
+      icon: null,
+    }));
+
     /* ── Build response ── */
     const homeData = {
       logo,
       topIcon,
-      socialLink: [],
+      socialLink,
       copyRight: null,
       mainAds,
 

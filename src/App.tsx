@@ -14,6 +14,14 @@ import { AwardsPage }       from './pages/public/AwardsPage';
 import { TermsPage }        from './pages/public/TermsPage';
 import { PrivacyPage }      from './pages/public/PrivacyPage';
 import { ContactPage }      from './pages/public/ContactPage';
+import { GalleryPage }      from './pages/public/GalleryPage';
+import { CareersPage }      from './pages/public/CareersPage';
+import { FaqPage }          from './pages/public/FaqPage';
+import {
+  NewsroomDetailPage,
+  AwardsDetailPage,
+  EventsDetailPage,
+} from './pages/public/FooterDetailPage';
 import { AdminLogin } from './pages/auth/AdminLogin';
 import { ClientLogin } from './pages/auth/ClientLogin';
 import { GroupAdminLogin } from './pages/auth/GroupAdminLogin';
@@ -67,6 +75,12 @@ function App() {
           <Route path="/terms"        element={<TermsPage />} />
           <Route path="/privacy"      element={<PrivacyPage />} />
           <Route path="/contact"      element={<ContactPage />} />
+          <Route path="/gallery"     element={<GalleryPage />} />
+          <Route path="/careers"     element={<CareersPage />} />
+          <Route path="/faq"         element={<FaqPage />} />
+          <Route path="/newsroom/:id" element={<NewsroomDetailPage />} />
+          <Route path="/awards/:id"   element={<AwardsDetailPage />} />
+          <Route path="/events/:id"   element={<EventsDetailPage />} />
 
           <Route path="/auth/login" element={<AdminLogin />} />
           <Route path="/auth/admin" element={<AdminLogin />} />

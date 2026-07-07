@@ -71,7 +71,7 @@ export const HomeFooter: React.FC<HomeFooterProps> = ({
             headingColor="text-teal-400"
             links={[
               { label: 'Newsroom', to: '/newsroom' },
-              { label: 'Gallery',  href: '#' },
+              { label: 'Gallery',  to: '/gallery' },
               { label: 'Awards',   to: '/awards' },
               { label: 'Events',   to: '/events' },
             ]}
@@ -81,10 +81,10 @@ export const HomeFooter: React.FC<HomeFooterProps> = ({
             heading="Opportunity"
             headingColor="text-teal-400"
             links={[
-              { label: 'Careers',   href: '#' },
-              { label: 'My Jobs',   href: '#' },
-              { label: 'Franchise', href: '#' },
-              { label: 'Advertise', href: '#' },
+              { label: 'Careers',   to: '/careers' },
+              { label: 'My Jobs',   to: '/careers' },
+              { label: 'Franchise', to: '/partner' },
+              { label: 'Advertise', to: '/contact' },
             ]}
           />
 
@@ -94,7 +94,7 @@ export const HomeFooter: React.FC<HomeFooterProps> = ({
             links={[
               { label: 'Privacy Policy', to: '/privacy' },
               { label: 'Terms',          to: '/terms' },
-              { label: "FAQ's",          href: '#' },
+              { label: "FAQ's",          to: '/faq' },
             ]}
           />
 
@@ -103,8 +103,8 @@ export const HomeFooter: React.FC<HomeFooterProps> = ({
             headingColor="text-teal-400"
             links={[
               { label: 'Contact Us', to: '/contact' },
-              { label: 'Enquiry',    href: '#' },
-              { label: 'Feedback',   href: '#' },
+              { label: 'Enquiry',    to: '/contact' },
+              { label: 'Feedback',   to: '/contact' },
             ]}
           />
 
@@ -113,8 +113,8 @@ export const HomeFooter: React.FC<HomeFooterProps> = ({
             headingColor="text-teal-400"
             links={[
               { label: 'Partner Login', to: '/partner' },
-              { label: 'Franchise',     href: '#' },
-              { label: 'Reporters',     href: '#' },
+              { label: 'Franchise',     to: '/partner' },
+              { label: 'Reporters',     to: '/reporter/login' },
             ]}
           />
         </div>

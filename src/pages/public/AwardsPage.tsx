@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { PublicPageLayout } from './PublicPageLayout';
 import { usePublicFooterPage } from '../../hooks/usePublicFooterPage';
 import { resolveImageUrl } from '../home/utils';
@@ -19,9 +20,10 @@ export const AwardsPage: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {data.map((item) => (
-            <div
+            <Link
               key={item.id}
-              className="bg-white rounded-2xl overflow-hidden shadow-sm border border-amber-100 hover:shadow-lg transition-all duration-300 hover:-translate-y-1 relative"
+              to={`/awards/${item.id}`}
+              className="bg-white rounded-2xl overflow-hidden shadow-sm border border-amber-100 hover:shadow-lg transition-all duration-300 hover:-translate-y-1 relative block"
             >
               {/* Gold ribbon accent */}
               <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400" />
@@ -55,16 +57,16 @@ export const AwardsPage: React.FC = () => {
                   <p className="text-sm text-amber-600 font-medium mb-2">{item.tag_line}</p>
                 )}
                 {item.content && (
-                  <p className="text-sm text-gray-500 leading-relaxed line-clamp-3">{item.content}</p>
+                  <div
+                    className="text-sm text-gray-500 leading-relaxed line-clamp-3 prose prose-sm max-w-none"
+                    dangerouslySetInnerHTML={{ __html: item.content }}
+                  />
                 )}
-                {item.url && (
-                  <a href={item.url} target="_blank" rel="noopener noreferrer"
-                    className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-amber-700 hover:text-amber-900">
-                    View Details →
-                  </a>
-                )}
+                <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-amber-700">
+                  View Details →
+                </span>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       )}

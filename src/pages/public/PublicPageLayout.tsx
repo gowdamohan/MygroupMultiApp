@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { MobileHeader } from '../../components/mobile/MobileHeader';
 import { HomeFooter } from '../home/sections/HomeFooter';
+import { usePublicFooterMeta } from '../../hooks/usePublicFooterMeta';
 
 interface PublicPageLayoutProps {
   title: string;
@@ -27,6 +28,8 @@ export const PublicPageLayout: React.FC<PublicPageLayoutProps> = ({
   loading,
   error,
 }) => {
+  const { socialLinks } = usePublicFooterMeta();
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Reuse desktop header without ads */}
@@ -72,7 +75,7 @@ export const PublicPageLayout: React.FC<PublicPageLayoutProps> = ({
       </main>
 
       {/* Footer */}
-      <HomeFooter socialLinks={[]} copyRight={null} />
+      <HomeFooter socialLinks={socialLinks} copyRight={null} />
     </div>
   );
 };

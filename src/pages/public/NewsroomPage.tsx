@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { PublicPageLayout } from './PublicPageLayout';
 import { usePublicFooterPage } from '../../hooks/usePublicFooterPage';
 import { resolveImageUrl } from '../home/utils';
@@ -39,14 +40,17 @@ export const NewsroomPage: React.FC = () => {
                   <p className="text-sm font-medium text-sky-600 mb-3">{data[0].tag_line}</p>
                 )}
                 {data[0].content && (
-                  <p className="text-sm text-gray-500 leading-relaxed line-clamp-3">{data[0].content}</p>
+                  <div
+                    className="text-sm text-gray-500 leading-relaxed line-clamp-3 prose prose-sm max-w-none"
+                    dangerouslySetInnerHTML={{ __html: data[0].content }}
+                  />
                 )}
-                {data[0].url && (
-                  <a href={data[0].url} target="_blank" rel="noopener noreferrer"
-                    className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-sky-600 hover:text-sky-800">
-                    Read Full Story →
-                  </a>
-                )}
+                <Link
+                  to={`/newsroom/${data[0].id}`}
+                  className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-sky-600 hover:text-sky-800"
+                >
+                  Read Full Story →
+                </Link>
               </div>
             </div>
           )}
@@ -55,7 +59,7 @@ export const NewsroomPage: React.FC = () => {
           {data.length > 1 && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {data.slice(1).map((item) => (
-                <div key={item.id}
+                <Link key={item.id} to={`/newsroom/${item.id}`}
                   className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-md transition-shadow flex flex-col">
                   {item.image ? (
                     <div className="h-44 overflow-hidden">
@@ -73,13 +77,15 @@ export const NewsroomPage: React.FC = () => {
                   <div className="p-4 flex-1 flex flex-col">
                     {item.title && <h3 className="text-sm font-bold text-gray-900 mb-1 leading-snug line-clamp-2">{item.title}</h3>}
                     {item.tag_line && <p className="text-xs text-sky-600 mb-2">{item.tag_line}</p>}
-                    {item.content && <p className="text-xs text-gray-500 line-clamp-2 flex-1">{item.content}</p>}
-                    {item.url && (
-                      <a href={item.url} target="_blank" rel="noopener noreferrer"
-                        className="mt-3 text-xs font-semibold text-sky-600 hover:text-sky-800">Read More →</a>
+                    {item.content && (
+                      <div
+                        className="text-xs text-gray-500 line-clamp-2 flex-1 prose prose-sm max-w-none"
+                        dangerouslySetInnerHTML={{ __html: item.content }}
+                      />
                     )}
+                    <span className="mt-3 text-xs font-semibold text-sky-600 hover:text-sky-800">Read More →</span>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           )}

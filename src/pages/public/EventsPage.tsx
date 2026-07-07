@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { PublicPageLayout } from './PublicPageLayout';
 import { usePublicFooterPage } from '../../hooks/usePublicFooterPage';
 import { resolveImageUrl } from '../home/utils';
@@ -28,8 +29,9 @@ export const EventsPage: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {data.map((ev) => (
-            <div
+            <Link
               key={ev.id}
+              to={`/events/${ev.id}`}
               className="bg-white rounded-2xl overflow-hidden shadow-sm border border-indigo-100 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 flex flex-col"
             >
               {ev.image ? (
@@ -63,20 +65,16 @@ export const EventsPage: React.FC = () => {
                   <p className="text-sm text-indigo-600 font-medium mb-2">{ev.tag_line}</p>
                 )}
                 {ev.content && (
-                  <p className="text-sm text-gray-500 leading-relaxed flex-1 line-clamp-3">{ev.content}</p>
+                  <div
+                    className="text-sm text-gray-500 leading-relaxed flex-1 line-clamp-3 prose prose-sm max-w-none"
+                    dangerouslySetInnerHTML={{ __html: ev.content }}
+                  />
                 )}
-                {ev.url && (
-                  <a
-                    href={ev.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
-                  >
-                    Learn More →
-                  </a>
-                )}
+                <span className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600">
+                  Learn More →
+                </span>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       )}
