@@ -58,6 +58,7 @@ import Wallet from './Wallet.js';
 import WalletTransaction from './WalletTransaction.js';
 import FooterLink from './FooterLink.js';
 import FooterFaq from './FooterFaq.js';
+import UserEnquiry from './UserEnquiry.js';
 import FooterPageImage from './FooterPageImage.js';
 import FranchiseOfferAd from './FranchiseOfferAd.js';
 import PartnerAdsManagement from './PartnerAdsManagement.js';
@@ -837,6 +838,7 @@ export {
   WalletTransaction,
   FooterLink,
   FooterFaq,
+  UserEnquiry,
   FooterPageImage,
   FranchiseOfferAd,
   PartnerAdsManagement,

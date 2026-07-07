@@ -14,6 +14,7 @@ import { AwardsPage }       from './pages/public/AwardsPage';
 import { TermsPage }        from './pages/public/TermsPage';
 import { PrivacyPage }      from './pages/public/PrivacyPage';
 import { ContactPage }      from './pages/public/ContactPage';
+import { EnquiryPage }      from './pages/public/EnquiryPage';
 import { GalleryPage }      from './pages/public/GalleryPage';
 import { CareersPage }      from './pages/public/CareersPage';
 import { FaqPage }          from './pages/public/FaqPage';
@@ -75,6 +76,7 @@ function App() {
           <Route path="/terms"        element={<TermsPage />} />
           <Route path="/privacy"      element={<PrivacyPage />} />
           <Route path="/contact"      element={<ContactPage />} />
+          <Route path="/enquiry"      element={<EnquiryPage />} />
           <Route path="/gallery"     element={<GalleryPage />} />
           <Route path="/careers"     element={<CareersPage />} />
           <Route path="/faq"         element={<FaqPage />} />

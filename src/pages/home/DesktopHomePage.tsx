@@ -397,23 +397,29 @@ export const DesktopHomePage: React.FC = () => {
             >
               {homeData.clients.map((item) => (
                 <SwiperSlide key={item.id} style={{ width: 'auto' }}>
-                  {item.image ? (
-                    <div className="h-14 w-28 flex items-center justify-center">
+                  <div className="client-logo-tile">
+                    {item.image ? (
                       <img
                         src={resolveImageUrl(item.image)}
                         alt={item.title || 'Client'}
-                        className="max-h-full max-w-full object-contain grayscale hover:grayscale-0 transition-all duration-300"
+                        className="client-logo-tile-img"
+                        loading="lazy"
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          const img = e.currentTarget;
+                          img.style.display = 'none';
+                          const fallback = img.nextElementSibling as HTMLElement | null;
+                          if (fallback) fallback.style.display = 'flex';
+                        }}
                       />
-                    </div>
-                  ) : (
+                    ) : null}
                     <div
-                      className={`h-14 w-28 flex items-center justify-center rounded-lg text-[10px] font-semibold ${
-                        darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-500'
-                      }`}
+                      className="client-logo-tile-fallback"
+                      style={{ display: item.image ? 'none' : 'flex' }}
                     >
-                      {item.title}
+                      {item.title || 'Client'}
                     </div>
-                  )}
+                  </div>
                 </SwiperSlide>
               ))}
             </Swiper>

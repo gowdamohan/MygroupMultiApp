@@ -14,6 +14,7 @@ import { ApplicationDetails } from '../corporate/ApplicationDetails';
 import { TermsConditions } from '../corporate/TermsConditions';
 import { UserTermsConditions } from '../corporate/UserTermsConditions';
 import { FooterFaqManager } from '../corporate/FooterFaqManager';
+import { EnquiryFormManager } from '../corporate/EnquiryFormManager';
 import { HeaderAdsPricing } from '../corporate/HeaderAdsPricing';
 import { CorporateHeaderAdsPricing } from '../corporate/CorporateHeaderAdsPricing';
 import { CorporateOfferAds } from '../corporate/CorporateOfferAds';
@@ -302,7 +303,7 @@ export const CorporateDashboard: React.FC = () => {
       case '/corporate/job-application':
         return <div className="p-6"><h2 className="text-2xl font-bold">Job Applications</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
       case '/corporate/enquiry-form':
-        return <div className="p-6"><h2 className="text-2xl font-bold">Enquiry Forms</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
+        return <EnquiryFormManager />;
       case '/corporate/feedback':
         return <div className="p-6"><h2 className="text-2xl font-bold">Feedback and Suggestions</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
       case '/corporate/chat':

@@ -79,7 +79,7 @@ export const HomeFooter: React.FC<HomeFooterProps> = ({
             links={[
               { label: 'Careers',   to: '/careers' },
               { label: 'My Jobs',   to: '/careers' },
-              { label: 'Advertise', to: '/contact' },
+              { label: 'Advertise' },
             ]}
           />
 
@@ -96,7 +96,7 @@ export const HomeFooter: React.FC<HomeFooterProps> = ({
             heading="Support"
             links={[
               { label: 'Contact Us', to: '/contact' },
-              { label: 'Enquiry',    to: '/contact' },
+              { label: 'Enquiry',    to: '/enquiry' },
               { label: 'Feedback',   to: '/contact' },
             ]}
           />
