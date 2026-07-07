@@ -85,8 +85,8 @@ export const getMobileHomeData = async (_req, res) => {
     const [myApps, myCompany, onlineApps, offlineApps] = await Promise.all([
       GroupCreate.findAll({ where: { apps_name: 'My Apps' },         include: includeDetails, order: orderBy }),
       GroupCreate.findAll({ where: { apps_name: 'My Company' },      include: includeDetails, order: orderBy }),
-      GroupCreate.findAll({ where: { apps_name: 'My Onine Apps' },   include: includeDetails, order: orderBy }),
-      GroupCreate.findAll({ where: { apps_name: 'My Offline Apps' }, include: includeDetails, order: orderBy }),
+      GroupCreate.findAll({ where: { apps_name: 'Online Apps' },   include: includeDetails, order: orderBy }),
+      GroupCreate.findAll({ where: { apps_name: 'Offline Apps' },  include: includeDetails, order: orderBy }),
     ]);
 
     const topIcon = {

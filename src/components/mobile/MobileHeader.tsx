@@ -1053,9 +1053,9 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
         >
           {isDesktopHomeLayout ? (
             <>
-              {/* ── Row B: Logo (left teal) | Header Ad 1 | Header Ad 2 ── */}
+              {/* ── Row B: Logo (left teal) | Header Ad 1 | Header Ad 2 | Dark-mode toggle top-right ── */}
               <div
-                className={`border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}
+                className={`border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'} relative`}
                 style={{ display: 'grid', gridTemplateColumns: 'auto 1fr 1fr', height: 120 }}
               >
                 {/* Logo cell — teal background */}
@@ -1140,68 +1140,22 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                     </div>
                   )}
                 </div>
-              </div>
 
-              {/* ── Row C: Brand bar (no user profile) ── */}
-              <div
-                className={`flex items-center justify-between px-4 relative ${
-                  darkMode ? 'bg-gray-900' : 'bg-white'
-                }`}
-                style={{ height: 52 }}
-              >
-                {/* Left: spacer for layout balance */}
-                <div className="w-8 flex-shrink-0" />
-
-                {/* Center: Mygroup logo + name (absolute-centered) */}
-                <div className="flex items-center gap-2 absolute left-1/2 -translate-x-1/2 pointer-events-none select-none">
-                  <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center shadow-sm flex-shrink-0">
-                    {displayLogo || displayIcon ? (
-                      <img
-                        src={
-                          (displayLogo || displayIcon)!.startsWith('http')
-                            ? (displayLogo || displayIcon)!
-                            : `${BACKEND_URL}${displayLogo || displayIcon}`
-                        }
-                        alt={appInfo?.name || 'Mygroup'}
-                        className="w-5 h-5 object-contain"
-                      />
-                    ) : (
-                      <span className="text-white font-bold text-xs">
-                        {(appInfo?.name || appName || 'M').charAt(0).toUpperCase()}
-                      </span>
-                    )}
-                  </div>
-                  <span className={`font-semibold text-sm ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                    {appInfo?.name || appInfo?.apps_name || appName || 'Mygroup'}
-                  </span>
-                </div>
-
-                {/* Right: action icons — list view + dark-mode toggle only */}
-                <div className="flex items-center gap-0.5">
+                {/* Dark-mode toggle — absolute top-right corner of Row B */}
+                {showDarkModeToggle && onDarkModeToggle && (
                   <button
                     type="button"
-                    className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
-                      darkMode ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-600 hover:bg-gray-100'
+                    onClick={onDarkModeToggle}
+                    className={`absolute top-2 right-2 z-10 w-8 h-8 rounded-lg flex items-center justify-center transition-colors shadow-sm ${
+                      darkMode
+                        ? 'bg-gray-700 text-amber-400 hover:bg-gray-600'
+                        : 'bg-white/80 text-gray-600 hover:bg-white'
                     }`}
-                    aria-label="List view"
+                    aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
                   >
-                    <List size={17} />
+                    {darkMode ? <Sun size={16} /> : <Moon size={16} />}
                   </button>
-                  {showDarkModeToggle && onDarkModeToggle && (
-                    <button
-                      type="button"
-                      onClick={onDarkModeToggle}
-                      className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
-                        darkMode
-                          ? 'bg-gray-800 text-amber-400 hover:bg-gray-700'
-                          : 'text-gray-600 hover:bg-gray-100'
-                      }`}
-                      aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-                    >
-                      {darkMode ? <Sun size={17} /> : <Moon size={17} />}
-                    </button>
-                  )}
-                </div>
+                )}
               </div>
             </>
           ) : (
@@ -1691,11 +1645,11 @@ export const getMobileHeaderHeight = (
   searchExpanded: boolean = false,
 ) => {
   if (variant === 'desktop' && desktopLayout === 'home') {
-    // Row A (compact teal top-icons strip): 36px when visible
-    // Row B (logo + two header ads):       80px
-    // Row C (brand bar with icons):         52px
-    const topIconsRow = showTopIcons ? 44 : 0; // Row A: w-10/h-10 icons + py-2 = ~44px
-    return topIconsRow + 120 + 52; // Row A + Row B (120px) + Row C (52px)
+    // Row A (teal top-icons strip): ~44px when visible
+    // Row B (logo + two header ads + dark-mode toggle): 120px
+    // Row C removed — dark-mode toggle is now inside Row B (top-right)
+    const topIconsRow = showTopIcons ? 44 : 0;
+    return topIconsRow + 120; // Row A + Row B only
   }
   if (variant === 'desktop' && !showTopIcons && !_showAds) {
     return 72;

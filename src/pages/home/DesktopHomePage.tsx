@@ -3,11 +3,12 @@ import { Link } from 'react-router-dom';
 import { ExternalLink, Megaphone, Calendar, Newspaper, Trophy } from 'lucide-react';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Autoplay, Pagination, Navigation } from 'swiper/modules';
-import { MobileHeader, getMobileHeaderHeight } from '../../components/mobile/MobileHeader';
+import { MobileHeader } from '../../components/mobile/MobileHeader';
 import { useHomeData } from '../../hooks/useHomeData';
 import { TestimonialsCarousel } from './sections/TestimonialsCarousel';
 import { HomeFooter } from './sections/HomeFooter';
 import { resolveImageUrl, getAppLink } from './utils';
+import { BACKEND_URL } from '../../config/api.config';
 import { AppDetails } from '../../types/home.types';
 import 'swiper/css';
 import 'swiper/css/pagination';
@@ -15,8 +16,9 @@ import 'swiper/css/navigation';
 import '../../styles/home.css';
 
 const DARK_MODE_KEY = 'home_dark_mode';
-// showTopIcons=true → 44 + 120 + 52 = 216 px
-const DESKTOP_HEADER_OFFSET = getMobileHeaderHeight(true, true, true, 'desktop', 'home');
+
+/** Mygroup logo served from backend/public/uploads/logo.png — Row B logo cell */
+const MYGROUP_LOGO_URL = `${BACKEND_URL}/uploads/logo.png`;
 
 /* ─────────────────────────────────────────────────────────────
    Left-sidebar: one app-category section (title + icon grid)
@@ -262,12 +264,8 @@ export const DesktopHomePage: React.FC = () => {
 
   const myCompanyFiltered = homeData.topIcon.myCompany.filter((a) => a.name !== 'Mygroup');
 
-  /* ── Resolved mygroup logo for header ── */
-  const mygroupLogo = homeData.logo?.name_image
-    ? resolveImageUrl(homeData.logo.name_image)
-    : homeData.logo?.logo
-      ? resolveImageUrl(homeData.logo.logo)
-      : undefined;
+  /* ── Mygroup logo: direct path from backend/public/uploads ── */
+  const mygroupLogo = MYGROUP_LOGO_URL;
 
   /* ── Check if any of the 3 events-section lists have content ── */
   const hasEventsSection =
