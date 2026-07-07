@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, useLocation, Link } from 'react-router-dom';
-import { User, Lock, ArrowLeft, LogIn, Mail, KeyRound, LayoutGrid, Home } from 'lucide-react';
+import { Lock, ArrowLeft, LogIn, Mail, KeyRound, LayoutGrid, Home } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
 import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
@@ -414,7 +414,7 @@ export const PartnerLogin: React.FC = () => {
                   className="flex items-center gap-2 text-white/90 hover:text-white mb-4 transition-colors"
                 >
                   <ArrowLeft size={20} />
-                  <span className="text-sm">{viewMode === 'login' ? 'Back to apps' : 'Back to login'}</span>
+                  <span className="text-sm font-bold">Back</span>
                 </button>
 
                 <div className="flex items-center gap-4">
@@ -457,16 +457,16 @@ export const PartnerLogin: React.FC = () => {
                     <form onSubmit={handleLogin} className="space-y-6">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Username or Email
+                          Email
                         </label>
                         <div className="relative">
-                          <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
                           <input
-                            type="text"
+                            type="email"
                             value={formData.username}
                             onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                             className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                            placeholder="Enter username or email"
+                            placeholder="Enter your email"
                             required
                           />
                         </div>
