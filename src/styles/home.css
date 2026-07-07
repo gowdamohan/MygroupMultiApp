@@ -1,4 +1,33 @@
-/* Home page – mobile-matched gradients, buttons, dark mode */
+/* Home page – portal layout, gallery masonry, dark mode */
+
+/* ── Gallery masonry (CSS columns) ── */
+.home-gallery-masonry {
+  column-count: 4;
+  column-gap: 10px;
+}
+.home-gallery-item {
+  break-inside: avoid;
+  margin-bottom: 10px;
+  position: relative;
+  overflow: hidden;
+  border-radius: 0.75rem;
+}
+.home-gallery-item img {
+  display: block;
+  width: 100%;
+  height: auto;
+  transition: transform 0.3s ease;
+}
+.home-gallery-item:hover img {
+  transform: scale(1.04);
+}
+
+@media (max-width: 1280px) {
+  .home-gallery-masonry { column-count: 3; }
+}
+@media (max-width: 768px) {
+  .home-gallery-masonry { column-count: 2; }
+}
 
 .desktop-home {
   scroll-behavior: smooth;

@@ -1086,72 +1086,71 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                 </div>
 
                 {/* Header Ad 1 */}
-                <div className={`overflow-hidden border-l ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                <div
+                  className={`overflow-hidden border-l ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}
+                  style={{ height: '100%' }}
+                >
                   {ads[0] ? (
                     <a
                       href={ads[0].url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="block w-full h-full"
+                      style={{ display: 'block', width: '100%', height: '100%' }}
                     >
                       <img
                         src={ads[0].image}
                         alt={ads[0].title}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full"
+                        style={{ objectFit: 'fill', display: 'block' }}
+                        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
                       />
                     </a>
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-50">
-                      <span className="text-xs font-medium text-gray-400">Header Ads</span>
+                    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-50 gap-1">
+                      <span className="text-[10px] font-semibold text-purple-400">Header Ad 1</span>
+                      <span className="text-[9px] text-gray-400">Your ad here</span>
                     </div>
                   )}
                 </div>
 
                 {/* Header Ad 2 */}
-                <div className={`overflow-hidden border-l ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                <div
+                  className={`overflow-hidden border-l ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}
+                  style={{ height: '100%' }}
+                >
                   {ads[1] ? (
                     <a
                       href={ads[1].url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="block w-full h-full"
+                      style={{ display: 'block', width: '100%', height: '100%' }}
                     >
                       <img
                         src={ads[1].image}
                         alt={ads[1].title}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full"
+                        style={{ objectFit: 'fill', display: 'block' }}
+                        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
                       />
                     </a>
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-50">
-                      <span className="text-xs font-medium text-gray-400">Header Ads</span>
+                    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-r from-indigo-50 via-purple-50 to-indigo-50 gap-1">
+                      <span className="text-[10px] font-semibold text-indigo-400">Header Ad 2</span>
+                      <span className="text-[9px] text-gray-400">Your ad here</span>
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* ── Row C: User photo | Mygroup brand (center) | Action icons ── */}
+              {/* ── Row C: Brand bar (no user profile) ── */}
               <div
                 className={`flex items-center justify-between px-4 relative ${
                   darkMode ? 'bg-gray-900' : 'bg-white'
                 }`}
                 style={{ height: 52 }}
               >
-                {/* Left: logged-in user profile photo — display only, not clickable */}
-                <div className="flex-shrink-0">
-                  {userProfile?.profile_img || userProfile?.profile_img_url ? (
-                    <img
-                      src={resolveProfileImageUrl(userProfile.profile_img, userProfile.profile_img_url)}
-                      alt="Profile"
-                      {...WASABI_IMG_PROPS}
-                      className="w-8 h-8 rounded-full object-cover border-2 border-gray-200"
-                    />
-                  ) : (
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center">
-                      <User size={16} className="text-white" />
-                    </div>
-                  )}
-                </div>
+                {/* Left: spacer for layout balance */}
+                <div className="w-8 flex-shrink-0" />
 
                 {/* Center: Mygroup logo + name (absolute-centered) */}
                 <div className="flex items-center gap-2 absolute left-1/2 -translate-x-1/2 pointer-events-none select-none">
