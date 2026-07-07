@@ -713,10 +713,6 @@ export const PartnerLogin: React.FC = () => {
       <HomeFooter
         socialLinks={homeData?.socialLink ?? []}
         copyRight={homeData?.copyRight ?? null}
-        eventsList={homeData?.eventsList ?? []}
-        newsroomList={homeData?.newsroomList ?? []}
-        awardsList={homeData?.awardsList ?? []}
-        clients={homeData?.clients ?? []}
       />
     </div>
   );

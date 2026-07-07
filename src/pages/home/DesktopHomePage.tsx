@@ -143,14 +143,16 @@ const AdCard: React.FC<AdCardProps> = ({
     </div>
   );
 
-  const sharedClass = `block rounded-xl overflow-hidden shadow-md group hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 ${className}`;
+  const sharedClass = `home-ad-card block w-full rounded-xl overflow-hidden shadow-md group hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 ${className}`;
+
+  const sizeStyle = { width: '100%', height };
 
   return url && url !== '#' ? (
-    <a href={url} target="_blank" rel="noopener noreferrer" className={sharedClass} style={{ height }}>
+    <a href={url} target="_blank" rel="noopener noreferrer" className={sharedClass} style={sizeStyle}>
       {content}
     </a>
   ) : (
-    <div className={sharedClass} style={{ height }}>
+    <div className={sharedClass} style={sizeStyle}>
       {content}
     </div>
   );
@@ -165,7 +167,7 @@ interface SideAdPanelProps {
 }
 
 const SideAdPanel: React.FC<SideAdPanelProps> = ({ ads, darkMode }) => (
-  <div className="flex flex-col h-full p-3 gap-2">
+  <div className="flex flex-col flex-1 h-full min-h-0 p-3 gap-2">
     {/* Section header */}
     <div className="flex items-center gap-2 flex-shrink-0 py-1">
       <Megaphone size={13} className={darkMode ? 'text-gray-400' : 'text-gray-400'} />
@@ -178,7 +180,7 @@ const SideAdPanel: React.FC<SideAdPanelProps> = ({ ads, darkMode }) => (
     {/* Ad slots — flex-1 each so they share the remaining column height equally */}
     <div className="flex flex-col flex-1 gap-2 min-h-0">
       {[0, 1, 2].map((i) => (
-        <div key={i} className="flex-1 min-h-0">
+        <div key={i} className="flex-1 min-h-0 w-full">
           <AdCard
             image={ads[i]?.image}
             url={ads[i]?.url}
@@ -277,8 +279,7 @@ export const DesktopHomePage: React.FC = () => {
     <div className={`desktop-home min-h-screen transition-colors duration-300 ${pageBg}`}>
 
       {/* ══════════════════════════════════════════
-          HEADER — 3 rows (Row A: teal icons strip,
-          Row B: logo + 2 header ads, Row C: brand bar)
+          HEADER — logo + header ads + brand bar
       ══════════════════════════════════════════ */}
       <MobileHeader
         appName="mymedia"
@@ -286,7 +287,7 @@ export const DesktopHomePage: React.FC = () => {
         desktopLayout="home"
         darkMode={darkMode}
         onDarkModeToggle={toggleDarkMode}
-        showTopIcons={true}
+        showTopIcons={false}
         showAds
         showDarkModeToggle
         showProfileButton={false}
@@ -328,31 +329,16 @@ export const DesktopHomePage: React.FC = () => {
         )}
 
         {/* ══════════════════════════════════════════
-            PORTAL GRID  — 220px : flex-1 : 280px
-            Fixed sidebar widths prevent blank side gaps.
-            All columns stretch to equal row height (min 500px).
-            ┌── 220px ──┬──────── flex-1 ────────┬── 280px ──┐
-            │ App sbar  │  Main Page Ad carousel  │ Side Ads  │
-            │ My Apps   │  (fills full height)    │  Ad 1     │
-            │ MyCompany │                         │  Ad 2     │
-            │ Online    │                         │  Ad 3     │
-            │ Offline   │                         │           │
-            └───────────┴───────────────────────┴────────────┘
+            PORTAL GRID  — 12-col: 3 | 6 | 3
+            Left apps (vertically centered) | Main ads | Side ads
         ══════════════════════════════════════════ */}
         <div
-          className={`border-b ${border}`}
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '220px 1fr 280px',
-            alignItems: 'stretch',
-            minHeight: 500,
-          }}
+          className={`home-portal-grid border-b ${border} grid grid-cols-12 items-stretch`}
         >
 
-          {/* ── COL-1: Left sidebar — all four app categories ── */}
+          {/* ── COL 1–3: Left sidebar — apps vertically centered ── */}
           <aside
-            className={`home-portal-sidebar border-r ${border} ${cardBg} home-section-transition`}
-            style={{ height: '100%' }}
+            className={`home-portal-sidebar home-portal-sidebar-left col-span-3 border-r ${border} ${cardBg} home-section-transition flex flex-col justify-center h-full`}
           >
             <SidebarSection
               title="My Apps"
@@ -380,12 +366,11 @@ export const DesktopHomePage: React.FC = () => {
             />
           </aside>
 
-          {/* ── COL-2: Center — Main Page Ad carousel (full column height) ── */}
+          {/* ── COL 4–9: Center — Main Page Ad carousel (full column height) ── */}
           <div
-            className={`flex flex-col ${cardBg} home-section-transition`}
-            style={{ height: '100%' }}
+            className={`col-span-6 flex flex-col ${cardBg} home-section-transition h-full min-h-0`}
           >
-            <div className="flex flex-col p-3" style={{ height: '100%' }}>
+            <div className="flex flex-col flex-1 w-full p-3 min-h-0">
               {mainAdsSlides.length > 0 ? (
                 <Swiper
                   modules={[Autoplay, Pagination, Navigation]}
@@ -393,8 +378,8 @@ export const DesktopHomePage: React.FC = () => {
                   pagination={{ clickable: true }}
                   navigation
                   loop={mainAdsSlides.length > 1}
-                  className="home-swiper rounded-2xl overflow-hidden shadow-lg"
-                  style={{ flex: 1, minHeight: 0 }}
+                  className="home-swiper w-full rounded-2xl overflow-hidden shadow-lg"
+                  style={{ flex: 1, minHeight: 0, width: '100%' }}
                 >
                   {mainAdsSlides.map((ad, i) => (
                     <SwiperSlide key={i}>
@@ -411,7 +396,7 @@ export const DesktopHomePage: React.FC = () => {
                   ))}
                 </Swiper>
               ) : (
-                <div className="rounded-2xl overflow-hidden shadow-lg" style={{ flex: 1, minHeight: 0 }}>
+                <div className="rounded-2xl overflow-hidden shadow-lg w-full" style={{ flex: 1, minHeight: 0 }}>
                   <AdCard
                     badge="FEATURED"
                     height="100%"
@@ -423,10 +408,9 @@ export const DesktopHomePage: React.FC = () => {
             </div>
           </div>
 
-          {/* ── COL-3: Right sidebar — side ads flexed to full column height ── */}
+          {/* ── COL 10–12: Right sidebar — side ads matched to column height ── */}
           <aside
-            className={`home-portal-sidebar border-l ${border} ${cardBg} home-section-transition`}
-            style={{ height: '100%' }}
+            className={`home-portal-sidebar col-span-3 border-l ${border} ${cardBg} home-section-transition flex flex-col h-full min-h-0`}
           >
             <SideAdPanel ads={sideAds} darkMode={darkMode} />
           </aside>
@@ -718,10 +702,6 @@ export const DesktopHomePage: React.FC = () => {
         <HomeFooter
           socialLinks={homeData.socialLink}
           copyRight={homeData.copyRight}
-          eventsList={homeData.eventsList}
-          newsroomList={homeData.newsroomList}
-          awardsList={homeData.awardsList}
-          clients={homeData.clients}
         />
       </main>
     </div>

@@ -1,31 +1,11 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { CopyRight, SocialLink, FooterPageItem } from '../../../types/home.types';
+import { CopyRight, SocialLink } from '../../../types/home.types';
 import { resolveImageUrl } from '../utils';
-
-/** Build footer links from footer_page items, capping label length */
-const makeItemLinks = (
-  items: FooterPageItem[],
-  path: string,
-  max = 4,
-): { label: string; to: string }[] =>
-  items
-    .slice(0, max)
-    .filter((item): item is FooterPageItem & { title: string } =>
-      typeof item.title === 'string' && item.title.trim().length > 0
-    )
-    .map((item) => ({
-      label: item.title.length > 28 ? `${item.title.slice(0, 27)}…` : item.title,
-      to: path,
-    }));
 
 interface HomeFooterProps {
   socialLinks: SocialLink[];
   copyRight?: CopyRight | null;
-  eventsList?: FooterPageItem[];
-  newsroomList?: FooterPageItem[];
-  awardsList?: FooterPageItem[];
-  clients?: FooterPageItem[];
 }
 
 /* Each footer column */
@@ -66,96 +46,75 @@ const FooterColumn: React.FC<FooterColumnProps> = ({ heading, headingColor, link
 export const HomeFooter: React.FC<HomeFooterProps> = ({
   socialLinks,
   copyRight,
-  eventsList = [],
-  newsroomList = [],
-  awardsList = [],
-  clients = [],
 }) => {
   return (
     <footer className="home-footer bg-gray-900 text-white pt-10 pb-6">
       <div className="max-w-7xl mx-auto px-6 md:px-8">
 
-        {/* Brand tagline */}
-        <div className="mb-8 pb-6 border-b border-gray-700">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-bold text-teal-400">Mygroup</h2>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Enterprise Platform — Connecting People, Apps &amp; Opportunities
-              </p>
-            </div>
-            <p className="text-xs text-gray-500">
-              Serving from{' '}
-              <a href="https://gomygroup.online" target="_blank" rel="noopener noreferrer"
-                className="text-teal-500 hover:text-teal-400">
-                gomygroup.online
-              </a>
-            </p>
-          </div>
-        </div>
-
         {/* 6-column link grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-6 md:gap-8 mb-8">
 
-          {/* Know Us */}
           <FooterColumn
             heading="Know Us"
             headingColor="text-teal-400"
             links={[
               { label: 'Home',         to: '/' },
               { label: 'About Us',     to: '/about' },
-              { label: 'Our Clients',  to: '/clients' },
+              { label: 'Clients',      to: '/clients' },
               { label: 'Milestones',   to: '/milestones' },
               { label: 'Testimonials', to: '/testimonials' },
             ]}
           />
 
-          {/* Events */}
           <FooterColumn
-            heading="Events"
-            headingColor="text-indigo-400"
-            links={[{ label: 'All Events', to: '/events' }, ...makeItemLinks(eventsList, '/events')]}
+            heading="Media"
+            headingColor="text-teal-400"
+            links={[
+              { label: 'Newsroom', to: '/newsroom' },
+              { label: 'Gallery',  href: '#' },
+              { label: 'Awards',   to: '/awards' },
+              { label: 'Events',   to: '/events' },
+            ]}
           />
 
-          {/* Newsroom */}
-          <FooterColumn
-            heading="Newsroom"
-            headingColor="text-sky-400"
-            links={[{ label: 'Latest News', to: '/newsroom' }, ...makeItemLinks(newsroomList, '/newsroom')]}
-          />
-
-          {/* Awards */}
-          <FooterColumn
-            heading="Awards"
-            headingColor="text-amber-400"
-            links={[{ label: 'Our Awards', to: '/awards' }, ...makeItemLinks(awardsList, '/awards')]}
-          />
-
-          {/* Opportunity */}
           <FooterColumn
             heading="Opportunity"
             headingColor="text-teal-400"
             links={[
-              { label: 'Register',    to: '/register' },
-              { label: 'Contact Us',  to: '/contact' },
-              { label: 'Advertise',   href: '/#advertise' },
-              { label: 'Franchise',   href: '/#franchise' },
-              { label: 'Careers',     href: '/#careers' },
-              { label: 'Gallery',     href: '/#gallery' },
+              { label: 'Careers',   href: '#' },
+              { label: 'My Jobs',   href: '#' },
+              { label: 'Franchise', href: '#' },
+              { label: 'Advertise', href: '#' },
             ]}
           />
 
-          {/* Logins & Legal */}
           <FooterColumn
-            heading="More"
+            heading="Our Policy"
             headingColor="text-teal-400"
             links={[
-              { label: 'Partner Login',    to: '/partner' },
-              { label: 'Reporter Login',   to: '/reporter/login' },
-              { label: 'Admin Login',      to: '/admin/login' },
-              { label: 'Partner Register', to: '/partner/register' },
-              { label: 'Privacy Policy',   to: '/privacy' },
-              { label: 'Terms & Conditions', to: '/terms' },
+              { label: 'Privacy Policy', to: '/privacy' },
+              { label: 'Terms',          to: '/terms' },
+              { label: "FAQ's",          href: '#' },
+            ]}
+          />
+
+          <FooterColumn
+            heading="Support"
+            headingColor="text-teal-400"
+            links={[
+              { label: 'Contact Us', to: '/contact' },
+              { label: 'Enquiry',    href: '#' },
+              { label: 'Feedback',   href: '#' },
+            ]}
+          />
+
+          <FooterColumn
+            heading="Logins"
+            headingColor="text-teal-400"
+            links={[
+              { label: 'Partner Login', to: '/partner' },
+              { label: 'Franchise',     href: '#' },
+              { label: 'Reporters',     href: '#' },
             ]}
           />
         </div>
