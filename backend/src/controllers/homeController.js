@@ -50,6 +50,29 @@ const formatFooterItems = async (rows) =>
     }))
   );
 
+// ─── Public footer page by type (user_id = 2 / corporate) ────────────────────
+/**
+ * GET /api/v1/home/page/:type
+ * Public — no auth required.
+ * Returns all footer_page rows for the given type belonging to user_id = 2.
+ * Supported types: about_us, clients, testimonials, milestones, events,
+ *   newsroom, awards, terms, privacy_policy, contact_us, social_media
+ */
+export const getPublicFooterPage = async (req, res) => {
+  try {
+    const { type } = req.params;
+    const rows = await FooterPage.findAll({
+      where: { footer_page_type: type, user_id: 2 },
+      order: [['id', 'ASC']],
+    });
+    const items = await formatFooterItems(rows);
+    res.json({ success: true, type, data: items, count: items.length });
+  } catch (error) {
+    console.error(`Error fetching public footer page [${req.params.type}]:`, error);
+    res.status(500).json({ success: false, message: 'Failed to fetch page data', error: error.message });
+  }
+};
+
 // ─── Download app links ────────────────────────────────────────────────────────
 
 export const getDownloadApps = async (_req, res) => {

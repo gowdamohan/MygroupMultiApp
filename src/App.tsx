@@ -2,6 +2,18 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { HomePage } from './pages/HomePage';
+
+// Public corporate pages (no auth required)
+import { AboutPage }        from './pages/public/AboutPage';
+import { ClientsPage }      from './pages/public/ClientsPage';
+import { TestimonialsPage } from './pages/public/TestimonialsPage';
+import { MilestonesPage }   from './pages/public/MilestonesPage';
+import { EventsPage }       from './pages/public/EventsPage';
+import { NewsroomPage }     from './pages/public/NewsroomPage';
+import { AwardsPage }       from './pages/public/AwardsPage';
+import { TermsPage }        from './pages/public/TermsPage';
+import { PrivacyPage }      from './pages/public/PrivacyPage';
+import { ContactPage }      from './pages/public/ContactPage';
 import { AdminLogin } from './pages/auth/AdminLogin';
 import { ClientLogin } from './pages/auth/ClientLogin';
 import { GroupAdminLogin } from './pages/auth/GroupAdminLogin';
@@ -43,6 +55,18 @@ function App() {
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
+
+          {/* ── Public corporate pages (footer_page, user_id=2) ── */}
+          <Route path="/about"        element={<AboutPage />} />
+          <Route path="/clients"      element={<ClientsPage />} />
+          <Route path="/testimonials" element={<TestimonialsPage />} />
+          <Route path="/milestones"   element={<MilestonesPage />} />
+          <Route path="/events"       element={<EventsPage />} />
+          <Route path="/newsroom"     element={<NewsroomPage />} />
+          <Route path="/awards"       element={<AwardsPage />} />
+          <Route path="/terms"        element={<TermsPage />} />
+          <Route path="/privacy"      element={<PrivacyPage />} />
+          <Route path="/contact"      element={<ContactPage />} />
 
           <Route path="/auth/login" element={<AdminLogin />} />
           <Route path="/auth/admin" element={<AdminLogin />} />

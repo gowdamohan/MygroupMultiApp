@@ -3,15 +3,65 @@ import { Link } from 'react-router-dom';
 import { CopyRight, SocialLink, FooterPageItem } from '../../../types/home.types';
 import { resolveImageUrl } from '../utils';
 
+/** Build footer links from footer_page items, capping label length */
+const makeItemLinks = (
+  items: FooterPageItem[],
+  path: string,
+  max = 4,
+): { label: string; to: string }[] =>
+  items
+    .slice(0, max)
+    .filter((item): item is FooterPageItem & { title: string } =>
+      typeof item.title === 'string' && item.title.trim().length > 0
+    )
+    .map((item) => ({
+      label: item.title.length > 28 ? `${item.title.slice(0, 27)}…` : item.title,
+      to: path,
+    }));
+
 interface HomeFooterProps {
   socialLinks: SocialLink[];
   copyRight?: CopyRight | null;
-  /** footer_page items passed from homeData for dynamic link display */
   eventsList?: FooterPageItem[];
   newsroomList?: FooterPageItem[];
   awardsList?: FooterPageItem[];
   clients?: FooterPageItem[];
 }
+
+/* Each footer column */
+interface FooterColumnProps {
+  heading: string;
+  headingColor: string;
+  links: { label: string; to?: string; href?: string; external?: boolean }[];
+}
+
+const FooterColumn: React.FC<FooterColumnProps> = ({ heading, headingColor, links }) => (
+  <div>
+    <h3 className={`font-bold text-sm mb-3 ${headingColor}`}>{heading}</h3>
+    <ul className="space-y-1.5 text-xs">
+      {links.map(({ label, to, href, external }) => (
+        <li key={label}>
+          {to ? (
+            <Link to={to} className="text-gray-400 hover:text-white transition-colors">
+              {label}
+            </Link>
+          ) : href ? (
+            <a
+              href={href}
+              target={external ? '_blank' : '_self'}
+              rel={external ? 'noopener noreferrer' : undefined}
+              className="text-gray-400 hover:text-white transition-colors"
+            >
+              {label}
+            </a>
+          ) : (
+            <span className="text-gray-500">{label}</span>
+          )}
+        </li>
+      ))}
+    </ul>
+  </div>
+);
 
 export const HomeFooter: React.FC<HomeFooterProps> = ({
   socialLinks,
@@ -25,108 +75,89 @@ export const HomeFooter: React.FC<HomeFooterProps> = ({
     <footer className="home-footer bg-gray-900 text-white pt-10 pb-6">
       <div className="max-w-7xl mx-auto px-6 md:px-8">
 
-        {/* Brand + tagline */}
-        <div className="mb-8 pb-6 border-b border-gray-700 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-          <div>
-            <h2 className="text-lg font-bold text-teal-400">Mygroup</h2>
-            <p className="text-xs text-gray-400 mt-0.5">Enterprise Platform — Connecting People, Apps &amp; Opportunities</p>
+        {/* Brand tagline */}
+        <div className="mb-8 pb-6 border-b border-gray-700">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-teal-400">Mygroup</h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Enterprise Platform — Connecting People, Apps &amp; Opportunities
+              </p>
+            </div>
+            <p className="text-xs text-gray-500">
+              Serving from{' '}
+              <a href="https://gomygroup.online" target="_blank" rel="noopener noreferrer"
+                className="text-teal-500 hover:text-teal-400">
+                gomygroup.online
+              </a>
+            </p>
           </div>
         </div>
 
-        {/* 6-column links grid */}
+        {/* 6-column link grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-6 md:gap-8 mb-8">
 
           {/* Know Us */}
-          <div>
-            <h3 className="font-bold text-sm mb-3 text-teal-400">Know Us</h3>
-            <ul className="space-y-1.5 text-xs">
-              <li><a href="/#" className="hover:text-teal-400 transition-colors text-gray-400">Home</a></li>
-              <li><a href="/#clients" className="hover:text-teal-400 transition-colors text-gray-400">Our Clients</a></li>
-              <li><a href="/#testimonials" className="hover:text-teal-400 transition-colors text-gray-400">Testimonials</a></li>
-              <li><a href="/#gallery" className="hover:text-teal-400 transition-colors text-gray-400">Gallery</a></li>
-              {clients.length > 0 && clients.slice(0, 2).map((c) => c.title && (
-                <li key={c.id}>
-                  <a href={c.url || '/#'} target={c.url ? '_blank' : '_self'} rel="noopener noreferrer"
-                    className="hover:text-teal-400 transition-colors text-gray-400 line-clamp-1">
-                    {c.title}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
+          <FooterColumn
+            heading="Know Us"
+            headingColor="text-teal-400"
+            links={[
+              { label: 'Home',         to: '/' },
+              { label: 'About Us',     to: '/about' },
+              { label: 'Our Clients',  to: '/clients' },
+              { label: 'Milestones',   to: '/milestones' },
+              { label: 'Testimonials', to: '/testimonials' },
+            ]}
+          />
 
           {/* Events */}
-          <div>
-            <h3 className="font-bold text-sm mb-3 text-indigo-400">Events</h3>
-            <ul className="space-y-1.5 text-xs">
-              <li><a href="/#events" className="hover:text-indigo-400 transition-colors text-gray-400">All Events</a></li>
-              {eventsList.slice(0, 4).map((ev) => ev.title && (
-                <li key={ev.id}>
-                  <a href={ev.url || '/#events'} target={ev.url ? '_blank' : '_self'} rel="noopener noreferrer"
-                    className="hover:text-indigo-400 transition-colors text-gray-400 line-clamp-1">
-                    {ev.title}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
+          <FooterColumn
+            heading="Events"
+            headingColor="text-indigo-400"
+            links={[{ label: 'All Events', to: '/events' }, ...makeItemLinks(eventsList, '/events')]}
+          />
 
           {/* Newsroom */}
-          <div>
-            <h3 className="font-bold text-sm mb-3 text-blue-400">Newsroom</h3>
-            <ul className="space-y-1.5 text-xs">
-              <li><a href="/#newsroom" className="hover:text-blue-400 transition-colors text-gray-400">Latest News</a></li>
-              {newsroomList.slice(0, 4).map((item) => item.title && (
-                <li key={item.id}>
-                  <a href={item.url || '/#newsroom'} target={item.url ? '_blank' : '_self'} rel="noopener noreferrer"
-                    className="hover:text-blue-400 transition-colors text-gray-400 line-clamp-1">
-                    {item.title}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
+          <FooterColumn
+            heading="Newsroom"
+            headingColor="text-sky-400"
+            links={[{ label: 'Latest News', to: '/newsroom' }, ...makeItemLinks(newsroomList, '/newsroom')]}
+          />
 
           {/* Awards */}
-          <div>
-            <h3 className="font-bold text-sm mb-3 text-amber-400">Awards</h3>
-            <ul className="space-y-1.5 text-xs">
-              <li><a href="/#awards" className="hover:text-amber-400 transition-colors text-gray-400">Our Awards</a></li>
-              {awardsList.slice(0, 4).map((item) => item.title && (
-                <li key={item.id}>
-                  <a href={item.url || '/#awards'} target={item.url ? '_blank' : '_self'} rel="noopener noreferrer"
-                    className="hover:text-amber-400 transition-colors text-gray-400 line-clamp-1">
-                    {item.title}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
+          <FooterColumn
+            heading="Awards"
+            headingColor="text-amber-400"
+            links={[{ label: 'Our Awards', to: '/awards' }, ...makeItemLinks(awardsList, '/awards')]}
+          />
 
           {/* Opportunity */}
-          <div>
-            <h3 className="font-bold text-sm mb-3 text-teal-400">Opportunity</h3>
-            <ul className="space-y-1.5 text-xs">
-              <li><Link to="/register" className="hover:text-teal-400 transition-colors text-gray-400">Register</Link></li>
-              <li><a href="/#advertise" className="hover:text-teal-400 transition-colors text-gray-400">Advertise</a></li>
-              <li><a href="/#franchise" className="hover:text-teal-400 transition-colors text-gray-400">Franchise</a></li>
-              <li><a href="/#careers" className="hover:text-teal-400 transition-colors text-gray-400">Careers</a></li>
-              <li><a href="/#jobs" className="hover:text-teal-400 transition-colors text-gray-400">My Jobs</a></li>
-            </ul>
-          </div>
+          <FooterColumn
+            heading="Opportunity"
+            headingColor="text-teal-400"
+            links={[
+              { label: 'Register',    to: '/register' },
+              { label: 'Contact Us',  to: '/contact' },
+              { label: 'Advertise',   href: '/#advertise' },
+              { label: 'Franchise',   href: '/#franchise' },
+              { label: 'Careers',     href: '/#careers' },
+              { label: 'Gallery',     href: '/#gallery' },
+            ]}
+          />
 
-          {/* Logins & Support */}
-          <div>
-            <h3 className="font-bold text-sm mb-3 text-teal-400">Logins</h3>
-            <ul className="space-y-1.5 text-xs">
-              <li><Link to="/partner" className="hover:text-teal-400 transition-colors text-gray-400">Partner Login</Link></li>
-              <li><Link to="/reporter/login" className="hover:text-teal-400 transition-colors text-gray-400">Reporter Login</Link></li>
-              <li><Link to="/admin/login" className="hover:text-teal-400 transition-colors text-gray-400">Admin Login</Link></li>
-              <li><Link to="/partner/register" className="hover:text-teal-400 transition-colors text-gray-400">Partner Register</Link></li>
-              <li><a href="/#privacy" className="hover:text-teal-400 transition-colors text-gray-400">Privacy Policy</a></li>
-              <li><a href="/#terms" className="hover:text-teal-400 transition-colors text-gray-400">Terms</a></li>
-            </ul>
-          </div>
+          {/* Logins & Legal */}
+          <FooterColumn
+            heading="More"
+            headingColor="text-teal-400"
+            links={[
+              { label: 'Partner Login',    to: '/partner' },
+              { label: 'Reporter Login',   to: '/reporter/login' },
+              { label: 'Admin Login',      to: '/admin/login' },
+              { label: 'Partner Register', to: '/partner/register' },
+              { label: 'Privacy Policy',   to: '/privacy' },
+              { label: 'Terms & Conditions', to: '/terms' },
+            ]}
+          />
         </div>
 
         {/* Social links + copyright */}
@@ -149,7 +180,9 @@ export const HomeFooter: React.FC<HomeFooterProps> = ({
                       className="w-4 h-4 object-contain"
                     />
                   ) : (
-                    <span className="text-xs font-bold text-white">{social.platform?.charAt(0).toUpperCase()}</span>
+                    <span className="text-xs font-bold text-white">
+                      {social.platform?.charAt(0).toUpperCase()}
+                    </span>
                   )}
                 </a>
               ))}
