@@ -302,7 +302,7 @@ export const PartnerLogin: React.FC = () => {
           {/* Logo + Brand */}
           <Link to="/" className="flex items-center gap-3 flex-shrink-0 group">
             <img
-              src={`${BACKEND_URL}/backend/public/uploads/logo.png`}
+              src={`${BACKEND_URL}/uploads/logo.png`}
               alt="Mygroup Logo"
               className="h-10 w-auto object-contain"
               onError={(e) => {
@@ -327,13 +327,6 @@ export const PartnerLogin: React.FC = () => {
             >
               <Home size={15} />
               Home
-            </Link>
-            <span className="h-5 w-px bg-gray-200" />
-            <Link
-              to="/partner/register"
-              className="px-4 py-2 rounded-full text-sm font-semibold bg-gradient-to-r from-teal-500 to-indigo-500 text-white hover:opacity-90 transition-opacity shadow-sm"
-            >
-              Register
             </Link>
           </nav>
         </div>
