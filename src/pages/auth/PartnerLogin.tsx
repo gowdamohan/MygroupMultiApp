@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
-import { User, Lock, ArrowLeft, LogIn, Mail, KeyRound, LayoutGrid, Megaphone } from 'lucide-react';
+import { useNavigate, useSearchParams, useLocation, Link } from 'react-router-dom';
+import { User, Lock, ArrowLeft, LogIn, Mail, KeyRound, LayoutGrid, Home } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
 import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
 import { useAuth } from '../../contexts/AuthContext';
 import { persistAuthStorage, getPostLoginPath } from '../../utils/authSession';
 import { startTokenRefreshInterval } from '../../services/api';
+import { useHomeData } from '../../hooks/useHomeData';
+import { HomeFooter } from '../home/sections/HomeFooter';
 
 type ViewMode = 'login' | 'forgot-email' | 'forgot-otp' | 'forgot-password';
 
@@ -29,6 +31,7 @@ export const PartnerLogin: React.FC = () => {
   const location = useLocation();
   const { updateUser } = useAuth();
   const [searchParams] = useSearchParams();
+  const { data: homeData } = useHomeData();
 
   // State
   const [apps, setApps] = useState<AppDetails[]>([]);
@@ -280,25 +283,6 @@ export const PartnerLogin: React.FC = () => {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const renderHeaderAdsSection = () => (
-    <div className="flex-1 flex items-center justify-center bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-400 h-full rounded-lg overflow-hidden">
-      <div className="flex gap-2 w-full h-full">
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center text-white">
-            <Megaphone className="mx-auto mb-1" size={22} />
-            <p className="text-xs font-medium opacity-90">Ad Space 1</p>
-          </div>
-        </div>
-        <div className="flex-1 flex items-center justify-center border-l border-white/20">
-          <div className="text-center text-white">
-            <Megaphone className="mx-auto mb-1" size={22} />
-            <p className="text-xs font-medium opacity-90">Ad Space 2</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
@@ -314,29 +298,44 @@ export const PartnerLogin: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex flex-col">
       {/* Global Header */}
       <header className="bg-white border-b border-gray-200 shadow-sm flex-shrink-0">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center gap-4">
-          {/* Left: My Group Logo */}
-          <div className="flex items-center gap-3 flex-shrink-0">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+          {/* Logo + Brand */}
+          <Link to="/" className="flex items-center gap-3 flex-shrink-0 group">
             <img
               src={`${BACKEND_URL}/backend/public/uploads/logo.png`}
-              alt="My Group Logo"
-              className="h-9 w-auto object-contain"
+              alt="Mygroup Logo"
+              className="h-10 w-auto object-contain"
               onError={(e) => {
                 (e.currentTarget as HTMLImageElement).style.display = 'none';
               }}
             />
             <div>
-              <div className="text-gray-900 font-bold text-lg leading-tight">My Group</div>
-              <div className="text-xs text-gray-500 leading-tight">Partner Portal</div>
+              <div className="text-gray-900 font-extrabold text-xl leading-tight tracking-tight group-hover:text-teal-600 transition-colors">
+                Mygroup
+              </div>
+              <div className="text-[11px] text-gray-400 leading-tight font-medium tracking-wide">
+                Partner Portal
+              </div>
             </div>
-          </div>
+          </Link>
 
-          {/* Right: Header Ads Section */}
-          <div className="flex-1 flex justify-end">
-            <div className="h-12 w-full max-w-sm sm:max-w-md lg:max-w-lg rounded-lg overflow-hidden">
-              {renderHeaderAdsSection()}
-            </div>
-          </div>
+          {/* Nav */}
+          <nav className="flex items-center gap-2">
+            <Link
+              to="/"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold text-gray-600 hover:text-teal-600 hover:bg-teal-50 transition-all"
+            >
+              <Home size={15} />
+              Home
+            </Link>
+            <span className="h-5 w-px bg-gray-200" />
+            <Link
+              to="/partner/register"
+              className="px-4 py-2 rounded-full text-sm font-semibold bg-gradient-to-r from-teal-500 to-indigo-500 text-white hover:opacity-90 transition-opacity shadow-sm"
+            >
+              Register
+            </Link>
+          </nav>
         </div>
       </header>
 
@@ -717,12 +716,15 @@ export const PartnerLogin: React.FC = () => {
       </div>
       </main>
 
-      {/* Global Footer */}
-      <footer className="flex-shrink-0 bg-white border-t border-gray-200 py-4">
-        <p className="text-center text-sm text-gray-500">
-          © 2026 Mygroup. All rights reserved.
-        </p>
-      </footer>
+      {/* Global Footer — same as gomygroup.online */}
+      <HomeFooter
+        socialLinks={homeData?.socialLink ?? []}
+        copyRight={homeData?.copyRight ?? null}
+        eventsList={homeData?.eventsList ?? []}
+        newsroomList={homeData?.newsroomList ?? []}
+        awardsList={homeData?.awardsList ?? []}
+        clients={homeData?.clients ?? []}
+      />
     </div>
   );
 };
