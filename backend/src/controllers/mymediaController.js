@@ -941,18 +941,45 @@ export const streamChannelDocument = async (req, res) => {
       if (!fs.existsSync(localPath)) {
         return res.status(404).json({ success: false, message: 'File not found on server' });
       }
+      const stat = fs.statSync(localPath);
+      const total = stat.size;
+      const range = req.headers.range;
+
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `inline; filename="${safeName}"`);
+      res.setHeader('Accept-Ranges', 'bytes');
+
+      if (range) {
+        const parts = range.replace(/bytes=/, '').split('-');
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : total - 1;
+        if (start >= total || end >= total) {
+          res.status(416).setHeader('Content-Range', `bytes */${total}`);
+          return res.end();
+        }
+        res.status(206);
+        res.setHeader('Content-Range', `bytes ${start}-${end}/${total}`);
+        res.setHeader('Content-Length', String(end - start + 1));
+        return fs.createReadStream(localPath, { start, end }).pipe(res);
+      }
+
+      res.setHeader('Content-Length', String(total));
       return fs.createReadStream(localPath).pipe(res);
     }
 
     const wasabiKey = extractWasabiKey(storagePath) || storagePath.replace(/^\/+/, '');
-    const result = await getObjectStream(wasabiKey);
+    const range = req.headers.range;
+    const result = await getObjectStream(wasabiKey, range);
 
     res.setHeader('Content-Type', result.ContentType || 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="${safeName}"`);
-    if (result.ContentLength) {
+    res.setHeader('Accept-Ranges', 'bytes');
+    if (result.ContentLength != null) {
       res.setHeader('Content-Length', String(result.ContentLength));
+    }
+    if (range && result.ContentRange) {
+      res.status(206);
+      res.setHeader('Content-Range', result.ContentRange);
     }
     result.Body.pipe(res);
   } catch (error) {

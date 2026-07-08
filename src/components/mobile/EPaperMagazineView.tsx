@@ -6,12 +6,12 @@
  * Layout:
  *  • Sticky header with channel branding
  *  • Year accordion → month chip-tabs → 2-column issue grid
- *  • Cheap covers (stored thumb → channel logo → gradient) — no client PDF.js thumbs
- *  • PDF / media open in full-screen modal (progressive page-1-first reader)
+ *  • PDF first-page preview on each issue card (lazy, cached)
+ *  • Single-page PDF reader with footer prev/next pagination
  *
  * API: GET /api/v1/mymedia/channel/:channelId/documents
  */
-import React, { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, useRef, memo, lazy, Suspense } from 'react';
 import {
   ArrowLeft, Download, Calendar, ChevronDown, ChevronUp,
   Loader2, Newspaper, BookOpen,
@@ -20,9 +20,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { API_BASE_URL, getUploadUrl, WASABI_IMG_PROPS } from '../../config/api.config';
 import { isPdfFile, getDocumentStreamUrl } from '../../utils/pdfViewer';
+import {
+  renderPagePreview,
+  getCachedPageImage,
+} from '../../utils/pdfPageRenderer';
 
-const PdfDocumentViewer = lazy(() =>
-  import('../shared/PdfDocumentViewer').then((m) => ({ default: m.PdfDocumentViewer })),
+const SinglePagePdfViewer = lazy(() =>
+  import('../shared/SinglePagePdfViewer').then((m) => ({ default: m.SinglePagePdfViewer })),
 );
 
 /* ── Types ──────────────────────────────────────────────────────── */
@@ -92,19 +96,94 @@ const getDocUrl = (doc: Document): string => {
   return getUploadUrl(doc.file_url);
 };
 
-/** Single issue card — cheap covers only (no client-side PDF thumb rendering). */
+/** PDF first-page preview — lazy, intersection-triggered, shared cache with reader. */
+const PdfPagePreview = memo<{ doc: Document; gradient: string }>(({ doc, gradient }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const startedRef = useRef(false);
+  const [previewSrc, setPreviewSrc] = useState<string | null>(
+    () => getCachedPageImage(doc.id, 1),
+  );
+  const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>(() =>
+    getCachedPageImage(doc.id, 1) ? 'done' : 'idle',
+  );
+
+  useEffect(() => {
+    if (previewSrc || startedRef.current) return;
+    const el = containerRef.current;
+    if (!el) return;
+    let cancelled = false;
+
+    const load = async () => {
+      startedRef.current = true;
+      setStatus('loading');
+      const result = await renderPagePreview(doc.id, 1, 220);
+      if (cancelled) return;
+      if (result?.dataUrl) {
+        setPreviewSrc(result.dataUrl);
+        setStatus('done');
+      } else {
+        setStatus('error');
+      }
+    };
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          observer.disconnect();
+          load();
+        }
+      },
+      { rootMargin: '120px 0px' },
+    );
+    observer.observe(el);
+    return () => {
+      cancelled = true;
+      observer.disconnect();
+    };
+  }, [doc.id, previewSrc]);
+
+  if (previewSrc) {
+    return (
+      <img
+        src={previewSrc}
+        alt={doc.title}
+        className="w-full h-full object-cover bg-white"
+      />
+    );
+  }
+
+  return (
+    <div ref={containerRef} className={`w-full h-full relative bg-gradient-to-br ${gradient}`}>
+      {status === 'loading' && (
+        <div className="absolute inset-0 flex items-center justify-center bg-white/80">
+          <Loader2 size={22} className="animate-spin text-teal-500" />
+        </div>
+      )}
+      {status === 'error' && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+          <Newspaper size={28} className="text-white/60" />
+          <span className="text-white/80 text-xs font-bold px-2 text-center leading-tight line-clamp-2">
+            {doc.title}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+});
+PdfPagePreview.displayName = 'PdfPagePreview';
+
+/** Single issue card — stored thumb, else PDF page-1 preview, else gradient. */
 const IssueCard: React.FC<{
   doc: Document;
   index: number;
-  channelLogo?: string;
   onClick: () => void;
-}> = ({ doc, index, channelLogo, onClick }) => {
+}> = ({ doc, index, onClick }) => {
   const thumbUrl = doc.thumbnail_url ? getUploadUrl(doc.thumbnail_url) : null;
-  const logoUrl = channelLogo ? getUploadUrl(channelLogo) : null;
   const gradient = COVER_GRADIENTS[index % COVER_GRADIENTS.length];
   const label = doc.date
     ? `${doc.date} ${doc.month ? MONTHS[doc.month - 1] : ''} ${doc.year ?? ''}`
     : doc.title;
+  const isPdf = isPdfFile(doc.file_url, doc.document_type);
 
   return (
     <button
@@ -121,16 +200,8 @@ const IssueCard: React.FC<{
             loading="lazy"
             {...WASABI_IMG_PROPS}
           />
-        ) : logoUrl ? (
-          <div className={`w-full h-full bg-gradient-to-br ${gradient} flex items-center justify-center p-4`}>
-            <img
-              src={logoUrl}
-              alt={doc.title}
-              className="max-w-full max-h-full object-contain"
-              loading="lazy"
-              {...WASABI_IMG_PROPS}
-            />
-          </div>
+        ) : isPdf ? (
+          <PdfPagePreview doc={doc} gradient={gradient} />
         ) : (
           <div className={`w-full h-full bg-gradient-to-br ${gradient} flex flex-col items-center justify-center gap-2`}>
             <Newspaper size={32} className="text-white/60" />
@@ -445,7 +516,6 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
                             key={doc.id}
                             doc={doc}
                             index={idx}
-                            channelLogo={channelLogo}
                             onClick={() => handleDocClick(doc)}
                           />
                         ))}
@@ -520,20 +590,21 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
               </button>
             </div>
 
-            <div className="flex-1 min-h-0 bg-gray-800">
+            <div className="flex-1 min-h-0 bg-gray-800 flex flex-col">
               {selectedIsPdf ? (
                 <Suspense
                   fallback={
                     <div className="h-full flex flex-col items-center justify-center gap-3 text-white">
                       <Loader2 size={28} className="animate-spin text-teal-400" />
-                      <p className="text-sm text-gray-400">Opening first page…</p>
+                      <p className="text-sm text-gray-400">Opening reader…</p>
                     </div>
                   }
                 >
-                  <PdfDocumentViewer
+                  <SinglePagePdfViewer
                     documentId={selectedDoc.id}
-                    src={selectedDoc.file_url}
                     title={selectedDoc.title}
+                    initialPage={1}
+                    previewDataUrl={getCachedPageImage(selectedDoc.id, 1)}
                     className="h-full"
                   />
                 </Suspense>
