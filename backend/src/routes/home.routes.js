@@ -6,6 +6,7 @@ import {
   getPublicFooterPageItem,
   getPublicGallery,
   getPublicFaqs,
+  getPublicGroupProfile,
 } from '../controllers/homeController.js';
 
 const router = express.Router();
@@ -20,6 +21,9 @@ router.get('/mobile-data', getMobileHomeData);
 
 // GET /api/v1/home/download-apps - Get download links for iOS and Android apps
 router.get('/download-apps', getDownloadApps);
+
+// GET /api/v1/home/group-profile - my_group_profile logo (signed Wasabi URL)
+router.get('/group-profile', getPublicGroupProfile);
 
 // GET /api/v1/home/gallery - Public gallery albums with images
 router.get('/gallery', getPublicGallery);

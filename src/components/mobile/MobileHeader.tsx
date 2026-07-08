@@ -1075,6 +1075,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                       }
                       alt={appInfo?.name || 'My Group'}
                       className="h-24 w-auto max-w-[180px] object-contain"
+                      {...WASABI_IMG_PROPS}
                     />
                   ) : (
                     <>

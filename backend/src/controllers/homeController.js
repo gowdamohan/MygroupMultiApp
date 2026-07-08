@@ -6,7 +6,8 @@ import {
   FooterFaq,
   GalleryList,
   GalleryImagesMaster,
-  MainAds
+  MainAds,
+  MyGroupProfile,
 } from '../models/index.js';
 import { resolveStorageReadUrl } from '../services/wasabiService.js';
 
@@ -92,6 +93,45 @@ const corporateFooterWhere = (type, extra = {}) => ({
   group_name: CORPORATE_GROUP,
   ...extra,
 });
+
+/** Resolve my_group_profile image fields to signed Wasabi URLs. */
+const formatGroupProfile = async (profile) => {
+  if (!profile) return null;
+  const row = profile.toJSON ? profile.toJSON() : profile;
+  return {
+    id: row.id,
+    name: row.name || null,
+    icon: row.icon ? await resolveImg(row.icon) : null,
+    logo: row.logo ? await resolveImg(row.logo) : null,
+    name_image: row.name_image ? await resolveImg(row.name_image) : null,
+    color_code: row.color_code || null,
+  };
+};
+
+/** Load first my_group_profile row with signed image URLs. */
+const loadGroupProfile = async () => {
+  const profile = await MyGroupProfile.findOne({ order: [['id', 'ASC']] });
+  return formatGroupProfile(profile);
+};
+
+// ─── Public group profile (logo for header) ────────────────────────────────
+/**
+ * GET /api/v1/home/group-profile
+ * Public — logo/icon from my_group_profile with Wasabi signed URLs.
+ */
+export const getPublicGroupProfile = async (_req, res) => {
+  try {
+    const profile = await loadGroupProfile();
+    res.json({ success: true, data: profile });
+  } catch (error) {
+    console.error('Error fetching public group profile:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch group profile',
+      error: error.message,
+    });
+  }
+};
 
 // ─── Public footer page by type (group_name = corporate) ─────────────────────
 /**
@@ -230,8 +270,11 @@ export const getDownloadApps = async (_req, res) => {
 
 export const getMobileHomeData = async (_req, res) => {
   try {
-    /* ── 1. Logo / group info (static placeholder) ── */
-    const logo = { id: 1, name_image: '/uploads/logo.png', logo: '/uploads/icon.png' };
+    /* ── 1. Logo / group info (my_group_profile + signed Wasabi URLs) ── */
+    const groupProfile = await loadGroupProfile();
+    const logo = groupProfile
+      ? { id: groupProfile.id, name_image: groupProfile.name_image || '', logo: groupProfile.logo || '' }
+      : { id: 0, name_image: '', logo: '' };
 
     /* ── 2. Top-nav icon lists ── */
     const includeDetails = [{ model: CreateDetails, as: 'details', required: false }];

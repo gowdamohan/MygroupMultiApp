@@ -259,7 +259,11 @@ export const DesktopHomePage: React.FC = () => {
       {/* ══════════════════════════════════════════
           HEADER — logo + header ads + brand bar
       ══════════════════════════════════════════ */}
-      <DesktopHomeHeader darkMode={darkMode} onDarkModeToggle={toggleDarkMode} />
+      <DesktopHomeHeader
+        darkMode={darkMode}
+        onDarkModeToggle={toggleDarkMode}
+        logoUrl={homeData?.logo?.logo}
+      />
 
       <main className="desktop-home-main transition-colors duration-300">
 
