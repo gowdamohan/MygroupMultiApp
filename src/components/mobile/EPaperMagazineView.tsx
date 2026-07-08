@@ -6,12 +6,12 @@
  * Layout:
  *  • Sticky header with channel branding
  *  • Year accordion → month chip-tabs → 2-column issue grid
- *  • PDF click opens directly in browser for fast native rendering
- *  • Full-screen modal for non-PDF media (images)
+ *  • Cheap covers (stored thumb → channel logo → gradient) — no client PDF.js thumbs
+ *  • PDF / media open in full-screen modal (progressive page-1-first reader)
  *
  * API: GET /api/v1/mymedia/channel/:channelId/documents
  */
-import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import {
   ArrowLeft, Download, Calendar, ChevronDown, ChevronUp,
   Loader2, Newspaper, BookOpen,
@@ -20,10 +20,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { API_BASE_URL, getUploadUrl, WASABI_IMG_PROPS } from '../../config/api.config';
 import { isPdfFile, getDocumentStreamUrl } from '../../utils/pdfViewer';
-import * as pdfjsLib from 'pdfjs-dist';
-import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+const PdfDocumentViewer = lazy(() =>
+  import('../shared/PdfDocumentViewer').then((m) => ({ default: m.PdfDocumentViewer })),
+);
 
 /* ── Types ──────────────────────────────────────────────────────── */
 interface EPaperMagazineViewProps {
@@ -92,142 +92,15 @@ const getDocUrl = (doc: Document): string => {
   return getUploadUrl(doc.file_url);
 };
 
-/* ── Thumbnail concurrency & cache ─────────────────────────────── */
-const THUMB_MAX_CONCURRENT = 2;
-const THUMB_CANVAS_PX = 150;
-const thumbCache = new Map<number, string>();
-let thumbActive = 0;
-const thumbQueue: (() => void)[] = [];
-
-function acquireThumbSlot(): Promise<void> {
-  if (thumbActive < THUMB_MAX_CONCURRENT) { thumbActive++; return Promise.resolve(); }
-  return new Promise(r => thumbQueue.push(r));
-}
-function releaseThumbSlot() {
-  thumbActive--;
-  const next = thumbQueue.shift();
-  if (next) { thumbActive++; next(); }
-}
-
-/** PDF first-page thumbnail — range-fetched, queued, cached as JPEG data-URL */
-const PdfThumbnail = memo<{ doc: Document; gradient: string }>(({ doc, gradient }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const startedRef = useRef(false);
-  const [cachedSrc, setCachedSrc] = useState<string | null>(() => thumbCache.get(doc.id) ?? null);
-  const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>(() =>
-    cachedSrc ? 'done' : 'idle',
-  );
-
-  useEffect(() => {
-    if (cachedSrc || startedRef.current) return;
-    const el = containerRef.current;
-    if (!el) return;
-    let cancelled = false;
-
-    const render = async () => {
-      startedRef.current = true;
-      await acquireThumbSlot();
-      if (cancelled) { releaseThumbSlot(); return; }
-      setStatus('loading');
-
-      let pdf: pdfjsLib.PDFDocumentProxy | null = null;
-      try {
-        const url = getDocUrl(doc);
-        pdf = await pdfjsLib.getDocument({
-          url,
-          withCredentials: false,
-          disableAutoFetch: true,
-          disableStream: true,
-          rangeChunkSize: 65536,
-        }).promise;
-        if (cancelled) { pdf.destroy(); return; }
-
-        const page = await pdf.getPage(1);
-        if (cancelled) { page.cleanup(); pdf.destroy(); return; }
-
-        const canvas = canvasRef.current;
-        if (!canvas || cancelled) { page.cleanup(); pdf.destroy(); return; }
-
-        const vp = page.getViewport({ scale: 1 });
-        const scale = THUMB_CANVAS_PX / vp.width;
-        const scaled = page.getViewport({ scale });
-
-        canvas.width = scaled.width;
-        canvas.height = scaled.height;
-        canvas.style.width = '100%';
-        canvas.style.height = '100%';
-
-        const ctx = canvas.getContext('2d', { alpha: false });
-        if (!ctx) { page.cleanup(); pdf.destroy(); setStatus('error'); return; }
-
-        await page.render({ canvasContext: ctx, viewport: scaled }).promise;
-
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.65);
-        thumbCache.set(doc.id, dataUrl);
-
-        if (!cancelled) { setCachedSrc(dataUrl); setStatus('done'); }
-        page.cleanup();
-        pdf.destroy();
-      } catch {
-        if (!cancelled) setStatus('error');
-        pdf?.destroy();
-      } finally {
-        releaseThumbSlot();
-      }
-    };
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) { observer.disconnect(); render(); }
-      },
-      { rootMargin: '200px 0px' },
-    );
-    observer.observe(el);
-
-    return () => { cancelled = true; observer.disconnect(); };
-  }, [doc.id, doc.file_url, cachedSrc]);
-
-  if (cachedSrc) {
-    return (
-      <div className="w-full h-full">
-        <img src={cachedSrc} alt={doc.title} className="w-full h-full object-cover" />
-      </div>
-    );
-  }
-
-  return (
-    <div ref={containerRef} className="w-full h-full relative bg-gray-100">
-      {status === 'loading' && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <Loader2 size={20} className="animate-spin text-teal-500" />
-        </div>
-      )}
-      {status === 'error' && (
-        <div className={`absolute inset-0 bg-gradient-to-br ${gradient} flex flex-col items-center justify-center gap-2`}>
-          <Newspaper size={32} className="text-white/60" />
-          <span className="text-white/80 text-xs font-bold px-2 text-center leading-tight line-clamp-2">
-            {doc.title}
-          </span>
-        </div>
-      )}
-      <canvas
-        ref={canvasRef}
-        className="w-full h-full object-cover"
-        style={{ opacity: 0 }}
-      />
-    </div>
-  );
-});
-PdfThumbnail.displayName = 'PdfThumbnail';
-
-/** Single issue card (cover image or gradient fallback) */
+/** Single issue card — cheap covers only (no client-side PDF thumb rendering). */
 const IssueCard: React.FC<{
   doc: Document;
   index: number;
+  channelLogo?: string;
   onClick: () => void;
-}> = ({ doc, index, onClick }) => {
+}> = ({ doc, index, channelLogo, onClick }) => {
   const thumbUrl = doc.thumbnail_url ? getUploadUrl(doc.thumbnail_url) : null;
+  const logoUrl = channelLogo ? getUploadUrl(channelLogo) : null;
   const gradient = COVER_GRADIENTS[index % COVER_GRADIENTS.length];
   const label = doc.date
     ? `${doc.date} ${doc.month ? MONTHS[doc.month - 1] : ''} ${doc.year ?? ''}`
@@ -248,8 +121,16 @@ const IssueCard: React.FC<{
             loading="lazy"
             {...WASABI_IMG_PROPS}
           />
-        ) : isPdfFile(doc.file_url, doc.document_type) ? (
-          <PdfThumbnail doc={doc} gradient={gradient} />
+        ) : logoUrl ? (
+          <div className={`w-full h-full bg-gradient-to-br ${gradient} flex items-center justify-center p-4`}>
+            <img
+              src={logoUrl}
+              alt={doc.title}
+              className="max-w-full max-h-full object-contain"
+              loading="lazy"
+              {...WASABI_IMG_PROPS}
+            />
+          </div>
         ) : (
           <div className={`w-full h-full bg-gradient-to-br ${gradient} flex flex-col items-center justify-center gap-2`}>
             <Newspaper size={32} className="text-white/60" />
@@ -384,13 +265,9 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
     if (url) window.open(url, '_blank');
   };
 
-  /** PDF → open directly in browser; non-PDF → open in-app modal */
+  /** All issues open in-app (PDF uses progressive page-1-first reader). */
   const handleDocClick = (doc: Document) => {
-    if (isPdfFile(doc.file_url, doc.document_type)) {
-      handleDownload(doc);
-    } else {
-      setSelectedDoc(doc);
-    }
+    setSelectedDoc(doc);
   };
 
   /* ── Toggle year accordion & auto-select month ─────────────── */
@@ -406,6 +283,10 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
       }
     }
   };
+
+  const selectedIsPdf = selectedDoc
+    ? isPdfFile(selectedDoc.file_url, selectedDoc.document_type)
+    : false;
 
   /* ── Render ──────────────────────────────────────────────────── */
   return (
@@ -564,6 +445,7 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
                             key={doc.id}
                             doc={doc}
                             index={idx}
+                            channelLogo={channelLogo}
                             onClick={() => handleDocClick(doc)}
                           />
                         ))}
@@ -594,7 +476,7 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
         )}
       </div>
 
-      {/* ═══ FULL-SCREEN PDF READER MODAL ═════════════════════════ */}
+      {/* ═══ FULL-SCREEN READER MODAL ══════════════════════════════ */}
       <AnimatePresence>
         {selectedDoc && (
           <motion.div
@@ -607,7 +489,6 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
           >
             {/* Reader toolbar */}
             <div className="flex items-center gap-3 px-4 py-3 bg-gray-950 border-b border-gray-800 flex-shrink-0">
-              {/* Back */}
               <button
                 onClick={() => setSelectedDoc(null)}
                 className="p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors text-white flex-shrink-0"
@@ -616,7 +497,6 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
                 <ArrowLeft size={20} />
               </button>
 
-              {/* Title + date */}
               <div className="flex-1 min-w-0">
                 <p className="text-white font-bold text-sm leading-tight truncate">
                   {selectedDoc.title}
@@ -630,7 +510,6 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
                 </p>
               </div>
 
-              {/* Download */}
               <button
                 onClick={() => handleDownload(selectedDoc)}
                 className="flex items-center gap-1.5 px-3 py-2 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 rounded-xl text-white text-xs font-semibold transition-colors flex-shrink-0"
@@ -641,14 +520,33 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
               </button>
             </div>
 
-            {/* Image / non-PDF viewer (PDFs open directly in browser) */}
-            <div className="flex-1 flex items-center justify-center bg-gray-800 p-4">
-              <img
-                src={getUploadUrl(selectedDoc.file_url)}
-                alt={selectedDoc.title}
-                className="max-w-full max-h-full object-contain rounded-lg shadow-xl"
-                {...WASABI_IMG_PROPS}
-              />
+            <div className="flex-1 min-h-0 bg-gray-800">
+              {selectedIsPdf ? (
+                <Suspense
+                  fallback={
+                    <div className="h-full flex flex-col items-center justify-center gap-3 text-white">
+                      <Loader2 size={28} className="animate-spin text-teal-400" />
+                      <p className="text-sm text-gray-400">Opening first page…</p>
+                    </div>
+                  }
+                >
+                  <PdfDocumentViewer
+                    documentId={selectedDoc.id}
+                    src={selectedDoc.file_url}
+                    title={selectedDoc.title}
+                    className="h-full"
+                  />
+                </Suspense>
+              ) : (
+                <div className="h-full flex items-center justify-center p-4">
+                  <img
+                    src={getUploadUrl(selectedDoc.file_url)}
+                    alt={selectedDoc.title}
+                    className="max-w-full max-h-full object-contain rounded-lg shadow-xl"
+                    {...WASABI_IMG_PROPS}
+                  />
+                </div>
+              )}
             </div>
           </motion.div>
         )}

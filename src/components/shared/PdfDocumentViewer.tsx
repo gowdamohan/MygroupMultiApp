@@ -2,6 +2,8 @@
  * PdfDocumentViewer — Mobile-first PDF reader (virtualized)
  *
  * Features:
+ *  • Page-1-first load: unlock UI after measuring page 1; remaining dims in background
+ *  • Range/stream PDF.js options so the full file is not required up front
  *  • Lazy page rendering via Intersection Observer (viewport + buffer)
  *  • Adaptive DPR + canvas cleanup for low-memory mobile devices
  *  • pdfjs TextLayer overlay → native text selection (all scripts)
@@ -397,7 +399,7 @@ export const PdfDocumentViewer: React.FC<PdfDocumentViewerProps> = ({
     return () => ro.disconnect();
   }, []); // run once on mount; ResizeObserver keeps it live
 
-  /* ── Load PDF + page dimensions (no canvas rendering) ─────────── */
+  /* ── Load PDF: page 1 first, then remaining dims in background ─ */
   useEffect(() => {
     // Prefer the pre-resolved src URL when it is already an absolute HTTP/S URL
     // (e.g. Wasabi signed URL returned by the API). This avoids the extra
@@ -429,8 +431,15 @@ export const PdfDocumentViewer: React.FC<PdfDocumentViewerProps> = ({
       setGeneration(g => g + 1);
 
       try {
-        const task = pdfjsLib.getDocument({ url: pdfUrl, withCredentials: false });
-        const pdf  = await task.promise;
+        // Range requests + no auto-fetch → first page can paint without pulling the whole PDF.
+        const task = pdfjsLib.getDocument({
+          url: pdfUrl,
+          withCredentials: false,
+          disableAutoFetch: true,
+          disableStream: false,
+          rangeChunkSize: 65536,
+        });
+        const pdf = await task.promise;
         if (cancelled) { pdf.destroy(); return; }
 
         setPdfDoc(prev => {
@@ -438,20 +447,50 @@ export const PdfDocumentViewer: React.FC<PdfDocumentViewerProps> = ({
           return pdf;
         });
 
-        const dims = await Promise.all(
-          Array.from({ length: pdf.numPages }, (_, i) =>
-            pdf.getPage(i + 1).then(p => {
-              const vp = p.getViewport({ scale: 1 });
-              return { width: vp.width, height: vp.height };
-            }),
-          ),
-        );
-        if (cancelled) return;
+        const total = pdf.numPages;
+        const placeholder: PageDim = { width: 612, height: 792 }; // US Letter until measured
 
-        setNumPages(pdf.numPages);
-        setPageTexts(new Array(pdf.numPages).fill(''));
-        setPageDims(dims);
-        setLoading(false);
+        // ── Fast path: measure page 1 only, unlock UI immediately ──
+        const page1 = await pdf.getPage(1);
+        if (cancelled) { page1.cleanup(); return; }
+        const vp1 = page1.getViewport({ scale: 1 });
+        const dim1: PageDim = { width: vp1.width, height: vp1.height };
+        page1.cleanup();
+
+        const initialDims = Array.from({ length: total }, (_, i) =>
+          i === 0 ? dim1 : { ...dim1 }, // reuse page-1 aspect until others measured
+        );
+
+        setNumPages(total);
+        setPageTexts(new Array(total).fill(''));
+        setPageDims(initialDims);
+        setLoading(false); // user sees page 1 now
+
+        // ── Background: refine remaining page dimensions ───────────
+        if (total > 1) {
+          const batchSize = 4;
+          const refined = [...initialDims];
+          for (let start = 1; start < total; start += batchSize) {
+            if (cancelled) return;
+            const end = Math.min(start + batchSize, total);
+            const batch = await Promise.all(
+              Array.from({ length: end - start }, (_, j) => {
+                const pageNum = start + j + 1;
+                return pdf.getPage(pageNum).then(p => {
+                  const vp = p.getViewport({ scale: 1 });
+                  const dim = { width: vp.width, height: vp.height };
+                  p.cleanup();
+                  return dim;
+                }).catch(() => placeholder);
+              }),
+            );
+            if (cancelled) return;
+            for (let j = 0; j < batch.length; j++) {
+              refined[start + j] = batch[j];
+            }
+            setPageDims([...refined]);
+          }
+        }
       } catch (err) {
         if (!cancelled) {
           console.error('PDF load error:', err);

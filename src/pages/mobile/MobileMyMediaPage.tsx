@@ -1,13 +1,12 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { ChevronDown, X, Eye, Heart, UserPlus, FileText, Play, MapPin } from 'lucide-react';
+import { ChevronDown, X, Eye, Heart, UserPlus, FileText, Play, MapPin, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { MobileHeader, getMobileHeaderHeight } from '../../components/mobile/MobileHeader';
 import { MobileFooter, MOBILE_FOOTER_HEIGHT } from '../../components/mobile/MobileFooter';
 import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
 import { ChannelDetailView } from '../../components/mobile/ChannelDetailView';
-import { EPaperMagazineView } from '../../components/mobile/EPaperMagazineView';
 import { TVChannelView } from '../../components/mobile/TVChannelView';
 import { TVChannelDetailPage } from '../../components/mobile/TVChannelDetailPage';
 import { YoutubeChannelView } from '../../components/mobile/YoutubeChannelView';
@@ -30,6 +29,11 @@ import {
   type StateOption,
   type DistrictOption
 } from '../../utils/viewerLocation';
+
+/** Lazy: keeps pdf.js out of the initial MyMedia bundle (first E-paper open only). */
+const EPaperMagazineView = lazy(() =>
+  import('../../components/mobile/EPaperMagazineView').then((m) => ({ default: m.EPaperMagazineView })),
+);
 
 const SLOT_WIDTH_PX = 80;
 const CHANNEL_COL_WIDTH_PX = 96;
@@ -85,12 +89,17 @@ interface Channel {
   latest_document?: {
     id: number;
     title: string;
-    file_url: string;
+    /** Omitted on list endpoint for speed — signed only when opening a document. */
+    file_url?: string;
     year?: number;
     month?: number;
     date?: number;
   } | null;
 }
+
+/** In-memory channels cache so re-visiting E-paper/Magazines is instant. */
+const CHANNELS_CACHE_TTL_MS = 5 * 60 * 1000;
+const channelsCache = new Map<string, { data: Channel[]; cachedAt: number }>();
 
 interface Schedule {
   id: number;
@@ -154,6 +163,8 @@ export const MobileMyMediaPage: React.FC = () => {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [channelSchedules, setChannelSchedules] = useState<{ [channelId: number]: Schedule[] }>({});
   const [loading, setLoading] = useState(true);
+  /** True while channels are refetching after footer/filter change — show skeleton immediately. */
+  const [channelsLoading, setChannelsLoading] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
 
   const [locationReady, setLocationReady] = useState(false);
@@ -593,16 +604,41 @@ export const MobileMyMediaPage: React.FC = () => {
 
   // Handle parent category selection from footer
   const handleParentCategorySelect = (parentId: number) => {
-    setSelectedParentCategory(parentId);
+    if (parentId === selectedParentCategory) return;
+
     // Find the parent category and set its children as subcategories
     const parent = parentCategories.find(p => p.id === parentId);
     if (parent && parent.children && parent.children.length > 0) {
       setSubCategories(parent.children);
-      setSelectedCategory(null); // Default to "All" subcategories
     } else {
       setSubCategories([]);
-      setSelectedCategory(null);
     }
+    setSelectedCategory(null); // Default to "All" subcategories
+    setChannelSchedules({});
+
+    // Soft cache: if we've loaded this category recently, show it instantly (no skeleton flash)
+    const previewKey = [
+      appInfo?.id ?? appName ?? '',
+      selectedCountry || '',
+      selectedState || '',
+      selectedDistrict || '',
+      parentId,
+      '', // selectedCategory reset
+      selectedLanguage ?? '',
+      ...(categoryNameIsDocument(parent?.category_name || '')
+        ? ['doc', String(docFilterYear), String(docFilterMonth)]
+        : []),
+    ].join('|');
+    const cached = channelsCache.get(previewKey);
+    if (cached && Date.now() - cached.cachedAt < CHANNELS_CACHE_TTL_MS) {
+      setChannels(cached.data);
+      setChannelsLoading(false);
+    } else {
+      setChannelsLoading(true);
+      setChannels([]);
+    }
+
+    setSelectedParentCategory(parentId);
   };
 
   // Fetch languages - same pattern as MediaRegistrationForm (/partner/languages)
@@ -643,7 +679,32 @@ export const MobileMyMediaPage: React.FC = () => {
     }
   };
 
+  const buildChannelsCacheKey = () => {
+    const parts = [
+      appInfo?.id ?? appName ?? '',
+      selectedCountry || '',
+      selectedState || '',
+      selectedDistrict || '',
+      selectedParentCategory ?? '',
+      selectedCategory ?? '',
+      selectedLanguage ?? '',
+    ];
+    if (isDocumentCategory()) {
+      parts.push('doc', String(docFilterYear), String(docFilterMonth));
+    }
+    return parts.join('|');
+  };
+
   const fetchChannels = async () => {
+    const cacheKey = buildChannelsCacheKey();
+    const cached = channelsCache.get(cacheKey);
+    if (cached && Date.now() - cached.cachedAt < CHANNELS_CACHE_TTL_MS) {
+      setChannels(cached.data);
+      setChannelsLoading(false);
+      return;
+    }
+
+    setChannelsLoading(true);
     try {
       const params = new URLSearchParams();
       if (appInfo?.id) params.append('appId', String(appInfo.id));
@@ -665,9 +726,11 @@ export const MobileMyMediaPage: React.FC = () => {
       const response = await axios.get(url);
       if (response.data.success) {
         const data = response.data.data;
-        setChannels(Array.isArray(data) ? data : []);
+        const list: Channel[] = Array.isArray(data) ? data : [];
+        setChannels(list);
+        channelsCache.set(cacheKey, { data: list, cachedAt: Date.now() });
         if (process.env.NODE_ENV === 'development') {
-          console.log('[MyMedia] channels API response:', { url, count: Array.isArray(data) ? data.length : 0, data });
+          console.log('[MyMedia] channels API response:', { url, count: list.length, data: list });
         }
       } else {
         console.warn('[MyMedia] channels API success=false:', response.data);
@@ -676,6 +739,8 @@ export const MobileMyMediaPage: React.FC = () => {
     } catch (error) {
       console.error('[MyMedia] Error fetching channels:', error);
       setChannels([]);
+    } finally {
+      setChannelsLoading(false);
     }
   };
 
@@ -830,18 +895,27 @@ export const MobileMyMediaPage: React.FC = () => {
     );
   }
 
-  // Render E-Paper/Magazine document view
+  // Render E-Paper/Magazine document view (lazy — pdf.js chunk loads only here)
   if (viewMode === 'epaper-view' && selectedChannel) {
     return (
-      <EPaperMagazineView
-        channelId={selectedChannel.id}
-        channelName={selectedChannel.media_name_english}
-        channelLogo={selectedChannel.media_logo_url || selectedChannel.media_logo}
-        filterYear={docFilterYear}
-        filterMonth={docFilterMonth === '' ? undefined : docFilterMonth}
-        onBack={handleBackToList}
-        onViewDetails={handleViewChannelDetails}
-      />
+      <Suspense
+        fallback={
+          <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center gap-3">
+            <Loader2 size={32} className="animate-spin text-teal-600" />
+            <p className="text-sm text-gray-500">Loading reader…</p>
+          </div>
+        }
+      >
+        <EPaperMagazineView
+          channelId={selectedChannel.id}
+          channelName={selectedChannel.media_name_english}
+          channelLogo={selectedChannel.media_logo_url || selectedChannel.media_logo}
+          filterYear={docFilterYear}
+          filterMonth={docFilterMonth === '' ? undefined : docFilterMonth}
+          onBack={handleBackToList}
+          onViewDetails={handleViewChannelDetails}
+        />
+      </Suspense>
     );
   }
 
@@ -905,7 +979,7 @@ export const MobileMyMediaPage: React.FC = () => {
         showDarkModeToggle={true}
         showProfileButton={true}
       />
-      <div className="pb-20" style={{ paddingBottom: MOBILE_FOOTER_HEIGHT + 16 }}>
+      <div style={{ paddingBottom: `calc(${MOBILE_FOOTER_HEIGHT}px + 8px + env(safe-area-inset-bottom, 0px))` }}>
         {/* Filter Row - Updated design with white background and rounded buttons */}
         <div className="sticky z-30 bg-white shadow-sm px-3 py-3 border-b border-gray-200" style={{ top: headerHeight }}>
           <div className="flex gap-2 overflow-x-auto scrollbar-hide">
@@ -995,6 +1069,18 @@ export const MobileMyMediaPage: React.FC = () => {
             >
               Select location
             </button>
+          </div>
+        ) : channelsLoading ? (
+          <div className="p-4 grid grid-cols-2 gap-4 bg-gray-50" aria-busy="true" aria-label="Loading channels">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div key={i} className="bg-white rounded-xl shadow-md overflow-hidden animate-pulse">
+                <div className="aspect-[3/4] bg-gray-200" />
+                <div className="p-3 space-y-2">
+                  <div className="h-3 bg-gray-200 rounded w-3/4" />
+                  <div className="h-2.5 bg-gray-100 rounded w-1/2" />
+                </div>
+              </div>
+            ))}
           </div>
         ) : channels.length === 0 ? (
           <div className="p-8 text-center text-gray-500 bg-white">
@@ -1091,7 +1177,7 @@ export const MobileMyMediaPage: React.FC = () => {
             const currentSlot = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes() < 30 ? '00' : '30'}`;
             const currentSlotIndex = TIME_SLOTS.indexOf(currentSlot);
             const showNowMarker = selectedDay === 1 && currentSlotIndex >= 0;
-            const nowLineLeft = CHANNEL_COL_WIDTH_PX + currentSlotIndex * SLOT_WIDTH_PX;
+            const nowLineInTimeline = currentSlotIndex * SLOT_WIDTH_PX + SLOT_WIDTH_PX / 2 - 1;
 
             return (
               <div
@@ -1099,43 +1185,60 @@ export const MobileMyMediaPage: React.FC = () => {
                 className="bg-white overflow-x-auto relative shadow-inner"
               >
                 <div className="min-w-max relative">
-                <div className="flex border-b sticky top-0 bg-gradient-to-b from-gray-50 to-gray-100 z-10 shadow-sm">
+                <div className="flex border-b sticky top-0 bg-gradient-to-b from-gray-50 to-gray-100 z-30 shadow-sm">
                   <div
-                    className="sticky left-0 z-20 flex-shrink-0 p-3 font-bold text-gray-800 border-r bg-white shadow-[2px_0_4px_rgba(0,0,0,0.06)]"
+                    className="sticky left-0 z-40 flex-shrink-0 p-3 font-bold text-gray-800 border-r bg-white shadow-[2px_0_4px_rgba(0,0,0,0.06)]"
                     style={{ width: CHANNEL_COL_WIDTH_PX, minWidth: CHANNEL_COL_WIDTH_PX }}
                   >
                     CHANNELS
                   </div>
-                  {TIME_SLOTS.map((time) => (
-                    <div key={time} className="flex-shrink-0 p-2 text-center text-xs font-semibold text-gray-700 border-r" style={{ minWidth: SLOT_WIDTH_PX }}>
-                      {formatTime12h(time)}
-                    </div>
-                  ))}
+                  {TIME_SLOTS.map((time) => {
+                    const isNowSlot = showNowMarker && time === currentSlot;
+                    return (
+                      <div
+                        key={time}
+                        className={`flex-shrink-0 border-r relative flex flex-col items-center justify-end ${
+                          isNowSlot ? 'pt-1 pb-1.5' : 'p-2'
+                        }`}
+                        style={{ minWidth: SLOT_WIDTH_PX }}
+                      >
+                        {isNowSlot && (
+                          <div className="flex flex-col items-center pointer-events-none mb-0.5">
+                            <MapPin size={18} className="text-red-500 drop-shadow" fill="#ef4444" stroke="#b91c1c" />
+                            <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow leading-none">
+                              NOW
+                            </span>
+                          </div>
+                        )}
+                        <span className={`text-center text-xs font-semibold ${isNowSlot ? 'text-red-600' : 'text-gray-700'}`}>
+                          {formatTime12h(time)}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
 
+                {/* Vertical NOW line — timeline area only, below sticky channel column */}
                 {showNowMarker && (
-                  <>
+                  <div
+                    className="absolute top-0 bottom-0 pointer-events-none z-[5]"
+                    style={{
+                      left: CHANNEL_COL_WIDTH_PX,
+                      width: TIME_SLOTS.length * SLOT_WIDTH_PX,
+                    }}
+                    aria-hidden
+                  >
                     <div
-                      className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-[15] pointer-events-none"
-                      style={{ left: nowLineLeft + SLOT_WIDTH_PX / 2 - 1 }}
-                      aria-hidden
+                      className="absolute top-0 bottom-0 w-0.5 bg-red-500"
+                      style={{ left: nowLineInTimeline }}
                     />
-                    <div
-                      className="absolute z-[25] pointer-events-none flex flex-col items-center"
-                      style={{ left: nowLineLeft + SLOT_WIDTH_PX / 2 - 20, top: 4 }}
-                    >
-                      <MapPin size={20} className="text-red-500 drop-shadow" fill="#ef4444" stroke="#b91c1c" />
-                      <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow mt-0.5">
-                        NOW
-                      </span>
-                    </div>
-                  </>
+                  </div>
                 )}
 
                 {channels.map((channel) => (
                   <div key={channel.id} className="flex border-b border-gray-200 cursor-pointer hover:bg-pink-50/30 transition-colors" onClick={() => handleChannelClick(channel)}>
                     <div
-                      className="sticky left-0 z-10 flex-shrink-0 p-2 border-r border-gray-200 bg-white flex items-center justify-center relative group shadow-[2px_0_4px_rgba(0,0,0,0.06)]"
+                      className="sticky left-0 z-30 flex-shrink-0 p-2 border-r border-gray-200 bg-white flex items-center justify-center relative group shadow-[2px_0_4px_rgba(0,0,0,0.06)]"
                       style={{ width: CHANNEL_COL_WIDTH_PX, minWidth: CHANNEL_COL_WIDTH_PX }}
                     >
                       {(channel.media_logo_url || channel.media_logo) ? (

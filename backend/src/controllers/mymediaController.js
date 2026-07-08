@@ -1,4 +1,5 @@
 import { Op } from 'sequelize';
+import sequelize from '../config/database.js';
 import {
   MediaChannel,
   AppCategory,
@@ -465,37 +466,53 @@ export const getMyMediaChannels = async (req, res) => {
       console.log('[mymedia/channels]', { appId: targetAppId, whereClause, count: channels.length });
     }
 
-    // Optional: attach latest document per channel (E-Paper / Magazine list cards)
+    // Optional: attach latest document metadata per channel (E-Paper / Magazine list cards).
+    // List UI only needs title/date — skip signing full PDF URLs (main latency source).
+    // Fetch exactly one latest row per channel (GROUP_CONCAT pick), not every document.
     let latestDocByChannel = {};
     if (include_latest_document === '1' && channels.length > 0) {
       const channelIds = channels.map((c) => c.id);
-      const docWhere = { media_channel_id: { [Op.in]: channelIds }, status: 1 };
       const { year, month } = req.query;
-      if (year) docWhere.document_year = parseInt(year, 10);
-      if (month) docWhere.document_month = parseInt(month, 10);
 
-      const allDocs = await MediaChannelDocument.findAll({
-        where: docWhere,
-        order: [
-          ['media_channel_id', 'ASC'],
-          ['document_year', 'DESC'],
-          ['document_month', 'DESC'],
-          ['document_date', 'DESC']
-        ]
-      });
+      const replacements = { channelIds, status: 1 };
+      let yearMonthSql = '';
+      if (year) {
+        yearMonthSql += ' AND document_year = :year';
+        replacements.year = parseInt(year, 10);
+      }
+      if (month) {
+        yearMonthSql += ' AND document_month = :month';
+        replacements.month = parseInt(month, 10);
+      }
 
-      for (const doc of allDocs) {
-        if (!latestDocByChannel[doc.media_channel_id]) {
-          const fileUrl = await resolveStorageReadUrl(doc.document_path || doc.document_url, 3600);
-          latestDocByChannel[doc.media_channel_id] = {
-            id: doc.id,
-            title: doc.file_name || `Issue ${doc.document_date}/${doc.document_month}/${doc.document_year}`,
-            file_url: fileUrl,
-            year: doc.document_year,
-            month: doc.document_month,
-            date: doc.document_date
-          };
-        }
+      const [latestRows] = await sequelize.query(
+        `
+        SELECT d.id, d.media_channel_id, d.file_name, d.document_year, d.document_month, d.document_date
+        FROM media_channel_document d
+        INNER JOIN (
+          SELECT media_channel_id,
+                 CAST(SUBSTRING_INDEX(
+                   GROUP_CONCAT(id ORDER BY document_year DESC, document_month DESC, document_date DESC, id DESC),
+                   ',', 1
+                 ) AS UNSIGNED) AS latest_id
+          FROM media_channel_document
+          WHERE media_channel_id IN (:channelIds)
+            AND status = :status
+            ${yearMonthSql}
+          GROUP BY media_channel_id
+        ) pick ON d.id = pick.latest_id
+        `,
+        { replacements }
+      );
+
+      for (const doc of latestRows || []) {
+        latestDocByChannel[doc.media_channel_id] = {
+          id: doc.id,
+          title: doc.file_name || `Issue ${doc.document_date}/${doc.document_month}/${doc.document_year}`,
+          year: doc.document_year,
+          month: doc.document_month,
+          date: doc.document_date
+        };
       }
     }
 

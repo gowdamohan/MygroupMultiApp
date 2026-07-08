@@ -124,10 +124,13 @@ export const MobileFooter: React.FC<MobileFooterProps> = ({
   // Loading state
   if (loading) {
     return (
-      <div className={`fixed bottom-0 left-0 right-0 z-50 ${effectiveBgColor} border-t ${effectiveBorderColor} shadow-lg`}>
-        <div className="grid grid-cols-6 h-16">
+      <div
+        className={`fixed bottom-0 left-0 right-0 z-50 ${effectiveBgColor} border-t ${effectiveBorderColor} shadow-lg`}
+        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      >
+        <div className="grid grid-cols-6 h-14">
           {[...Array(6)].map((_, i) => (
-            <div key={i} className="flex flex-col items-center justify-center gap-1 py-3">
+            <div key={i} className="flex flex-col items-center justify-center gap-0.5 py-2">
               <div className={`w-6 h-6 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded animate-pulse`} />
               {showLabels && <div className={`w-10 h-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded animate-pulse`} />}
             </div>
@@ -143,7 +146,10 @@ export const MobileFooter: React.FC<MobileFooterProps> = ({
   }
 
   return (
-    <div className={`fixed bottom-0 left-0 right-0 z-50 ${effectiveBgColor} border-t ${effectiveBorderColor} shadow-2xl`}>
+    <div
+      className={`fixed bottom-0 left-0 right-0 z-50 ${effectiveBgColor} border-t ${effectiveBorderColor} shadow-2xl`}
+      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+    >
       <div
         className="grid"
         style={{ gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))` }}
@@ -152,7 +158,7 @@ export const MobileFooter: React.FC<MobileFooterProps> = ({
           <button
             key={category.id}
             onClick={() => handleCategoryClick(category)}
-            className={`flex flex-col items-center gap-1.5 py-3 transition-all duration-200 relative ${
+            className={`flex flex-col items-center gap-0.5 py-2 transition-all duration-200 relative ${
               selectedCategoryId === category.id
                 ? `${effectiveSelectedBgColor} ${effectiveSelectedTextColor} shadow-inner`
                 : `${effectiveTextColor} ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-50'}`
@@ -160,14 +166,14 @@ export const MobileFooter: React.FC<MobileFooterProps> = ({
           >
             {/* Active indicator bar at top */}
             {selectedCategoryId === category.id && (
-              <div className="absolute top-0 left-0 right-0 h-1 bg-white rounded-b-full" />
+              <div className="absolute top-0 left-0 right-0 h-0.5 bg-white rounded-b-full" />
             )}
 
             <div className="flex items-center justify-center" style={{ width: iconSize, height: iconSize }}>
               {renderCategoryIcon(category)}
             </div>
             {showLabels && (
-              <span className={`text-[10px] font-medium whitespace-nowrap truncate max-w-[50px] ${
+              <span className={`text-[10px] font-medium whitespace-nowrap truncate max-w-[50px] leading-tight ${
                 selectedCategoryId === category.id ? 'font-semibold' : ''
               }`}>
                 {category.category_name}
@@ -180,8 +186,8 @@ export const MobileFooter: React.FC<MobileFooterProps> = ({
   );
 };
 
-// Export footer height constant - Updated for new design
-export const MOBILE_FOOTER_HEIGHT = 68;
+/** Content height of the footer bar (py-2 + 24px icon + label). Safe-area is applied separately. */
+export const MOBILE_FOOTER_HEIGHT = 56;
 
 export default MobileFooter;
 
