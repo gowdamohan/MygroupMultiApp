@@ -1,6 +1,29 @@
 import { MediaChannelDocument, MediaChannel, AppCategory, User } from '../models/index.js';
 import { uploadFile, deleteFile, getPresignedUrl, resolveStorageReadUrl } from '../services/wasabiService.js';
+import {
+  splitPdfToWasabiPages,
+  imageBufferToWasabiPage,
+  listPageKeys,
+  parsePagesJson,
+} from '../services/pdfPagesService.js';
 import { Op } from 'sequelize';
+
+/**
+ * Best-effort delete of PDF + all split page objects from Wasabi.
+ */
+async function deleteDocumentStorage(doc) {
+  if (!doc) return;
+  if (doc.document_path) {
+    try { await deleteFile(doc.document_path); } catch (err) {
+      console.error('Error deleting document_path from Wasabi:', err.message);
+    }
+  }
+  for (const key of listPageKeys(doc.pages_json)) {
+    try { await deleteFile(key); } catch (err) {
+      console.error('Error deleting page from Wasabi:', key, err.message);
+    }
+  }
+}
 
 /**
  * Get upload categories (category_type = 'upload_data')
@@ -53,6 +76,10 @@ export const getDocuments = async (req, res) => {
     const data = await Promise.all(documents.map(async (doc) => {
       const json = doc.toJSON();
       json.document_url = await resolveStorageReadUrl(doc.document_path || doc.document_url, 3600);
+      const pages = parsePagesJson(doc.pages_json);
+      json.page_count = Object.keys(pages).length;
+      const page1 = pages['1'];
+      json.thumbnail_url = page1 ? await resolveStorageReadUrl(page1, 3600) : null;
       return json;
     }));
 
@@ -64,7 +91,9 @@ export const getDocuments = async (req, res) => {
 };
 
 /**
- * Upload a document (PDF)
+ * Upload a document (PDF) — stores original PDF + splits every page to WebP.
+ * Partner waits (loading) until all pages are processed. pages_json:
+ *   {"1":"wasabi/.../page-1.webp","2":"..."}
  */
 export const uploadDocument = async (req, res) => {
   try {
@@ -96,15 +125,10 @@ export const uploadDocument = async (req, res) => {
     });
 
     if (existingDoc) {
-      // Delete old file from Wasabi
-      try {
-        await deleteFile(existingDoc.document_path);
-      } catch (err) {
-        console.error('Error deleting old file:', err);
-      }
+      await deleteDocumentStorage(existingDoc);
     }
 
-    // Upload to Wasabi
+    // Upload original file to Wasabi (archive / download)
     const folder = `media_documents/channel_${channelId}/${year}/${month}`;
     const result = await uploadFile(
       req.file.buffer,
@@ -117,7 +141,30 @@ export const uploadDocument = async (req, res) => {
       return res.status(500).json({ success: false, message: 'Failed to upload file to storage' });
     }
 
-    // Save or update document record
+    // Split PDF (or normalize image) into per-page WebPs — blocking so upload spinner covers this
+    let pagesMap = {};
+    try {
+      if (req.file.mimetype === 'application/pdf') {
+        const split = await splitPdfToWasabiPages(req.file.buffer, `${folder}/doc_${Date.now()}`);
+        pagesMap = split.pages;
+      } else {
+        const split = await imageBufferToWasabiPage(req.file.buffer, `${folder}/doc_${Date.now()}`);
+        pagesMap = split.pages;
+      }
+    } catch (splitErr) {
+      console.error('PDF page split failed:', splitErr);
+      // Rollback original upload
+      try { await deleteFile(result.fileName); } catch (_) { /* ignore */ }
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to process PDF pages. Please try again or use a smaller PDF.',
+        error: splitErr.message
+      });
+    }
+
+    const pagesJson = JSON.stringify(pagesMap);
+
+    // Save or update document record (one row; pages as JSON index map)
     const documentData = {
       media_channel_id: channelId,
       category_id: categoryId,
@@ -126,6 +173,7 @@ export const uploadDocument = async (req, res) => {
       document_date: parseInt(date),
       document_path: result.fileName,
       document_url: result.publicUrl,
+      pages_json: pagesJson,
       file_name: req.file.originalname,
       file_size: req.file.size,
       uploaded_by: userId,
@@ -142,10 +190,16 @@ export const uploadDocument = async (req, res) => {
 
     const responseDoc = document.toJSON();
     responseDoc.document_url = await resolveStorageReadUrl(result.fileName, 3600);
+    responseDoc.page_count = Object.keys(pagesMap).length;
+    responseDoc.pages = pagesMap;
+    const page1Key = pagesMap['1'];
+    responseDoc.thumbnail_url = page1Key
+      ? await resolveStorageReadUrl(page1Key, 3600)
+      : null;
 
     res.json({
       success: true,
-      message: 'Document uploaded successfully',
+      message: `Document uploaded successfully (${Object.keys(pagesMap).length} page${Object.keys(pagesMap).length !== 1 ? 's' : ''})`,
       data: responseDoc
     });
   } catch (error) {
@@ -166,12 +220,8 @@ export const deleteDocument = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Document not found' });
     }
 
-    // Delete from Wasabi
-    try {
-      await deleteFile(document.document_path);
-    } catch (err) {
-      console.error('Error deleting file from Wasabi:', err);
-    }
+    // Delete PDF + all split pages from Wasabi
+    await deleteDocumentStorage(document);
 
     // Delete from database
     await document.destroy();

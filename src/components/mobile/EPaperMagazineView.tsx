@@ -3,31 +3,22 @@
  *
  * Mobile-first digital newspaper / magazine browser.
  *
- * Layout:
- *  • Sticky header with channel branding
- *  • Year accordion → month chip-tabs → 2-column issue grid
- *  • PDF first-page preview on each issue card (lazy, cached)
- *  • Single-page PDF reader with footer prev/next pagination
+ * Plan B:
+ *  • Issue cards use page-1 WebP (thumbnail_url) — no client PDF parse
+ *  • Full screen shows one page at a time with Prev / Next footer
+ *  • Pages come as KB images from pages_json (signed URLs)
  *
  * API: GET /api/v1/mymedia/channel/:channelId/documents
  */
-import React, { useState, useEffect, useCallback, useRef, memo, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   ArrowLeft, Download, Calendar, ChevronDown, ChevronUp,
-  Loader2, Newspaper, BookOpen,
+  Loader2, Newspaper, BookOpen, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { API_BASE_URL, getUploadUrl, WASABI_IMG_PROPS } from '../../config/api.config';
-import { isPdfFile, getDocumentStreamUrl } from '../../utils/pdfViewer';
-import {
-  renderPagePreview,
-  getCachedPageImage,
-} from '../../utils/pdfPageRenderer';
-
-const SinglePagePdfViewer = lazy(() =>
-  import('../shared/SinglePagePdfViewer').then((m) => ({ default: m.SinglePagePdfViewer })),
-);
+import { getDocumentStreamUrl } from '../../utils/pdfViewer';
 
 /* ── Types ──────────────────────────────────────────────────────── */
 interface EPaperMagazineViewProps {
@@ -45,7 +36,10 @@ interface Document {
   title: string;
   document_type: string;
   file_url: string;
-  thumbnail_url?: string;
+  thumbnail_url?: string | null;
+  /** Signed URLs keyed by page number string: { "1": "https://...", "2": "..." } */
+  pages?: Record<string, string>;
+  page_count?: number;
   file_size?: number;
   year?: number;
   month?: number;
@@ -76,7 +70,6 @@ const COVER_GRADIENTS = [
 
 /* ── Sub-components ──────────────────────────────────────────────── */
 
-/** Shimmer skeleton card shown while loading */
 const SkeletonCard: React.FC = () => (
   <div className="rounded-xl overflow-hidden bg-gray-200 animate-pulse">
     <div className="w-full aspect-[3/4] bg-gray-300" />
@@ -87,7 +80,6 @@ const SkeletonCard: React.FC = () => (
   </div>
 );
 
-/** Resolve the best available URL for a document (direct Wasabi → stream → upload). */
 const getDocUrl = (doc: Document): string => {
   if (doc.file_url && (doc.file_url.startsWith('http://') || doc.file_url.startsWith('https://'))) {
     return doc.file_url;
@@ -96,132 +88,65 @@ const getDocUrl = (doc: Document): string => {
   return getUploadUrl(doc.file_url);
 };
 
-/** PDF first-page preview — lazy, intersection-triggered, shared cache with reader. */
-const PdfPagePreview = memo<{ doc: Document; gradient: string }>(({ doc, gradient }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const startedRef = useRef(false);
-  const [previewSrc, setPreviewSrc] = useState<string | null>(
-    () => getCachedPageImage(doc.id, 1),
-  );
-  const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>(() =>
-    getCachedPageImage(doc.id, 1) ? 'done' : 'idle',
-  );
-
-  useEffect(() => {
-    if (previewSrc || startedRef.current) return;
-    const el = containerRef.current;
-    if (!el) return;
-    let cancelled = false;
-
-    const load = async () => {
-      startedRef.current = true;
-      setStatus('loading');
-      const result = await renderPagePreview(doc.id, 1, 220);
-      if (cancelled) return;
-      if (result?.dataUrl) {
-        setPreviewSrc(result.dataUrl);
-        setStatus('done');
-      } else {
-        setStatus('error');
-      }
-    };
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          observer.disconnect();
-          load();
-        }
-      },
-      { rootMargin: '120px 0px' },
-    );
-    observer.observe(el);
-    return () => {
-      cancelled = true;
-      observer.disconnect();
-    };
-  }, [doc.id, previewSrc]);
-
-  if (previewSrc) {
-    return (
-      <img
-        src={previewSrc}
-        alt={doc.title}
-        className="w-full h-full object-cover bg-white"
-      />
-    );
+function getPageList(doc: Document): { nums: number[]; urls: Record<number, string> } {
+  const urls: Record<number, string> = {};
+  if (doc.pages && Object.keys(doc.pages).length > 0) {
+    for (const [k, v] of Object.entries(doc.pages)) {
+      const n = parseInt(k, 10);
+      if (n > 0 && v) urls[n] = v;
+    }
+  } else if (doc.thumbnail_url) {
+    urls[1] = doc.thumbnail_url;
   }
+  const nums = Object.keys(urls).map(Number).sort((a, b) => a - b);
+  return { nums, urls };
+}
 
-  return (
-    <div ref={containerRef} className={`w-full h-full relative bg-gradient-to-br ${gradient}`}>
-      {status === 'loading' && (
-        <div className="absolute inset-0 flex items-center justify-center bg-white/80">
-          <Loader2 size={22} className="animate-spin text-teal-500" />
-        </div>
-      )}
-      {status === 'error' && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
-          <Newspaper size={28} className="text-white/60" />
-          <span className="text-white/80 text-xs font-bold px-2 text-center leading-tight line-clamp-2">
-            {doc.title}
-          </span>
-        </div>
-      )}
-    </div>
-  );
-});
-PdfPagePreview.displayName = 'PdfPagePreview';
-
-/** Single issue card — stored thumb, else PDF page-1 preview, else gradient. */
+/** Issue card — page-1 WebP thumbnail from API (no pdf.js). */
 const IssueCard: React.FC<{
   doc: Document;
   index: number;
   onClick: () => void;
 }> = ({ doc, index, onClick }) => {
-  const thumbUrl = doc.thumbnail_url ? getUploadUrl(doc.thumbnail_url) : null;
+  const thumbUrl = doc.thumbnail_url || doc.pages?.['1'] || null;
   const gradient = COVER_GRADIENTS[index % COVER_GRADIENTS.length];
   const label = doc.date
     ? `${doc.date} ${doc.month ? MONTHS[doc.month - 1] : ''} ${doc.year ?? ''}`
     : doc.title;
-  const isPdf = isPdfFile(doc.file_url, doc.document_type);
+  const pageCount = doc.page_count || (doc.pages ? Object.keys(doc.pages).length : 0);
 
   return (
     <button
       onClick={onClick}
       className="relative rounded-xl overflow-hidden shadow-md active:scale-95 transition-transform bg-white text-left w-full"
     >
-      {/* Cover */}
-      <div className="w-full aspect-[3/4] relative overflow-hidden">
+      <div className="w-full aspect-[3/4] relative overflow-hidden bg-gray-100">
         {thumbUrl ? (
           <img
             src={thumbUrl}
             alt={doc.title}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover bg-white"
             loading="lazy"
             {...WASABI_IMG_PROPS}
           />
-        ) : isPdf ? (
-          <PdfPagePreview doc={doc} gradient={gradient} />
         ) : (
           <div className={`w-full h-full bg-gradient-to-br ${gradient} flex flex-col items-center justify-center gap-2`}>
             <Newspaper size={32} className="text-white/60" />
             <span className="text-white/80 text-xs font-bold px-2 text-center leading-tight line-clamp-2">
               {doc.title}
             </span>
+            <span className="text-white/50 text-[10px]">Re-upload to generate pages</span>
           </div>
         )}
-        {/* Overlay: issue date/title */}
         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent pt-6 pb-2 px-2">
           <p className="text-white text-[11px] font-semibold leading-tight line-clamp-2">{label}</p>
         </div>
-        {/* PDF badge */}
-        {isPdfFile(doc.file_url, doc.document_type) && (
+        {pageCount > 0 && (
           <span className="absolute top-1.5 right-1.5 bg-black/50 backdrop-blur-sm text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
-            PDF
+            {pageCount} pg
           </span>
         )}
       </div>
-      {/* Footer row */}
       <div className="flex items-center justify-between px-2 py-1.5">
         <p className="text-gray-500 text-[10px] truncate">
           {doc.file_size ? `${(doc.file_size / 1024 / 1024).toFixed(1)} MB` : doc.document_type?.toUpperCase() || 'PDF'}
@@ -229,6 +154,141 @@ const IssueCard: React.FC<{
         <BookOpen size={12} className="text-teal-500 flex-shrink-0" />
       </div>
     </button>
+  );
+};
+
+/** Single-page image reader with footer Prev / Next — only loads current page URL. */
+const PageFlipReader: React.FC<{
+  doc: Document;
+  channelName: string;
+  onClose: () => void;
+  onDownload: () => void;
+}> = ({ doc, channelName, onClose, onDownload }) => {
+  const { nums, urls } = getPageList(doc);
+  const [pageIdx, setPageIdx] = useState(0);
+  const [imgLoading, setImgLoading] = useState(true);
+  const prefetched = useRef(new Set<string>());
+
+  const currentPage = nums[pageIdx] ?? 1;
+  const currentUrl = urls[currentPage];
+  const total = nums.length;
+
+  // Prefetch next/prev once while viewing current page
+  useEffect(() => {
+    const neighbors = [nums[pageIdx - 1], nums[pageIdx + 1]].filter(Boolean) as number[];
+    for (const n of neighbors) {
+      const u = urls[n];
+      if (u && !prefetched.current.has(u)) {
+        prefetched.current.add(u);
+        const img = new Image();
+        img.src = u;
+      }
+    }
+  }, [pageIdx, nums, urls]);
+
+  useEffect(() => {
+    setImgLoading(true);
+  }, [currentUrl]);
+
+  const goPrev = () => setPageIdx((i) => Math.max(0, i - 1));
+  const goNext = () => setPageIdx((i) => Math.min(total - 1, i + 1));
+
+  return (
+    <motion.div
+      key="page-reader"
+      initial={{ y: '100%' }}
+      animate={{ y: 0 }}
+      exit={{ y: '100%' }}
+      transition={{ type: 'spring', damping: 28, stiffness: 260 }}
+      className="fixed inset-0 z-50 flex flex-col bg-gray-900"
+    >
+      <div className="flex items-center gap-3 px-4 py-3 bg-gray-950 border-b border-gray-800 flex-shrink-0">
+        <button
+          onClick={onClose}
+          className="p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors text-white flex-shrink-0"
+          aria-label="Close reader"
+        >
+          <ArrowLeft size={20} />
+        </button>
+        <div className="flex-1 min-w-0">
+          <p className="text-white font-bold text-sm leading-tight truncate">{doc.title}</p>
+          <p className="text-gray-400 text-xs mt-0.5">
+            {[
+              doc.date,
+              doc.month ? MONTHS[doc.month - 1] : null,
+              doc.year,
+            ].filter(Boolean).join(' ') || channelName}
+          </p>
+        </div>
+        <button
+          onClick={onDownload}
+          className="flex items-center gap-1.5 px-3 py-2 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 rounded-xl text-white text-xs font-semibold transition-colors flex-shrink-0"
+          aria-label="Download original PDF"
+        >
+          <Download size={14} />
+          <span className="hidden sm:inline">PDF</span>
+        </button>
+      </div>
+
+      <div className="flex-1 min-h-0 overflow-y-auto bg-gray-800 flex items-start justify-center py-3 px-2">
+        {!currentUrl ? (
+          <div className="flex flex-col items-center justify-center gap-3 py-20 text-center px-6">
+            <Newspaper size={40} className="text-gray-500" />
+            <p className="text-sm text-gray-300">
+              Pages not ready for this issue. Please re-upload the e-paper from the media dashboard.
+            </p>
+          </div>
+        ) : (
+          <div className="relative w-full max-w-lg mx-auto">
+            {imgLoading && (
+              <div className="absolute inset-0 flex items-center justify-center min-h-[50vh]">
+                <Loader2 size={28} className="animate-spin text-teal-400" />
+              </div>
+            )}
+            <img
+              key={currentUrl}
+              src={currentUrl}
+              alt={`${doc.title} — page ${currentPage}`}
+              className="w-full h-auto object-contain bg-white shadow-xl rounded-sm"
+              onLoad={() => setImgLoading(false)}
+              onError={() => setImgLoading(false)}
+              {...WASABI_IMG_PROPS}
+            />
+          </div>
+        )}
+      </div>
+
+      {total > 0 && (
+        <div
+          className="flex-shrink-0 bg-gray-950 border-t border-gray-800 px-4 py-3 flex items-center justify-between gap-3"
+          style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0px))' }}
+        >
+          <button
+            type="button"
+            onClick={goPrev}
+            disabled={pageIdx <= 0}
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-white/10 text-white text-sm font-semibold disabled:opacity-30 active:bg-white/20 transition-colors"
+            aria-label="Previous page"
+          >
+            <ChevronLeft size={18} />
+            Prev
+          </button>
+          <span className="text-sm text-gray-300 font-medium select-none tabular-nums">
+            {currentPage} / {total}
+          </span>
+          <button
+            type="button"
+            onClick={goNext}
+            disabled={pageIdx >= total - 1}
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-teal-600 text-white text-sm font-semibold disabled:opacity-30 active:bg-teal-700 transition-colors"
+            aria-label="Next page"
+          >
+            Next
+            <ChevronRight size={18} />
+          </button>
+        </div>
+      )}
+    </motion.div>
   );
 };
 
@@ -248,11 +308,10 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
   const [page,         setPage]         = useState(1);
   const [hasMore,      setHasMore]      = useState(true);
   const [expandedYear, setExpandedYear] = useState<string | null>(null);
-  const [monthFilter,  setMonthFilter]  = useState<Record<string, string>>({}); // year → monthKey
+  const [monthFilter,  setMonthFilter]  = useState<Record<string, string>>({});
   const [selectedDoc,  setSelectedDoc]  = useState<Document | null>(null);
   const expandedYearRef = useRef<string | null>(null);
 
-  /* ── Fetch documents ─────────────────────────────────────────── */
   const fetchDocuments = useCallback(async (pageNum: number, append = false) => {
     try {
       pageNum === 1 ? setLoading(true) : setLoadingMore(true);
@@ -270,7 +329,6 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
         setDocuments(prev => append ? [...prev, ...docs] : docs);
         setHasMore(res.data.data.pagination?.hasMore ?? false);
 
-        /* Auto-expand current year on first load */
         if (docs.length > 0 && !expandedYearRef.current) {
           const years = [...new Set(docs.map(d =>
             (d.year ?? new Date(d.created_at).getFullYear()).toString(),
@@ -279,7 +337,6 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
           expandedYearRef.current = latest;
           setExpandedYear(latest);
 
-          /* Auto-select most recent month */
           const groups = docs.reduce((acc, doc) => {
             const y = (doc.year ?? new Date(doc.created_at).getFullYear()).toString();
             const m = (doc.month ?? (new Date(doc.created_at).getMonth() + 1)).toString();
@@ -318,7 +375,6 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
     }
   };
 
-  /* ── Derive grouped structure ─────────────────────────────────── */
   const groupedDocs: GroupedDocuments = documents.reduce((acc, doc) => {
     const y = (doc.year ?? new Date(doc.created_at).getFullYear()).toString();
     const m = (doc.month ?? (new Date(doc.created_at).getMonth() + 1)).toString();
@@ -330,18 +386,15 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
 
   const years = Object.keys(groupedDocs).sort((a, b) => +b - +a);
 
-  /* ── Download / open helper ───────────────────────────────────── */
   const handleDownload = (doc: Document) => {
     const url = getDocUrl(doc);
     if (url) window.open(url, '_blank');
   };
 
-  /** All issues open in-app (PDF uses progressive page-1-first reader). */
   const handleDocClick = (doc: Document) => {
     setSelectedDoc(doc);
   };
 
-  /* ── Toggle year accordion & auto-select month ─────────────── */
   const toggleYear = (year: string) => {
     const next = expandedYear === year ? null : year;
     expandedYearRef.current = next;
@@ -355,15 +408,8 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
     }
   };
 
-  const selectedIsPdf = selectedDoc
-    ? isPdfFile(selectedDoc.file_url, selectedDoc.document_type)
-    : false;
-
-  /* ── Render ──────────────────────────────────────────────────── */
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col">
-
-      {/* ═══ HEADER ════════════════════════════════════════════════ */}
       <div className="sticky top-0 z-40 bg-gray-950 text-white shadow-lg">
         <div className="flex items-center gap-3 px-4 pt-4 pb-3">
           <button
@@ -399,7 +445,6 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
           </button>
         </div>
 
-        {/* Thin progress bar during load */}
         {loading && (
           <div className="h-0.5 bg-white/10">
             <div className="h-full bg-teal-400 animate-pulse" style={{ width: '60%' }} />
@@ -407,10 +452,7 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
         )}
       </div>
 
-      {/* ═══ BODY ═══════════════════════════════════════════════════ */}
       <div className="flex-1 p-4 space-y-3">
-
-        {/* Loading skeleton */}
         {loading && (
           <div className="space-y-3">
             {[1, 2].map(i => (
@@ -427,7 +469,6 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
           </div>
         )}
 
-        {/* Empty state */}
         {!loading && years.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <div className="w-20 h-20 rounded-2xl bg-gray-200 flex items-center justify-center mb-4">
@@ -440,7 +481,6 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
           </div>
         )}
 
-        {/* Year accordion */}
         {!loading && years.map(year => {
           const yearDocs    = groupedDocs[year];
           const totalIssues = Object.values(yearDocs).flat().length;
@@ -451,8 +491,6 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
 
           return (
             <div key={year} className="bg-white rounded-2xl shadow-sm overflow-hidden">
-
-              {/* Year row */}
               <button
                 onClick={() => toggleYear(year)}
                 className="w-full flex items-center justify-between px-4 py-4 hover:bg-gray-50 active:bg-gray-100 transition-colors"
@@ -483,7 +521,6 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
                     transition={{ duration: 0.25, ease: 'easeInOut' }}
                     className="overflow-hidden"
                   >
-                    {/* Month chips */}
                     {monthKeys.length > 1 && (
                       <div className="flex gap-2 px-4 py-3 overflow-x-auto scrollbar-hide border-t border-gray-100 bg-gray-50">
                         {monthKeys.map(m => {
@@ -508,7 +545,6 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
                       </div>
                     )}
 
-                    {/* Issue grid */}
                     {visibleDocs.length > 0 ? (
                       <div className="grid grid-cols-2 gap-3 px-4 pb-4 pt-3">
                         {visibleDocs.map((doc, idx) => (
@@ -532,7 +568,6 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
           );
         })}
 
-        {/* Load more */}
         {!loading && hasMore && (
           <button
             onClick={loadMore}
@@ -546,80 +581,14 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
         )}
       </div>
 
-      {/* ═══ FULL-SCREEN READER MODAL ══════════════════════════════ */}
       <AnimatePresence>
         {selectedDoc && (
-          <motion.div
-            key="reader"
-            initial={{ y: '100%' }}
-            animate={{ y: 0 }}
-            exit={{ y: '100%' }}
-            transition={{ type: 'spring', damping: 28, stiffness: 260 }}
-            className="fixed inset-0 z-50 flex flex-col bg-gray-900"
-          >
-            {/* Reader toolbar */}
-            <div className="flex items-center gap-3 px-4 py-3 bg-gray-950 border-b border-gray-800 flex-shrink-0">
-              <button
-                onClick={() => setSelectedDoc(null)}
-                className="p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors text-white flex-shrink-0"
-                aria-label="Close reader"
-              >
-                <ArrowLeft size={20} />
-              </button>
-
-              <div className="flex-1 min-w-0">
-                <p className="text-white font-bold text-sm leading-tight truncate">
-                  {selectedDoc.title}
-                </p>
-                <p className="text-gray-400 text-xs mt-0.5">
-                  {[
-                    selectedDoc.date,
-                    selectedDoc.month ? MONTHS[selectedDoc.month - 1] : null,
-                    selectedDoc.year,
-                  ].filter(Boolean).join(' ') || channelName}
-                </p>
-              </div>
-
-              <button
-                onClick={() => handleDownload(selectedDoc)}
-                className="flex items-center gap-1.5 px-3 py-2 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 rounded-xl text-white text-xs font-semibold transition-colors flex-shrink-0"
-                aria-label="Download"
-              >
-                <Download size={14} />
-                <span className="hidden sm:inline">Download</span>
-              </button>
-            </div>
-
-            <div className="flex-1 min-h-0 bg-gray-800 flex flex-col">
-              {selectedIsPdf ? (
-                <Suspense
-                  fallback={
-                    <div className="h-full flex flex-col items-center justify-center gap-3 text-white">
-                      <Loader2 size={28} className="animate-spin text-teal-400" />
-                      <p className="text-sm text-gray-400">Opening reader…</p>
-                    </div>
-                  }
-                >
-                  <SinglePagePdfViewer
-                    documentId={selectedDoc.id}
-                    title={selectedDoc.title}
-                    initialPage={1}
-                    previewDataUrl={getCachedPageImage(selectedDoc.id, 1)}
-                    className="h-full"
-                  />
-                </Suspense>
-              ) : (
-                <div className="h-full flex items-center justify-center p-4">
-                  <img
-                    src={getUploadUrl(selectedDoc.file_url)}
-                    alt={selectedDoc.title}
-                    className="max-w-full max-h-full object-contain rounded-lg shadow-xl"
-                    {...WASABI_IMG_PROPS}
-                  />
-                </div>
-              )}
-            </div>
-          </motion.div>
+          <PageFlipReader
+            doc={selectedDoc}
+            channelName={channelName}
+            onClose={() => setSelectedDoc(null)}
+            onDownload={() => handleDownload(selectedDoc)}
+          />
         )}
       </AnimatePresence>
     </div>

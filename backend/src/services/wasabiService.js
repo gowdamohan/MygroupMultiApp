@@ -150,14 +150,11 @@ export const getSignedReadUrl = async (filePath, expiresIn = 3600, options = {})
 
 /**
  * Stream an object from Wasabi (for same-origin PDF proxy).
- * @param {string} filePath
- * @param {string} [range] HTTP Range header value e.g. "bytes=0-1023"
  */
-export const getObjectStream = async (filePath, range) => {
+export const getObjectStream = async (filePath) => {
   const command = new GetObjectCommand({
     Bucket: WASABI_BUCKET,
     Key: filePath,
-    ...(range ? { Range: range } : {}),
   });
   return s3Client.send(command);
 };

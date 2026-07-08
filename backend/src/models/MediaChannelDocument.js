@@ -42,6 +42,11 @@ const MediaChannelDocument = sequelize.define('media_channel_document', {
     allowNull: false,
     comment: 'Public URL of the document'
   },
+  pages_json: {
+    type: DataTypes.TEXT('long'),
+    allowNull: true,
+    comment: 'JSON map: {"1":"wasabi/key.webp","2":"..."} — one key per page'
+  },
   file_name: {
     type: DataTypes.STRING(255),
     allowNull: true,

@@ -28,6 +28,7 @@ import {
   MediaComments
 } from '../models/index.js';
 import { getSignedReadUrl, resolveStorageReadUrl, getObjectStream, extractWasabiKey } from '../services/wasabiService.js';
+import { parsePagesJson } from '../services/pdfPagesService.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -875,15 +876,26 @@ export const getChannelDocuments = async (req, res) => {
       offset
     });
 
-    // Format documents for frontend consumption (signed Wasabi URLs — bucket is private)
+    // Format documents: page-1 WebP as thumbnail; signed pages map for prev/next reader
     const formattedDocuments = await Promise.all(channelDocuments.map(async (doc) => {
       const fileUrl = await resolveStorageReadUrl(doc.document_path || doc.document_url, 3600);
+      const pageKeys = parsePagesJson(doc.pages_json);
+      const pageNumbers = Object.keys(pageKeys).sort((a, b) => Number(a) - Number(b));
+      const pages = {};
+      await Promise.all(pageNumbers.map(async (num) => {
+        const signed = await resolveStorageReadUrl(pageKeys[num], 3600);
+        if (signed) pages[num] = signed;
+      }));
+      const page1Url = pages['1'] || null;
+
       return {
         id: doc.id,
         title: doc.file_name || `Issue ${doc.document_date}/${doc.document_month}/${doc.document_year}`,
         document_type: doc.document_path?.split('.').pop()?.toUpperCase() || 'PDF',
         file_url: fileUrl,
-        thumbnail_url: null,
+        thumbnail_url: page1Url,
+        pages,
+        page_count: pageNumbers.length,
         file_size: doc.file_size,
         year: doc.document_year,
         month: doc.document_month,
@@ -941,45 +953,18 @@ export const streamChannelDocument = async (req, res) => {
       if (!fs.existsSync(localPath)) {
         return res.status(404).json({ success: false, message: 'File not found on server' });
       }
-      const stat = fs.statSync(localPath);
-      const total = stat.size;
-      const range = req.headers.range;
-
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `inline; filename="${safeName}"`);
-      res.setHeader('Accept-Ranges', 'bytes');
-
-      if (range) {
-        const parts = range.replace(/bytes=/, '').split('-');
-        const start = parseInt(parts[0], 10);
-        const end = parts[1] ? parseInt(parts[1], 10) : total - 1;
-        if (start >= total || end >= total) {
-          res.status(416).setHeader('Content-Range', `bytes */${total}`);
-          return res.end();
-        }
-        res.status(206);
-        res.setHeader('Content-Range', `bytes ${start}-${end}/${total}`);
-        res.setHeader('Content-Length', String(end - start + 1));
-        return fs.createReadStream(localPath, { start, end }).pipe(res);
-      }
-
-      res.setHeader('Content-Length', String(total));
       return fs.createReadStream(localPath).pipe(res);
     }
 
     const wasabiKey = extractWasabiKey(storagePath) || storagePath.replace(/^\/+/, '');
-    const range = req.headers.range;
-    const result = await getObjectStream(wasabiKey, range);
+    const result = await getObjectStream(wasabiKey);
 
     res.setHeader('Content-Type', result.ContentType || 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="${safeName}"`);
-    res.setHeader('Accept-Ranges', 'bytes');
-    if (result.ContentLength != null) {
+    if (result.ContentLength) {
       res.setHeader('Content-Length', String(result.ContentLength));
-    }
-    if (range && result.ContentRange) {
-      res.status(206);
-      res.setHeader('Content-Range', result.ContentRange);
     }
     result.Body.pipe(res);
   } catch (error) {

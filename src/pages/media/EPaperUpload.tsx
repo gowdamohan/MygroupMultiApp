@@ -170,7 +170,13 @@ export const EPaperUpload: React.FC<EPaperUploadProps> = ({ channelId, categoryI
         { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' } }
       );
       if (response.data.success) {
-        setMessage({ type: 'success', text: 'E-Paper uploaded successfully' });
+        const pages = response.data.data?.page_count;
+        setMessage({
+          type: 'success',
+          text: pages
+            ? `E-Paper uploaded (${pages} page${pages !== 1 ? 's' : ''} processed)`
+            : 'E-Paper uploaded successfully',
+        });
         fetchUploadDocs();
       }
     } catch (error: any) {
@@ -338,7 +344,7 @@ export const EPaperUpload: React.FC<EPaperUploadProps> = ({ channelId, categoryI
                       {isUploading ? (
                         <div className="flex flex-col items-center justify-center py-8">
                           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600 mb-2" />
-                          <span className="text-sm text-gray-500">Uploading…</span>
+                          <span className="text-sm text-gray-500 text-center px-2">Uploading &amp; splitting pages…</span>
                         </div>
                       ) : doc ? (
                         <div className="space-y-3">
