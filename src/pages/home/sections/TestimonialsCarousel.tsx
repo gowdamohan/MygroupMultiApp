@@ -9,7 +9,8 @@ import 'swiper/css/pagination';
 import 'swiper/css/navigation';
 
 interface TestimonialsCarouselProps {
-  /** New: footer_page rows with footer_page_type = 'testimonials' */
+  /** New: footer_page rows with footer_page_type = 'testimonials' hello */
+ 
   testimonialsList?: FooterPageItem[];
   /** Legacy: testimonials table rows (mobile compat) */
   testimonials?: Testimonial[];
