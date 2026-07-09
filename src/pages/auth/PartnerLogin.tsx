@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams, useLocation, Link } from 'react-router-do
 import { Lock, ArrowLeft, LogIn, Mail, KeyRound, LayoutGrid, Home } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
-import { API_BASE_URL, BACKEND_URL } from '../../config/api.config';
+import { API_BASE_URL, getUploadUrl } from '../../config/api.config';
 import { useAuth } from '../../contexts/AuthContext';
 import { persistAuthStorage, getPostLoginPath } from '../../utils/authSession';
 import { startTokenRefreshInterval } from '../../services/api';
@@ -302,7 +302,7 @@ export const PartnerLogin: React.FC = () => {
           {/* Logo + Brand */}
           <Link to="/" className="flex items-center gap-3 flex-shrink-0 group">
             <img
-              src={`${BACKEND_URL}/uploads/logo.png`}
+              src={getUploadUrl('/uploads/logo.png')}
               alt="Mygroup Logo"
               className="h-10 w-auto object-contain"
               onError={(e) => {

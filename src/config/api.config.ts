@@ -56,22 +56,25 @@ export const MEDIA_DOCUMENT_MAX_SIZE = 200 * 1024 * 1024; // 200MB
 
 export const BACKEND_URL = (() => {
   const explicitBackendUrl = import.meta.env.VITE_BACKEND_URL;
+  let url = '';
+
   if (explicitBackendUrl !== undefined) {
-    return explicitBackendUrl;
+    url = explicitBackendUrl;
+  } else if (API_BASE_URL.endsWith('/api/v1')) {
+    url = API_BASE_URL.slice(0, -7);
+  } else if (API_BASE_URL.startsWith('http')) {
+    url = API_BASE_URL;
   }
 
-  // Remove /api/v1 from API_BASE_URL to get BACKEND_URL
-  if (API_BASE_URL.endsWith('/api/v1')) {
-    return API_BASE_URL.slice(0, -7);
+  // Production sites must not load assets from localhost baked in at build time
+  if (typeof window !== 'undefined' && /localhost|127\.0\.0\.1/i.test(url)) {
+    const host = window.location.hostname;
+    if (host !== 'localhost' && host !== '127.0.0.1') {
+      return '';
+    }
   }
 
-  // If API_BASE_URL is absolute, use as-is
-  if (API_BASE_URL.startsWith('http')) {
-    return API_BASE_URL;
-  }
-
-  // For relative URLs, return empty
-  return '';
+  return url;
 })();
 
 /** Public Wasabi bucket base URL (keys stored without leading slash). */
