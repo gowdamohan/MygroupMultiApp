@@ -850,6 +850,42 @@ export const getChannelDetails = async (req, res) => {
 };
 
 /**
+ * Format a media_channel_document row for mobile E-paper reader APIs.
+ * Signs every page key from pages_json; sets pages_ready from signed URL count.
+ */
+async function formatMediaChannelDocumentForClient(doc) {
+  const fileUrl = await resolveStorageReadUrl(doc.document_path || doc.document_url, 3600);
+  const pageKeys = parsePagesJson(doc.pages_json);
+  const pageNumbers = Object.keys(pageKeys).sort((a, b) => Number(a) - Number(b));
+  const pages = {};
+
+  await Promise.all(pageNumbers.map(async (num) => {
+    const key = pageKeys[num];
+    if (!key) return;
+    const signed = await resolveStorageReadUrl(key, 3600);
+    if (signed) pages[num] = signed;
+  }));
+
+  const signedPageCount = Object.keys(pages).length;
+
+  return {
+    id: doc.id,
+    title: doc.file_name || `Issue ${doc.document_date}/${doc.document_month}/${doc.document_year}`,
+    document_type: doc.document_path?.split('.').pop()?.toUpperCase() || 'PDF',
+    file_url: fileUrl,
+    thumbnail_url: pages['1'] || null,
+    pages,
+    page_count: signedPageCount,
+    pages_ready: signedPageCount > 0,
+    file_size: doc.file_size,
+    year: doc.document_year,
+    month: doc.document_month,
+    date: doc.document_date,
+    created_at: doc.created_at,
+  };
+}
+
+/**
  * Get documents for E-Paper/Magazine channel
  * GET /api/v1/mymedia/channel/:channelId/documents
  * Query params: year, month, page, limit
@@ -877,32 +913,9 @@ export const getChannelDocuments = async (req, res) => {
     });
 
     // Format documents: page-1 WebP as thumbnail; signed pages map for prev/next reader
-    const formattedDocuments = await Promise.all(channelDocuments.map(async (doc) => {
-      const fileUrl = await resolveStorageReadUrl(doc.document_path || doc.document_url, 3600);
-      const pageKeys = parsePagesJson(doc.pages_json);
-      const pageNumbers = Object.keys(pageKeys).sort((a, b) => Number(a) - Number(b));
-      const pages = {};
-      await Promise.all(pageNumbers.map(async (num) => {
-        const signed = await resolveStorageReadUrl(pageKeys[num], 3600);
-        if (signed) pages[num] = signed;
-      }));
-      const page1Url = pages['1'] || null;
-
-      return {
-        id: doc.id,
-        title: doc.file_name || `Issue ${doc.document_date}/${doc.document_month}/${doc.document_year}`,
-        document_type: doc.document_path?.split('.').pop()?.toUpperCase() || 'PDF',
-        file_url: fileUrl,
-        thumbnail_url: page1Url,
-        pages,
-        page_count: pageNumbers.length,
-        file_size: doc.file_size,
-        year: doc.document_year,
-        month: doc.document_month,
-        date: doc.document_date,
-        created_at: doc.created_at
-      };
-    }));
+    const formattedDocuments = await Promise.all(
+      channelDocuments.map((doc) => formatMediaChannelDocumentForClient(doc))
+    );
 
     // Calculate pagination info
     const hasMore = offset + channelDocuments.length < totalCount;
@@ -924,6 +937,31 @@ export const getChannelDocuments = async (req, res) => {
   } catch (error) {
     console.error('Error fetching channel documents:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch documents', error: error.message });
+  }
+};
+
+/**
+ * Get signed page URLs for a single E-Paper/Magazine issue (fresh read on reader open).
+ * GET /api/v1/mymedia/document/:documentId/pages
+ */
+export const getDocumentPages = async (req, res) => {
+  try {
+    const { documentId } = req.params;
+
+    const doc = await MediaChannelDocument.findOne({
+      where: { id: documentId, status: 1 },
+    });
+
+    if (!doc) {
+      return res.status(404).json({ success: false, message: 'Document not found' });
+    }
+
+    const formatted = await formatMediaChannelDocumentForClient(doc);
+
+    res.json({ success: true, data: formatted });
+  } catch (error) {
+    console.error('Error fetching document pages:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch document pages', error: error.message });
   }
 };
 

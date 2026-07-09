@@ -163,6 +163,15 @@ export const uploadDocument = async (req, res) => {
     }
 
     const pagesJson = JSON.stringify(pagesMap);
+    const pageCount = Object.keys(pagesMap).length;
+
+    if (pageCount === 0) {
+      try { await deleteFile(result.fileName); } catch (_) { /* ignore */ }
+      return res.status(500).json({
+        success: false,
+        message: 'PDF produced no pages. Please check the file and try again.',
+      });
+    }
 
     // Save or update document record (one row; pages as JSON index map)
     const documentData = {
@@ -182,10 +191,23 @@ export const uploadDocument = async (req, res) => {
 
     let document;
     if (existingDoc) {
-      await existingDoc.update(documentData);
+      await existingDoc.update(documentData, { fields: Object.keys(documentData) });
       document = existingDoc;
     } else {
       document = await MediaChannelDocument.create(documentData);
+    }
+
+    // Verify pages_json persisted (guards against missing DB column on older schemas)
+    await document.reload();
+    const savedPages = parsePagesJson(document.pages_json);
+    if (Object.keys(savedPages).length === 0) {
+      console.error('pages_json was not saved — run database/migrations/add_pages_json_to_media_channel_document.sql');
+      await deleteDocumentStorage(document);
+      await document.destroy();
+      return res.status(500).json({
+        success: false,
+        message: 'Server database is missing the pages_json column. Contact support or run the latest DB migration.',
+      });
     }
 
     const responseDoc = document.toJSON();
@@ -217,7 +239,10 @@ export const deleteDocument = async (req, res) => {
 
     const document = await MediaChannelDocument.findByPk(documentId);
     if (!document) {
-      return res.status(404).json({ success: false, message: 'Document not found' });
+      return res.status(404).json({
+        success: false,
+        message: 'Document not found. It may have been deleted already, or the ID belongs to a different section (media-dashboard documents use /media-dashboard/documents/:id).',
+      });
     }
 
     // Delete PDF + all split pages from Wasabi

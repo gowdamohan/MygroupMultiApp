@@ -5,6 +5,12 @@ import { API_BASE_URL, MEDIA_DOCUMENT_MAX_SIZE } from '../../config/api.config';
 import { parsePeriodicalSchedule, periodicalScheduleSignature } from '../../utils/mediaCategoryUtils';
 import { getMagazineUploadSlots, normalizePeriodicalType } from '../../utils/periodicalSlots';
 import { PeriodicalScheduleSummary } from '../../components/media/PeriodicalScheduleSummary';
+import {
+  deleteMediaDocument,
+  MediaUploadProgress,
+  postMediaDocumentUpload,
+} from '../../utils/mediaDocumentUpload';
+import { MediaDocumentUploadProgress } from '../../components/media/MediaDocumentUploadProgress';
 
 interface MagazineUploadProps {
   channelId: number;
@@ -34,6 +40,7 @@ export const MagazineUpload: React.FC<MagazineUploadProps> = ({
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [uploading, setUploading] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<MediaUploadProgress | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -106,8 +113,8 @@ export const MagazineUpload: React.FC<MagazineUploadProps> = ({
     }
     try {
       setUploading(slotId);
+      setUploadProgress({ phase: 'uploading', percent: 0, label: 'Uploading file…' });
       setMessage(null);
-      const token = localStorage.getItem('accessToken');
       const formData = new FormData();
       formData.append('document', file);
       formData.append('categoryId', categoryId.toString());
@@ -115,35 +122,40 @@ export const MagazineUpload: React.FC<MagazineUploadProps> = ({
       formData.append('month', month.toString());
       formData.append('date', date.toString());
 
-      const response = await axios.post(
-        `${API_BASE_URL}/media-document/upload/${channelId}`,
-        formData,
-        { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' } }
-      );
+      const response = await postMediaDocumentUpload(channelId, formData, setUploadProgress);
       if (response.data.success) {
-        setMessage({ type: 'success', text: 'Magazine uploaded successfully' });
-        fetchAllDocuments();
+        const pages = response.data.data?.page_count;
+        setMessage({
+          type: 'success',
+          text: pages
+            ? `Magazine uploaded (${pages} page${pages !== 1 ? 's' : ''} processed)`
+            : 'Magazine uploaded successfully',
+        });
+        await fetchAllDocuments();
       }
     } catch (error: unknown) {
-      const err = error as { response?: { status?: number; data?: { message?: string } } };
-      const msg = err.response?.status === 413
+      const err = error as { code?: string; response?: { status?: number; data?: { message?: string } } };
+      const msg = err.code === 'ECONNABORTED'
+        ? 'Upload timed out while processing pages. Please refresh — the file may still appear if processing finished on the server.'
+        : err.response?.status === 413
         ? 'File size exceeds 200MB limit. If this persists, ask your server admin to set nginx client_max_body_size to 200m.'
         : (err.response?.data?.message || 'Upload failed');
       setMessage({ type: 'error', text: msg });
     } finally {
       setUploading(null);
+      setUploadProgress(null);
     }
   };
 
   const handleDelete = async (documentId: number) => {
     if (!confirm('Are you sure you want to delete this magazine?')) return;
     try {
-      const token = localStorage.getItem('accessToken');
-      await axios.delete(`${API_BASE_URL}/media-document/document/${documentId}`, {
-        headers: { Authorization: `Bearer ${token}` }
+      const { alreadyGone } = await deleteMediaDocument(documentId);
+      setMessage({
+        type: 'success',
+        text: alreadyGone ? 'Magazine was already removed' : 'Magazine deleted successfully',
       });
-      setMessage({ type: 'success', text: 'Magazine deleted successfully' });
-      fetchAllDocuments();
+      await fetchAllDocuments();
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } } };
       setMessage({ type: 'error', text: err.response?.data?.message || 'Delete failed' });
@@ -229,8 +241,14 @@ export const MagazineUpload: React.FC<MagazineUploadProps> = ({
                   </div>
 
                   {isUploading ? (
-                    <div className="flex items-center justify-center py-3">
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-teal-600" />
+                    <div className="py-3 px-1">
+                      {uploadProgress ? (
+                        <MediaDocumentUploadProgress progress={uploadProgress} />
+                      ) : (
+                        <div className="flex items-center justify-center">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-teal-600" />
+                        </div>
+                      )}
                     </div>
                   ) : doc ? (
                     <div className="space-y-2">

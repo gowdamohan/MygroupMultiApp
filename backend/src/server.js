@@ -261,7 +261,7 @@ app.use((err, req, res, next) => {
 const startServer = async () => {
   try {
     // Start listening immediately
-    app.listen(PORT, () => {
+    const server = app.listen(PORT, () => {
       console.log('');
       console.log('🚀 ========================================');
       console.log(`🚀 Multi-Tenant Backend API Server`);
@@ -273,6 +273,11 @@ const startServer = async () => {
       console.log('🚀 ========================================');
       console.log('');
     });
+
+    // Allow long-running PDF page-split uploads (match nginx proxy_read_timeout)
+    server.timeout = 600_000;
+    server.keepAliveTimeout = 620_000;
+    server.headersTimeout = 620_000;
 
     // Test database connection in background; do not exit the process on failure
     (async () => {

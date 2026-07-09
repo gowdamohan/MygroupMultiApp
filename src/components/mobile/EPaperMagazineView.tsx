@@ -10,7 +10,7 @@
  *
  * API: GET /api/v1/mymedia/channel/:channelId/documents
  */
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import {
   ArrowLeft, Download, Calendar, ChevronDown, ChevronUp,
   Loader2, Newspaper, BookOpen, ChevronLeft, ChevronRight,
@@ -18,7 +18,11 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { API_BASE_URL, getUploadUrl, WASABI_IMG_PROPS } from '../../config/api.config';
-import { getDocumentStreamUrl } from '../../utils/pdfViewer';
+import { getDocumentStreamUrl, isPdfFile } from '../../utils/pdfViewer';
+
+const PdfDocumentViewer = lazy(() =>
+  import('../shared/PdfDocumentViewer').then((m) => ({ default: m.PdfDocumentViewer })),
+);
 
 /* ── Types ──────────────────────────────────────────────────────── */
 interface EPaperMagazineViewProps {
@@ -40,6 +44,7 @@ interface Document {
   /** Signed URLs keyed by page number string: { "1": "https://...", "2": "..." } */
   pages?: Record<string, string>;
   page_count?: number;
+  pages_ready?: boolean;
   file_size?: number;
   year?: number;
   month?: number;
@@ -106,8 +111,9 @@ function getPageList(doc: Document): { nums: number[]; urls: Record<number, stri
 const IssueCard: React.FC<{
   doc: Document;
   index: number;
+  opening?: boolean;
   onClick: () => void;
-}> = ({ doc, index, onClick }) => {
+}> = ({ doc, index, opening, onClick }) => {
   const thumbUrl = doc.thumbnail_url || doc.pages?.['1'] || null;
   const gradient = COVER_GRADIENTS[index % COVER_GRADIENTS.length];
   const label = doc.date
@@ -118,10 +124,16 @@ const IssueCard: React.FC<{
   return (
     <button
       onClick={onClick}
-      className="relative rounded-xl overflow-hidden shadow-md active:scale-95 transition-transform bg-white text-left w-full"
+      disabled={opening}
+      className="relative rounded-xl overflow-hidden shadow-md active:scale-95 transition-transform bg-white text-left w-full disabled:opacity-70"
     >
       <div className="w-full aspect-[3/4] relative overflow-hidden bg-gray-100">
-        {thumbUrl ? (
+        {opening ? (
+          <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-gray-100">
+            <Loader2 size={28} className="animate-spin text-teal-600" />
+            <span className="text-xs text-gray-500">Opening…</span>
+          </div>
+        ) : thumbUrl ? (
           <img
             src={thumbUrl}
             alt={doc.title}
@@ -161,9 +173,10 @@ const IssueCard: React.FC<{
 const PageFlipReader: React.FC<{
   doc: Document;
   channelName: string;
+  loading?: boolean;
   onClose: () => void;
   onDownload: () => void;
-}> = ({ doc, channelName, onClose, onDownload }) => {
+}> = ({ doc, channelName, loading, onClose, onDownload }) => {
   const { nums, urls } = getPageList(doc);
   const [pageIdx, setPageIdx] = useState(0);
   const [imgLoading, setImgLoading] = useState(true);
@@ -172,9 +185,14 @@ const PageFlipReader: React.FC<{
   const currentPage = nums[pageIdx] ?? 1;
   const currentUrl = urls[currentPage];
   const total = nums.length;
+  const hasImagePages = total > 0 && Boolean(currentUrl);
+  const canUsePdfFallback = Boolean(
+    doc.id || (doc.file_url && isPdfFile(doc.file_url, doc.document_type))
+  );
 
   // Prefetch next/prev once while viewing current page
   useEffect(() => {
+    if (!hasImagePages) return;
     const neighbors = [nums[pageIdx - 1], nums[pageIdx + 1]].filter(Boolean) as number[];
     for (const n of neighbors) {
       const u = urls[n];
@@ -184,7 +202,7 @@ const PageFlipReader: React.FC<{
         img.src = u;
       }
     }
-  }, [pageIdx, nums, urls]);
+  }, [pageIdx, nums, urls, hasImagePages]);
 
   useEffect(() => {
     setImgLoading(true);
@@ -192,6 +210,91 @@ const PageFlipReader: React.FC<{
 
   const goPrev = () => setPageIdx((i) => Math.max(0, i - 1));
   const goNext = () => setPageIdx((i) => Math.min(total - 1, i + 1));
+
+  const header = (
+    <div className="flex items-center gap-3 px-4 py-3 bg-gray-950 border-b border-gray-800 flex-shrink-0">
+      <button
+        onClick={onClose}
+        className="p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors text-white flex-shrink-0"
+        aria-label="Close reader"
+      >
+        <ArrowLeft size={20} />
+      </button>
+      <div className="flex-1 min-w-0">
+        <p className="text-white font-bold text-sm leading-tight truncate">{doc.title}</p>
+        <p className="text-gray-400 text-xs mt-0.5">
+          {[
+            doc.date,
+            doc.month ? MONTHS[doc.month - 1] : null,
+            doc.year,
+          ].filter(Boolean).join(' ') || channelName}
+        </p>
+      </div>
+      <button
+        onClick={onDownload}
+        className="flex items-center gap-1.5 px-3 py-2 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 rounded-xl text-white text-xs font-semibold transition-colors flex-shrink-0"
+        aria-label="Download original PDF"
+      >
+        <Download size={14} />
+        <span className="hidden sm:inline">PDF</span>
+      </button>
+    </div>
+  );
+
+  if (loading) {
+    return (
+      <motion.div
+        key="page-reader-loading"
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%' }}
+        transition={{ type: 'spring', damping: 28, stiffness: 260 }}
+        className="fixed inset-0 z-50 flex flex-col bg-gray-900"
+      >
+        {header}
+        <div className="flex-1 flex flex-col items-center justify-center gap-3">
+          <Loader2 size={32} className="animate-spin text-teal-400" />
+          <p className="text-sm text-gray-400">Loading pages…</p>
+        </div>
+      </motion.div>
+    );
+  }
+
+  if (!hasImagePages && canUsePdfFallback) {
+    return (
+      <motion.div
+        key="pdf-reader"
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%' }}
+        transition={{ type: 'spring', damping: 28, stiffness: 260 }}
+        className="fixed inset-0 z-50 flex flex-col bg-gray-900"
+      >
+        {header}
+        <div className="flex-1 min-h-0 bg-gray-800">
+          {!doc.pages_ready && (
+            <p className="text-xs text-amber-300/90 bg-amber-950/40 px-4 py-2 text-center border-b border-amber-900/50">
+              Page images not generated yet — showing PDF. Re-upload from media dashboard for faster page-by-page reading.
+            </p>
+          )}
+          <Suspense
+            fallback={
+              <div className="flex items-center justify-center h-full">
+                <Loader2 size={28} className="animate-spin text-teal-400" />
+              </div>
+            }
+          >
+            <PdfDocumentViewer
+              documentId={doc.id}
+              src={doc.file_url}
+              title={doc.title}
+              className="h-full"
+            />
+          </Suspense>
+        </div>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div
@@ -202,33 +305,7 @@ const PageFlipReader: React.FC<{
       transition={{ type: 'spring', damping: 28, stiffness: 260 }}
       className="fixed inset-0 z-50 flex flex-col bg-gray-900"
     >
-      <div className="flex items-center gap-3 px-4 py-3 bg-gray-950 border-b border-gray-800 flex-shrink-0">
-        <button
-          onClick={onClose}
-          className="p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors text-white flex-shrink-0"
-          aria-label="Close reader"
-        >
-          <ArrowLeft size={20} />
-        </button>
-        <div className="flex-1 min-w-0">
-          <p className="text-white font-bold text-sm leading-tight truncate">{doc.title}</p>
-          <p className="text-gray-400 text-xs mt-0.5">
-            {[
-              doc.date,
-              doc.month ? MONTHS[doc.month - 1] : null,
-              doc.year,
-            ].filter(Boolean).join(' ') || channelName}
-          </p>
-        </div>
-        <button
-          onClick={onDownload}
-          className="flex items-center gap-1.5 px-3 py-2 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 rounded-xl text-white text-xs font-semibold transition-colors flex-shrink-0"
-          aria-label="Download original PDF"
-        >
-          <Download size={14} />
-          <span className="hidden sm:inline">PDF</span>
-        </button>
-      </div>
+      {header}
 
       <div className="flex-1 min-h-0 overflow-y-auto bg-gray-800 flex items-start justify-center py-3 px-2">
         {!currentUrl ? (
@@ -310,6 +387,8 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
   const [expandedYear, setExpandedYear] = useState<string | null>(null);
   const [monthFilter,  setMonthFilter]  = useState<Record<string, string>>({});
   const [selectedDoc,  setSelectedDoc]  = useState<Document | null>(null);
+  const [readerLoading, setReaderLoading] = useState(false);
+  const [openingDocId, setOpeningDocId] = useState<number | null>(null);
   const expandedYearRef = useRef<string | null>(null);
 
   const fetchDocuments = useCallback(async (pageNum: number, append = false) => {
@@ -391,8 +470,22 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
     if (url) window.open(url, '_blank');
   };
 
-  const handleDocClick = (doc: Document) => {
+  const handleDocClick = async (doc: Document) => {
+    setOpeningDocId(doc.id);
+    setReaderLoading(true);
     setSelectedDoc(doc);
+    try {
+      const res = await axios.get(`${API_BASE_URL}/mymedia/document/${doc.id}/pages`);
+      if (res.data?.success && res.data.data) {
+        setSelectedDoc(res.data.data as Document);
+      }
+    } catch (err) {
+      console.error('Error fetching document pages:', err);
+      // Keep list doc — reader may fall back to PDF stream
+    } finally {
+      setReaderLoading(false);
+      setOpeningDocId(null);
+    }
   };
 
   const toggleYear = (year: string) => {
@@ -552,6 +645,7 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
                             key={doc.id}
                             doc={doc}
                             index={idx}
+                            opening={openingDocId === doc.id}
                             onClick={() => handleDocClick(doc)}
                           />
                         ))}
@@ -586,7 +680,11 @@ export const EPaperMagazineView: React.FC<EPaperMagazineViewProps> = ({
           <PageFlipReader
             doc={selectedDoc}
             channelName={channelName}
-            onClose={() => setSelectedDoc(null)}
+            loading={readerLoading}
+            onClose={() => {
+              setSelectedDoc(null);
+              setReaderLoading(false);
+            }}
             onDownload={() => handleDownload(selectedDoc)}
           />
         )}

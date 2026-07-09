@@ -2,6 +2,12 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { ArrowLeft, Upload, FileText, Trash2, Check, X, Calendar } from 'lucide-react';
 import { API_BASE_URL, MEDIA_DOCUMENT_MAX_SIZE } from '../../config/api.config';
+import {
+  deleteMediaDocument,
+  MediaUploadProgress,
+  postMediaDocumentUpload,
+} from '../../utils/mediaDocumentUpload';
+import { MediaDocumentUploadProgress } from '../../components/media/MediaDocumentUploadProgress';
 
 interface DocumentUploadProps {
   channelId: number;
@@ -30,6 +36,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({ channelId, categ
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [uploading, setUploading] = useState<number | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<MediaUploadProgress | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -80,8 +87,8 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({ channelId, categ
 
     try {
       setUploading(date);
+      setUploadProgress({ phase: 'uploading', percent: 0, label: 'Uploading file…' });
       setMessage(null);
-      const token = localStorage.getItem('accessToken');
       const formData = new FormData();
       formData.append('document', file);
       formData.append('categoryId', category.id.toString());
@@ -89,28 +96,28 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({ channelId, categ
       formData.append('month', selectedMonth.toString());
       formData.append('date', date.toString());
 
-      const response = await axios.post(
-        `${API_BASE_URL}/media-document/upload/${channelId}`,
-        formData,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'multipart/form-data'
-          }
-        }
-      );
+      const response = await postMediaDocumentUpload(channelId, formData, setUploadProgress);
 
       if (response.data.success) {
-        setMessage({ type: 'success', text: 'Document uploaded successfully' });
-        fetchDocuments();
+        const pages = response.data.data?.page_count;
+        setMessage({
+          type: 'success',
+          text: pages
+            ? `Document uploaded (${pages} page${pages !== 1 ? 's' : ''} processed)`
+            : 'Document uploaded successfully',
+        });
+        await fetchDocuments();
       }
     } catch (error: any) {
-      const msg = error?.response?.status === 413
+      const msg = error?.code === 'ECONNABORTED'
+        ? 'Upload timed out while processing pages. Please refresh — the file may still appear if processing finished on the server.'
+        : error?.response?.status === 413
         ? 'File size exceeds 200MB limit. If this persists, ask your server admin to set nginx client_max_body_size to 200m.'
         : (error.response?.data?.message || 'Upload failed');
       setMessage({ type: 'error', text: msg });
     } finally {
       setUploading(null);
+      setUploadProgress(null);
     }
   };
 
@@ -118,16 +125,13 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({ channelId, categ
     if (!confirm('Are you sure you want to delete this document?')) return;
 
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await axios.delete(
-        `${API_BASE_URL}/media-document/document/${documentId}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const { alreadyGone } = await deleteMediaDocument(documentId);
 
-      if (response.data.success) {
-        setMessage({ type: 'success', text: 'Document deleted successfully' });
-        fetchDocuments();
-      }
+      setMessage({
+        type: 'success',
+        text: alreadyGone ? 'Document was already removed' : 'Document deleted successfully',
+      });
+      await fetchDocuments();
     } catch (error: any) {
       setMessage({ type: 'error', text: error.response?.data?.message || 'Delete failed' });
     }
@@ -219,8 +223,14 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({ channelId, categ
                     <div className="text-lg font-bold text-gray-800 mb-2">{date}</div>
 
                     {isUploading ? (
-                      <div className="flex items-center justify-center">
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-teal-600"></div>
+                      <div className="px-1">
+                        {uploadProgress ? (
+                          <MediaDocumentUploadProgress progress={uploadProgress} />
+                        ) : (
+                          <div className="flex items-center justify-center">
+                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-teal-600"></div>
+                          </div>
+                        )}
                       </div>
                     ) : doc ? (
                       <div className="flex items-center justify-center gap-1">

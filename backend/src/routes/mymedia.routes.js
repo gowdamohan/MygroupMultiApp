@@ -11,6 +11,7 @@ import {
   getChannelsByCategory,
   getChannelDetails,
   getChannelDocuments,
+  getDocumentPages,
   streamChannelDocument,
   getGalleryImages,
   getChannelStream,
@@ -87,6 +88,9 @@ router.post('/channel/:channelId/follow', toggleFollow);
 router.get('/channel/:channelId', getChannelDetails);
 
 // ── Other routes ─────────────────────────────────────────────────────────────
+
+// GET /api/v1/mymedia/document/:documentId/pages - Signed page URLs for E-Paper reader
+router.get('/document/:documentId/pages', getDocumentPages);
 
 // GET /api/v1/mymedia/document/:documentId/stream - Inline PDF stream (same-origin)
 router.get('/document/:documentId/stream', streamChannelDocument);
