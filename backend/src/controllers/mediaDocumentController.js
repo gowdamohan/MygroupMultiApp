@@ -1,12 +1,10 @@
 import { MediaChannelDocument, MediaChannel, AppCategory, User } from '../models/index.js';
 import { uploadFile, deleteFile, getPresignedUrl, resolveStorageReadUrl } from '../services/wasabiService.js';
 import {
-  splitPdfToWasabiPages,
-  imageBufferToWasabiPage,
-  listPageKeys,
-  parsePagesJson,
-} from '../services/pdfPagesService.js';
-import { Op } from 'sequelize';
+  processDocumentPagesJob,
+  getProcessingJob,
+} from '../services/documentProcessingService.js';
+import { listPageKeys, parsePagesJson } from '../services/pdfPagesService.js';
 
 /**
  * Best-effort delete of PDF + all split page objects from Wasabi.
@@ -91,9 +89,8 @@ export const getDocuments = async (req, res) => {
 };
 
 /**
- * Upload a document (PDF) — stores original PDF + splits every page to WebP.
- * Partner waits (loading) until all pages are processed. pages_json:
- *   {"1":"wasabi/.../page-1.webp","2":"..."}
+ * Upload a document — stores original PDF on Wasabi, then splits pages in the background
+ * so the HTTP response returns quickly (avoids nginx 504 on large e-papers).
  */
 export const uploadDocument = async (req, res) => {
   try {
@@ -113,7 +110,6 @@ export const uploadDocument = async (req, res) => {
       });
     }
 
-    // Check if document already exists for this date
     const existingDoc = await MediaChannelDocument.findOne({
       where: {
         media_channel_id: channelId,
@@ -128,7 +124,6 @@ export const uploadDocument = async (req, res) => {
       await deleteDocumentStorage(existingDoc);
     }
 
-    // Upload original file to Wasabi (archive / download)
     const folder = `media_documents/channel_${channelId}/${year}/${month}`;
     const result = await uploadFile(
       req.file.buffer,
@@ -141,30 +136,6 @@ export const uploadDocument = async (req, res) => {
       return res.status(500).json({ success: false, message: 'Failed to upload file to storage' });
     }
 
-    // Split PDF (or normalize image) into per-page WebPs — blocking so upload spinner covers this
-    let pagesMap = {};
-    try {
-      if (req.file.mimetype === 'application/pdf') {
-        const split = await splitPdfToWasabiPages(req.file.buffer, `${folder}/doc_${Date.now()}`);
-        pagesMap = split.pages;
-      } else {
-        const split = await imageBufferToWasabiPage(req.file.buffer, `${folder}/doc_${Date.now()}`);
-        pagesMap = split.pages;
-      }
-    } catch (splitErr) {
-      console.error('PDF page split failed:', splitErr);
-      // Rollback original upload
-      try { await deleteFile(result.fileName); } catch (_) { /* ignore */ }
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to process PDF pages. Please try again or use a smaller PDF.',
-        error: splitErr.message
-      });
-    }
-
-    const pagesJson = JSON.stringify(pagesMap);
-
-    // Save or update document record (one row; pages as JSON index map)
     const documentData = {
       media_channel_id: channelId,
       category_id: categoryId,
@@ -173,7 +144,9 @@ export const uploadDocument = async (req, res) => {
       document_date: parseInt(date),
       document_path: result.fileName,
       document_url: result.publicUrl,
-      pages_json: pagesJson,
+      pages_json: null,
+      processing_status: 'processing',
+      processing_error: null,
       file_name: req.file.originalname,
       file_size: req.file.size,
       uploaded_by: userId,
@@ -188,23 +161,87 @@ export const uploadDocument = async (req, res) => {
       document = await MediaChannelDocument.create(documentData);
     }
 
+    const fileBuffer = Buffer.from(req.file.buffer);
+    setImmediate(() => {
+      processDocumentPagesJob({
+        documentId: document.id,
+        fileBuffer,
+        mimetype: req.file.mimetype,
+        folder,
+        originalFileKey: result.fileName,
+      }).catch((err) => {
+        console.error('Background page processing error:', err);
+      });
+    });
+
     const responseDoc = document.toJSON();
     responseDoc.document_url = await resolveStorageReadUrl(result.fileName, 3600);
-    responseDoc.page_count = Object.keys(pagesMap).length;
-    responseDoc.pages = pagesMap;
-    const page1Key = pagesMap['1'];
-    responseDoc.thumbnail_url = page1Key
-      ? await resolveStorageReadUrl(page1Key, 3600)
-      : null;
+    responseDoc.processing = true;
+    responseDoc.page_count = 0;
 
     res.json({
       success: true,
-      message: `Document uploaded successfully (${Object.keys(pagesMap).length} page${Object.keys(pagesMap).length !== 1 ? 's' : ''})`,
+      message: 'Document uploaded — processing pages in background',
       data: responseDoc
     });
   } catch (error) {
     console.error('Error uploading document:', error);
     res.status(500).json({ success: false, message: 'Failed to upload document' });
+  }
+};
+
+/**
+ * Poll processing progress for a document (0–100%).
+ */
+export const getDocumentProcessingStatus = async (req, res) => {
+  try {
+    const { documentId } = req.params;
+
+    const document = await MediaChannelDocument.findByPk(documentId);
+    if (!document) {
+      return res.status(404).json({ success: false, message: 'Document not found' });
+    }
+
+    const job = getProcessingJob(document.id);
+    if (job) {
+      return res.json({
+        success: true,
+        data: {
+          status: job.status,
+          progress: job.progress ?? 0,
+          page_count: job.pageCount ?? null,
+          error: job.error ?? null,
+        },
+      });
+    }
+
+    const processingStatus = document.processing_status || 'ready';
+    if (processingStatus === 'failed') {
+      return res.json({
+        success: true,
+        data: {
+          status: 'failed',
+          progress: 0,
+          error: document.processing_error || 'Page processing failed',
+        },
+      });
+    }
+
+    const pages = parsePagesJson(document.pages_json);
+    const pageCount = Object.keys(pages).length;
+    const isReady = processingStatus === 'ready' || pageCount > 0;
+
+    res.json({
+      success: true,
+      data: {
+        status: isReady ? 'ready' : 'processing',
+        progress: isReady ? 100 : 0,
+        page_count: pageCount || null,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching processing status:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch processing status' });
   }
 };
 

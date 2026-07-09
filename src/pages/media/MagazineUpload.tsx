@@ -5,6 +5,8 @@ import { API_BASE_URL, MEDIA_DOCUMENT_MAX_SIZE } from '../../config/api.config';
 import { parsePeriodicalSchedule, periodicalScheduleSignature } from '../../utils/mediaCategoryUtils';
 import { getMagazineUploadSlots, normalizePeriodicalType } from '../../utils/periodicalSlots';
 import { PeriodicalScheduleSummary } from '../../components/media/PeriodicalScheduleSummary';
+import { uploadMediaDocument, getUploadErrorMessage } from '../../utils/mediaDocumentUpload';
+import { UploadProgressBar } from '../../components/media/UploadProgressBar';
 
 interface MagazineUploadProps {
   channelId: number;
@@ -38,6 +40,7 @@ export const MagazineUpload: React.FC<MagazineUploadProps> = ({
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [uploading, setUploading] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -110,33 +113,39 @@ export const MagazineUpload: React.FC<MagazineUploadProps> = ({
     }
     try {
       setUploading(slotId);
+      setUploadProgress((prev) => ({ ...prev, [slotId]: 0 }));
       setMessage(null);
       const token = localStorage.getItem('accessToken');
-      const formData = new FormData();
-      formData.append('document', file);
-      formData.append('categoryId', categoryId.toString());
-      formData.append('year', selectedYear.toString());
-      formData.append('month', month.toString());
-      formData.append('date', date.toString());
-
-      const response = await axios.post(
-        `${API_BASE_URL}/media-document/upload/${channelId}`,
-        formData,
-        { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' } }
-      );
-      if (response.data.success) {
-        setMessage({ type: 'success', text: 'Magazine uploaded successfully' });
-        fetchAllDocuments();
-        onUploadComplete?.();
+      if (!token) {
+        setMessage({ type: 'error', text: 'Please sign in again to upload.' });
+        return;
       }
+
+      await uploadMediaDocument({
+        channelId,
+        categoryId,
+        year: selectedYear,
+        month,
+        date,
+        file,
+        token,
+        onProgress: (percent) => {
+          setUploadProgress((prev) => ({ ...prev, [slotId]: percent }));
+        },
+      });
+
+      setMessage({ type: 'success', text: 'Magazine uploaded successfully' });
+      fetchAllDocuments();
+      onUploadComplete?.();
     } catch (error: unknown) {
-      const err = error as { response?: { status?: number; data?: { message?: string } } };
-      const msg = err.response?.status === 413
-        ? 'File size exceeds 200MB limit. If this persists, ask your server admin to set nginx client_max_body_size to 200m.'
-        : (err.response?.data?.message || 'Upload failed');
-      setMessage({ type: 'error', text: msg });
+      setMessage({ type: 'error', text: getUploadErrorMessage(error) });
     } finally {
       setUploading(null);
+      setUploadProgress((prev) => {
+        const next = { ...prev };
+        delete next[slotId];
+        return next;
+      });
     }
   };
 
@@ -223,6 +232,7 @@ export const MagazineUpload: React.FC<MagazineUploadProps> = ({
               const doc = getDocForSlot(slot.month, slot.date);
               const slotId = slot.slotId || `${selectedYear}-${slot.month}-${slot.date}`;
               const isUploading = uploading === slotId;
+              const progress = uploadProgress[slotId] ?? 0;
 
               return (
                 <div
@@ -237,8 +247,8 @@ export const MagazineUpload: React.FC<MagazineUploadProps> = ({
                   </div>
 
                   {isUploading ? (
-                    <div className="flex items-center justify-center py-3">
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-teal-600" />
+                    <div className="py-2">
+                      <UploadProgressBar percent={progress} />
                     </div>
                   ) : doc ? (
                     <div className="space-y-2">

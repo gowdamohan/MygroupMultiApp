@@ -7,6 +7,8 @@ import {
 import { API_BASE_URL, MEDIA_DOCUMENT_MAX_SIZE } from '../../config/api.config';
 import { PdfDocumentViewer } from '../../components/shared/PdfDocumentViewer';
 import { isPdfFile } from '../../utils/pdfViewer';
+import { uploadMediaDocument, getUploadErrorMessage } from '../../utils/mediaDocumentUpload';
+import { UploadProgressBar } from '../../components/media/UploadProgressBar';
 
 interface EPaperUploadProps {
   channelId: number;
@@ -71,6 +73,7 @@ export const EPaperUpload: React.FC<EPaperUploadProps> = ({
   const [dates] = useState<Date[]>([yesterday, today, tomorrow]);
   const [uploadDocs, setUploadDocs] = useState<Document[]>([]);
   const [uploading, setUploading] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -164,38 +167,44 @@ export const EPaperUpload: React.FC<EPaperUploadProps> = ({
     const key = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
     try {
       setUploading(key);
+      setUploadProgress((prev) => ({ ...prev, [key]: 0 }));
       setMessage(null);
       const token = localStorage.getItem('accessToken');
-      const formData = new FormData();
-      formData.append('document', file);
-      formData.append('categoryId', categoryId.toString());
-      formData.append('year', date.getFullYear().toString());
-      formData.append('month', (date.getMonth() + 1).toString());
-      formData.append('date', date.getDate().toString());
-      const response = await axios.post(
-        `${API_BASE_URL}/media-document/upload/${channelId}`,
-        formData,
-        { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' } }
-      );
-      if (response.data.success) {
-        const pages = response.data.data?.page_count;
-        setMessage({
-          type: 'success',
-          text: pages
-            ? `E-Paper uploaded (${pages} page${pages !== 1 ? 's' : ''} processed)`
-            : 'E-Paper uploaded successfully',
-        });
-        fetchUploadDocs();
-        onUploadComplete?.();
+      if (!token) {
+        setMessage({ type: 'error', text: 'Please sign in again to upload.' });
+        return;
       }
-    } catch (error: any) {
-      const msg =
-        error?.response?.status === 413
-          ? 'File size exceeds 200MB limit. If this persists, ask your server admin to set nginx client_max_body_size to 200m.'
-          : error.response?.data?.message || 'Upload failed';
-      setMessage({ type: 'error', text: msg });
+
+      const result = await uploadMediaDocument({
+        channelId,
+        categoryId,
+        year: date.getFullYear(),
+        month: date.getMonth() + 1,
+        date: date.getDate(),
+        file,
+        token,
+        onProgress: (percent) => {
+          setUploadProgress((prev) => ({ ...prev, [key]: percent }));
+        },
+      });
+
+      setMessage({
+        type: 'success',
+        text: result.pageCount
+          ? `E-Paper uploaded (${result.pageCount} page${result.pageCount !== 1 ? 's' : ''} processed)`
+          : 'E-Paper uploaded successfully',
+      });
+      fetchUploadDocs();
+      onUploadComplete?.();
+    } catch (error: unknown) {
+      setMessage({ type: 'error', text: getUploadErrorMessage(error) });
     } finally {
       setUploading(null);
+      setUploadProgress((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
     }
   };
 
@@ -325,6 +334,7 @@ export const EPaperUpload: React.FC<EPaperUploadProps> = ({
                 const doc = getDocForDate(date);
                 const key = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
                 const isUploading = uploading === key;
+                const progress = uploadProgress[key] ?? 0;
                 const label = getDateLabel(date);
                 const isToday = label === 'Today';
 
@@ -354,9 +364,8 @@ export const EPaperUpload: React.FC<EPaperUploadProps> = ({
                     {/* Card body */}
                     <div className="p-4">
                       {isUploading ? (
-                        <div className="flex flex-col items-center justify-center py-8">
-                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600 mb-2" />
-                          <span className="text-sm text-gray-500 text-center px-2">Uploading &amp; splitting pages…</span>
+                        <div className="flex flex-col items-center justify-center py-6 px-2">
+                          <UploadProgressBar percent={progress} className="mb-4" />
                         </div>
                       ) : doc ? (
                         <div className="space-y-3">

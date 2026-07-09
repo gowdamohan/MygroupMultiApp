@@ -47,6 +47,17 @@ const MediaChannelDocument = sequelize.define('media_channel_document', {
     allowNull: true,
     comment: 'JSON map: {"1":"wasabi/key.webp","2":"..."} — one key per page'
   },
+  processing_status: {
+    type: DataTypes.STRING(20),
+    allowNull: true,
+    defaultValue: 'ready',
+    comment: 'ready | processing | failed — page split job state'
+  },
+  processing_error: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    comment: 'Error message when processing_status is failed'
+  },
   file_name: {
     type: DataTypes.STRING(255),
     allowNull: true,

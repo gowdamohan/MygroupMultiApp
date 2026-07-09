@@ -19,6 +19,8 @@ import { uploadFile } from './wasabiService.js';
 const require = createRequire(import.meta.url);
 const PAGE_MAX_WIDTH = 1200;
 const WEBP_QUALITY = 78;
+/** Render/upload this many PDF pages at once — speeds up large e-papers. */
+const PAGE_CONCURRENCY = 3;
 
 // pdf.js CanvasGraphics expects browser globals; provide Node equivalents.
 if (typeof globalThis.Path2D === 'undefined') globalThis.Path2D = NapiPath2D;
@@ -67,12 +69,54 @@ async function loadPdfJs() {
   return pdfjsLibPromise;
 }
 
+async function renderPdfPageToWasabi(pdf, pageNum, folder, canvasFactory) {
+  const page = await pdf.getPage(pageNum);
+  try {
+    const viewport1 = page.getViewport({ scale: 1 });
+    const scale = Math.min(2, PAGE_MAX_WIDTH / Math.max(viewport1.width, 1));
+    const viewport = page.getViewport({ scale });
+
+    const canvasAndContext = canvasFactory.create(viewport.width, viewport.height);
+    const { canvas, context: ctx } = canvasAndContext;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    await page.render({
+      canvasContext: ctx,
+      viewport,
+      canvasFactory,
+    }).promise;
+
+    const webpBuffer = await sharp(canvas.toBuffer('image/png'))
+      .webp({ quality: WEBP_QUALITY })
+      .toBuffer();
+    canvasFactory.destroy(canvasAndContext);
+
+    const uploaded = await uploadFile(
+      webpBuffer,
+      `page-${pageNum}.webp`,
+      'image/webp',
+      `${folder}/pages`
+    );
+
+    if (!uploaded?.success || !uploaded.fileName) {
+      throw new Error(`Failed to upload page ${pageNum} to Wasabi`);
+    }
+
+    return { pageNum, fileName: uploaded.fileName };
+  } finally {
+    page.cleanup();
+  }
+}
+
 /**
  * @param {Buffer} pdfBuffer
  * @param {string} folder Wasabi folder prefix
+ * @param {{ onProgress?: (info: { current: number, total: number }) => void }} [options]
  * @returns {Promise<{ pageCount: number, pages: Record<string, string> }>}
  */
-export async function splitPdfToWasabiPages(pdfBuffer, folder) {
+export async function splitPdfToWasabiPages(pdfBuffer, folder, options = {}) {
+  const { onProgress } = options;
   const pdfjsLib = await loadPdfJs();
   const data = new Uint8Array(
     pdfBuffer.buffer.slice(pdfBuffer.byteOffset, pdfBuffer.byteOffset + pdfBuffer.byteLength),
@@ -94,45 +138,21 @@ export async function splitPdfToWasabiPages(pdfBuffer, folder) {
   const pdf = await loadingTask.promise;
   const pageCount = pdf.numPages;
   const pages = {};
+  let completed = 0;
 
   try {
-    for (let pageNum = 1; pageNum <= pageCount; pageNum++) {
-      const page = await pdf.getPage(pageNum);
-      const viewport1 = page.getViewport({ scale: 1 });
-      const scale = Math.min(2, PAGE_MAX_WIDTH / Math.max(viewport1.width, 1));
-      const viewport = page.getViewport({ scale });
-
-      const canvasAndContext = canvasFactory.create(viewport.width, viewport.height);
-      const { canvas, context: ctx } = canvasAndContext;
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      await page.render({
-        canvasContext: ctx,
-        viewport,
-        canvasFactory,
-      }).promise;
-
-      const pngBuffer = canvas.toBuffer('image/png');
-      canvasFactory.destroy(canvasAndContext);
-
-      const webpBuffer = await sharp(pngBuffer)
-        .webp({ quality: WEBP_QUALITY })
-        .toBuffer();
-
-      const uploaded = await uploadFile(
-        webpBuffer,
-        `page-${pageNum}.webp`,
-        'image/webp',
-        `${folder}/pages`
-      );
-
-      if (!uploaded?.success || !uploaded.fileName) {
-        throw new Error(`Failed to upload page ${pageNum} to Wasabi`);
+    for (let start = 1; start <= pageCount; start += PAGE_CONCURRENCY) {
+      const end = Math.min(start + PAGE_CONCURRENCY - 1, pageCount);
+      const batch = [];
+      for (let pageNum = start; pageNum <= end; pageNum++) {
+        batch.push(renderPdfPageToWasabi(pdf, pageNum, folder, canvasFactory));
       }
-
-      pages[String(pageNum)] = uploaded.fileName;
-      page.cleanup();
+      const results = await Promise.all(batch);
+      for (const { pageNum, fileName } of results) {
+        pages[String(pageNum)] = fileName;
+      }
+      completed = end;
+      onProgress?.({ current: completed, total: pageCount });
     }
   } finally {
     await pdf.destroy();
