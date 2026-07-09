@@ -60,8 +60,10 @@ FROM node:20-alpine AS backend-deps
 
 WORKDIR /app/backend
 
-# Native runtime libs for sharp + @napi-rs/canvas (PDF page splitting)
-RUN apk add --no-cache cairo pango libjpeg-turbo giflib fontconfig freetype
+# Native runtime libs for sharp + poppler PDF splitting
+RUN apk add --no-cache \
+    cairo pango libjpeg-turbo giflib fontconfig freetype \
+    poppler-utils
 
 # Copy package files for backend
 COPY backend/package.json backend/package-lock.json ./
@@ -75,7 +77,10 @@ RUN npm ci --only=production --include=optional --silent
 FROM node:20-alpine AS production
 
 # Health checks + native libs for PDF page rendering at runtime
-RUN apk add --no-cache curl dumb-init cairo pango libjpeg-turbo giflib fontconfig freetype
+RUN apk add --no-cache \
+    curl dumb-init \
+    cairo pango libjpeg-turbo giflib fontconfig freetype \
+    poppler-utils
 
 # Set environment variables
 ENV NODE_ENV=production \

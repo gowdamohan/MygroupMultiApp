@@ -8,6 +8,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import sequelize, { testConnection, analyzeSchema, tableExists } from './config/database.js';
+import { checkPdfSplitterAvailable } from './services/pdfPagesService.js';
 import authRoutes from './routes/authRoutes.js';
 import geoRoutes from './routes/geoRoutes.js';
 import groupRoutes from './routes/groupRoutes.js';
@@ -290,6 +291,16 @@ const startServer = async () => {
         }
       } catch (err) {
         console.error('❌ Error while testing DB connection:', err.message || err);
+      }
+      try {
+        const pdfOk = await checkPdfSplitterAvailable();
+        if (pdfOk) {
+          console.log('✅ PDF page splitter (pdftoppm) available');
+        } else {
+          console.error('❌ PDF page splitter missing — e-paper uploads will fail. Install poppler-utils.');
+        }
+      } catch (err) {
+        console.error('❌ PDF splitter check failed:', err.message || err);
       }
     })();
   } catch (error) {

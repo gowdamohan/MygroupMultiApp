@@ -61,10 +61,11 @@ export async function pollDocumentProcessing(
 
     const { status, progress = 0, page_count, error } = res.data.data ?? {};
 
-    const displayPercent = Math.max(
-      MEDIA_UPLOAD_PROGRESS_CAP,
-      Math.min(99, progress)
-    );
+    // Map server 0–100 → UI 38–99 during processing phase
+    const serverPct = Math.min(100, Math.max(0, progress));
+    const displayPercent = status === 'ready'
+      ? 100
+      : Math.min(99, MEDIA_UPLOAD_PROGRESS_CAP + Math.round((serverPct / 100) * (100 - MEDIA_UPLOAD_PROGRESS_CAP)));
 
     onProgress?.({
       phase: 'processing',

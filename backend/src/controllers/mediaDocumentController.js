@@ -1,7 +1,12 @@
 import { MediaChannelDocument, MediaChannel, AppCategory, User } from '../models/index.js';
 import { deleteFile, getPresignedUrl, resolveStorageReadUrl, WASABI_PUBLIC_BASE_URL } from '../services/wasabiService.js';
 import { processDocumentPagesJob, getProcessingJob } from '../services/documentProcessingService.js';
-import { listPageKeys, parsePagesJson } from '../services/pdfPagesService.js';
+import { listPageKeys, parsePagesJson, checkPdfSplitterAvailable } from '../services/pdfPagesService.js';
+
+/** True when document_path is the temporary placeholder while pages are splitting. */
+function isProcessingPlaceholder(path) {
+  return Boolean(path && path.includes('/_processing_'));
+}
 
 /** True when document_path points to a legacy full-PDF upload (not a page WebP). */
 function isLegacyPdfPath(path) {
@@ -37,10 +42,13 @@ async function formatDocumentJson(doc) {
   const page1Key = pages['1'];
   json.page_count = Object.keys(pages).length;
   json.thumbnail_url = page1Key ? await resolveStorageReadUrl(page1Key, 3600) : null;
-  const displayKey = page1Key || (isLegacyPdfPath(doc.document_path) ? doc.document_path : null);
-  json.document_url = displayKey
+  const displayKey = page1Key
+    || (isLegacyPdfPath(doc.document_path) ? doc.document_path : null);
+  json.document_url = displayKey && !isProcessingPlaceholder(displayKey)
     ? await resolveStorageReadUrl(displayKey, 3600)
     : null;
+  json.processing = isProcessingPlaceholder(doc.document_path)
+    || doc.processing_status === 'processing';
   return json;
 }
 
@@ -120,6 +128,13 @@ export const uploadDocument = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Only PDF or image files (JPG, PNG, WebP) are allowed'
+      });
+    }
+
+    if (req.file.mimetype === 'application/pdf' && !(await checkPdfSplitterAvailable())) {
+      return res.status(503).json({
+        success: false,
+        message: 'PDF processing is not available on the server. Please contact support (poppler-utils missing).',
       });
     }
 
@@ -234,6 +249,22 @@ export const getDocumentProcessingStatus = async (req, res) => {
     const pages = parsePagesJson(document.pages_json);
     const pageCount = Object.keys(pages).length;
     const isReady = processingStatus === 'ready' || pageCount > 0;
+
+    if (!isReady && processingStatus === 'processing') {
+      const updatedAt = document.updated_at ? new Date(document.updated_at).getTime() : 0;
+      const staleMs = 15 * 60 * 1000;
+      if (updatedAt && Date.now() - updatedAt > staleMs) {
+        const staleError = 'Processing timed out. Please delete and re-upload the e-paper.';
+        await document.update({
+          processing_status: 'failed',
+          processing_error: staleError,
+        });
+        return res.json({
+          success: true,
+          data: { status: 'failed', progress: 0, error: staleError },
+        });
+      }
+    }
 
     res.json({
       success: true,
