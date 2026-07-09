@@ -7,17 +7,13 @@ import {
 import { API_BASE_URL, MEDIA_DOCUMENT_MAX_SIZE } from '../../config/api.config';
 import { PdfDocumentViewer } from '../../components/shared/PdfDocumentViewer';
 import { isPdfFile } from '../../utils/pdfViewer';
-import {
-  deleteMediaDocument,
-  MediaUploadProgress,
-  postMediaDocumentUpload,
-} from '../../utils/mediaDocumentUpload';
-import { MediaDocumentUploadProgress } from '../../components/media/MediaDocumentUploadProgress';
 
 interface EPaperUploadProps {
   channelId: number;
   categoryId: number;
   onBack: () => void;
+  embedded?: boolean;
+  onUploadComplete?: () => void;
 }
 
 interface Document {
@@ -60,7 +56,13 @@ const getMonthGrid = (year: number, month: number) => {
   return { leadingBlanks: firstDay, daysInMonth };
 };
 
-export const EPaperUpload: React.FC<EPaperUploadProps> = ({ channelId, categoryId, onBack }) => {
+export const EPaperUpload: React.FC<EPaperUploadProps> = ({
+  channelId,
+  categoryId,
+  onBack,
+  embedded = false,
+  onUploadComplete
+}) => {
   const today = new Date();
   const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
   const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
@@ -69,7 +71,6 @@ export const EPaperUpload: React.FC<EPaperUploadProps> = ({ channelId, categoryI
   const [dates] = useState<Date[]>([yesterday, today, tomorrow]);
   const [uploadDocs, setUploadDocs] = useState<Document[]>([]);
   const [uploading, setUploading] = useState<string | null>(null);
-  const [uploadProgress, setUploadProgress] = useState<MediaUploadProgress | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -163,15 +164,19 @@ export const EPaperUpload: React.FC<EPaperUploadProps> = ({ channelId, categoryI
     const key = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
     try {
       setUploading(key);
-      setUploadProgress({ phase: 'uploading', percent: 0, label: 'Uploading file…' });
       setMessage(null);
+      const token = localStorage.getItem('accessToken');
       const formData = new FormData();
       formData.append('document', file);
       formData.append('categoryId', categoryId.toString());
       formData.append('year', date.getFullYear().toString());
       formData.append('month', (date.getMonth() + 1).toString());
       formData.append('date', date.getDate().toString());
-      const response = await postMediaDocumentUpload(channelId, formData, setUploadProgress);
+      const response = await axios.post(
+        `${API_BASE_URL}/media-document/upload/${channelId}`,
+        formData,
+        { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' } }
+      );
       if (response.data.success) {
         const pages = response.data.data?.page_count;
         setMessage({
@@ -180,31 +185,28 @@ export const EPaperUpload: React.FC<EPaperUploadProps> = ({ channelId, categoryI
             ? `E-Paper uploaded (${pages} page${pages !== 1 ? 's' : ''} processed)`
             : 'E-Paper uploaded successfully',
         });
-        await fetchUploadDocs();
+        fetchUploadDocs();
       }
     } catch (error: any) {
       const msg =
-        error?.code === 'ECONNABORTED'
-          ? 'Upload timed out while processing pages. Please refresh — the file may still appear if processing finished on the server.'
-          : error?.response?.status === 413
+        error?.response?.status === 413
           ? 'File size exceeds 200MB limit. If this persists, ask your server admin to set nginx client_max_body_size to 200m.'
           : error.response?.data?.message || 'Upload failed';
       setMessage({ type: 'error', text: msg });
     } finally {
       setUploading(null);
-      setUploadProgress(null);
     }
   };
 
   const handleDelete = async (documentId: number) => {
     if (!confirm('Are you sure you want to delete this e-paper?')) return;
     try {
-      const { alreadyGone } = await deleteMediaDocument(documentId);
-      setMessage({
-        type: 'success',
-        text: alreadyGone ? 'E-Paper was already removed' : 'E-Paper deleted successfully',
+      const token = localStorage.getItem('accessToken');
+      await axios.delete(`${API_BASE_URL}/media-document/document/${documentId}`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
-      await fetchUploadDocs();
+      setMessage({ type: 'success', text: 'E-Paper deleted successfully' });
+      fetchUploadDocs();
     } catch (error: any) {
       setMessage({ type: 'error', text: error.response?.data?.message || 'Delete failed' });
     }
@@ -256,9 +258,11 @@ export const EPaperUpload: React.FC<EPaperUploadProps> = ({ channelId, categoryI
     <div className="space-y-6 p-6">
       {/* Header */}
       <div className="flex items-center gap-4 flex-wrap">
-        <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-          <ArrowLeft size={20} />
-        </button>
+        {!embedded && (
+          <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+            <ArrowLeft size={20} />
+          </button>
+        )}
         <Newspaper size={24} className="text-teal-600" />
         <h2 className="text-2xl font-bold text-gray-800 flex-1">
           {viewMode === 'upload' ? 'Upload E-Paper' : 'Uploaded E-Papers'}
@@ -319,6 +323,7 @@ export const EPaperUpload: React.FC<EPaperUploadProps> = ({ channelId, categoryI
                 const doc = getDocForDate(date);
                 const key = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
                 const isUploading = uploading === key;
+                const progress = uploadProgress[key] ?? 0;
                 const label = getDateLabel(date);
                 const isToday = label === 'Today';
 
@@ -348,15 +353,9 @@ export const EPaperUpload: React.FC<EPaperUploadProps> = ({ channelId, categoryI
                     {/* Card body */}
                     <div className="p-4">
                       {isUploading ? (
-                        <div className="flex flex-col items-center justify-center py-8 px-2">
-                          {uploadProgress ? (
-                            <MediaDocumentUploadProgress progress={uploadProgress} />
-                          ) : (
-                            <>
-                              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600 mb-2" />
-                              <span className="text-sm text-gray-500 text-center">Uploading…</span>
-                            </>
-                          )}
+                        <div className="flex flex-col items-center justify-center py-8">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600 mb-2" />
+                          <span className="text-sm text-gray-500 text-center px-2">Uploading &amp; splitting pages…</span>
                         </div>
                       ) : doc ? (
                         <div className="space-y-3">

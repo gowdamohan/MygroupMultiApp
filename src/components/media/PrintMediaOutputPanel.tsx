@@ -14,6 +14,7 @@ interface PrintDocument {
   document_date: number;
   document_url: string;
   file_name: string;
+  created_at?: string;
 }
 
 interface Comment {
@@ -55,6 +56,7 @@ interface PrintMediaOutputPanelProps {
   formatCount: (count: number) => string;
   onNavigateUpload: () => void;
   onSwitchToPreview?: () => void;
+  refreshKey?: number;
 }
 
 export const PrintMediaOutputPanel: React.FC<PrintMediaOutputPanelProps> = ({
@@ -74,20 +76,51 @@ export const PrintMediaOutputPanel: React.FC<PrintMediaOutputPanelProps> = ({
   formatTimeAgo,
   formatCount,
   onNavigateUpload,
-  onSwitchToPreview
+  onSwitchToPreview,
+  refreshKey = 0
 }) => {
   const isMagazine = isMagazineCategory(categoryCtx);
   const now = new Date();
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
   const [documents, setDocuments] = useState<PrintDocument[]>([]);
+  const [lastUploaded, setLastUploaded] = useState<PrintDocument | null>(null);
   const [loading, setLoading] = useState(false);
+  const [lastUploadedLoading, setLastUploadedLoading] = useState(false);
   const [activeDocId, setActiveDocId] = useState<number | null>(null);
+  const [previewInitialized, setPreviewInitialized] = useState(false);
 
   const years = useMemo(
     () => Array.from({ length: 7 }, (_, i) => now.getFullYear() - 5 + i),
     []
   );
+
+  const fetchLastUploaded = useCallback(async () => {
+    try {
+      setLastUploadedLoading(true);
+      const token = localStorage.getItem('accessToken');
+      const res = await axios.get(
+        `${API_BASE_URL}/media-document/last-uploaded/${channelId}/${categoryId}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (res.data.success && res.data.data) {
+        const doc: PrintDocument = res.data.data;
+        setLastUploaded(doc);
+        if (!previewInitialized) {
+          setSelectedYear(doc.document_year);
+          setSelectedMonth(doc.document_month);
+          setActiveDocId(doc.id);
+          setPreviewInitialized(true);
+        }
+      } else {
+        setLastUploaded(null);
+      }
+    } catch {
+      setLastUploaded(null);
+    } finally {
+      setLastUploadedLoading(false);
+    }
+  }, [channelId, categoryId, previewInitialized]);
 
   const fetchDocuments = useCallback(async () => {
     try {
@@ -120,12 +153,47 @@ export const PrintMediaOutputPanel: React.FC<PrintMediaOutputPanelProps> = ({
   }, [channelId, categoryId, selectedYear, selectedMonth]);
 
   useEffect(() => {
+    fetchLastUploaded();
+  }, [fetchLastUploaded, refreshKey]);
+
+  useEffect(() => {
     fetchDocuments();
   }, [fetchDocuments]);
 
   const activeDoc = documents.find((d) => d.id === activeDocId) || null;
+  const outputDoc = lastUploaded;
 
   const monthLabel = `${MONTHS[selectedMonth - 1]} ${selectedYear}`;
+
+  const formatDocLabel = (doc: PrintDocument) =>
+    isMagazine
+      ? `Day ${doc.document_date} — ${MONTHS[doc.document_month - 1]} ${doc.document_year}`
+      : formatIssueDate(doc);
+
+  const lastUploadedPanel = (doc: PrintDocument | null, loadingState: boolean, dark = false) => (
+    <div className={`${dark ? 'bg-gray-800 border-gray-700' : 'bg-teal-50 border-teal-200'} border rounded-lg p-3 mb-3`}>
+      <p className={`text-xs font-bold uppercase tracking-wide mb-1 ${dark ? 'text-teal-400' : 'text-teal-800'}`}>
+        Last Uploaded
+      </p>
+      {loadingState ? (
+        <p className="text-sm text-gray-500">Loading…</p>
+      ) : doc ? (
+        <div className="space-y-1">
+          <p className={`text-sm font-semibold ${dark ? 'text-gray-100' : 'text-gray-800'}`}>{formatDocLabel(doc)}</p>
+          <p className={`text-xs truncate ${dark ? 'text-gray-400' : 'text-gray-600'}`} title={doc.file_name}>{doc.file_name}</p>
+          {doc.created_at && (
+            <p className={`text-xs ${dark ? 'text-gray-500' : 'text-gray-500'}`}>
+              Uploaded {new Date(doc.created_at).toLocaleString('en-GB', {
+                day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+              })}
+            </p>
+          )}
+        </div>
+      ) : (
+        <p className="text-sm text-gray-500">No uploads yet</p>
+      )}
+    </div>
+  );
 
   const docsByDate = useMemo(() => {
     const map = new Map<number, PrintDocument>();
@@ -278,9 +346,9 @@ export const PrintMediaOutputPanel: React.FC<PrintMediaOutputPanelProps> = ({
             <Calendar size={18} />
             {monthLabel}
           </span>
-          {activeDoc && (
+          {outputDoc && (
             <span className="text-sm text-red-100">
-              Issue: {isMagazine ? `Day ${activeDoc.document_date}` : formatIssueDate(activeDoc)}
+              Issue: {isMagazine ? `Day ${outputDoc.document_date}` : formatIssueDate(outputDoc)}
             </span>
           )}
         </div>
@@ -310,13 +378,15 @@ export const PrintMediaOutputPanel: React.FC<PrintMediaOutputPanelProps> = ({
     return (
       <div className="flex-1 flex bg-black min-h-0 overflow-hidden">
         <div className="flex-1 flex flex-col min-w-0 min-h-0">
-          {/* flex-1 + min-h-0 lets the PDF area shrink inside the flex column */}
           <div className="flex-1 bg-gray-900 relative min-h-0 overflow-hidden">
-            {loading ? (
-              <div className="absolute inset-0 flex items-center justify-center text-gray-500">Loading issue…</div>
+            {lastUploadedLoading ? (
+              <div className="absolute inset-0 flex items-center justify-center text-gray-500">Loading last uploaded…</div>
             ) : (
-              renderPdfViewer(activeDoc, 'absolute inset-0 w-full h-full')
+              renderPdfViewer(outputDoc, 'absolute inset-0 w-full h-full')
             )}
+          </div>
+          <div className="px-4 py-2 border-t border-gray-700">
+            {lastUploadedPanel(lastUploaded, lastUploadedLoading, true)}
           </div>
           {statsBar}
         </div>
@@ -355,6 +425,7 @@ export const PrintMediaOutputPanel: React.FC<PrintMediaOutputPanelProps> = ({
 
         <div className="flex flex-1 min-h-0 flex-col md:flex-row overflow-hidden">
           <div className="md:w-56 border-r border-gray-200 p-3 overflow-y-auto bg-gray-50">
+            {lastUploadedPanel(lastUploaded, lastUploadedLoading)}
             <p className="text-xs font-semibold text-gray-500 uppercase mb-2">{monthLabel}</p>
             {loading ? (
               <p className="text-sm text-gray-500">Loading...</p>
@@ -416,12 +487,13 @@ export const PrintMediaOutputPanel: React.FC<PrintMediaOutputPanelProps> = ({
 
       <div className="w-72 flex flex-col gap-3">
         <div className="bg-red-600 text-white text-center py-2 font-bold rounded-lg">Output</div>
-        {/* min-h-0 lets flex-1 shrink; explicit min-h keeps it usable */}
         <div className="flex-1 bg-gray-900 rounded-lg overflow-hidden min-h-[200px] border-2 border-red-500">
-          {renderPdfViewer(activeDoc, 'w-full h-full')}
+          {renderPdfViewer(lastUploaded || activeDoc, 'w-full h-full')}
         </div>
         <p className="text-xs text-white text-center">
-          Selected issue will appear on the Output tab for {monthLabel}
+          {lastUploaded
+            ? `Last uploaded issue shown on Output tab`
+            : `Selected issue will appear on the Output tab for ${monthLabel}`}
         </p>
       </div>
     </div>

@@ -58,7 +58,10 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage: storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit for upload
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit per file
+    files: 6 // up to 5 name image logos + legacy media_logo
+  },
   fileFilter: (req, file, cb) => {
     const allowedTypes = /jpeg|jpg|png|gif|webp/;
     const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
@@ -105,7 +108,7 @@ router.get('/languages', authenticate, getLanguages);
  * @desc    Create media channel registration
  * @access  Private (Partner)
  */
-router.post('/media-channel', authenticate, upload.single('media_logo'), createMediaChannel);
+router.post('/media-channel', authenticate, upload.any(), createMediaChannel);
 
 /**
  * @route   GET /api/v1/partner/my-channels

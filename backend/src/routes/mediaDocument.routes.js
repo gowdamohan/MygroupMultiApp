@@ -4,9 +4,11 @@ import { authenticateToken } from '../middleware/auth.js';
 import {
   getUploadCategories,
   getDocuments,
+  getLastUploadedDocument,
   uploadDocument,
   deleteDocument,
-  getUploadPresignedUrl
+  getUploadPresignedUrl,
+  getDocumentProcessingStatus,
 } from '../controllers/mediaDocumentController.js';
 
 const router = express.Router();
@@ -55,6 +57,9 @@ router.get('/upload-categories/:channelId', authenticateToken, getUploadCategori
 // Get documents for a specific channel, category, year, month
 router.get('/documents/:channelId/:categoryId/:year/:month', authenticateToken, getDocuments);
 
+// Get most recently uploaded document for a channel + category
+router.get('/last-uploaded/:channelId/:categoryId', authenticateToken, getLastUploadedDocument);
+
 // Upload a document
 router.post(
   '/upload/:channelId',
@@ -67,6 +72,9 @@ router.post(
   },
   uploadDocument
 );
+
+// Get processing status (poll after upload)
+router.get('/processing-status/:documentId', authenticateToken, getDocumentProcessingStatus);
 
 // Delete a document
 router.delete('/document/:documentId', authenticateToken, deleteDocument);

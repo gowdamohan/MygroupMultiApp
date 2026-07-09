@@ -354,6 +354,7 @@ export const PartnerDashboard: React.FC = () => {
 
   const registrationEmail = userProfile?.email || user?.email || '';
   const appLogo = selectedAppInfo?.details?.logo;
+  const isEditProfilePage = location.pathname === '/partner/edit-profile';
   const appIcon = selectedAppInfo?.details?.icon;
 
   const renderSidebarIdentity = (variant: 'desktop' | 'mobile') => {
@@ -375,7 +376,7 @@ export const PartnerDashboard: React.FC = () => {
           )}
 
           {/* Three-column image header */}
-          <div className="grid grid-cols-3 gap-2 items-start mb-3">
+          <div className={`grid ${isEditProfilePage ? 'grid-cols-2' : 'grid-cols-3'} gap-2 items-start mb-3`}>
             {/* Left — app icon */}
             <div className="flex flex-col items-center gap-1">
               <div className="w-11 h-11 rounded-full overflow-hidden border-2 border-amber-400/70 bg-white shadow-sm ring-2 ring-amber-500/20 flex items-center justify-center">
@@ -397,6 +398,7 @@ export const PartnerDashboard: React.FC = () => {
             </div>
 
             {/* Center — company logo */}
+            {!isEditProfilePage && (
             <div className="flex flex-col items-center gap-1">
               <div className="w-12 h-12 rounded-xl overflow-hidden border-2 border-primary-400/70 bg-white shadow-lg ring-2 ring-primary-500/20">
                 {ownerDetails?.logo_signed_url ? (
@@ -416,6 +418,7 @@ export const PartnerDashboard: React.FC = () => {
               </div>
               <span className="text-[9px] text-gray-400">Company</span>
             </div>
+            )}
 
             {/* Right — owner photo */}
             <div className="flex flex-col items-center gap-1">

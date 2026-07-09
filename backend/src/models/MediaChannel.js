@@ -79,6 +79,16 @@ const MediaChannel = sequelize.define('media_channel', {
       key: 'id'
     }
   },
+  language_ids: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    comment: 'Array of selected language IDs (max 5)'
+  },
+  name_image_logos: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    comment: 'Map of language_id to Wasabi key for wide name image logos'
+  },
   media_name_english: {
     type: DataTypes.STRING(255),
     allowNull: false

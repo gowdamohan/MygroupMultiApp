@@ -1,12 +1,10 @@
 import { MediaChannelDocument, MediaChannel, AppCategory, User } from '../models/index.js';
 import { uploadFile, deleteFile, getPresignedUrl, resolveStorageReadUrl } from '../services/wasabiService.js';
 import {
-  splitPdfToWasabiPages,
-  imageBufferToWasabiPage,
-  listPageKeys,
-  parsePagesJson,
-} from '../services/pdfPagesService.js';
-import { Op } from 'sequelize';
+  processDocumentPagesJob,
+  getProcessingJob,
+} from '../services/documentProcessingService.js';
+import { listPageKeys, parsePagesJson } from '../services/pdfPagesService.js';
 
 /**
  * Best-effort delete of PDF + all split page objects from Wasabi.
@@ -91,9 +89,8 @@ export const getDocuments = async (req, res) => {
 };
 
 /**
- * Upload a document (PDF) — stores original PDF + splits every page to WebP.
- * Partner waits (loading) until all pages are processed. pages_json:
- *   {"1":"wasabi/.../page-1.webp","2":"..."}
+ * Upload a document — stores original PDF on Wasabi, then splits pages in the background
+ * so the HTTP response returns quickly (avoids nginx 504 on large e-papers).
  */
 export const uploadDocument = async (req, res) => {
   try {
@@ -113,7 +110,6 @@ export const uploadDocument = async (req, res) => {
       });
     }
 
-    // Check if document already exists for this date
     const existingDoc = await MediaChannelDocument.findOne({
       where: {
         media_channel_id: channelId,
@@ -128,7 +124,6 @@ export const uploadDocument = async (req, res) => {
       await deleteDocumentStorage(existingDoc);
     }
 
-    // Upload original file to Wasabi (archive / download)
     const folder = `media_documents/channel_${channelId}/${year}/${month}`;
     const result = await uploadFile(
       req.file.buffer,
@@ -163,15 +158,6 @@ export const uploadDocument = async (req, res) => {
     }
 
     const pagesJson = JSON.stringify(pagesMap);
-    const pageCount = Object.keys(pagesMap).length;
-
-    if (pageCount === 0) {
-      try { await deleteFile(result.fileName); } catch (_) { /* ignore */ }
-      return res.status(500).json({
-        success: false,
-        message: 'PDF produced no pages. Please check the file and try again.',
-      });
-    }
 
     // Save or update document record (one row; pages as JSON index map)
     const documentData = {
@@ -182,7 +168,9 @@ export const uploadDocument = async (req, res) => {
       document_date: parseInt(date),
       document_path: result.fileName,
       document_url: result.publicUrl,
-      pages_json: pagesJson,
+      pages_json: null,
+      processing_status: 'processing',
+      processing_error: null,
       file_name: req.file.originalname,
       file_size: req.file.size,
       uploaded_by: userId,
@@ -197,36 +185,108 @@ export const uploadDocument = async (req, res) => {
       document = await MediaChannelDocument.create(documentData);
     }
 
-    // Verify pages_json persisted (guards against missing DB column on older schemas)
-    await document.reload();
-    const savedPages = parsePagesJson(document.pages_json);
-    if (Object.keys(savedPages).length === 0) {
-      console.error('pages_json was not saved — run database/migrations/add_pages_json_to_media_channel_document.sql');
-      await deleteDocumentStorage(document);
-      await document.destroy();
-      return res.status(500).json({
-        success: false,
-        message: 'Server database is missing the pages_json column. Contact support or run the latest DB migration.',
-      });
-    }
-
     const responseDoc = document.toJSON();
     responseDoc.document_url = await resolveStorageReadUrl(result.fileName, 3600);
-    responseDoc.page_count = Object.keys(pagesMap).length;
-    responseDoc.pages = pagesMap;
-    const page1Key = pagesMap['1'];
-    responseDoc.thumbnail_url = page1Key
-      ? await resolveStorageReadUrl(page1Key, 3600)
-      : null;
+    responseDoc.processing = true;
+    responseDoc.page_count = 0;
 
     res.json({
       success: true,
-      message: `Document uploaded successfully (${Object.keys(pagesMap).length} page${Object.keys(pagesMap).length !== 1 ? 's' : ''})`,
+      message: 'Document uploaded — processing pages in background',
       data: responseDoc
     });
   } catch (error) {
     console.error('Error uploading document:', error);
     res.status(500).json({ success: false, message: 'Failed to upload document' });
+  }
+};
+
+/**
+ * Poll processing progress for a document (0–100%).
+ */
+export const getDocumentProcessingStatus = async (req, res) => {
+  try {
+    const { documentId } = req.params;
+
+    const document = await MediaChannelDocument.findByPk(documentId);
+    if (!document) {
+      return res.status(404).json({ success: false, message: 'Document not found' });
+    }
+
+    const job = getProcessingJob(document.id);
+    if (job) {
+      return res.json({
+        success: true,
+        data: {
+          status: job.status,
+          progress: job.progress ?? 0,
+          page_count: job.pageCount ?? null,
+          error: job.error ?? null,
+        },
+      });
+    }
+
+    const processingStatus = document.processing_status || 'ready';
+    if (processingStatus === 'failed') {
+      return res.json({
+        success: true,
+        data: {
+          status: 'failed',
+          progress: 0,
+          error: document.processing_error || 'Page processing failed',
+        },
+      });
+    }
+
+    const pages = parsePagesJson(document.pages_json);
+    const pageCount = Object.keys(pages).length;
+    const isReady = processingStatus === 'ready' || pageCount > 0;
+
+    res.json({
+      success: true,
+      data: {
+        status: isReady ? 'ready' : 'processing',
+        progress: isReady ? 100 : 0,
+        page_count: pageCount || null,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching processing status:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch processing status' });
+  }
+};
+
+/**
+ * Get the most recently uploaded document for a channel + category
+ */
+export const getLastUploadedDocument = async (req, res) => {
+  try {
+    const { channelId, categoryId } = req.params;
+
+    const document = await MediaChannelDocument.findOne({
+      where: {
+        media_channel_id: channelId,
+        category_id: categoryId,
+        status: 1
+      },
+      order: [['created_at', 'DESC']]
+    });
+
+    if (!document) {
+      return res.json({ success: true, data: null });
+    }
+
+    const json = document.toJSON();
+    json.document_url = await resolveStorageReadUrl(document.document_path || document.document_url, 3600);
+    const pages = parsePagesJson(document.pages_json);
+    json.page_count = Object.keys(pages).length;
+    const page1 = pages['1'];
+    json.thumbnail_url = page1 ? await resolveStorageReadUrl(page1, 3600) : null;
+
+    res.json({ success: true, data: json });
+  } catch (error) {
+    console.error('Error fetching last uploaded document:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch last uploaded document' });
   }
 };
 
