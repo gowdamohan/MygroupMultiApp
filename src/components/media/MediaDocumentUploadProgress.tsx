@@ -1,6 +1,6 @@
 import React from 'react';
-import { Progress } from '../components/ui/progress';
-import type { MediaUploadProgress } from '../utils/mediaDocumentUpload';
+import { Progress } from '../ui/progress';
+import type { MediaUploadProgress } from '../../utils/mediaDocumentUpload';
 
 interface MediaDocumentUploadProgressProps {
   progress: MediaUploadProgress;
