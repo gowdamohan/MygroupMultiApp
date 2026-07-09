@@ -38,6 +38,7 @@ import {
 import { normalizePeriodicalType } from '../../utils/periodicalSlots';
 import { PrintMediaOutputPanel } from '../../components/media/PrintMediaOutputPanel';
 import { PartnerHeader } from '../../components/dashboard/PartnerHeader';
+import { LiveClock } from '../../components/LiveClock';
 
 interface MenuItem {
   id: string;
@@ -197,9 +198,6 @@ export const MediaDashboard: React.FC = () => {
   const [websitePreviewLoading, setWebsitePreviewLoading] = useState(false);
   const [websitePreviewError, setWebsitePreviewError] = useState<string | null>(null);
 
-  // Real-time date/time state
-  const [currentDateTime, setCurrentDateTime] = useState(new Date());
-
   // Preview tab state
   const [previewLiveUrl, setPreviewLiveUrl] = useState('');
   const [previewMymediaUrl, setPreviewMymediaUrl] = useState('');
@@ -220,38 +218,38 @@ export const MediaDashboard: React.FC = () => {
   const [livePreviewLoaded, setLivePreviewLoaded] = useState(false);
   const [mymediaPreviewLoaded, setMymediaPreviewLoaded] = useState(false);
 
+  const isMainDashboardPath = Boolean(
+    channelId &&
+      (location.pathname === `/media/dashboard/${channelId}` ||
+        location.pathname === `/media/dashboard/${channelId}/`)
+  );
+
   useEffect(() => {
     if (channelId) {
       fetchChannelInfo();
       fetchUploadCategories();
       fetchDashboardData();
-      fetchComments();
       fetchInteractions();
       fetchOfflineMedia();
     }
   }, [channelId]);
+
+  // Comments: only on main output URL (/media/dashboard/:id), poll every 30s
+  useEffect(() => {
+    if (!channelId || !isMainDashboardPath) return;
+
+    fetchComments();
+    const timer = setInterval(() => {
+      fetchComments();
+    }, 30000);
+    return () => clearInterval(timer);
+  }, [channelId, isMainDashboardPath]);
 
   useEffect(() => {
     if (channelInfo?.app_id) {
       fetchMainCategories(channelInfo.app_id);
     }
   }, [channelInfo?.app_id]);
-
-  // Real-time clock update every second
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentDateTime(new Date());
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  // Auto-refresh comments every 10 seconds
-  useEffect(() => {
-    const timer = setInterval(() => {
-      if (channelId) fetchComments();
-    }, 10000);
-    return () => clearInterval(timer);
-  }, [channelId]);
 
   const fetchDashboardData = async () => {
     try {
@@ -1086,8 +1084,7 @@ export const MediaDashboard: React.FC = () => {
                     <span className="font-bold">: {formatCount(interactions?.views_count || 0)}</span>
                   </div>
                   <div className="flex-1 flex items-center justify-center gap-4 px-4 py-2">
-                    <span className="font-bold">{currentDateTime.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, ' - ')}</span>
-                    <span className="font-bold">{currentDateTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}</span>
+                    <LiveClock />
                   </div>
                 </div>
                 {/* Engagement Stats */}
@@ -1305,8 +1302,7 @@ export const MediaDashboard: React.FC = () => {
                   <span className="font-bold">: {formatCount(interactions?.views_count || 0)}</span>
                 </div>
                 <div className="flex-1 flex items-center justify-center gap-4 px-4 py-2">
-                  <span className="font-bold">{currentDateTime.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, ' - ')}</span>
-                  <span className="font-bold">{currentDateTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}</span>
+                  <LiveClock />
                 </div>
               </div>
               {/* Engagement Stats */}

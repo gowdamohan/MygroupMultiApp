@@ -2,6 +2,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { Megaphone } from 'lucide-react';
 import { API_BASE_URL } from '../../config/api.config';
+import {
+  applySignedUrlCacheToAds,
+  getCachedBlobUrl,
+  resolveAdImageSrc,
+} from '../../utils/partnerAdCache';
 
 export interface PartnerAd {
   id: number;
@@ -36,23 +41,85 @@ const buildSlotAdsFromList = (ads: PartnerAd[], type: 'ads1' | 'ads2') =>
     .sort((a, b) => (a.slot || 0) - (b.slot || 0))
     .slice(0, 3);
 
+const CachedAdImage: React.FC<{
+  ad: PartnerAd;
+  alt: string;
+  className?: string;
+}> = ({ ad, alt, className }) => {
+  const [src, setSrc] = useState(() => {
+    if (ad.image_path) {
+      const blob = getCachedBlobUrl(ad.image_path);
+      if (blob) return blob;
+      const signed = ad.signed_url || ad.image_url || '';
+      return signed;
+    }
+    return ad.signed_url || ad.image_url || '';
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    resolveAdImageSrc(ad.image_path, ad.signed_url, ad.image_url).then((url) => {
+      if (!cancelled && url) setSrc(url);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [ad.id, ad.image_path, ad.signed_url, ad.image_url]);
+
+  if (!src) return null;
+
+  return <img src={src} alt={alt} className={className} />;
+};
+
 const AdSlotCarousel: React.FC<{ ads: PartnerAd[]; fallbackLabel: string }> = ({
   ads,
-  fallbackLabel
+  fallbackLabel,
 }) => {
   const [index, setIndex] = useState(0);
+  const adIdsKey = ads.map((a) => a.id).join(',');
 
   useEffect(() => {
     setIndex(0);
-  }, [ads]);
+  }, [adIdsKey]);
 
   useEffect(() => {
     if (ads.length <= 1) return;
-    const interval = setInterval(() => {
-      setIndex((prev) => (prev + 1) % ads.length);
-    }, ROTATE_MS);
-    return () => clearInterval(interval);
+
+    let interval: ReturnType<typeof setInterval> | null = null;
+
+    const tick = () => setIndex((prev) => (prev + 1) % ads.length);
+
+    const start = () => {
+      if (interval || document.hidden) return;
+      interval = setInterval(tick, ROTATE_MS);
+    };
+
+    const stop = () => {
+      if (interval) {
+        clearInterval(interval);
+        interval = null;
+      }
+    };
+
+    const onVisibility = () => {
+      if (document.hidden) stop();
+      else start();
+    };
+
+    start();
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [ads.length]);
+
+  // Prefetch all slot images once (served from blob cache on carousel rotation)
+  useEffect(() => {
+    ads.forEach((ad) => {
+      resolveAdImageSrc(ad.image_path, ad.signed_url, ad.image_url).catch(() => {});
+    });
+  }, [adIdsKey]);
 
   if (ads.length === 0) {
     return (
@@ -66,11 +133,10 @@ const AdSlotCarousel: React.FC<{ ads: PartnerAd[]; fallbackLabel: string }> = ({
   }
 
   const currentAd = ads[index];
-  const src = currentAd.signed_url || currentAd.image_url || '';
 
   const image = (
-    <img
-      src={src}
+    <CachedAdImage
+      ad={currentAd}
       alt={fallbackLabel}
       className="w-full h-full object-cover"
     />
@@ -113,7 +179,7 @@ const AdSlotCarousel: React.FC<{ ads: PartnerAd[]; fallbackLabel: string }> = ({
 
 export const PartnerHeader: React.FC<PartnerHeaderProps> = ({
   fallbackMarqueeText = 'Welcome to Partner Dashboard',
-  className = ''
+  className = '',
 }) => {
   const [ads1, setAds1] = useState<PartnerAd[]>([]);
   const [ads2, setAds2] = useState<PartnerAd[]>([]);
@@ -127,13 +193,19 @@ export const PartnerHeader: React.FC<PartnerHeaderProps> = ({
 
       const response = await axios.get(`${API_BASE_URL}/partner-ads`, {
         headers: { Authorization: `Bearer ${token}` },
-        params: { app_id: appId, limit: 100 }
+        params: { app_id: appId, limit: 100 },
       });
 
       if (response.data.success) {
-        const allAds: PartnerAd[] = response.data.data || [];
-        setAds1(response.data.ads1 || buildSlotAdsFromList(allAds, 'ads1'));
-        setAds2(response.data.ads2 || buildSlotAdsFromList(allAds, 'ads2'));
+        const allAds: PartnerAd[] = applySignedUrlCacheToAds(response.data.data || []);
+        const slot1 = applySignedUrlCacheToAds(
+          response.data.ads1 || buildSlotAdsFromList(allAds, 'ads1')
+        );
+        const slot2 = applySignedUrlCacheToAds(
+          response.data.ads2 || buildSlotAdsFromList(allAds, 'ads2')
+        );
+        setAds1(slot1);
+        setAds2(slot2);
         setHeaderScrollingText(response.data.header_scrolling_text || '');
       }
     } catch (error) {

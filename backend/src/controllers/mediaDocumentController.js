@@ -136,30 +136,6 @@ export const uploadDocument = async (req, res) => {
       return res.status(500).json({ success: false, message: 'Failed to upload file to storage' });
     }
 
-    // Split PDF (or normalize image) into per-page WebPs — blocking so upload spinner covers this
-    let pagesMap = {};
-    try {
-      if (req.file.mimetype === 'application/pdf') {
-        const split = await splitPdfToWasabiPages(req.file.buffer, `${folder}/doc_${Date.now()}`);
-        pagesMap = split.pages;
-      } else {
-        const split = await imageBufferToWasabiPage(req.file.buffer, `${folder}/doc_${Date.now()}`);
-        pagesMap = split.pages;
-      }
-    } catch (splitErr) {
-      console.error('PDF page split failed:', splitErr);
-      // Rollback original upload
-      try { await deleteFile(result.fileName); } catch (_) { /* ignore */ }
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to process PDF pages. Please try again or use a smaller PDF.',
-        error: splitErr.message
-      });
-    }
-
-    const pagesJson = JSON.stringify(pagesMap);
-
-    // Save or update document record (one row; pages as JSON index map)
     const documentData = {
       media_channel_id: channelId,
       category_id: categoryId,
@@ -184,6 +160,17 @@ export const uploadDocument = async (req, res) => {
     } else {
       document = await MediaChannelDocument.create(documentData);
     }
+
+    // Split pages in background — HTTP returns immediately (avoids 504 on large PDFs)
+    processDocumentPagesJob({
+      documentId: document.id,
+      fileBuffer: req.file.buffer,
+      mimetype: req.file.mimetype,
+      folder,
+      originalFileKey: result.fileName,
+    }).catch((jobErr) => {
+      console.error(`Failed to start page processing for document ${document.id}:`, jobErr);
+    });
 
     const responseDoc = document.toJSON();
     responseDoc.document_url = await resolveStorageReadUrl(result.fileName, 3600);
