@@ -63,6 +63,21 @@ const months = [
   'July', 'August', 'September', 'October', 'November', 'December'
 ];
 
+const MAX_LANGUAGES = 5;
+
+const getChannelTypeLabel = (categoryName: string): string => {
+  const lower = categoryName.trim().toLowerCase();
+
+  if (lower.includes('magazine')) return 'Magazine';
+  if (lower.includes('e-paper') || lower.includes('epaper') || lower.includes('e paper')) return 'E Paper';
+  if (lower === 'youtube') return 'YouTube';
+  if (lower === 'tv') return 'TV';
+  if (lower === 'radio') return 'Radio';
+  if (lower === 'web') return 'Web';
+
+  return categoryName.trim();
+};
+
 export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
   category,
   onBack,
@@ -99,7 +114,7 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
     countryId: '',
     stateId: '',
     districtId: '',
-    languageId: '',
+    selectedLanguageIds: [] as number[],
     mediaNameEnglish: '',
     mediaNameRegional: '',
     mediaUrl: '',
@@ -109,6 +124,9 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
   });
 
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
+
+  const channelTypeLabel = getChannelTypeLabel(category.category_name);
+  const channelNameLabel = `${channelTypeLabel} Name`;
 
   useEffect(() => {
     fetchLanguages();
@@ -232,12 +250,35 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
     }
   };
 
+  const handleLanguageToggle = (languageId: number) => {
+    setFormData((prev) => {
+      const isSelected = prev.selectedLanguageIds.includes(languageId);
+      if (isSelected) {
+        setError('');
+        return {
+          ...prev,
+          selectedLanguageIds: prev.selectedLanguageIds.filter((id) => id !== languageId)
+        };
+      }
+
+      if (prev.selectedLanguageIds.length >= MAX_LANGUAGES) {
+        setError(`You can select up to ${MAX_LANGUAGES} languages only`);
+        return prev;
+      }
+
+      setError('');
+      return {
+        ...prev,
+        selectedLanguageIds: [...prev.selectedLanguageIds, languageId]
+      };
+    });
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setFormData({ ...formData, mediaLogo: file });
 
-      // Create preview
       const reader = new FileReader();
       reader.onloadend = () => {
         setLogoPreview(reader.result as string);
@@ -245,6 +286,8 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
       reader.readAsDataURL(file);
     }
   };
+
+  const getLanguageLabel = (language: Language) => `${language.lang_1} (${language.lang_2})`;
 
   const handlePeriodicalScheduleChange = (key: string, value: any) => {
     setFormData({
@@ -312,7 +355,10 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
       if (formData.countryId) submitData.append('country_id', formData.countryId);
       if (formData.stateId) submitData.append('state_id', formData.stateId);
       if (formData.districtId) submitData.append('district_id', formData.districtId);
-      if (formData.languageId) submitData.append('language_id', formData.languageId);
+      if (formData.selectedLanguageIds.length > 0) {
+        submitData.append('language_ids', JSON.stringify(formData.selectedLanguageIds));
+        submitData.append('language_id', formData.selectedLanguageIds[0].toString());
+      }
 
       submitData.append('media_name_english', formData.mediaNameEnglish);
       if (formData.mediaNameRegional) {
@@ -602,8 +648,8 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
           <ArrowLeft size={24} />
         </button>
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Register {category.category_name} Channel</h1>
-          <p className="text-gray-600">Fill in the details to register your media channel</p>
+          <h1 className="text-3xl font-bold text-gray-900">Register {channelTypeLabel} Channel</h1>
+          <p className="text-gray-600">Fill in the details to register your {channelTypeLabel.toLowerCase()} channel</p>
         </div>
       </div>
 
@@ -767,24 +813,47 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
           {/* Language */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Language
+              Language <span className="text-gray-500 font-normal">(select up to {MAX_LANGUAGES})</span>
             </label>
-            <select
-              value={formData.languageId}
-              onChange={(e) => setFormData({ ...formData, languageId: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            >
-              <option value="">Select a language</option>
-              {languages.map((language) => (
-                <option key={language.id} value={language.id}>{language.lang_1} ({language.lang_2})</option>
-              ))}
-            </select>
+            <div className="border border-gray-300 rounded-lg p-4 max-h-60 overflow-y-auto">
+              <div className="flex justify-between items-center mb-3">
+                <span className="text-xs text-gray-500">
+                  {formData.selectedLanguageIds.length} / {MAX_LANGUAGES} selected
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {languages.map((language) => {
+                  const isSelected = formData.selectedLanguageIds.includes(language.id);
+                  const isDisabled = !isSelected && formData.selectedLanguageIds.length >= MAX_LANGUAGES;
+
+                  return (
+                    <label
+                      key={language.id}
+                      className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer ${
+                        isDisabled
+                          ? 'opacity-50 cursor-not-allowed bg-gray-50'
+                          : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        disabled={isDisabled}
+                        onChange={() => handleLanguageToggle(language.id)}
+                        className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      />
+                      <span className="text-sm">{getLanguageLabel(language)}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
-          {/* Media Name (English) */}
+          {/* Channel Name (English) */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Media Name (English) <span className="text-red-500">*</span>
+              {channelNameLabel} (English) <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
@@ -792,21 +861,21 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
               onChange={(e) => setFormData({ ...formData, mediaNameEnglish: e.target.value })}
               required
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              placeholder="Enter media name in English"
+              placeholder={`Enter ${channelTypeLabel.toLowerCase()} name in English`}
             />
           </div>
 
-          {/* Media Name (Regional) */}
+          {/* Channel Name (Regional) */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Media Name (Regional Language)
+              {channelNameLabel} (Regional Language)
             </label>
             <input
               type="text"
               value={formData.mediaNameRegional}
               onChange={(e) => setFormData({ ...formData, mediaNameRegional: e.target.value })}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              placeholder="Enter media name in regional language"
+              placeholder={`Enter ${channelTypeLabel.toLowerCase()} name in regional language`}
             />
           </div>
 
@@ -837,10 +906,10 @@ export const MediaRegistrationForm: React.FC<MediaRegistrationFormProps> = ({
             </div>
           )}
 
-          {/* Media Logo */}
+          {/* Channel Logo */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Media Logo
+              {channelTypeLabel} Logo
             </label>
             <div className="border-2 border-dashed border-gray-300 rounded-lg p-6">
               <input

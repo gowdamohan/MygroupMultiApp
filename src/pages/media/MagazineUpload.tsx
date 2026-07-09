@@ -12,6 +12,8 @@ interface MagazineUploadProps {
   periodicalType?: string;
   periodicalSchedule?: unknown;
   onBack: () => void;
+  embedded?: boolean;
+  onUploadComplete?: () => void;
 }
 
 interface Document {
@@ -28,7 +30,9 @@ export const MagazineUpload: React.FC<MagazineUploadProps> = ({
   categoryId,
   periodicalType: periodicalTypeProp,
   periodicalSchedule: periodicalScheduleProp,
-  onBack
+  onBack,
+  embedded = false,
+  onUploadComplete
 }) => {
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
@@ -123,6 +127,7 @@ export const MagazineUpload: React.FC<MagazineUploadProps> = ({
       if (response.data.success) {
         setMessage({ type: 'success', text: 'Magazine uploaded successfully' });
         fetchAllDocuments();
+        onUploadComplete?.();
       }
     } catch (error: unknown) {
       const err = error as { response?: { status?: number; data?: { message?: string } } };
@@ -144,6 +149,7 @@ export const MagazineUpload: React.FC<MagazineUploadProps> = ({
       });
       setMessage({ type: 'success', text: 'Magazine deleted successfully' });
       fetchAllDocuments();
+      onUploadComplete?.();
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } } };
       setMessage({ type: 'error', text: err.response?.data?.message || 'Delete failed' });
@@ -155,9 +161,11 @@ export const MagazineUpload: React.FC<MagazineUploadProps> = ({
   return (
     <div className="space-y-6 p-6">
       <div className="flex items-center gap-4">
-        <button type="button" onClick={onBack} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-          <ArrowLeft size={20} />
-        </button>
+        {!embedded && (
+          <button type="button" onClick={onBack} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+            <ArrowLeft size={20} />
+          </button>
+        )}
         <BookOpen size={24} className="text-teal-600" />
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Upload Magazine</h2>

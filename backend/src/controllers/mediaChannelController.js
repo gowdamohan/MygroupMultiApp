@@ -265,6 +265,39 @@ const compressImageToBuffer = async (input) => {
 };
 
 /**
+ * Compress wide name-image banner to ~150KB and return buffer (for Wasabi upload)
+ * @param {string|Buffer} input - File path or Buffer
+ */
+const compressWideNameImageToBuffer = async (input) => {
+  let quality = 85;
+  let buffer;
+  while (quality > 10) {
+    buffer = await sharp(input)
+      .resize(1200, 300, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality, progressive: true })
+      .toBuffer();
+    if (buffer.length <= 150 * 1024) break;
+    quality -= 10;
+  }
+  return buffer;
+};
+
+const uploadMediaImageToWasabi = async (file, folder, prefix, compressFn) => {
+  const fileBuffer = file.buffer || fs.readFileSync(file.path);
+  if (file.path && fs.existsSync(file.path)) {
+    try { fs.unlinkSync(file.path); } catch (e) { /* ignore cleanup error */ }
+  }
+  const compressedBuffer = await compressFn(fileBuffer);
+  const result = await wasabiUploadFile(
+    compressedBuffer,
+    `${prefix}-${Date.now()}.jpg`,
+    'image/jpeg',
+    folder
+  );
+  return result.success && result.fileName ? result.fileName : null;
+};
+
+/**
  * Create media channel registration
  * POST /api/v1/partner/media-channel
  */
@@ -280,6 +313,7 @@ export const createMediaChannel = async (req, res) => {
       state_id,
       district_id,
       language_id,
+      language_ids,
       media_name_english,
       media_name_regional,
       media_url,
@@ -287,6 +321,37 @@ export const createMediaChannel = async (req, res) => {
       periodical_schedule,
       distribution_districts
     } = req.body;
+
+    let parsedLanguageIds = [];
+    if (language_ids) {
+      try {
+        parsedLanguageIds = typeof language_ids === 'string'
+          ? JSON.parse(language_ids)
+          : language_ids;
+      } catch (e) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid language_ids format'
+        });
+      }
+    } else if (language_id) {
+      parsedLanguageIds = [parseInt(language_id, 10)];
+    }
+
+    parsedLanguageIds = [...new Set(
+      parsedLanguageIds
+        .map((id) => parseInt(id, 10))
+        .filter((id) => !Number.isNaN(id))
+    )];
+
+    if (parsedLanguageIds.length > 5) {
+      return res.status(400).json({
+        success: false,
+        message: 'You can select up to 5 languages only'
+      });
+    }
+
+    const primaryLanguageId = parsedLanguageIds[0] || (language_id ? parseInt(language_id, 10) : null);
 
     // Get category details first to determine if Magazine/E-Paper
     const category = await AppCategory.findByPk(category_id);
@@ -348,27 +413,37 @@ export const createMediaChannel = async (req, res) => {
       }
     }
 
-    // Handle logo: compress and upload to Wasabi, store key in media_logo
+    // Handle logo and per-language wide name image uploads
     let mediaLogoPath = null;
-    if (req.file) {
+    const nameImageLogos = {};
+    const uploadFiles = Array.isArray(req.files) ? req.files : (req.file ? [req.file] : []);
+    const folder = `media_logos/app_${app_id}`;
+
+    for (const file of uploadFiles) {
       try {
-        // Read file into buffer first to avoid EBUSY file lock on Windows
-        const fileBuffer = req.file.buffer || fs.readFileSync(req.file.path);
-        // Delete temp file immediately after reading into memory
-        if (req.file.path && fs.existsSync(req.file.path)) {
-          try { fs.unlinkSync(req.file.path); } catch (e) { /* ignore cleanup error */ }
-        }
-        const compressedBuffer = await compressImageToBuffer(fileBuffer);
-        const folder = `media_logos/app_${app_id}`;
-        const result = await wasabiUploadFile(compressedBuffer, `media-logo-${userId}-${Date.now()}.jpg`, 'image/jpeg', folder);
-        if (result.success && result.fileName) {
-          mediaLogoPath = result.fileName;
+        const fieldName = file.fieldname || '';
+        const isNameImageLogo = fieldName.startsWith('name_image_logo_');
+        const languageKey = isNameImageLogo ? fieldName.replace('name_image_logo_', '') : null;
+        const compressFn = isNameImageLogo ? compressWideNameImageToBuffer : compressImageToBuffer;
+        const prefix = isNameImageLogo
+          ? `name-image-logo-${languageKey}-${userId}`
+          : `media-logo-${userId}`;
+        const uploadedPath = await uploadMediaImageToWasabi(file, folder, prefix, compressFn);
+
+        if (!uploadedPath) continue;
+
+        if (isNameImageLogo && languageKey) {
+          nameImageLogos[languageKey] = uploadedPath;
+          if (!mediaLogoPath) {
+            mediaLogoPath = uploadedPath;
+          }
+        } else if (fieldName === 'media_logo') {
+          mediaLogoPath = uploadedPath;
         }
       } catch (uploadErr) {
-        console.error('Wasabi media logo upload error:', uploadErr);
-        // Clean up temp file if it still exists
-        if (req.file.path && fs.existsSync(req.file.path)) {
-          try { fs.unlinkSync(req.file.path); } catch (e) { /* ignore */ }
+        console.error('Wasabi media image upload error:', uploadErr);
+        if (file.path && fs.existsSync(file.path)) {
+          try { fs.unlinkSync(file.path); } catch (e) { /* ignore */ }
         }
       }
     }
@@ -396,10 +471,12 @@ export const createMediaChannel = async (req, res) => {
       country_id: country_id || null,
       state_id: state_id || null,
       district_id: district_id || null,
-      language_id: language_id || null,
+      language_id: primaryLanguageId,
+      language_ids: parsedLanguageIds.length > 0 ? parsedLanguageIds : null,
       media_name_english,
       media_name_regional: media_name_regional || null,
       media_logo: mediaLogoPath,
+      name_image_logos: Object.keys(nameImageLogos).length > 0 ? nameImageLogos : null,
       media_url: media_url || null,
       periodical_type: periodical_type || null,
       periodical_schedule: periodical_schedule ? JSON.parse(periodical_schedule) : null,

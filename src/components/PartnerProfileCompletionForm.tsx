@@ -298,13 +298,12 @@ export const PartnerProfileCompletionForm: React.FC<PartnerProfileCompletionForm
   };
 
   const validateAllSections = (): boolean => {
-    const next = {
-      ...getSectionErrors('owner'),
-      ...getSectionErrors('company')
-    };
+    const next = getSectionErrors('owner');
     setErrors(next);
     return Object.keys(next).length === 0;
   };
+
+  const showCompanySection = false;
 
   const buildFormData = (section?: SectionKey | 'all', submitForVerification = false): FormData => {
     const fd = new FormData();
@@ -595,7 +594,7 @@ export const PartnerProfileCompletionForm: React.FC<PartnerProfileCompletionForm
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Edit Profile</h2>
           <p className="text-sm text-gray-600 mt-1">
-            Update your owner and company details below.
+            Update your owner details below.
           </p>
         </div>
       ) : showOnboardingHeader ? (
@@ -661,6 +660,7 @@ export const PartnerProfileCompletionForm: React.FC<PartnerProfileCompletionForm
               {renderProfileSummary()}
 
               {/* Company Details (includes taxation) */}
+              {showCompanySection && (
               <div
                 className={`rounded-xl shadow-sm border p-5 space-y-4 ${sectionHeaderClass(isSectionVerified)} ${
                   isSectionVerified ? 'border-green-300' : 'border-gray-200'
@@ -854,6 +854,7 @@ export const PartnerProfileCompletionForm: React.FC<PartnerProfileCompletionForm
                   />
                 </div>
               </div>
+              )}
             </div>
 
             {/* Right column — owner details */}

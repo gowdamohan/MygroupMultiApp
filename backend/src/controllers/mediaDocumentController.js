@@ -209,6 +209,40 @@ export const uploadDocument = async (req, res) => {
 };
 
 /**
+ * Get the most recently uploaded document for a channel + category
+ */
+export const getLastUploadedDocument = async (req, res) => {
+  try {
+    const { channelId, categoryId } = req.params;
+
+    const document = await MediaChannelDocument.findOne({
+      where: {
+        media_channel_id: channelId,
+        category_id: categoryId,
+        status: 1
+      },
+      order: [['created_at', 'DESC']]
+    });
+
+    if (!document) {
+      return res.json({ success: true, data: null });
+    }
+
+    const json = document.toJSON();
+    json.document_url = await resolveStorageReadUrl(document.document_path || document.document_url, 3600);
+    const pages = parsePagesJson(document.pages_json);
+    json.page_count = Object.keys(pages).length;
+    const page1 = pages['1'];
+    json.thumbnail_url = page1 ? await resolveStorageReadUrl(page1, 3600) : null;
+
+    res.json({ success: true, data: json });
+  } catch (error) {
+    console.error('Error fetching last uploaded document:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch last uploaded document' });
+  }
+};
+
+/**
  * Delete a document
  */
 export const deleteDocument = async (req, res) => {

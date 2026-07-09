@@ -12,6 +12,8 @@ interface EPaperUploadProps {
   channelId: number;
   categoryId: number;
   onBack: () => void;
+  embedded?: boolean;
+  onUploadComplete?: () => void;
 }
 
 interface Document {
@@ -54,7 +56,13 @@ const getMonthGrid = (year: number, month: number) => {
   return { leadingBlanks: firstDay, daysInMonth };
 };
 
-export const EPaperUpload: React.FC<EPaperUploadProps> = ({ channelId, categoryId, onBack }) => {
+export const EPaperUpload: React.FC<EPaperUploadProps> = ({
+  channelId,
+  categoryId,
+  onBack,
+  embedded = false,
+  onUploadComplete
+}) => {
   const today = new Date();
   const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
   const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
@@ -178,6 +186,7 @@ export const EPaperUpload: React.FC<EPaperUploadProps> = ({ channelId, categoryI
             : 'E-Paper uploaded successfully',
         });
         fetchUploadDocs();
+        onUploadComplete?.();
       }
     } catch (error: any) {
       const msg =
@@ -199,6 +208,7 @@ export const EPaperUpload: React.FC<EPaperUploadProps> = ({ channelId, categoryI
       });
       setMessage({ type: 'success', text: 'E-Paper deleted successfully' });
       fetchUploadDocs();
+      onUploadComplete?.();
     } catch (error: any) {
       setMessage({ type: 'error', text: error.response?.data?.message || 'Delete failed' });
     }
@@ -250,9 +260,11 @@ export const EPaperUpload: React.FC<EPaperUploadProps> = ({ channelId, categoryI
     <div className="space-y-6 p-6">
       {/* Header */}
       <div className="flex items-center gap-4 flex-wrap">
-        <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-          <ArrowLeft size={20} />
-        </button>
+        {!embedded && (
+          <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+            <ArrowLeft size={20} />
+          </button>
+        )}
         <Newspaper size={24} className="text-teal-600" />
         <h2 className="text-2xl font-bold text-gray-800 flex-1">
           {viewMode === 'upload' ? 'Upload E-Paper' : 'Uploaded E-Papers'}

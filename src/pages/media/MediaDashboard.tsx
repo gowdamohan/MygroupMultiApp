@@ -92,7 +92,7 @@ interface MainCategory {
 }
 
 // Tab items for the horizontal scroll bar
-type TabItem = 'output' | 'switcher' | 'preview' | 'offline' | 'uplink';
+type TabItem = 'output' | 'switcher' | 'preview' | 'upload' | 'offline' | 'uplink';
 
 /**
  * Detects whether a URL is hosted on a domain known to block iframe embedding
@@ -176,6 +176,7 @@ export const MediaDashboard: React.FC = () => {
   const [uploadCategories, setUploadCategories] = useState<UploadCategory[]>([]);
   const [selectedUploadCategory, setSelectedUploadCategory] = useState<UploadCategory | null>(null);
   const [inlineUploadView, setInlineUploadView] = useState<'epaper' | 'magazine' | null>(null);
+  const [printUploadRefreshKey, setPrintUploadRefreshKey] = useState(0);
   const [channelToggleLoading, setChannelToggleLoading] = useState<number | null>(null);
   const [categoriesExpanded, setCategoriesExpanded] = useState<Record<number, boolean>>({});
 
@@ -653,11 +654,11 @@ export const MediaDashboard: React.FC = () => {
   }, [printMedia, isWebOrYouTube, activeTab]);
 
   const navigateToPrintUpload = () => {
-    if (showMagazineMenu) {
-      setInlineUploadView('magazine');
-    } else if (showEPaperMenu) {
-      setInlineUploadView('epaper');
-    }
+    setActiveTab('upload');
+  };
+
+  const handlePrintUploadComplete = () => {
+    setPrintUploadRefreshKey((k) => k + 1);
   };
 
   const toggleMenu = (menuId: string) => {
@@ -674,6 +675,12 @@ export const MediaDashboard: React.FC = () => {
         setSelectedUploadCategory(category);
         setActiveMenu(item.id);
       }
+    } else if (item.id === 'magazine' || item.id === 'e-papers') {
+      setActiveMenu(item.id);
+      setSelectedUploadCategory(null);
+      setInlineUploadView(null);
+      navigate(`/media/dashboard/${channelId}`);
+      setActiveTab('upload');
     } else if (item.path) {
       setActiveMenu(item.id);
       setSelectedUploadCategory(null);
@@ -854,6 +861,12 @@ export const MediaDashboard: React.FC = () => {
               className={`px-6 py-2 font-bold text-sm transition-colors border-r border-gray-600 ${activeTab === 'preview' ? 'bg-blue-600 text-white' : 'bg-gray-500 text-white hover:bg-gray-400'}`}>
               Preview
             </button>
+            {printMedia && (
+              <button onClick={() => setActiveTab('upload')}
+                className={`px-6 py-2 font-bold text-sm transition-colors border-r border-gray-600 ${activeTab === 'upload' ? 'bg-teal-600 text-white' : 'bg-gray-500 text-white hover:bg-gray-400'}`}>
+                Upload
+              </button>
+            )}
             {isWebOrYouTube && (
               <button onClick={() => setActiveTab('uplink')}
                 className={`px-6 py-2 font-bold text-sm transition-colors border-r border-gray-600 ${activeTab === 'uplink' ? 'bg-teal-600 text-white' : 'bg-gray-500 text-white hover:bg-gray-400'}`}>
@@ -870,7 +883,29 @@ export const MediaDashboard: React.FC = () => {
         </div>
 
         {/* Main Content Area - Show based on active tab */}
-        {printMedia && channelInfo?.category_id && channelId ? (
+        {printMedia && channelInfo?.category_id && channelId && activeTab === 'upload' ? (
+          <div className="flex-1 overflow-y-auto bg-gradient-to-br from-teal-50 to-cyan-50 min-h-0">
+            {showMagazineMenu ? (
+              <MagazineUpload
+                channelId={parseInt(channelId)}
+                categoryId={channelInfo.category_id}
+                periodicalType={channelInfo.periodical_type}
+                periodicalSchedule={channelInfo.periodical_schedule}
+                embedded
+                onUploadComplete={handlePrintUploadComplete}
+                onBack={() => setActiveTab('preview')}
+              />
+            ) : (
+              <EPaperUpload
+                channelId={parseInt(channelId)}
+                categoryId={channelInfo.category_id}
+                embedded
+                onUploadComplete={handlePrintUploadComplete}
+                onBack={() => setActiveTab('preview')}
+              />
+            )}
+          </div>
+        ) : printMedia && channelInfo?.category_id && channelId ? (
           <PrintMediaOutputPanel
             channelId={channelId}
             categoryId={channelInfo.category_id}
@@ -889,6 +924,7 @@ export const MediaDashboard: React.FC = () => {
             formatCount={formatCount}
             onNavigateUpload={navigateToPrintUpload}
             onSwitchToPreview={() => setActiveTab('preview')}
+            refreshKey={printUploadRefreshKey}
           />
         ) : isWebOrYouTube && activeTab === 'output' ? (() => {
           const embedInfo = channelInfo?.media_url ? getEmbedBlockInfo(channelInfo.media_url) : null;

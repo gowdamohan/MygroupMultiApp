@@ -4,6 +4,7 @@ import { authenticateToken } from '../middleware/auth.js';
 import {
   getUploadCategories,
   getDocuments,
+  getLastUploadedDocument,
   uploadDocument,
   deleteDocument,
   getUploadPresignedUrl
@@ -54,6 +55,9 @@ router.get('/upload-categories/:channelId', authenticateToken, getUploadCategori
 
 // Get documents for a specific channel, category, year, month
 router.get('/documents/:channelId/:categoryId/:year/:month', authenticateToken, getDocuments);
+
+// Get most recently uploaded document for a channel + category
+router.get('/last-uploaded/:channelId/:categoryId', authenticateToken, getLastUploadedDocument);
 
 // Upload a document
 router.post(
