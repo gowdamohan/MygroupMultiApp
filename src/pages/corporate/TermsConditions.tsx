@@ -19,6 +19,8 @@ interface Tab {
   icon: React.ElementType;
 }
 
+// hello this is teh tes line commendted
+
 export const TermsConditions: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('head_office');
   const [loading, setLoading] = useState(true);
