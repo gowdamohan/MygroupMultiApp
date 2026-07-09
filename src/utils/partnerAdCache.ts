@@ -1,13 +1,12 @@
 /**
- * Session cache for partner ad signed URLs + in-memory blob cache
- * so carousel rotation does not re-download from Wasabi.
+ * Session cache for partner ad signed URLs.
+ * Uses <img src="signed-url"> directly — no fetch() (Wasabi blocks CORS on fetch).
+ * Browser HTTP cache handles repeat carousel loads for the same signed URL.
  */
 
 const STORAGE_PREFIX = 'partner_ad_signed_v1:';
 /** Slightly under server TTL (3600s) so we refresh before expiry */
 const DEFAULT_TTL_SEC = 3500;
-
-const blobUrlByPath = new Map<string, string>();
 
 interface CachedSignedEntry {
   url: string;
@@ -45,53 +44,24 @@ export function setCachedSignedUrl(
   }
 }
 
-export function getCachedBlobUrl(imagePath: string): string | null {
-  if (!imagePath) return null;
-  return blobUrlByPath.get(imagePath) ?? null;
-}
-
 /**
- * Resolve display src: blob cache → session signed URL → fetch once → blob URL.
+ * Resolve display src: session cached signed URL → fresh signed URL from API.
+ * Never uses fetch() — avoids Wasabi CORS errors in the browser.
  */
-export async function resolveAdImageSrc(
+export function resolveAdImageSrc(
   imagePath: string | null | undefined,
   signedUrl: string | null | undefined,
   fallbackUrl: string | null | undefined
-): Promise<string> {
-  const cacheKey = imagePath || signedUrl || fallbackUrl || '';
-  if (!cacheKey) return '';
-
+): string {
   if (imagePath) {
-    const blob = blobUrlByPath.get(imagePath);
-    if (blob) return blob;
-  }
-
-  let fetchUrl = signedUrl || fallbackUrl || '';
-  if (imagePath) {
-    const cachedSigned = getCachedSignedUrl(imagePath);
-    if (cachedSigned) {
-      fetchUrl = cachedSigned;
-    } else if (signedUrl) {
+    const cached = getCachedSignedUrl(imagePath);
+    if (cached) return cached;
+    if (signedUrl) {
       setCachedSignedUrl(imagePath, signedUrl);
+      return signedUrl;
     }
   }
-
-  if (!fetchUrl) return '';
-
-  try {
-    const res = await fetch(fetchUrl);
-    if (!res.ok) return fetchUrl;
-    const blob = await res.blob();
-    const blobUrl = URL.createObjectURL(blob);
-    if (imagePath) {
-      blobUrlByPath.set(imagePath, blobUrl);
-    } else {
-      blobUrlByPath.set(cacheKey, blobUrl);
-    }
-    return blobUrl;
-  } catch {
-    return fetchUrl;
-  }
+  return signedUrl || fallbackUrl || '';
 }
 
 export function applySignedUrlCacheToAds<

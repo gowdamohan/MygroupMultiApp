@@ -41,13 +41,13 @@ export async function processDocumentPagesJob({
   setProcessingJob(id, { status: 'processing', progress: 5 });
 
   try {
-    // Prefer Wasabi download — survives after HTTP response and avoids buffer GC issues
+    // Prefer in-memory buffer (no full PDF stored); Wasabi download only for legacy reprocess
     let buffer = null;
-    if (originalFileKey) {
+    if (fileBuffer) {
+      buffer = Buffer.isBuffer(fileBuffer) ? fileBuffer : Buffer.from(fileBuffer);
+    } else if (originalFileKey) {
       setProcessingJob(id, { status: 'processing', progress: 8 });
       buffer = await getObjectBuffer(originalFileKey);
-    } else if (fileBuffer) {
-      buffer = Buffer.isBuffer(fileBuffer) ? fileBuffer : Buffer.from(fileBuffer);
     }
     if (!buffer?.length) {
       throw new Error('No file data available for page processing');

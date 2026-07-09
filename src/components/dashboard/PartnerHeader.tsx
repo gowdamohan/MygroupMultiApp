@@ -4,7 +4,6 @@ import { Megaphone } from 'lucide-react';
 import { API_BASE_URL } from '../../config/api.config';
 import {
   applySignedUrlCacheToAds,
-  getCachedBlobUrl,
   resolveAdImageSrc,
 } from '../../utils/partnerAdCache';
 
@@ -46,29 +45,11 @@ const CachedAdImage: React.FC<{
   alt: string;
   className?: string;
 }> = ({ ad, alt, className }) => {
-  const [src, setSrc] = useState(() => {
-    if (ad.image_path) {
-      const blob = getCachedBlobUrl(ad.image_path);
-      if (blob) return blob;
-      const signed = ad.signed_url || ad.image_url || '';
-      return signed;
-    }
-    return ad.signed_url || ad.image_url || '';
-  });
-
-  useEffect(() => {
-    let cancelled = false;
-    resolveAdImageSrc(ad.image_path, ad.signed_url, ad.image_url).then((url) => {
-      if (!cancelled && url) setSrc(url);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [ad.id, ad.image_path, ad.signed_url, ad.image_url]);
+  const src = resolveAdImageSrc(ad.image_path, ad.signed_url, ad.image_url);
 
   if (!src) return null;
 
-  return <img src={src} alt={alt} className={className} />;
+  return <img src={src} alt={alt} className={className} loading="lazy" />;
 };
 
 const AdSlotCarousel: React.FC<{ ads: PartnerAd[]; fallbackLabel: string }> = ({
@@ -113,13 +94,6 @@ const AdSlotCarousel: React.FC<{ ads: PartnerAd[]; fallbackLabel: string }> = ({
       document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [ads.length]);
-
-  // Prefetch all slot images once (served from blob cache on carousel rotation)
-  useEffect(() => {
-    ads.forEach((ad) => {
-      resolveAdImageSrc(ad.image_path, ad.signed_url, ad.image_url).catch(() => {});
-    });
-  }, [adIdsKey]);
 
   if (ads.length === 0) {
     return (

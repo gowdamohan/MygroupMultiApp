@@ -1,24 +1,13 @@
 import { MediaChannelDocument, MediaChannel, AppCategory, User } from '../models/index.js';
 import { deleteFile, getPresignedUrl, resolveStorageReadUrl, WASABI_PUBLIC_BASE_URL } from '../services/wasabiService.js';
-import { getProcessingJob } from '../services/documentProcessingService.js';
-import {
-  splitPdfToWasabiPages,
-  imageBufferToWasabiPage,
-  listPageKeys,
-  parsePagesJson,
-} from '../services/pdfPagesService.js';
+import { processDocumentPagesJob, getProcessingJob } from '../services/documentProcessingService.js';
+import { listPageKeys, parsePagesJson } from '../services/pdfPagesService.js';
 
 /** True when document_path points to a legacy full-PDF upload (not a page WebP). */
 function isLegacyPdfPath(path) {
   return Boolean(path && /\.pdf$/i.test(path));
 }
 
-async function cleanupWasabiKeys(keys) {
-  for (const key of keys) {
-    if (!key) continue;
-    try { await deleteFile(key); } catch (_) { /* ignore */ }
-  }
-}
 
 /**
  * Delete all page images from Wasabi. Legacy rows may also have a separate full PDF.
@@ -51,7 +40,7 @@ async function formatDocumentJson(doc) {
   const displayKey = page1Key || (isLegacyPdfPath(doc.document_path) ? doc.document_path : null);
   json.document_url = displayKey
     ? await resolveStorageReadUrl(displayKey, 3600)
-    : await resolveStorageReadUrl(doc.document_path || doc.document_url, 3600);
+    : null;
   return json;
 }
 
@@ -113,8 +102,8 @@ export const getDocuments = async (req, res) => {
 };
 
 /**
- * Upload a document — splits PDF/image into per-page WebPs on Wasabi synchronously.
- * Only page images are stored (pages_json); the original PDF is not kept.
+ * Upload a document — returns immediately; splits PDF into page WebPs in background.
+ * Original PDF is NOT stored on Wasabi — only per-page images in pages_json.
  */
 export const uploadDocument = async (req, res) => {
   try {
@@ -149,38 +138,7 @@ export const uploadDocument = async (req, res) => {
     }
 
     const folder = `media_documents/channel_${channelId}/${year}/${month}`;
-    const splitFolder = `${folder}/doc_${Date.now()}`;
-    let pagesMap = {};
-
-    try {
-      if (req.file.mimetype === 'application/pdf') {
-        const split = await splitPdfToWasabiPages(req.file.buffer, splitFolder);
-        pagesMap = split.pages;
-      } else {
-        const split = await imageBufferToWasabiPage(req.file.buffer, splitFolder);
-        pagesMap = split.pages;
-      }
-    } catch (splitErr) {
-      console.error('Page split failed:', splitErr);
-      await cleanupWasabiKeys(Object.values(pagesMap));
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to process PDF pages. Please try again or use a smaller PDF.',
-        error: splitErr.message
-      });
-    }
-
-    const pageCount = Object.keys(pagesMap).length;
-    if (pageCount === 0) {
-      await cleanupWasabiKeys(Object.values(pagesMap));
-      return res.status(500).json({
-        success: false,
-        message: 'PDF produced no pages. Please check the file and try again.'
-      });
-    }
-
-    const page1Key = pagesMap['1'];
-    const pagesJson = JSON.stringify(pagesMap);
+    const placeholderPath = `${folder}/_processing_${Date.now()}`;
 
     const documentData = {
       media_channel_id: channelId,
@@ -188,10 +146,10 @@ export const uploadDocument = async (req, res) => {
       document_year: parseInt(year),
       document_month: parseInt(month),
       document_date: parseInt(date),
-      document_path: page1Key,
-      document_url: `${WASABI_PUBLIC_BASE_URL}/${page1Key}`,
-      pages_json: pagesJson,
-      processing_status: 'ready',
+      document_path: placeholderPath,
+      document_url: `${WASABI_PUBLIC_BASE_URL}/${placeholderPath}`,
+      pages_json: null,
+      processing_status: 'processing',
       processing_error: null,
       file_name: req.file.originalname,
       file_size: req.file.size,
@@ -207,11 +165,27 @@ export const uploadDocument = async (req, res) => {
       document = await MediaChannelDocument.create(documentData);
     }
 
-    const responseDoc = await formatDocumentJson(document);
+    // Copy buffer before response — split pages in background (no full PDF on Wasabi)
+    const fileBufferCopy = Buffer.from(req.file.buffer);
+
+    processDocumentPagesJob({
+      documentId: document.id,
+      fileBuffer: fileBufferCopy,
+      mimetype: req.file.mimetype,
+      folder,
+    }).catch((jobErr) => {
+      console.error(`Failed to start page processing for document ${document.id}:`, jobErr);
+    });
+
+    const responseDoc = document.toJSON();
+    responseDoc.processing = true;
+    responseDoc.page_count = 0;
+    responseDoc.document_url = null;
+    responseDoc.thumbnail_url = null;
 
     res.json({
       success: true,
-      message: `Document uploaded (${pageCount} page${pageCount !== 1 ? 's' : ''} processed)`,
+      message: 'Document uploaded — processing pages',
       data: responseDoc
     });
   } catch (error) {
