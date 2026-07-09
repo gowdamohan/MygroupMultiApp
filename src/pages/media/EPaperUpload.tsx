@@ -28,6 +28,7 @@ interface Document {
   document_month: number;
   document_date: number;
   document_url: string;
+  thumbnail_url?: string | null;
   file_name: string;
 }
 
@@ -237,11 +238,15 @@ export const EPaperUpload: React.FC<EPaperUploadProps> = ({
   // ── PDF / image preview renderer ──────────────────────────────────────────
 
   const renderPreview = (doc: Document) => {
-    if (isPdfFile(doc.document_url)) {
+    const previewUrl = doc.thumbnail_url || doc.document_url;
+    if (!previewUrl) {
+      return <div className="text-sm text-gray-400 p-4">No preview available</div>;
+    }
+    if (isPdfFile(previewUrl)) {
       return (
         <PdfDocumentViewer
           documentId={doc.id}
-          src={doc.document_url}
+          src={previewUrl}
           title={doc.file_name}
           className="rounded-lg h-full"
         />
@@ -250,7 +255,7 @@ export const EPaperUpload: React.FC<EPaperUploadProps> = ({
     return (
       <img
         key={doc.id}
-        src={doc.document_url}
+        src={previewUrl}
         alt={doc.file_name}
         className="w-full h-full object-contain rounded-lg"
       />
@@ -384,7 +389,7 @@ export const EPaperUpload: React.FC<EPaperUploadProps> = ({
                               rel="noopener noreferrer"
                               className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-teal-100 text-teal-700 rounded-lg text-sm font-medium hover:bg-teal-200 transition-colors"
                             >
-                              <FileText size={16} /> View PDF
+                              <FileText size={16} /> View
                             </a>
                             <button
                               onClick={() => handleDelete(doc.id)}

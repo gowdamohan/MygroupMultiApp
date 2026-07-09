@@ -60,19 +60,22 @@ FROM node:20-alpine AS backend-deps
 
 WORKDIR /app/backend
 
+# Native runtime libs for sharp + @napi-rs/canvas (PDF page splitting)
+RUN apk add --no-cache cairo pango libjpeg-turbo giflib fontconfig freetype
+
 # Copy package files for backend
 COPY backend/package.json backend/package-lock.json ./
 
-# Install only production dependencies
-RUN npm ci --only=production --silent
+# Install production deps including optional platform binaries (sharp, canvas)
+RUN npm ci --only=production --include=optional --silent
 
 # =============================================================================
 # Stage 3: Production Image
 # =============================================================================
 FROM node:20-alpine AS production
 
-# Install additional packages for health checks and utilities
-RUN apk add --no-cache curl dumb-init
+# Health checks + native libs for PDF page rendering at runtime
+RUN apk add --no-cache curl dumb-init cairo pango libjpeg-turbo giflib fontconfig freetype
 
 # Set environment variables
 ENV NODE_ENV=production \

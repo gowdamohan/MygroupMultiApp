@@ -9,6 +9,7 @@ import {
   deleteDocument,
   getUploadPresignedUrl,
   getDocumentProcessingStatus,
+  reprocessDocument,
 } from '../controllers/mediaDocumentController.js';
 
 const router = express.Router();
@@ -75,6 +76,9 @@ router.post(
 
 // Get processing status (poll after upload)
 router.get('/processing-status/:documentId', authenticateToken, getDocumentProcessingStatus);
+
+// Re-run page split for stuck/failed documents
+router.post('/reprocess/:documentId', authenticateToken, reprocessDocument);
 
 // Delete a document
 router.delete('/document/:documentId', authenticateToken, deleteDocument);

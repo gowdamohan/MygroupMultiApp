@@ -3,7 +3,7 @@
  * DB stores final state (pages_json + processing_status).
  */
 import { MediaChannelDocument } from '../models/index.js';
-import { deleteFile } from './wasabiService.js';
+import { deleteFile, getObjectBuffer, WASABI_PUBLIC_BASE_URL } from './wasabiService.js';
 import {
   splitPdfToWasabiPages,
   imageBufferToWasabiPage,
@@ -41,6 +41,18 @@ export async function processDocumentPagesJob({
   setProcessingJob(id, { status: 'processing', progress: 5 });
 
   try {
+    // Prefer Wasabi download — survives after HTTP response and avoids buffer GC issues
+    let buffer = null;
+    if (originalFileKey) {
+      setProcessingJob(id, { status: 'processing', progress: 8 });
+      buffer = await getObjectBuffer(originalFileKey);
+    } else if (fileBuffer) {
+      buffer = Buffer.isBuffer(fileBuffer) ? fileBuffer : Buffer.from(fileBuffer);
+    }
+    if (!buffer?.length) {
+      throw new Error('No file data available for page processing');
+    }
+
     let pagesMap = {};
     const onProgress = ({ current, total }) => {
       const pct = total > 0 ? Math.min(99, Math.round(5 + (current / total) * 94)) : 5;
@@ -48,26 +60,43 @@ export async function processDocumentPagesJob({
     };
 
     if (mimetype === 'application/pdf') {
-      const split = await splitPdfToWasabiPages(fileBuffer, `${folder}/doc_${Date.now()}`, {
+      const split = await splitPdfToWasabiPages(buffer, `${folder}/doc_${Date.now()}`, {
         onProgress,
       });
       pagesMap = split.pages;
     } else {
       setProcessingJob(id, { progress: 50, pageCount: 1 });
-      const split = await imageBufferToWasabiPage(fileBuffer, `${folder}/doc_${Date.now()}`);
+      const split = await imageBufferToWasabiPage(buffer, `${folder}/doc_${Date.now()}`);
       pagesMap = split.pages;
     }
 
     const pageCount = Object.keys(pagesMap).length;
+    if (pageCount === 0) {
+      throw new Error('PDF produced no pages');
+    }
+
+    const page1Key = pagesMap['1'];
+    const doc = await MediaChannelDocument.findByPk(id);
+    const legacyPdfKey = doc?.document_path && /\.pdf$/i.test(doc.document_path)
+      ? doc.document_path
+      : null;
+
     await MediaChannelDocument.update(
       {
         pages_json: JSON.stringify(pagesMap),
+        document_path: page1Key,
+        document_url: page1Key ? `${WASABI_PUBLIC_BASE_URL}/${page1Key}` : doc?.document_url,
         processing_status: 'ready',
         processing_error: null,
       },
       { where: { id } }
     );
 
+    if (legacyPdfKey && legacyPdfKey !== page1Key) {
+      try { await deleteFile(legacyPdfKey); } catch (_) { /* ignore */ }
+    }
+
+    console.log(`Document ${id}: page split complete (${pageCount} pages)`);
     setProcessingJob(id, { status: 'ready', progress: 100, pageCount });
     setTimeout(() => clearProcessingJob(id), 60_000);
   } catch (err) {

@@ -13,6 +13,7 @@ interface PrintDocument {
   document_month: number;
   document_date: number;
   document_url: string;
+  thumbnail_url?: string | null;
   file_name: string;
   created_at?: string;
 }
@@ -231,12 +232,13 @@ export const PrintMediaOutputPanel: React.FC<PrintMediaOutputPanelProps> = ({
         </div>
       );
     }
-    const isPdf = isPdfFile(doc.document_url);
+    const previewUrl = doc.thumbnail_url || doc.document_url;
+    const isPdf = isPdfFile(previewUrl);
     if (isPdf) {
       return (
         <PdfDocumentViewer
           documentId={doc.id}
-          src={doc.document_url}
+          src={previewUrl}
           title={doc.file_name}
           className={`w-full h-full ${className}`}
         />
@@ -244,7 +246,7 @@ export const PrintMediaOutputPanel: React.FC<PrintMediaOutputPanelProps> = ({
     }
     return (
       <img
-        src={doc.document_url}
+        src={previewUrl}
         alt={doc.file_name}
         className={`w-full h-full object-contain ${className}`}
       />

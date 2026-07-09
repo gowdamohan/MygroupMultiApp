@@ -28,9 +28,8 @@ export interface MediaDocumentUploadResponse {
 }
 
 /**
- * POST multipart upload to /media-document/upload/:channelId with two-phase progress:
- * 1) Uploading file (0–38% via axios onUploadProgress)
- * 2) Processing pages on server (38–95% animated until response)
+ * POST multipart upload to /media-document/upload/:channelId.
+ * Server splits PDF into pages synchronously — the HTTP request stays open until pages_json is saved.
  */
 export async function postMediaDocumentUpload(
   channelId: number,

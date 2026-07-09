@@ -159,6 +159,18 @@ export const getObjectStream = async (filePath) => {
   return s3Client.send(command);
 };
 
+/**
+ * Download a Wasabi object into a Buffer (for background PDF page splitting).
+ */
+export const getObjectBuffer = async (filePath) => {
+  const response = await getObjectStream(filePath);
+  const chunks = [];
+  for await (const chunk of response.Body) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks);
+};
+
 /** Extract Wasabi object key from a key string or full bucket URL. */
 export const extractWasabiKey = (pathOrUrl) => {
   if (!pathOrUrl || typeof pathOrUrl !== 'string') return null;
@@ -211,6 +223,7 @@ export default {
   getPresignedUrl,
   getSignedReadUrl,
   getObjectStream,
+  getObjectBuffer,
   extractWasabiKey,
   resolveStorageReadUrl,
   WASABI_PUBLIC_BASE_URL,

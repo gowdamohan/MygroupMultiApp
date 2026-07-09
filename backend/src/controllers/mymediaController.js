@@ -854,7 +854,6 @@ export const getChannelDetails = async (req, res) => {
  * Signs every page key from pages_json; sets pages_ready from signed URL count.
  */
 async function formatMediaChannelDocumentForClient(doc) {
-  const fileUrl = await resolveStorageReadUrl(doc.document_path || doc.document_url, 3600);
   const pageKeys = parsePagesJson(doc.pages_json);
   const pageNumbers = Object.keys(pageKeys).sort((a, b) => Number(a) - Number(b));
   const pages = {};
@@ -867,11 +866,16 @@ async function formatMediaChannelDocumentForClient(doc) {
   }));
 
   const signedPageCount = Object.keys(pages).length;
+  const page1Key = pageKeys['1'];
+  const legacyPdf = doc.document_path && /\.pdf$/i.test(doc.document_path);
+  const fileUrl = pages['1']
+    || (legacyPdf ? await resolveStorageReadUrl(doc.document_path, 3600) : null)
+    || await resolveStorageReadUrl(doc.document_path || doc.document_url, 3600);
 
   return {
     id: doc.id,
     title: doc.file_name || `Issue ${doc.document_date}/${doc.document_month}/${doc.document_year}`,
-    document_type: doc.document_path?.split('.').pop()?.toUpperCase() || 'PDF',
+    document_type: signedPageCount > 0 ? 'WEBP' : (legacyPdf ? 'PDF' : 'IMAGE'),
     file_url: fileUrl,
     thumbnail_url: pages['1'] || null,
     pages,
