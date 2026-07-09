@@ -1,6 +1,6 @@
 # =============================================================================
 # Multi-Tenant Platform - CI/CD Pipeline
-# Single ubuntu-latest job: test → build → deploy (one runner, no 2nd queue wait)
+# Builds Docker image and deploys to AWS EC2
 # =============================================================================
 
 name: Build and Deploy
@@ -13,19 +13,16 @@ on:
     branches:
       - main
 
-# Cancel older runs on the same branch so queued jobs don't pile up
-concurrency:
-  group: deploy-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 env:
   NODE_VERSION: '20'
 
 jobs:
-  test-build-deploy:
-    name: Test, Build & Deploy
+  # ===========================================================================
+  # Test Job - Run tests before building
+  # ===========================================================================
+  test:
+    name: Run Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 60
 
     steps:
       - name: Checkout Repository
@@ -51,24 +48,37 @@ jobs:
           npm test -- --passWithNoTests
         continue-on-error: true
 
+  # ===========================================================================
+  # Build Job - Build and push Docker image to Docker Hub
+  # ===========================================================================
+  build:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tags }}
+      image_name: ${{ steps.vars.outputs.image_name }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
       - name: Set Image Name
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         id: vars
         run: echo "image_name=${{ secrets.DOCKERHUB_USERNAME }}/multi-tenant-platform" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: docker/setup-buildx-action@v3
 
       - name: Login to Docker Hub
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Extract Metadata for Docker
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -78,7 +88,6 @@ jobs:
             type=sha,prefix=,suffix=,format=short
 
       - name: Build and Push Docker Image
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -94,54 +103,74 @@ jobs:
             VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL || '/api/v1' }}
             VITE_BACKEND_URL=${{ secrets.VITE_BACKEND_URL || '' }}
 
+  # ===========================================================================
+  # Deploy Job - Deploy to AWS EC2
+  # ===========================================================================
+  deploy:
+    name: Deploy to AWS EC2
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
       - name: Deploy to EC2
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: appleboy/ssh-action@v1.0.3
-        env:
-          IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/multi-tenant-platform:latest
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
           port: 22
-          envs: IMAGE_NAME
           script: |
+            # Set variables
+            IMAGE_NAME="mygroup2025/multi-tenant-platform:latest"
             CONTAINER_NAME="multi-tenant-app"
 
-            echo "Setting up uploads directory..."
+            # Ensure host uploads directory exists and has correct ownership
+            echo "📦 Setting up uploads directory..."
             sudo mkdir -p /var/app/uploads
             sudo chown -R 1001:1001 /var/app/uploads
             sudo chmod -R 755 /var/app/uploads
 
-            echo "Killing any process on port 5000..."
+            # AGGRESSIVE CLEANUP: Kill any process on port 5000
+            echo "� Killing any process on port 5000..."
             sudo lsof -ti :5000 | xargs sudo kill -9 2>/dev/null || true
             sleep 1
 
-            echo "Stopping container..."
+            # Stop container by name
+            echo "🛑 Stopping container by name..."
             sudo docker stop $CONTAINER_NAME 2>/dev/null || true
             sleep 1
 
-            echo "Force killing container..."
+            # Kill container by name (force)
+            echo "🔴 Force killing container..."
             sudo docker kill $CONTAINER_NAME 2>/dev/null || true
             sleep 1
 
-            echo "Removing container..."
+            # Remove container
+            echo "🗑️  Removing container..."
             sudo docker rm -f $CONTAINER_NAME 2>/dev/null || true
             sleep 1
 
-            echo "Removing old image..."
+            # Remove old image
+            echo "🧹 Removing old image..."
             sudo docker rmi $IMAGE_NAME 2>/dev/null || true
 
-            echo "Pruning unused Docker resources..."
+            # Prune all unused images and volumes
+            echo "🧹 Pruning unused Docker resources..."
             sudo docker system prune -f --all 2>/dev/null || true
 
-            echo "Waiting for port 5000..."
+            # Wait for port to be fully released
+            echo "⏳ Waiting for port 5000 to be released..."
             sleep 3
 
-            echo "Pulling image: $IMAGE_NAME"
+            # Pull the fresh latest image
+            echo "📦 Pulling fresh Docker image..."
             sudo docker pull $IMAGE_NAME
 
-            echo "Starting container..."
+            # Run the new container
+            echo "🚀 Starting new container..."
+            # NOTE: Using --network host to access RDS endpoint from container
+            # RDS endpoint is externally accessible, so we don't need bridge network
             sudo docker run -d \
               --name $CONTAINER_NAME \
               --restart unless-stopped \
@@ -160,24 +189,53 @@ jobs:
               -v /var/app/uploads:/app/public/uploads \
               $IMAGE_NAME
 
+            # Clean up old images
+            echo "🧹 Cleaning up old images..."
             sudo docker image prune -f
+
+            # Verify deployment
+            echo "✅ Verifying deployment..."
             sleep 10
 
+            # Check if container is running
+            echo ""
+            echo "📋 Checking container status..."
             if sudo docker ps | grep -q $CONTAINER_NAME; then
-              echo "Container is running"
+              echo "✅ Container is running"
               sudo docker ps | grep $CONTAINER_NAME
             else
-              echo "Container failed to start"
+              echo "❌ Container is not running"
+              echo "📄 Recent container logs:"
               sudo docker logs $CONTAINER_NAME 2>&1 | tail -30
               exit 1
             fi
 
-            if curl -f http://localhost:5000/health; then
-              echo "Health check passed"
+            # Check port binding
+            echo ""
+            echo "📋 Checking port 5000..."
+            sudo netstat -tlnp 2>/dev/null | grep 5000 || echo "⚠️  Port 5000 may not be properly bound"
+
+            # Health check
+            echo ""
+            echo "📋 Testing health endpoint..."
+            if curl -f -v http://localhost:5000/health; then
+              echo ""
+              echo "✅ Health check passed!"
             else
-              echo "Health check failed"
+              echo ""
+              echo "❌ Health check failed!"
+              echo "📄 Container logs:"
               sudo docker logs $CONTAINER_NAME | tail -30
               exit 1
             fi
 
-            echo "Deployment complete"
+            # Test asset loading
+            echo ""
+            echo "📋 Testing static asset serving..."
+            curl -I http://localhost:5000/ 2>&1 | head -10
+
+            echo ""
+            echo "🎉 Deployment verification complete!"
+            echo "📝 Access your app at: http://YOUR_EC2_IP:5000"
+            echo "⚠️  Make sure your AWS security group allows inbound traffic on port 5000"
+
