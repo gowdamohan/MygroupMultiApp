@@ -577,8 +577,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, allowClos
               userId={userId}
               onBack={handleBackInRegister}
               onSuccess={() => {
-                setActiveTab('login');
                 resetRegistrationState();
+                redirectToMyMedia();
               }}
             />
           )}

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import axios from 'axios';
+import Swal from 'sweetalert2';
+import 'sweetalert2/dist/sweetalert2.min.css';
 import { X, Loader2 } from 'lucide-react';
 import { API_BASE_URL, API_ENDPOINTS } from '../config/api.config';
 
@@ -184,8 +186,43 @@ export const RegisterStep2Form: React.FC<RegisterStep2FormProps> = ({
       });
 
       if (response.data.success) {
-        alert('Registration successful! Please login to continue.');
-        onSuccess();
+        let loggedIn = !!localStorage.getItem('accessToken');
+
+        if (registerData.password) {
+          try {
+            const loginResponse = await axios.post(`${API_BASE_URL}/login`, {
+              username: registerData.mobile,
+              password: registerData.password
+            });
+
+            if (loginResponse.data.success) {
+              localStorage.setItem('accessToken', loginResponse.data.data.accessToken);
+              localStorage.setItem('refreshToken', loginResponse.data.data.refreshToken);
+              localStorage.setItem('user', JSON.stringify(loginResponse.data.data.user));
+              loggedIn = true;
+            }
+          } catch (loginErr) {
+            console.error('Auto-login after registration failed:', loginErr);
+          }
+        }
+
+        await Swal.fire({
+          icon: 'success',
+          title: 'Registered Successfully!',
+          text: 'Your account has been created successfully.',
+          confirmButtonColor: '#2563eb',
+          confirmButtonText: 'OK',
+          didOpen: () => {
+            const container = Swal.getContainer();
+            if (container) container.style.zIndex = '10050';
+          }
+        });
+
+        if (loggedIn) {
+          onSuccess();
+        } else {
+          setError('Registration successful but auto-login failed. Please login manually.');
+        }
       }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Profile update failed. Please try again.');
