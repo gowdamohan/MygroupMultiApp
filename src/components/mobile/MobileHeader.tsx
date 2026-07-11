@@ -943,7 +943,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
             /* ── Desktop-home top strip: teal background, icons aligned under header ads ── */
             <div style={{ background: '#057284', display: 'grid', gridTemplateColumns: 'auto 1fr' }}>
               {/* Spacer — same width as logo column in Row B so icons align under ads */}
-              <div style={{ minWidth: 200 }} />
+              <div style={{ minWidth: 220 }} />
               {/* Non-clickable app icon pills, flush start under header ad columns */}
               <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide py-2 px-2 min-w-0">
                 {topIcons.map((icon, index) => (
@@ -1054,16 +1054,18 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
         >
           {isDesktopHomeLayout ? (
             <>
-              {/* ── Row B: Logo (left teal) | Header Ad 1 | Header Ad 2 | Dark-mode toggle top-right ── */}
+              {/* ── Row B: Logo (left) | Header Ad 1 | Header Ad 2 | Dark-mode toggle top-right ── */}
               <div
                 className={`border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'} relative`}
-                style={{ display: 'grid', gridTemplateColumns: 'auto 1fr 1fr', height: 120 }}
+                style={{ display: 'grid', gridTemplateColumns: 'auto 1fr 1fr', height: 140 }}
               >
-                {/* Logo cell — teal background, links to home */}
+                {/* Logo cell — no background, larger logo */}
                 <Link
                   to="/"
-                  className="flex items-center justify-center gap-2 px-5 flex-shrink-0 hover:opacity-95 transition-opacity"
-                  style={{ background: '#057284', minWidth: 200 }}
+                  className={`flex items-center justify-center px-4 flex-shrink-0 hover:opacity-95 transition-opacity ${
+                    darkMode ? 'bg-gray-900' : 'bg-white'
+                  }`}
+                  style={{ minWidth: 220 }}
                   aria-label="Go to home page"
                 >
                   {displayLogo || displayIcon ? (
@@ -1074,27 +1076,31 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                           : `${BACKEND_URL}${displayLogo || displayIcon}`
                       }
                       alt={appInfo?.name || 'My Group'}
-                      className="h-24 w-auto max-w-[180px] object-contain"
+                      className="h-32 w-auto max-w-[210px] object-contain"
                       {...WASABI_IMG_PROPS}
                     />
                   ) : (
                     <>
-                      <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center text-white font-bold text-xl flex-shrink-0">
+                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center font-bold text-xl flex-shrink-0 ${
+                        darkMode ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-700'
+                      }`}>
                         {(appInfo?.name || appName || 'M').charAt(0).toUpperCase()}
                       </div>
-                      <span className="text-white font-semibold text-sm hidden sm:block truncate max-w-[90px]">
+                      <span className={`font-semibold text-sm hidden sm:block truncate max-w-[90px] ml-2 ${
+                        darkMode ? 'text-white' : 'text-gray-900'
+                      }`}>
                         {appInfo?.name || 'My Group'}
                       </span>
                     </>
                   )}
                 </Link>
 
-                {/* Header Ad 1 */}
+                {/* Header Ad 1 — uploads/header-ads/header1.jpeg (API ad overrides when present) */}
                 <div
                   className={`overflow-hidden border-l ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}
                   style={{ height: '100%' }}
                 >
-                  {ads[0] ? (
+                  {ads[0]?.url && ads[0].url !== '#' ? (
                     <a
                       href={ads[0].url}
                       target="_blank"
@@ -1102,27 +1108,42 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                       style={{ display: 'block', width: '100%', height: '100%' }}
                     >
                       <img
-                        src={ads[0].image}
-                        alt={ads[0].title}
+                        src={ads[0].image || getUploadUrl('/uploads/header-ads/header1.jpeg')}
+                        alt={ads[0].title || 'Header Ad 1'}
                         className="w-full h-full"
                         style={{ objectFit: 'fill', display: 'block' }}
-                        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                        onError={(e) => {
+                          const img = e.currentTarget as HTMLImageElement;
+                          if (!img.dataset.fallback) {
+                            img.dataset.fallback = '1';
+                            img.src = getUploadUrl('/uploads/header-ads/header1.jpeg');
+                          }
+                        }}
                       />
                     </a>
                   ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-50 gap-1">
-                      <span className="text-[10px] font-semibold text-purple-400">Header Ad 1</span>
-                      <span className="text-[9px] text-gray-400">Your ad here</span>
-                    </div>
+                    <img
+                      src={ads[0]?.image || getUploadUrl('/uploads/header-ads/header1.jpeg')}
+                      alt={ads[0]?.title || 'Header Ad 1'}
+                      className="w-full h-full"
+                      style={{ objectFit: 'fill', display: 'block' }}
+                      onError={(e) => {
+                        const img = e.currentTarget as HTMLImageElement;
+                        if (!img.dataset.fallback) {
+                          img.dataset.fallback = '1';
+                          img.src = getUploadUrl('/uploads/header-ads/header1.jpeg');
+                        }
+                      }}
+                    />
                   )}
                 </div>
 
-                {/* Header Ad 2 */}
+                {/* Header Ad 2 — uploads/header-ads/header2.jpeg (API ad overrides when present) */}
                 <div
                   className={`overflow-hidden border-l ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}
                   style={{ height: '100%' }}
                 >
-                  {ads[1] ? (
+                  {ads[1]?.url && ads[1].url !== '#' ? (
                     <a
                       href={ads[1].url}
                       target="_blank"
@@ -1130,18 +1151,33 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                       style={{ display: 'block', width: '100%', height: '100%' }}
                     >
                       <img
-                        src={ads[1].image}
-                        alt={ads[1].title}
+                        src={ads[1].image || getUploadUrl('/uploads/header-ads/header2.jpeg')}
+                        alt={ads[1].title || 'Header Ad 2'}
                         className="w-full h-full"
                         style={{ objectFit: 'fill', display: 'block' }}
-                        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                        onError={(e) => {
+                          const img = e.currentTarget as HTMLImageElement;
+                          if (!img.dataset.fallback) {
+                            img.dataset.fallback = '1';
+                            img.src = getUploadUrl('/uploads/header-ads/header2.jpeg');
+                          }
+                        }}
                       />
                     </a>
                   ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-r from-indigo-50 via-purple-50 to-indigo-50 gap-1">
-                      <span className="text-[10px] font-semibold text-indigo-400">Header Ad 2</span>
-                      <span className="text-[9px] text-gray-400">Your ad here</span>
-                    </div>
+                    <img
+                      src={ads[1]?.image || getUploadUrl('/uploads/header-ads/header2.jpeg')}
+                      alt={ads[1]?.title || 'Header Ad 2'}
+                      className="w-full h-full"
+                      style={{ objectFit: 'fill', display: 'block' }}
+                      onError={(e) => {
+                        const img = e.currentTarget as HTMLImageElement;
+                        if (!img.dataset.fallback) {
+                          img.dataset.fallback = '1';
+                          img.src = getUploadUrl('/uploads/header-ads/header2.jpeg');
+                        }
+                      }}
+                    />
                   )}
                 </div>
 
@@ -1650,10 +1686,10 @@ export const getMobileHeaderHeight = (
 ) => {
   if (variant === 'desktop' && desktopLayout === 'home') {
     // Row A (teal top-icons strip): ~44px when visible
-    // Row B (logo + two header ads + dark-mode toggle): 120px
+    // Row B (logo + two header ads + dark-mode toggle): 140px
     // Row C removed — dark-mode toggle is now inside Row B (top-right)
     const topIconsRow = showTopIcons ? 44 : 0;
-    return topIconsRow + 120; // Row A + Row B only
+    return topIconsRow + 140; // Row A + Row B only
   }
   if (variant === 'desktop' && !showTopIcons && !_showAds) {
     return 72;

@@ -648,3 +648,34 @@ body.dark-mode .desktop-home .home-side-ad-placeholder {
 body.dark-mode .desktop-home .home-ticker-track span {
   color: #d1d5db;
 }
+
+/* Events / Newsroom / Awards content carousels */
+.home-content-carousel {
+  height: 340px;
+}
+
+.home-content-carousel .swiper-wrapper,
+.home-content-carousel .swiper-slide {
+  height: 100%;
+}
+
+.home-content-carousel .swiper-pagination {
+  bottom: 8px !important;
+}
+
+.home-content-carousel .swiper-pagination-bullet {
+  background: rgba(0, 0, 0, 0.35);
+  opacity: 1;
+}
+
+.home-content-carousel .swiper-pagination-bullet-active {
+  background: #7918f2;
+}
+
+body.dark-mode .home-content-carousel .swiper-pagination-bullet {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+body.dark-mode .home-content-carousel .swiper-pagination-bullet-active {
+  background: #a78bfa;
+}

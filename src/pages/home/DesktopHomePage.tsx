@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ExternalLink, Megaphone, Calendar, Newspaper, Trophy } from 'lucide-react';
+import { ExternalLink, Megaphone, Calendar, Newspaper, Trophy, LucideIcon } from 'lucide-react';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Autoplay, Pagination, Navigation } from 'swiper/modules';
 import { DesktopHomeHeader } from './sections/DesktopHomeHeader';
@@ -9,8 +9,8 @@ import { useHomeData } from '../../hooks/useHomeData';
 import { TestimonialsCarousel } from './sections/TestimonialsCarousel';
 import { HomeGallerySection } from './sections/HomeGallerySection';
 import { HomeFooter } from './sections/HomeFooter';
-import { resolveImageUrl, getAppLink } from './utils';
-import { AppDetails } from '../../types/home.types';
+import { resolveImageUrl, getAppLink, truncateText } from './utils';
+import { AppDetails, FooterPageItem } from '../../types/home.types';
 import 'swiper/css';
 import 'swiper/css/pagination';
 import 'swiper/css/navigation';
@@ -74,6 +74,108 @@ const SidebarSection: React.FC<SidebarSectionProps> = ({ title, apps, darkMode, 
       <p className={`text-[9px] px-3 pb-3 italic ${darkMode ? 'text-gray-600' : 'text-gray-400'}`}>
         {emptyLabel || 'No apps yet'}
       </p>
+    )}
+  </div>
+);
+
+/* ─────────────────────────────────────────────────────────────
+   Events / Newsroom / Awards — photo + title + description carousel
+───────────────────────────────────────────────────────────── */
+interface ContentCarouselColumnProps {
+  title: string;
+  icon: LucideIcon;
+  accentClass: string;
+  lineClass: string;
+  cardBgClass: string;
+  items: FooterPageItem[];
+  linkPrefix: string;
+  emptyLabel: string;
+  darkMode: boolean;
+  headTxt: string;
+  mutedTxt: string;
+  metaRenderer?: (item: FooterPageItem) => React.ReactNode;
+}
+
+const ContentCarouselColumn: React.FC<ContentCarouselColumnProps> = ({
+  title,
+  icon: Icon,
+  accentClass,
+  lineClass,
+  cardBgClass,
+  items,
+  linkPrefix,
+  emptyLabel,
+  darkMode,
+  headTxt,
+  mutedTxt,
+  metaRenderer,
+}) => (
+  <div className="flex flex-col min-h-0">
+    <div className="flex items-center gap-2 mb-3">
+      <Icon size={14} className={`${accentClass} flex-shrink-0`} />
+      <span className={`text-[11px] font-bold uppercase tracking-wider ${accentClass}`}>{title}</span>
+      <div className={`flex-1 h-px ${lineClass}`} />
+      <Link to={linkPrefix} className={`text-[10px] font-semibold ${accentClass} hover:underline`}>
+        View all
+      </Link>
+    </div>
+
+    {items.length > 0 ? (
+      <Swiper
+        modules={[Autoplay, Pagination]}
+        autoplay={{ delay: 4200, disableOnInteraction: false }}
+        pagination={{ clickable: true }}
+        loop={items.length > 1}
+        className="home-swiper home-content-carousel w-full rounded-xl overflow-hidden shadow-md"
+        style={{ height: 340 }}
+      >
+        {items.slice(0, 8).map((item) => (
+          <SwiperSlide key={item.id}>
+            <Link
+              to={`${linkPrefix}/${item.id}`}
+              className={`flex flex-col h-full ${cardBgClass} group`}
+            >
+              <div className="relative w-full flex-shrink-0 overflow-hidden" style={{ height: 180 }}>
+                {item.image ? (
+                  <img
+                    src={resolveImageUrl(item.image)}
+                    alt={item.title || title}
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                  />
+                ) : (
+                  <div
+                    className={`w-full h-full flex items-center justify-center ${
+                      darkMode ? 'bg-gray-700' : 'bg-gray-100'
+                    }`}
+                  >
+                    <Icon size={40} className={accentClass} />
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-col flex-1 p-3.5 min-h-0">
+                {item.title && (
+                  <p className={`text-sm font-semibold leading-snug line-clamp-2 ${headTxt}`}>
+                    {item.title}
+                  </p>
+                )}
+                {metaRenderer?.(item)}
+                {(item.tag_line || item.content) && (
+                  <p className={`text-xs mt-1.5 leading-relaxed line-clamp-3 ${mutedTxt}`}>
+                    {truncateText(item.tag_line || item.content || '', 140)}
+                  </p>
+                )}
+              </div>
+            </Link>
+          </SwiperSlide>
+        ))}
+      </Swiper>
+    ) : (
+      <div
+        className={`rounded-xl flex items-center justify-center ${cardBgClass}`}
+        style={{ height: 340 }}
+      >
+        <p className={`text-xs italic ${mutedTxt}`}>{emptyLabel}</p>
+      </div>
     )}
   </div>
 );
@@ -438,175 +540,74 @@ export const DesktopHomePage: React.FC = () => {
         {hasEventsSection && (
           <>
             <div className="home-portal-divider" />
-            <section className={`border-b ${border} px-6 py-5 ${cardBg} home-section-transition`}>
+            <section className={`border-b ${border} px-6 py-8 ${cardBg} home-section-transition`}>
               {/* Section header row */}
-              <div className="flex items-center gap-3 mb-5">
+              <div className="flex items-center gap-3 mb-6">
                 <h3 className={`text-xs font-bold uppercase tracking-widest ${headTxt}`}>
                   Events &amp; News
                 </h3>
                 <div className={`flex-1 h-px ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
               </div>
 
-              {/* 3-column grid */}
+              {/* 3-column carousels — photo, title, description */}
               <div className="grid grid-cols-3 gap-6">
+                <ContentCarouselColumn
+                  title="Events"
+                  icon={Calendar}
+                  accentClass="text-indigo-500"
+                  lineClass={darkMode ? 'bg-indigo-900/50' : 'bg-indigo-100'}
+                  cardBgClass={darkMode ? 'bg-gray-700/60' : 'bg-indigo-50/60'}
+                  items={homeData.eventsList ?? []}
+                  linkPrefix="/events"
+                  emptyLabel="No events found"
+                  darkMode={darkMode}
+                  headTxt={headTxt}
+                  mutedTxt={mutedTxt}
+                  metaRenderer={(ev) =>
+                    ev.event_date ? (
+                      <p className="text-[10px] mt-1 font-medium text-indigo-500">
+                        {new Date(ev.event_date).toLocaleDateString('en-IN', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                        })}
+                      </p>
+                    ) : null
+                  }
+                />
 
-                {/* ── Column 1: EVENTS ── */}
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <Calendar size={14} className="text-indigo-500 flex-shrink-0" />
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-500">Events</span>
-                    <div className={`flex-1 h-px ${darkMode ? 'bg-indigo-900/50' : 'bg-indigo-100'}`} />
-                  </div>
-                  <div className="space-y-2.5">
-                    {(homeData.eventsList ?? []).length > 0 ? (
-                      (homeData.eventsList ?? []).slice(0, 5).map((ev) => (
-                        <div
-                          key={ev.id}
-                          className={`flex gap-2.5 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow ${
-                            darkMode ? 'bg-gray-700/60' : 'bg-indigo-50/60'
-                          }`}
-                        >
-                          {ev.image ? (
-                            <img
-                              src={resolveImageUrl(ev.image)}
-                              alt={ev.title || 'Event'}
-                              className="w-[68px] h-[68px] object-cover flex-shrink-0"
-                            />
-                          ) : (
-                            <div
-                              className={`w-[68px] h-[68px] flex-shrink-0 flex items-center justify-center ${
-                                darkMode ? 'bg-indigo-900/40' : 'bg-indigo-100'
-                              }`}
-                            >
-                              <Calendar size={20} className="text-indigo-400" />
-                            </div>
-                          )}
-                          <div className="py-2 pr-2 min-w-0 flex flex-col justify-center">
-                            {ev.title && (
-                              <p className={`text-xs font-semibold leading-snug line-clamp-2 ${headTxt}`}>
-                                {ev.title}
-                              </p>
-                            )}
-                            {ev.event_date && (
-                              <p className={`text-[10px] mt-1 font-medium text-indigo-500`}>
-                                {new Date(ev.event_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                              </p>
-                            )}
-                            {ev.tag_line && (
-                              <p className={`text-[10px] mt-0.5 ${mutedTxt} line-clamp-1`}>{ev.tag_line}</p>
-                            )}
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <p className={`text-xs italic ${mutedTxt}`}>No events found</p>
-                    )}
-                  </div>
-                </div>
+                <ContentCarouselColumn
+                  title="Newsroom"
+                  icon={Newspaper}
+                  accentClass="text-blue-500"
+                  lineClass={darkMode ? 'bg-blue-900/50' : 'bg-blue-100'}
+                  cardBgClass={darkMode ? 'bg-gray-700/60' : 'bg-blue-50/60'}
+                  items={homeData.newsroomList ?? []}
+                  linkPrefix="/newsroom"
+                  emptyLabel="No newsroom entries found"
+                  darkMode={darkMode}
+                  headTxt={headTxt}
+                  mutedTxt={mutedTxt}
+                />
 
-                {/* ── Column 2: NEWSROOM ── */}
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <Newspaper size={14} className="text-blue-500 flex-shrink-0" />
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-blue-500">Newsroom</span>
-                    <div className={`flex-1 h-px ${darkMode ? 'bg-blue-900/50' : 'bg-blue-100'}`} />
-                  </div>
-                  <div className="space-y-2.5">
-                    {(homeData.newsroomList ?? []).length > 0 ? (
-                      (homeData.newsroomList ?? []).slice(0, 5).map((item) => (
-                        <div
-                          key={item.id}
-                          className={`flex gap-2.5 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow ${
-                            darkMode ? 'bg-gray-700/60' : 'bg-blue-50/60'
-                          }`}
-                        >
-                          {item.image ? (
-                            <img
-                              src={resolveImageUrl(item.image)}
-                              alt={item.title || 'News'}
-                              className="w-[68px] h-[68px] object-cover flex-shrink-0"
-                            />
-                          ) : (
-                            <div
-                              className={`w-[68px] h-[68px] flex-shrink-0 flex items-center justify-center ${
-                                darkMode ? 'bg-blue-900/40' : 'bg-blue-100'
-                              }`}
-                            >
-                              <Newspaper size={20} className="text-blue-400" />
-                            </div>
-                          )}
-                          <div className="py-2 pr-2 min-w-0 flex flex-col justify-center">
-                            {item.title && (
-                              <p className={`text-xs font-semibold leading-snug line-clamp-2 ${headTxt}`}>
-                                {item.title}
-                              </p>
-                            )}
-                            {item.tag_line && (
-                              <p className={`text-[10px] mt-1 ${mutedTxt} line-clamp-1`}>{item.tag_line}</p>
-                            )}
-                            {item.content && (
-                              <p className={`text-[10px] mt-0.5 ${mutedTxt} line-clamp-1`}>{item.content}</p>
-                            )}
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <p className={`text-xs italic ${mutedTxt}`}>No newsroom entries found</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* ── Column 3: AWARDS ── */}
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <Trophy size={14} className="text-amber-500 flex-shrink-0" />
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-amber-500">Awards</span>
-                    <div className={`flex-1 h-px ${darkMode ? 'bg-amber-900/50' : 'bg-amber-100'}`} />
-                  </div>
-                  <div className="space-y-2.5">
-                    {(homeData.awardsList ?? []).length > 0 ? (
-                      (homeData.awardsList ?? []).slice(0, 5).map((item) => (
-                        <div
-                          key={item.id}
-                          className={`flex gap-2.5 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow ${
-                            darkMode ? 'bg-gray-700/60' : 'bg-amber-50/60'
-                          }`}
-                        >
-                          {item.image ? (
-                            <img
-                              src={resolveImageUrl(item.image)}
-                              alt={item.title || 'Award'}
-                              className="w-[68px] h-[68px] object-cover flex-shrink-0"
-                            />
-                          ) : (
-                            <div
-                              className={`w-[68px] h-[68px] flex-shrink-0 flex items-center justify-center ${
-                                darkMode ? 'bg-amber-900/40' : 'bg-amber-100'
-                              }`}
-                            >
-                              <Trophy size={20} className="text-amber-400" />
-                            </div>
-                          )}
-                          <div className="py-2 pr-2 min-w-0 flex flex-col justify-center">
-                            {item.title && (
-                              <p className={`text-xs font-semibold leading-snug line-clamp-2 ${headTxt}`}>
-                                {item.title}
-                              </p>
-                            )}
-                            {item.year && (
-                              <p className={`text-[10px] mt-1 font-medium text-amber-500`}>{item.year}</p>
-                            )}
-                            {item.tag_line && (
-                              <p className={`text-[10px] mt-0.5 ${mutedTxt} line-clamp-1`}>{item.tag_line}</p>
-                            )}
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <p className={`text-xs italic ${mutedTxt}`}>No awards found</p>
-                    )}
-                  </div>
-                </div>
+                <ContentCarouselColumn
+                  title="Awards"
+                  icon={Trophy}
+                  accentClass="text-amber-500"
+                  lineClass={darkMode ? 'bg-amber-900/50' : 'bg-amber-100'}
+                  cardBgClass={darkMode ? 'bg-gray-700/60' : 'bg-amber-50/60'}
+                  items={homeData.awardsList ?? []}
+                  linkPrefix="/awards"
+                  emptyLabel="No awards found"
+                  darkMode={darkMode}
+                  headTxt={headTxt}
+                  mutedTxt={mutedTxt}
+                  metaRenderer={(item) =>
+                    item.year ? (
+                      <p className="text-[10px] mt-1 font-medium text-amber-500">{item.year}</p>
+                    ) : null
+                  }
+                />
               </div>
             </section>
           </>
